@@ -1,15 +1,39 @@
 import { useSimStore } from '../state/simStore';
 import { useFlightStore } from '../state/flightStore';
-import { useTrainingStore, isLessonUnlocked } from '../state/trainingStore';
+import { useTrainingStore, isLessonUnlocked, type TrainingPhase } from '../state/trainingStore';
 import { getLesson, lessonIndex, nextLesson, LESSONS } from '../training/lessons';
 import { StickIndicator } from './StickIndicator';
 import { KeyHints } from './KeyHints';
+
+const STEPS: { key: TrainingPhase; label: string }[] = [
+  { key: 'intro', label: 'Learn' },
+  { key: 'demo', label: 'Demo' },
+  { key: 'practice', label: 'Fly' },
+  { key: 'reward', label: 'Done' },
+];
+
+function Stepper({ phase }: { phase: TrainingPhase }) {
+  const active = STEPS.findIndex((s) => s.key === phase);
+  return (
+    <div className="tr-stepper">
+      {STEPS.map((s, i) => (
+        <div
+          key={s.key}
+          className={`tr-stepper-node ${i === active ? 'active' : ''} ${i < active ? 'done' : ''}`}
+        >
+          <span className="tr-stepper-dot">{i < active ? '✓' : i + 1}</span>
+          <span className="tr-stepper-label">{s.label}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 function Stars({ value }: { value: number }) {
   return (
     <div className="tr-stars" aria-label={`${value} of 3 stars`}>
       {[1, 2, 3].map((i) => (
-        <span key={i} className={`tr-star ${i <= value ? 'on' : ''}`}>
+        <span key={i} className={`tr-star ${i <= value ? 'on' : ''}`} style={{ animationDelay: `${i * 0.15}s` }}>
           ★
         </span>
       ))}
@@ -43,26 +67,43 @@ export function TrainingHud() {
   const next = nextLesson(lesson.id);
   const hasNext = !!next && isLessonUnlocked(next.id);
   const isLast = lessonIndex(lesson.id) === LESSONS.length - 1;
+  const pct = Math.round((validation.progress || 0) * 100);
 
   return (
-    <div className="tr-hud">
-      {/* Lesson header + exit */}
+    <div className={`tr-hud phase-${phase}`}>
+      {/* Top bar: module badge · phase stepper · exit */}
       <div className="tr-top">
         <div className="tr-badge">
-          <span className="tr-badge-num">Lesson {num}</span>
+          <span className="tr-badge-num">Module {num}</span>
           <span className="tr-badge-title">{lesson.title}</span>
         </div>
+        <Stepper phase={phase} />
         <button className="tr-exit" onClick={exitLesson} title="Back to lessons">
-          Exit ✕
+          ✕
         </button>
       </div>
 
-      {/* Compact flight readout — useful once airborne */}
+      {/* Big flight gauges — shown once we're flying */}
       {(phase === 'demo' || phase === 'practice') && (
-        <div className="tr-readout">
-          <div className={`tr-chip ${armed ? 'on' : ''}`}>{armed ? 'ARMED' : 'DISARMED'}</div>
-          <div className="tr-chip">ALT {altitude.toFixed(1)} m</div>
-          <div className="tr-chip">THR {Math.round(throttle * 100)}%</div>
+        <div className="tr-gauges">
+          <div className={`tr-gauge ${armed ? 'live' : ''}`}>
+            <span className="tr-gauge-val">{armed ? 'ARMED' : 'IDLE'}</span>
+            <span className="tr-gauge-lbl">Status</span>
+          </div>
+          <div className="tr-gauge">
+            <span className="tr-gauge-val">
+              {altitude.toFixed(1)}
+              <em>m</em>
+            </span>
+            <span className="tr-gauge-lbl">Altitude</span>
+          </div>
+          <div className="tr-gauge">
+            <span className="tr-gauge-val">
+              {Math.round(throttle * 100)}
+              <em>%</em>
+            </span>
+            <span className="tr-gauge-lbl">Throttle</span>
+          </div>
         </div>
       )}
 
@@ -70,7 +111,7 @@ export function TrainingHud() {
       {phase === 'intro' && (
         <div className="tr-center">
           <div className="tr-card">
-            <span className="tr-step">Lesson {num} · Introduction</span>
+            <span className="tr-kicker">📖 Learn · Module {num}</span>
             <h2>{lesson.explain.title}</h2>
             {lesson.explain.body.map((line, i) => (
               <p key={i}>{line}</p>
@@ -118,11 +159,11 @@ export function TrainingHud() {
       {phase === 'demo' && (
         <div className="tr-demo">
           <div className="tr-demo-tag">
-            ● DEMONSTRATION · {demoRound} of {demoRounds} — watch the drone
+            🎥 DEMONSTRATION · {demoRound} / {demoRounds}
           </div>
           {demoCaption && <div className="tr-demo-caption">{demoCaption}</div>}
           <button className="tr-btn small" onClick={() => setPhase('practice')}>
-            Skip ⏭
+            Skip to Practice ⏭
           </button>
         </div>
       )}
@@ -140,22 +181,25 @@ export function TrainingHud() {
       {/* Step 3/4 — Practice + live validation */}
       {phase === 'practice' && (
         <>
-          <div className="tr-practice">
-            <span className="tr-step">Your Turn</span>
+          <div className={`tr-objective ${validation.failed ? 'fail' : ''}`}>
+            <div className="tr-objective-head">
+              <span className="tr-kicker">🎮 Your Mission</span>
+              <span className="tr-objective-pct">{pct}%</span>
+            </div>
             <h3>{lesson.practice.prompt}</h3>
             <div className="tr-progress">
               <div
                 className={`tr-progress-fill ${validation.failed ? 'fail' : ''}`}
-                style={{ width: `${Math.round((validation.progress || 0) * 100)}%` }}
+                style={{ width: `${pct}%` }}
               />
             </div>
+            {hint && (
+              <div className={`tr-hint ${validation.failed ? 'fail' : ''}`}>
+                {validation.failed ? '⚠ ' : '➤ '}
+                {hint}
+              </div>
+            )}
           </div>
-          {hint && (
-            <div className={`tr-hint ${validation.failed ? 'fail' : ''}`}>
-              {validation.failed ? '✕ ' : '› '}
-              {hint}
-            </div>
-          )}
         </>
       )}
 
@@ -163,6 +207,7 @@ export function TrainingHud() {
       {phase === 'reward' && (
         <div className="tr-center">
           <div className="tr-card reward">
+            <div className="tr-burst" />
             <span className="tr-check">✓</span>
             <h2>Lesson Complete!</h2>
             <Stars value={lastStars} />
@@ -170,7 +215,7 @@ export function TrainingHud() {
             <div className="tr-actions">
               {hasNext && next && (
                 <button className="tr-btn primary" onClick={() => start(next.id)}>
-                  Next Lesson →
+                  Next: {next.title} →
                 </button>
               )}
               <button className="tr-btn" onClick={() => start(lesson.id)}>

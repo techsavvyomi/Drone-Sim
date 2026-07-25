@@ -2659,3 +2659,360 @@ button {
     x2 0.45s ease,
     y2 0.45s ease;
 }
+
+/* ==========================================================================
+   Pluto Flight School — gamified in-lesson HUD (revamp)
+   Later rules; these intentionally override the base .tr-* styles above.
+   ========================================================================== */
+
+.tr-hud {
+  --tr-accent: #38bdf8;
+  --tr-accent-2: #1d7fb8;
+}
+.tr-hud.phase-intro {
+  --tr-accent: #38bdf8;
+  --tr-accent-2: #1d7fb8;
+}
+.tr-hud.phase-demo {
+  --tr-accent: #ffcf4d;
+  --tr-accent-2: #c98a12;
+}
+.tr-hud.phase-practice {
+  --tr-accent: #37e08a;
+  --tr-accent-2: #1f9d63;
+}
+.tr-hud.phase-reward {
+  --tr-accent: #ffd54a;
+  --tr-accent-2: #e0a90f;
+}
+
+/* Top bar: badge · stepper · exit */
+.tr-top {
+  align-items: center;
+  gap: 14px;
+}
+.tr-badge {
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--tr-accent);
+  background: linear-gradient(100deg, rgba(56, 189, 248, 0.14), rgba(10, 15, 25, 0.85));
+  padding: 8px 16px;
+  border-radius: 10px;
+}
+.tr-badge-num {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  color: var(--tr-accent);
+  text-transform: uppercase;
+}
+.tr-badge-title {
+  font-size: 18px;
+  font-weight: 900;
+  letter-spacing: -0.01em;
+}
+.tr-exit {
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  font-size: 15px;
+  border-radius: 10px;
+}
+
+/* Phase stepper */
+.tr-stepper {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(10, 15, 25, 0.75);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 6px 12px;
+  backdrop-filter: blur(8px);
+}
+.tr-stepper-node {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  opacity: 0.45;
+}
+.tr-stepper-node::after {
+  content: '';
+  width: 16px;
+  height: 2px;
+  background: var(--line);
+  margin-left: 4px;
+}
+.tr-stepper-node:last-child::after {
+  display: none;
+}
+.tr-stepper-node.active,
+.tr-stepper-node.done {
+  opacity: 1;
+}
+.tr-stepper-dot {
+  width: 20px;
+  height: 20px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  border: 1.5px solid var(--line);
+  font-size: 10px;
+  font-weight: 800;
+  color: var(--text-dim);
+}
+.tr-stepper-node.active .tr-stepper-dot {
+  border-color: var(--tr-accent);
+  background: var(--tr-accent);
+  color: #04121c;
+  box-shadow: 0 0 14px color-mix(in srgb, var(--tr-accent) 70%, transparent);
+}
+.tr-stepper-node.done .tr-stepper-dot {
+  border-color: var(--good);
+  color: var(--good);
+}
+.tr-stepper-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.tr-stepper-node.active .tr-stepper-label {
+  color: var(--tr-accent);
+}
+
+/* Big flight gauges */
+.tr-gauges {
+  position: absolute;
+  top: 72px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 10px;
+}
+.tr-gauge {
+  min-width: 96px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  background: rgba(10, 15, 25, 0.82);
+  border: 1px solid var(--line);
+  border-bottom: 3px solid var(--tr-accent);
+  border-radius: 10px;
+  padding: 8px 16px 6px;
+  backdrop-filter: blur(8px);
+}
+.tr-gauge-val {
+  font-size: 24px;
+  font-weight: 900;
+  letter-spacing: -0.02em;
+  line-height: 1;
+}
+.tr-gauge-val em {
+  font-style: normal;
+  font-size: 12px;
+  color: var(--text-dim);
+  margin-left: 2px;
+}
+.tr-gauge-lbl {
+  font-size: 9px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+.tr-gauge.live .tr-gauge-val {
+  color: var(--good);
+}
+
+/* Kicker label */
+.tr-kicker {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--tr-accent);
+}
+
+/* Cards (intro / reward) — bolder */
+.tr-card {
+  width: min(560px, 92%);
+  border: 1px solid color-mix(in srgb, var(--tr-accent) 40%, var(--line));
+  border-top: 4px solid var(--tr-accent);
+  border-radius: 16px;
+  box-shadow:
+    0 24px 70px rgba(0, 0, 0, 0.6),
+    0 0 0 1px rgba(255, 255, 255, 0.02) inset;
+}
+.tr-card h2 {
+  font-size: 27px;
+  font-weight: 900;
+}
+
+/* Demonstration banner */
+.tr-demo {
+  bottom: 104px;
+}
+.tr-demo-tag {
+  color: var(--tr-accent);
+  border-color: color-mix(in srgb, var(--tr-accent) 45%, transparent);
+  font-weight: 800;
+}
+.tr-demo-caption {
+  font-size: 17px;
+  font-weight: 800;
+  border-bottom: 3px solid var(--tr-accent);
+}
+
+/* Practice objective banner (bottom) */
+.tr-objective {
+  position: absolute;
+  bottom: 100px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(560px, 92%);
+  background: rgba(10, 15, 25, 0.9);
+  border: 1px solid color-mix(in srgb, var(--tr-accent) 45%, var(--line));
+  border-left: 4px solid var(--tr-accent);
+  border-radius: 12px;
+  padding: 14px 18px;
+  backdrop-filter: blur(10px);
+  box-shadow: 0 16px 44px rgba(0, 0, 0, 0.5);
+}
+.tr-objective.fail {
+  border-color: var(--bad);
+  border-left-color: var(--bad);
+}
+.tr-objective-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+.tr-objective-pct {
+  font-size: 22px;
+  font-weight: 900;
+  color: var(--tr-accent);
+}
+.tr-objective h3 {
+  margin: 4px 0 12px;
+  font-size: 18px;
+  font-weight: 800;
+}
+.tr-objective .tr-progress {
+  height: 10px;
+}
+.tr-objective .tr-progress-fill {
+  background: linear-gradient(90deg, var(--tr-accent-2), var(--tr-accent));
+  box-shadow: 0 0 14px color-mix(in srgb, var(--tr-accent) 60%, transparent);
+}
+/* Hint nested inside the objective banner */
+.tr-objective .tr-hint {
+  position: static;
+  transform: none;
+  max-width: none;
+  margin-top: 10px;
+  background: none;
+  border: none;
+  border-left: none;
+  padding: 0;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--text);
+  text-align: left;
+  backdrop-filter: none;
+}
+.tr-objective .tr-hint.fail {
+  color: var(--bad);
+}
+
+/* Buttons — accent gradient */
+.tr-btn.primary {
+  background: linear-gradient(100deg, var(--tr-accent), var(--tr-accent-2));
+  border-color: var(--tr-accent);
+  color: #04121c;
+  font-weight: 800;
+  box-shadow: 0 6px 20px color-mix(in srgb, var(--tr-accent) 35%, transparent);
+}
+.tr-btn.primary:hover {
+  filter: brightness(1.1);
+}
+
+/* Keycaps — chunkier, accent when active */
+.tr-key.on {
+  border-color: var(--tr-accent);
+}
+.tr-key.on kbd {
+  background: var(--tr-accent);
+  border-color: var(--tr-accent);
+  box-shadow: 0 0 16px color-mix(in srgb, var(--tr-accent) 65%, transparent);
+}
+.tr-key.on span {
+  color: var(--tr-accent);
+}
+
+/* Reward — burst + popping stars */
+.tr-card.reward {
+  border-top-color: var(--warn);
+  border-color: color-mix(in srgb, var(--warn) 45%, var(--line));
+  overflow: hidden;
+}
+.tr-burst {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 50% 34%, rgba(255, 213, 74, 0.22), transparent 60%);
+  pointer-events: none;
+}
+.tr-check {
+  width: 60px;
+  height: 60px;
+  font-size: 32px;
+  animation: tr-pop 0.4s ease-out both;
+}
+.tr-stars {
+  gap: 10px;
+  margin: 12px 0 8px;
+}
+.tr-star {
+  font-size: 46px;
+}
+.tr-star.on {
+  animation: tr-pop 0.45s ease-out both;
+}
+.tr-xp {
+  font-size: 20px;
+  padding: 4px 14px;
+  border-radius: 999px;
+  background: rgba(56, 189, 248, 0.14);
+  border: 1px solid var(--accent-2);
+}
+@keyframes tr-pop {
+  0% {
+    transform: scale(0.2);
+    opacity: 0;
+  }
+  70% {
+    transform: scale(1.15);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+/* Keep the objective/demo clear of the very-bottom keycap row */
+.tr-keys {
+  bottom: 22px;
+}
+
+@media (max-width: 720px) {
+  .tr-stepper .tr-stepper-label {
+    display: none;
+  }
+  .tr-gauge {
+    min-width: 74px;
+  }
+}
