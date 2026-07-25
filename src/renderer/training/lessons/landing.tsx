@@ -32,7 +32,7 @@ function LandingHighlight() {
 // inside the landing circle. Scored on accuracy, descent rate and stability.
 export const landingLesson: Lesson = {
   id: 'landing',
-  order: 4,
+  order: 9,
   title: 'Landing',
   subtitle: 'Touch down on the pad',
 
@@ -68,6 +68,15 @@ export const landingLesson: Lesson = {
     { code: 'KeyW', label: 'W', hint: 'Up' },
     { code: 'KeyS', label: 'S', hint: 'Down' },
     { code: 'Space', label: 'SPACE', hint: 'Auto-land' },
+  ],
+
+  tips: [
+    'Line up over the pad before you start descending.',
+    'Descend slowly — a soft touchdown scores highest.',
+  ],
+  commonMistakes: [
+    'Cutting the motors while still in the air.',
+    'Drifting off the pad during the descent.',
   ],
 
   validate: (p, mem) => {

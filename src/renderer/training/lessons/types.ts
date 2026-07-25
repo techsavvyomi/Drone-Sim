@@ -102,6 +102,11 @@ export interface Lesson {
   /** Step 3 — Practice prompt + a default standing hint. */
   practice: { prompt: string; hint: string };
 
+  /** 💡 Pilot tips — best-practice pointers, shown on the intro card. */
+  tips?: string[];
+  /** ⚠ Common mistakes beginners make, shown on the intro card. */
+  commonMistakes?: string[];
+
   /** Keycaps to show under the flight view for this lesson's controls. */
   keys?: KeyHint[];
 
@@ -142,4 +147,12 @@ export function holdFor(
 /** Horizontal distance from a world position to a world XZ point. */
 export function horizontalDist(position: Vec3, x: number, z: number): number {
   return Math.hypot(position[0] - x, position[2] - z);
+}
+
+/** Smallest signed difference a-b between two angles (radians), in degrees. */
+export function angleDiffDeg(a: number, b: number): number {
+  let d = ((a - b) * 180) / Math.PI;
+  while (d > 180) d -= 360;
+  while (d < -180) d += 360;
+  return d;
 }

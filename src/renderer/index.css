@@ -2378,6 +2378,46 @@ button {
   font-size: 12px;
   color: var(--text-dim);
 }
+.tr-notes {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 16px;
+  text-align: left;
+}
+.tr-note {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+.tr-note.tips {
+  border-left: 2px solid var(--good);
+}
+.tr-note.mistakes {
+  border-left: 2px solid var(--warn);
+}
+.tr-note b {
+  display: block;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  margin-bottom: 6px;
+}
+.tr-note ul {
+  margin: 0;
+  padding-left: 16px;
+}
+.tr-note li {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-dim);
+  margin-bottom: 3px;
+}
+@media (max-width: 560px) {
+  .tr-notes {
+    grid-template-columns: 1fr;
+  }
+}
 .tr-actions {
   display: flex;
   gap: 10px;

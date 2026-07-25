@@ -32,6 +32,15 @@ export const armLesson: Lesson = {
 
   keys: [{ code: 'Enter', label: 'ENTER', hint: 'Arm' }],
 
+  tips: [
+    'Always check the area is clear before arming.',
+    'Keep your hands well clear of the propellers.',
+  ],
+  commonMistakes: [
+    'Arming with the throttle stick pushed up.',
+    'Arming near people or obstacles.',
+  ],
+
   validate: (p) => {
     if (p.armed) return { done: true, progress: 1, hint: 'Drone armed' };
     return { done: false, progress: 0, hint: 'Press ENTER to arm the drone' };

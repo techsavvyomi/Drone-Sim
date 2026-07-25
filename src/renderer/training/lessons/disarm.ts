@@ -39,6 +39,15 @@ export const disarmLesson: Lesson = {
 
   keys: [{ code: 'Enter', label: 'ENTER', hint: 'Disarm' }],
 
+  tips: [
+    'Always disarm immediately after landing.',
+    'Disarming is your fastest emergency stop.',
+  ],
+  commonMistakes: [
+    'Leaving the drone armed on the ground.',
+    'Forgetting to disarm after a hard landing.',
+  ],
+
   validate: (p) => {
     if (!p.armed) return { done: true, progress: 1, hint: 'Drone disarmed' };
     return { done: false, progress: 0, hint: 'Press ENTER to disarm the drone' };

@@ -75,6 +75,30 @@ export function TrainingHud() {
             {lesson.explain.body.map((line, i) => (
               <p key={i}>{line}</p>
             ))}
+            {(lesson.tips?.length || lesson.commonMistakes?.length) && (
+              <div className="tr-notes">
+                {lesson.tips && lesson.tips.length > 0 && (
+                  <div className="tr-note tips">
+                    <b>💡 Pilot Tips</b>
+                    <ul>
+                      {lesson.tips.map((t, i) => (
+                        <li key={i}>{t}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {lesson.commonMistakes && lesson.commonMistakes.length > 0 && (
+                  <div className="tr-note mistakes">
+                    <b>⚠ Common Mistakes</b>
+                    <ul>
+                      {lesson.commonMistakes.map((t, i) => (
+                        <li key={i}>{t}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            )}
             {lesson.explain.durationHint && (
               <span className="tr-duration">⏱ {lesson.explain.durationHint}</span>
             )}

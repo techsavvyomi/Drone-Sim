@@ -1,14 +1,27 @@
 import type { Lesson } from './types';
 import { armLesson } from './arm';
 import { disarmLesson } from './disarm';
+import { takeoffLesson } from './takeoff';
 import { throttleLesson } from './throttle';
+import { yawLesson } from './yaw';
+import { pitchLesson } from './pitch';
+import { rollLesson } from './roll';
+import { hoverLesson } from './hover';
 import { landingLesson } from './landing';
 
 // The Flight School curriculum, in order. Adding a lesson is a one-line push
 // here plus its data file — the Director, HUD and lesson-select UI are generic.
-export const LESSONS: Lesson[] = [armLesson, disarmLesson, throttleLesson, landingLesson].sort(
-  (a, b) => a.order - b.order,
-);
+export const LESSONS: Lesson[] = [
+  armLesson,
+  disarmLesson,
+  takeoffLesson,
+  throttleLesson,
+  yawLesson,
+  pitchLesson,
+  rollLesson,
+  hoverLesson,
+  landingLesson,
+].sort((a, b) => a.order - b.order);
 
 export function getLesson(id: string): Lesson | undefined {
   return LESSONS.find((l) => l.id === id);
