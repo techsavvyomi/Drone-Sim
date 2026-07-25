@@ -41,11 +41,21 @@ export const armLesson: Lesson = {
     'Arming near people or obstacles.',
   ],
 
-  validate: (p) => {
+  validate: (p, mem) => {
     if (p.armed) return { done: true, progress: 1, hint: 'Drone armed' };
-    return { done: false, progress: 0, hint: 'Press ENTER to arm the drone' };
+    // The safety interlock refuses to arm with the throttle raised — teach why.
+    if (p.throttle > 0.62) {
+      mem.blocked = 1; // remember the mistake for scoring
+      return {
+        done: false,
+        progress: 0,
+        failed: false,
+        hint: 'Throttle is up — centre it first (arming is blocked for safety)',
+      };
+    }
+    return { done: false, progress: 0, hint: 'Throttle centred — press ENTER to arm' };
   },
 
-  // Binary action — a clean arm is a full-marks arm.
-  score: () => 3,
+  // Clean arm = 3★; if you tried to arm with the throttle up along the way, 2★.
+  score: ({ mem }) => (mem.blocked ? 2 : 3),
 };

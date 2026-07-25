@@ -174,11 +174,27 @@ export function resetStick(): void {
   pressed.clear();
 }
 
+/**
+ * Real flight controllers refuse to arm unless the throttle is at its safe
+ * resting position — arming with the throttle raised would spin up and lurch.
+ * In altitude-managed modes the safe position is the spring centre; in direct
+ * modes it is near idle. Returns true when it's safe to arm.
+ */
+export function throttleSafeToArm(): boolean {
+  const managed = ALT_MANAGED.includes(useFlightStore.getState().mode);
+  const limit = managed ? THROTTLE_CENTER + 0.12 : 0.15;
+  return stick.throttle <= limit;
+}
+
 function runCommand(code: string): void {
   switch (code) {
-    case CODE.arm:
-      useFlightStore.getState().toggleArm();
+    case CODE.arm: {
+      const flight = useFlightStore.getState();
+      // Block arming with the throttle up; disarming is always allowed.
+      if (!flight.armed && !throttleSafeToArm()) break;
+      flight.toggleArm();
       break;
+    }
     case CODE.takeoffLand:
       useFlightStore.getState().requestTakeoffLand();
       break;
@@ -206,7 +222,7 @@ function runGamepadAction(action: GamepadAction): void {
   const flight = useFlightStore.getState();
   switch (action) {
     case 'arm':
-      if (!flight.armed) flight.toggleArm();
+      if (!flight.armed && throttleSafeToArm()) flight.toggleArm();
       break;
     case 'disarm':
       flight.disarm();

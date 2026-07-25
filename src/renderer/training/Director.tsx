@@ -220,6 +220,7 @@ export function Director() {
         groundSpeed: sim.groundSpeed,
         roll: sim.roll,
         pitch: sim.pitch,
+        throttle: sim.sticks.throttle,
         dt: delta,
         elapsed: practiceTime.current,
       },

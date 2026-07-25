@@ -25,6 +25,8 @@ export interface Probe {
   groundSpeed: number;
   roll: number;
   pitch: number;
+  /** Throttle stick position 0..1 (0.5 = centre in altitude-managed modes). */
+  throttle: number;
   /** This frame's delta time, seconds. */
   dt: number;
   /** Seconds elapsed since the Practice phase began. */
