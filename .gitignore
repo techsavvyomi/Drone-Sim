@@ -1,0 +1,13 @@
+node_modules/
+.vite/
+out/
+dist/
+*.log
+.DS_Store
+
+# Reference-only legacy project (separate app, large build artifacts)
+ar_drone_sim/
+
+# Large 3D model assets exceed GitHub's 100MB limit; app falls back to
+# procedural meshes when these are absent.
+src/assets/models/*.glb

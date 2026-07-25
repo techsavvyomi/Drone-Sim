@@ -1,0 +1,2148 @@
+/* ==========================================================================
+   Drone Flight Simulator — game UI theme
+   Deep-space palette, neon accents, clipped corners, glow. Deliberately not a
+   dashboard: chrome is minimal, type is condensed and upper-case, and every
+   interactive surface reacts.
+   ========================================================================== */
+
+:root {
+  --bg: #070b12;
+  --bg-2: #0c121d;
+  --panel: rgba(13, 20, 32, 0.92);
+  --line: #1c2b42;
+  --text: #e9f1fb;
+  --text-dim: #7d8da5;
+  --accent: #38bdf8;
+  --accent-2: #1d7fb8;
+  --good: #37e08a;
+  --warn: #ffcf4d;
+  --bad: #ff5c5c;
+  --rail-w: 74px;
+  --panel-w: 286px;
+  --status-h: 26px;
+  font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  overflow: hidden;
+}
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+  color: inherit;
+  border: none;
+  background: none;
+}
+
+.boot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--text-dim);
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  font-size: 12px;
+}
+
+/* ==========================================================================
+   Flight HUD
+   ========================================================================== */
+
+.hud {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  font-variant-numeric: tabular-nums;
+}
+.hud-left {
+  position: absolute;
+  top: 14px;
+  left: 14px;
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+.adi,
+.alt-tape {
+  filter: drop-shadow(0 3px 14px rgba(0, 0, 0, 0.6));
+}
+.hud-instruments {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.inst {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-left: 2px solid var(--accent);
+  border-radius: 3px;
+  padding: 5px 10px;
+  min-width: 96px;
+  backdrop-filter: blur(6px);
+}
+.inst-sm {
+  min-width: 76px;
+  padding: 4px 8px;
+}
+.inst-label {
+  display: block;
+  font-size: 9px;
+  letter-spacing: 0.18em;
+  color: var(--text-dim);
+}
+.inst-value {
+  font-size: 18px;
+  font-weight: 700;
+}
+.inst-sm .inst-value {
+  font-size: 14px;
+}
+.inst-value em {
+  font-style: normal;
+  font-size: 10px;
+  color: var(--text-dim);
+  margin-left: 3px;
+}
+
+.hud-compass {
+  position: absolute;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  filter: drop-shadow(0 3px 14px rgba(0, 0, 0, 0.6));
+}
+
+.hud-right {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+}
+.status-badge {
+  padding: 6px 14px;
+  border-radius: 3px;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  background: rgba(120, 40, 40, 0.5);
+  border: 1px solid #7a2c2c;
+  color: #ffb4b4;
+  clip-path: polygon(8px 0, 100% 0, 100% 100%, 0 100%, 0 8px);
+}
+.status-badge.armed {
+  background: rgba(24, 84, 56, 0.5);
+  border-color: #2c7a54;
+  color: var(--good);
+  box-shadow: 0 0 20px rgba(55, 224, 138, 0.18);
+}
+.mode-badge,
+.cam-badge,
+.fps-badge {
+  font-size: 10.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  padding: 4px 9px;
+  backdrop-filter: blur(6px);
+}
+.mode-badge {
+  color: var(--accent);
+  border-color: var(--accent-2);
+}
+.batt {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 3px;
+  font-size: 10.5px;
+  color: var(--text-dim);
+  letter-spacing: 0.06em;
+}
+.batt-bar {
+  width: 96px;
+  height: 8px;
+  background: rgba(6, 10, 17, 0.85);
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.batt-fill {
+  height: 100%;
+  background: linear-gradient(to right, var(--accent-2), var(--good));
+}
+.batt.warn .batt-fill {
+  background: linear-gradient(to right, #a8791f, var(--warn));
+}
+.batt.crit .batt-fill {
+  background: linear-gradient(to right, #8a2b2b, var(--bad));
+}
+.throttle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10.5px;
+  color: var(--text-dim);
+}
+.throttle-track {
+  width: 11px;
+  height: 96px;
+  background: rgba(6, 10, 17, 0.85);
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  display: flex;
+  align-items: flex-end;
+  overflow: hidden;
+}
+.throttle-fill {
+  width: 100%;
+  background: linear-gradient(to top, var(--accent-2), var(--accent));
+  box-shadow: 0 0 12px rgba(56, 189, 248, 0.5);
+}
+
+.hud-bottom-left {
+  position: absolute;
+  left: 14px;
+  bottom: 54px;
+  display: flex;
+  gap: 6px;
+}
+
+.warn-banner {
+  position: absolute;
+  top: 62px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(150, 40, 40, 0.72);
+  border: 1px solid #b04141;
+  color: #ffe2e2;
+  font-size: 11.5px;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  padding: 6px 16px;
+  clip-path: polygon(10px 0, 100% 0, calc(100% - 10px) 100%, 0 100%);
+  animation: pulse 1.1s ease-in-out infinite;
+}
+@keyframes pulse {
+  50% {
+    opacity: 0.55;
+  }
+}
+
+.hud-help {
+  position: absolute;
+  bottom: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 13px;
+  flex-wrap: wrap;
+  justify-content: center;
+  max-width: 92%;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  padding: 7px 14px;
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  color: var(--text-dim);
+  backdrop-filter: blur(6px);
+}
+.hud-help b {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+/* ==========================================================================
+   Right panel
+   ========================================================================== */
+
+.panel {
+  grid-area: panel;
+  width: var(--panel-w);
+  background: linear-gradient(180deg, #0b1220, #080d16);
+  border-left: 1px solid var(--line);
+  padding: 14px 14px 20px;
+  overflow-y: auto;
+}
+.panel-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 12px;
+}
+.panel-tabs button {
+  flex: 1;
+  background: rgba(28, 43, 66, 0.4);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  padding: 6px 4px;
+  font-size: 10.5px;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+.panel-tabs button.active {
+  background: rgba(56, 189, 248, 0.15);
+  border-color: var(--accent-2);
+  color: var(--accent);
+}
+.panel-section {
+  padding: 12px 0;
+  border-top: 1px solid var(--line);
+}
+.panel-subtitle {
+  margin: 0 0 8px;
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  color: var(--accent);
+  text-transform: uppercase;
+}
+.kv {
+  display: flex;
+  justify-content: space-between;
+  padding: 4px 0;
+  font-size: 12.5px;
+  color: var(--text-dim);
+}
+.kv b {
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+.panel-note {
+  margin-top: 14px;
+  font-size: 11px;
+  line-height: 1.55;
+  color: var(--text-dim);
+}
+
+.motor-bars {
+  display: flex;
+  gap: 10px;
+  height: 72px;
+  align-items: flex-end;
+}
+.motor-bar {
+  flex: 1;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 4px;
+}
+.motor-bar > .motor-fill {
+  width: 100%;
+  background: linear-gradient(to top, var(--accent-2), var(--accent));
+  box-shadow: 0 0 10px rgba(56, 189, 248, 0.4);
+  border-radius: 2px 2px 0 0;
+  min-height: 2px;
+}
+.motor-bar > span {
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  color: var(--text-dim);
+}
+
+/* Charts */
+.charts {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.chart-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin-bottom: 3px;
+}
+.chart-legend i {
+  font-style: normal;
+  margin-left: 6px;
+  font-size: 9.5px;
+}
+.chart-host {
+  width: 100%;
+}
+.chart .u-legend {
+  display: none;
+}
+
+/* Sliders / toggles */
+.slider-row {
+  display: grid;
+  grid-template-columns: 62px 1fr 46px;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 0;
+  font-size: 11.5px;
+  color: var(--text-dim);
+}
+.slider-row b {
+  color: var(--text);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.slider-row input[type='range'],
+.setting-row input[type='range'] {
+  width: 100%;
+  accent-color: var(--accent);
+}
+.toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 0;
+  font-size: 12px;
+  color: var(--text-dim);
+  cursor: pointer;
+}
+.toggle input {
+  accent-color: var(--accent);
+}
+
+/* ==========================================================================
+   Generic sections (placeholders, settings)
+   ========================================================================== */
+
+.section-body {
+  padding: 54px 56px;
+  max-width: 760px;
+  overflow-y: auto;
+  height: 100%;
+}
+.section-title {
+  margin: 0 0 10px;
+  font-size: 30px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  text-transform: uppercase;
+}
+.section-lede {
+  color: var(--text-dim);
+  margin: 0 0 22px;
+  line-height: 1.6;
+  font-size: 14px;
+}
+.section-note {
+  margin-top: 26px;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+.phase-pill {
+  display: inline-block;
+  background: rgba(56, 189, 248, 0.12);
+  border: 1px solid var(--accent-2);
+  border-radius: 999px;
+  padding: 5px 14px;
+  font-size: 10.5px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.setting-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 0;
+  border-top: 1px solid var(--line);
+}
+.setting-row label {
+  width: 150px;
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+.segmented {
+  display: inline-flex;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.segmented button {
+  background: rgba(28, 43, 66, 0.35);
+  padding: 7px 15px;
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+.segmented button:hover {
+  color: var(--text);
+}
+.segmented button.active {
+  background: rgba(56, 189, 248, 0.18);
+  color: var(--accent);
+}
+.setting-value {
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+
+/* ==========================================================================
+   Status bar
+   ========================================================================== */
+
+.statusbar {
+  grid-area: status;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 14px;
+  background: #070b12;
+  border-top: 1px solid var(--line);
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  color: var(--text);
+}
+.statusbar .dim {
+  color: var(--text-dim);
+}
+.statusbar-right {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.sep {
+  color: var(--line);
+  margin: 0 4px;
+}
+
+/* ==========================================================================
+   Shell: topbar / sidenav / stage
+   ========================================================================== */
+
+.app {
+  display: grid;
+  grid-template-columns: 272px 1fr auto;
+  grid-template-rows: 96px 1fr var(--status-h);
+  grid-template-areas:
+    'top top top'
+    'nav stage panel'
+    'status status status';
+  height: 100%;
+  background: radial-gradient(120% 100% at 60% 0%, #0d1626 0%, #05070d 60%);
+}
+.app.is-home {
+  grid-template-columns: 0 1fr 0;
+  grid-template-rows: 96px 1fr 0;
+}
+
+/* ---- Top bar ---- */
+.topbar {
+  grid-area: top;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 26px 0 22px;
+  gap: 20px;
+}
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+}
+.logo-mark {
+  color: var(--accent);
+  filter: drop-shadow(0 0 14px rgba(56, 189, 248, 0.65));
+}
+.logo-text {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  line-height: 1;
+}
+.logo-text b {
+  font-size: 30px;
+  font-weight: 800;
+  font-style: italic;
+  letter-spacing: -0.02em;
+}
+.logo-text b i {
+  font-style: italic;
+  color: var(--accent);
+  text-shadow: 0 0 22px rgba(56, 189, 248, 0.6);
+}
+.logo-text em {
+  font-style: normal;
+  font-size: 10.5px;
+  letter-spacing: 0.44em;
+  color: var(--text-dim);
+  margin-top: 5px;
+}
+
+.topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.pill-connected {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 13px 26px;
+  border-radius: 14px;
+  background: rgba(12, 19, 31, 0.82);
+  border: 1px solid var(--line);
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+.pill-connected .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--good);
+  box-shadow: 0 0 12px var(--good);
+  animation: blink 2.2s ease-in-out infinite;
+}
+@keyframes blink {
+  50% {
+    opacity: 0.45;
+  }
+}
+
+.chip-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 9px 10px;
+  border-radius: 16px;
+  background: rgba(12, 19, 31, 0.82);
+  border: 1px solid var(--line);
+}
+.chip {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 14px;
+  border-right: 1px solid var(--line);
+  /* Fixed width so switching between short and long names can't reflow the
+     rest of the top bar. Overflowing text is clipped, not wrapped. */
+  width: 186px;
+  overflow: hidden;
+}
+.chip-body b {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 118px;
+}
+.chip:last-of-type {
+  border-right: none;
+}
+.chip-icon {
+  color: var(--text-dim);
+}
+.chip-body {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.25;
+}
+.chip-body i {
+  font-style: normal;
+  font-size: 9.5px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+.chip-body b {
+  font-size: 14px;
+  font-weight: 600;
+}
+.chip-gear {
+  color: var(--text-dim);
+  padding: 8px 12px;
+  border-radius: 10px;
+  transition: color 0.14s ease, background 0.14s ease;
+}
+.chip-gear:hover {
+  color: var(--accent);
+  background: rgba(56, 189, 248, 0.1);
+}
+
+/* ---- Side navigation ---- */
+.sidenav {
+  grid-area: nav;
+  display: flex;
+  flex-direction: column;
+  padding: 4px 22px 18px;
+  gap: 10px;
+}
+.nav-list {
+  list-style: none;
+  margin: 0;
+  padding: 14px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: rgba(10, 16, 27, 0.72);
+  border: 1px solid rgba(28, 43, 66, 0.7);
+  border-radius: 18px;
+}
+.nav-btn {
+  position: relative;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  padding: 15px 20px;
+  color: var(--text-dim);
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  transition: color 0.14s ease, background 0.14s ease;
+}
+.nav-btn:hover {
+  color: var(--text);
+  background: rgba(56, 189, 248, 0.06);
+}
+.nav-btn.active {
+  color: #fff;
+  background: linear-gradient(90deg, #1d6fe0, #2563eb);
+  border-radius: 14px;
+  box-shadow: 0 8px 26px rgba(37, 99, 235, 0.35);
+}
+.nav-ico {
+  display: grid;
+  place-items: center;
+}
+.nav-txt {
+  flex: 1;
+  text-align: left;
+}
+.nav-arrow {
+  display: grid;
+  place-items: center;
+  opacity: 0.9;
+}
+
+/* Pilot profile */
+.pilot-card {
+  margin-top: auto;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 12px;
+  padding: 15px;
+  background: rgba(10, 16, 27, 0.72);
+  border: 1px solid rgba(28, 43, 66, 0.7);
+  border-radius: 16px;
+}
+.pilot-avatar {
+  grid-row: span 2;
+  width: 46px;
+  height: 46px;
+  display: grid;
+  place-items: center;
+  font-size: 24px;
+  border-radius: 12px;
+  background: rgba(56, 189, 248, 0.1);
+  border: 1px solid var(--line);
+}
+.pilot-info {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+.pilot-info b {
+  font-size: 14.5px;
+  font-weight: 700;
+}
+.pilot-info i {
+  font-style: normal;
+  font-size: 10.5px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+.pilot-xp {
+  grid-column: 1 / -1;
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.pilot-xp-bar {
+  height: 6px;
+  border-radius: 4px;
+  background: rgba(6, 10, 17, 0.9);
+  border: 1px solid var(--line);
+  overflow: hidden;
+}
+.pilot-xp-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #1d6fe0, var(--accent));
+  box-shadow: 0 0 12px rgba(56, 189, 248, 0.55);
+}
+.pilot-xp span {
+  font-size: 10.5px;
+  color: var(--text-dim);
+  letter-spacing: 0.08em;
+}
+.app-version {
+  font-size: 10.5px;
+  color: #46526b;
+  padding-left: 4px;
+}
+
+/* ---- Stage ---- */
+.stage {
+  grid-area: stage;
+  position: relative;
+  overflow: hidden;
+}
+.viewport {
+  position: absolute;
+  inset: 0;
+}
+.viewport canvas {
+  display: block;
+}
+
+/* ==========================================================================
+   Home (racing arena + mode cards)
+   ========================================================================== */
+
+.home {
+  position: relative;
+  height: 100%;
+  overflow: hidden;
+}
+.arena-scene {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+}
+.arena-scene canvas {
+  display: block;
+}
+/* Fades the arena into the page so text stays readable over it. */
+.home-fade {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background:
+    linear-gradient(90deg, rgba(5, 7, 13, 0.94) 0%, rgba(5, 7, 13, 0.45) 42%, transparent 70%),
+    linear-gradient(0deg, rgba(5, 7, 13, 0.92) 0%, transparent 45%);
+}
+
+.home-inner {
+  position: relative;
+  z-index: 2;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  padding: 30px 46px 24px;
+}
+
+.home-hero h1 {
+  margin: 0;
+  /* Scales with the viewport so it stays a hero on large displays. */
+  font-size: clamp(64px, 6.4vw, 108px);
+  line-height: 1.02;
+  font-weight: 800;
+  font-style: italic;
+  letter-spacing: -0.028em;
+  text-transform: uppercase;
+  text-shadow: 0 8px 40px rgba(0, 0, 0, 0.75);
+}
+.home-hero h1 span {
+  color: #3b82f6;
+  text-shadow: 0 0 40px rgba(59, 130, 246, 0.55);
+}
+.hero-rule {
+  display: block;
+  width: 84px;
+  height: 5px;
+  border-radius: 3px;
+  margin: 20px 0 16px;
+  background: #3b82f6;
+  box-shadow: 0 0 18px rgba(59, 130, 246, 0.7);
+}
+.home-hero p {
+  margin: 0;
+  font-size: 16.5px;
+  color: #9fb0c7;
+}
+
+/* ---- Mode cards ---- */
+.mode-row {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+  max-width: 1140px;
+}
+.mcard {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 12px;
+  padding: 24px 18px 18px;
+  border-radius: 16px;
+  background: linear-gradient(170deg, rgba(15, 23, 38, 0.9), rgba(8, 12, 20, 0.86));
+  border: 1px solid color-mix(in srgb, var(--accent) 42%, transparent);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.02) inset;
+  backdrop-filter: blur(9px);
+  transition: transform 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease;
+}
+.mcard:hover {
+  transform: translateY(-5px);
+  border-color: var(--accent);
+  box-shadow: 0 16px 44px rgba(0, 0, 0, 0.55), 0 0 26px color-mix(in srgb, var(--accent) 32%, transparent);
+}
+.mcard-ico {
+  color: var(--accent);
+  filter: drop-shadow(0 0 16px color-mix(in srgb, var(--accent) 70%, transparent));
+}
+.mcard-title {
+  font-size: 19px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+.mcard-lines {
+  flex: 1;
+  font-size: 12.5px;
+  line-height: 1.7;
+  color: #9aabc2;
+}
+.mcard-cta {
+  width: 100%;
+  margin-top: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 10px;
+  border-radius: 11px;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  transition: background 0.14s ease, color 0.14s ease;
+}
+.mcard:hover .mcard-cta {
+  background: color-mix(in srgb, var(--accent) 28%, transparent);
+  color: #fff;
+}
+
+/* ---- Bottom row ---- */
+.home-bottom {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  padding-top: 6px;
+}
+.keyhints {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 13px 26px;
+  border-radius: 14px;
+  background: rgba(10, 16, 27, 0.78);
+  border: 1px solid var(--line);
+  font-size: 12.5px;
+  color: #9aabc2;
+}
+.keyhints kbd {
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text);
+  padding: 6px 12px;
+  border-radius: 8px;
+  background: rgba(30, 44, 68, 0.8);
+  border: 1px solid #2b3d5c;
+  box-shadow: 0 2px 0 #131e2f;
+}
+.keyhints .divider {
+  width: 1px;
+  height: 20px;
+  background: var(--line);
+}
+
+.sysready {
+  position: absolute;
+  right: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 18px;
+  border-radius: 14px;
+  background: rgba(10, 16, 27, 0.78);
+  border: 1px solid var(--line);
+}
+.sysready-bars {
+  color: var(--good);
+  filter: drop-shadow(0 0 10px rgba(55, 224, 138, 0.6));
+}
+.sysready-txt {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.25;
+}
+.sysready-txt i {
+  font-style: normal;
+  font-size: 9.5px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+.sysready-txt b {
+  font-size: 13px;
+  color: var(--good);
+  letter-spacing: 0.06em;
+}
+.sysready-ring {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 2px solid rgba(55, 224, 138, 0.28);
+  border-top-color: var(--good);
+  animation: spin 2.4s linear infinite;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ---- Home refinements: wider cards, corner accent, pilot badge ---- */
+.mode-row {
+  max-width: none;
+  gap: 20px;
+  /* Collect the slack above the cards so they sit low in the frame rather
+     than floating in the middle, then hold a gap before the bottom bar. */
+  margin-top: auto;
+  margin-bottom: 4vh;
+}
+.mcard {
+  position: relative;
+  overflow: hidden;
+  padding: 28px 20px 20px;
+}
+/* Checkered corner flash, echoing race-flag styling. */
+.mcard::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 46px;
+  height: 46px;
+  background-image:
+    linear-gradient(45deg, color-mix(in srgb, var(--accent) 55%, transparent) 25%, transparent 25%),
+    linear-gradient(-45deg, color-mix(in srgb, var(--accent) 55%, transparent) 25%, transparent 25%);
+  background-size: 11px 11px;
+  mask-image: linear-gradient(135deg, #000 0%, transparent 72%);
+  opacity: 0.75;
+  pointer-events: none;
+}
+.mcard-title {
+  font-size: 21px;
+}
+.mcard-lines {
+  font-size: 13.5px;
+}
+.mcard-cta {
+  padding: 14px 10px;
+  font-size: 12.5px;
+}
+
+/* Bottom row: pilot badge (left) · key hints (centre) · system (right) */
+.home-bottom {
+  padding-top: 14px;
+}
+.pilot-badge {
+  position: absolute;
+  left: 0;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 4px 13px;
+  padding: 12px 18px 12px 12px;
+  border-radius: 14px;
+  background: rgba(10, 16, 27, 0.82);
+  border: 1px solid var(--line);
+  min-width: 290px;
+}
+.pilot-badge-avatar {
+  grid-row: span 2;
+  width: 46px;
+  height: 46px;
+  display: grid;
+  place-items: center;
+  font-size: 25px;
+  border-radius: 11px;
+  background: rgba(56, 189, 248, 0.1);
+  border: 1px solid var(--line);
+}
+.pilot-badge-main {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.pilot-badge-main b {
+  font-size: 14.5px;
+  font-weight: 700;
+}
+.pilot-badge-main i {
+  font-style: normal;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+.pilot-badge-bar {
+  display: block;
+  height: 5px;
+  margin-top: 3px;
+  border-radius: 3px;
+  background: rgba(6, 10, 17, 0.9);
+  border: 1px solid var(--line);
+  overflow: hidden;
+}
+.pilot-badge-bar > span {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, #1d6fe0, var(--accent));
+  box-shadow: 0 0 10px rgba(56, 189, 248, 0.6);
+}
+.pilot-badge-xp {
+  grid-column: 2;
+  font-size: 10.5px;
+  color: var(--text-dim);
+  letter-spacing: 0.06em;
+}
+
+/* ==========================================================================
+   Free Flight: compact rail + cockpit controls
+   ========================================================================== */
+
+/* In flight the nav collapses to an icon rail so the viewport dominates. */
+.app.is-fly {
+  grid-template-columns: 72px 1fr auto;
+}
+.sidenav.compact {
+  padding: 4px 10px 14px;
+}
+.sidenav.compact .nav-list {
+  border-radius: 14px;
+  padding: 8px 0;
+}
+.sidenav.compact .nav-btn {
+  justify-content: center;
+  padding: 13px 0;
+  gap: 0;
+}
+.sidenav.compact .nav-txt,
+.sidenav.compact .nav-arrow {
+  display: none;
+}
+.sidenav.compact .nav-btn.active {
+  border-radius: 11px;
+}
+
+/* ---- Stick gimbals ---- */
+.sticks {
+  position: absolute;
+  bottom: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 14px;
+  padding: 10px 16px;
+  border-radius: 12px;
+  background: rgba(7, 11, 18, 0.72);
+  border: 1px solid var(--line);
+  backdrop-filter: blur(7px);
+}
+.gimbal {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+.gimbal-box {
+  fill: rgba(6, 10, 17, 0.75);
+  stroke: var(--line);
+  stroke-width: 1.5;
+}
+.gimbal-cross {
+  stroke: #24354f;
+  stroke-width: 1;
+}
+.gimbal-ring {
+  fill: none;
+  stroke: #1d2c44;
+  stroke-width: 1;
+}
+.gimbal-stem {
+  stroke: var(--accent-2);
+  stroke-width: 2;
+  opacity: 0.7;
+}
+.gimbal-knob {
+  fill: var(--accent);
+  stroke: #cdeaff;
+  stroke-width: 1.2;
+  filter: drop-shadow(0 0 6px var(--accent));
+}
+.gimbal-label {
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+.gimbal-keys {
+  font-size: 10px;
+  color: var(--accent);
+  letter-spacing: 0.08em;
+}
+
+/* ---- Controls reference ---- */
+.controls-fab {
+  position: absolute;
+  right: 14px;
+  bottom: 14px;
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border-radius: 10px;
+  background: rgba(7, 11, 18, 0.78);
+  border: 1px solid var(--line);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  backdrop-filter: blur(6px);
+}
+.controls-fab:hover {
+  color: var(--text);
+  border-color: var(--accent-2);
+}
+.controls-fab b {
+  color: var(--accent);
+  padding: 2px 7px;
+  border-radius: 5px;
+  background: rgba(56, 189, 248, 0.12);
+  border: 1px solid var(--accent-2);
+}
+
+.controls-panel {
+  position: absolute;
+  right: 14px;
+  bottom: 14px;
+  width: 264px;
+  pointer-events: auto;
+  padding: 12px 14px 14px;
+  border-radius: 12px;
+  background: rgba(7, 11, 18, 0.9);
+  border: 1px solid var(--line);
+  backdrop-filter: blur(8px);
+}
+.controls-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--accent);
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--line);
+}
+.controls-head button {
+  color: var(--text-dim);
+  font-size: 13px;
+  line-height: 1;
+}
+.controls-head button:hover {
+  color: var(--text);
+}
+.controls-panel section {
+  padding: 9px 0 4px;
+}
+.controls-panel h4 {
+  margin: 0 0 6px;
+  font-size: 9.5px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+.controls-row {
+  display: grid;
+  grid-template-columns: 74px 1fr;
+  align-items: center;
+  gap: 10px;
+  padding: 3px 0;
+  font-size: 11.5px;
+  color: var(--text-dim);
+}
+.controls-row kbd {
+  font-family: inherit;
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--text);
+  text-align: center;
+  padding: 4px 6px;
+  border-radius: 6px;
+  background: rgba(30, 44, 68, 0.85);
+  border: 1px solid #2b3d5c;
+}
+.controls-note {
+  margin: 10px 0 0;
+  font-size: 10px;
+  line-height: 1.5;
+  color: var(--text-dim);
+}
+
+/* Flight view is full-bleed — no nav rail. */
+.app.is-fly {
+  grid-template-columns: 0 1fr auto;
+}
+
+/* ---- Virtual sticks (corner gimbals) ---- */
+.vstick {
+  position: absolute;
+  bottom: 92px;
+  opacity: 0.92;
+}
+.vstick-left {
+  left: 26px;
+}
+.vstick-right {
+  right: 26px;
+}
+.vstick-base {
+  fill: rgba(9, 14, 23, 0.66);
+  stroke: rgba(56, 189, 248, 0.16);
+  stroke-width: 2;
+}
+.vstick-inner {
+  fill: rgba(14, 22, 36, 0.5);
+  stroke: rgba(56, 189, 248, 0.1);
+  stroke-width: 1.5;
+}
+.vstick-arrow path {
+  fill: none;
+  stroke: #64748b;
+  stroke-width: 4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.vstick-stem {
+  stroke: var(--accent-2);
+  stroke-width: 3;
+  opacity: 0.55;
+}
+.vstick-knob {
+  fill: #dceefc;
+  filter: drop-shadow(0 0 12px rgba(56, 189, 248, 0.9));
+}
+
+/* ---- Key legend strip ---- */
+.keylegend {
+  position: absolute;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px 16px;
+  max-width: 62%;
+  padding: 12px 20px;
+  border-radius: 12px;
+  background: rgba(7, 11, 18, 0.74);
+  border: 1px solid var(--line);
+  backdrop-filter: blur(7px);
+}
+.keylegend-item {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.keylegend kbd {
+  font-family: inherit;
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--accent);
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: rgba(56, 189, 248, 0.1);
+  border: 1px solid rgba(56, 189, 248, 0.32);
+}
+.keylegend em {
+  font-style: normal;
+  font-size: 11.5px;
+  color: var(--text-dim);
+}
+
+/* ---- HUD widget toggles (settings) ---- */
+.settings-h2 {
+  margin: 34px 0 6px;
+  font-size: 17px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.hud-toggle-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(214px, 1fr));
+  gap: 4px 18px;
+  padding-top: 6px;
+  border-top: 1px solid var(--line);
+}
+.hud-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  font-size: 13px;
+  color: var(--text-dim);
+  cursor: pointer;
+}
+.hud-toggle:hover {
+  color: var(--text);
+}
+.hud-toggle input {
+  accent-color: var(--accent);
+  width: 15px;
+  height: 15px;
+}
+
+/* Clickable top-bar chips (drone / arena switchers) */
+.chip-btn {
+  cursor: pointer;
+  transition: background 0.14s ease;
+  border-radius: 10px;
+}
+.chip-btn:hover {
+  background: rgba(56, 189, 248, 0.1);
+}
+.chip-btn:hover .chip-body b {
+  color: var(--accent);
+}
+
+/* Time-of-day selector */
+.tod-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 5px;
+  margin-bottom: 8px;
+}
+.tod-grid button {
+  padding: 7px 6px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: rgba(28, 43, 66, 0.4);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+.tod-grid button.active {
+  background: rgba(56, 189, 248, 0.16);
+  border-color: var(--accent-2);
+  color: var(--accent);
+}
+
+/* ---- Chip dropdown selector ---- */
+.chip-select {
+  position: relative;
+}
+.chip-select .chip {
+  border-right: 1px solid var(--line);
+}
+.chip-caret {
+  margin-left: auto;
+  display: grid;
+  place-items: center;
+  color: var(--text-dim);
+  transform: rotate(90deg);
+  transition: transform 0.16s ease, color 0.16s ease;
+}
+.chip-caret.open {
+  transform: rotate(-90deg);
+  color: var(--accent);
+}
+.chip-static {
+  cursor: default;
+}
+
+.chip-menu {
+  position: absolute;
+  top: calc(100% + 12px);
+  left: 0;
+  min-width: 268px;
+  z-index: 60;
+  padding: 7px;
+  border-radius: 14px;
+  background: rgba(10, 16, 27, 0.97);
+  border: 1px solid var(--line);
+  box-shadow: 0 22px 54px rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(10px);
+}
+.chip-option {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 10px;
+  border-radius: 10px;
+  text-align: left;
+  transition: background 0.13s ease;
+}
+.chip-option:hover {
+  background: rgba(56, 189, 248, 0.1);
+}
+.chip-option.active {
+  background: rgba(56, 189, 248, 0.15);
+}
+/* Small game-style thumbnail tile */
+.option-thumb {
+  width: 42px;
+  height: 42px;
+  flex: 0 0 42px;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  color: #fff;
+  background: linear-gradient(150deg, var(--tint), rgba(8, 13, 22, 0.9));
+  border: 1px solid color-mix(in srgb, var(--tint) 55%, transparent);
+  box-shadow: 0 0 16px color-mix(in srgb, var(--tint) 28%, transparent);
+}
+.option-text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.3;
+  min-width: 0;
+}
+.option-text b {
+  font-size: 13.5px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+.option-text i {
+  font-style: normal;
+  font-size: 10.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+.option-check {
+  margin-left: auto;
+  color: var(--accent);
+  font-size: 13px;
+}
+
+/* Scene failure fallback (better than a black viewport) */
+.scene-error {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 32px;
+  text-align: center;
+  background: radial-gradient(80% 70% at 50% 40%, #131c2b, #05070d);
+}
+.scene-error h3 {
+  margin: 0;
+  font-size: 17px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--bad);
+}
+.scene-error p {
+  margin: 0;
+  max-width: 620px;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--text-dim);
+  word-break: break-word;
+}
+.scene-error button {
+  margin-top: 8px;
+  padding: 9px 22px;
+  border-radius: 9px;
+  border: 1px solid var(--accent-2);
+  background: rgba(56, 189, 248, 0.14);
+  color: var(--accent);
+  font-size: 11.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+/* Crash overlay */
+.crash-overlay {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: radial-gradient(60% 50% at 50% 50%, rgba(90, 12, 12, 0.32), rgba(4, 6, 11, 0.72));
+  pointer-events: none;
+}
+.crash-card {
+  text-align: center;
+  padding: 26px 46px;
+  border-radius: 14px;
+  background: rgba(10, 14, 22, 0.9);
+  border: 1px solid #7a2c2c;
+  box-shadow: 0 0 60px rgba(255, 60, 60, 0.18);
+}
+.crash-card h2 {
+  margin: 0 0 8px;
+  font-size: 34px;
+  font-weight: 800;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--bad);
+  text-shadow: 0 0 30px rgba(255, 60, 60, 0.5);
+}
+.crash-card p {
+  margin: 0 0 16px;
+  font-size: 12.5px;
+  letter-spacing: 0.1em;
+  color: var(--text-dim);
+}
+.crash-hint {
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  color: var(--text);
+}
+.crash-hint kbd {
+  font-family: inherit;
+  font-weight: 700;
+  color: var(--accent);
+  padding: 4px 10px;
+  margin: 0 3px;
+  border-radius: 6px;
+  background: rgba(56, 189, 248, 0.12);
+  border: 1px solid rgba(56, 189, 248, 0.35);
+}
+
+.recharge-btn {
+  width: 100%;
+  padding: 9px 12px;
+  border-radius: 7px;
+  border: 1px solid var(--accent-2);
+  background: rgba(56, 189, 248, 0.13);
+  color: var(--accent);
+  font-size: 11px;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+}
+.recharge-btn:hover {
+  background: rgba(56, 189, 248, 0.22);
+}
+
+/* Battery warning states */
+.batt.flash .batt-fill {
+  animation: battFlash 0.9s ease-in-out infinite;
+}
+@keyframes battFlash {
+  50% {
+    opacity: 0.3;
+  }
+}
+.warn-banner.warn-amber {
+  background: rgba(150, 110, 30, 0.72);
+  border-color: #c08a2a;
+  color: #ffeec2;
+}
+
+/* ---- Branding ---- */
+.logo-by {
+  color: var(--accent);
+  letter-spacing: 0.18em;
+  margin-left: 6px;
+}
+.boot {
+  flex-direction: column;
+  gap: 10px;
+}
+.boot b {
+  font-size: 30px;
+  font-style: italic;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--text);
+}
+.boot span {
+  font-size: 10.5px;
+  letter-spacing: 0.3em;
+  color: var(--accent);
+}
+
+/* About block in settings */
+.about-card {
+  border-top: 1px solid var(--line);
+  padding-top: 6px;
+}
+.about-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 20px;
+  padding: 9px 0;
+  border-bottom: 1px solid rgba(28, 43, 66, 0.55);
+  font-size: 13px;
+  color: var(--text-dim);
+}
+.about-row b {
+  color: var(--text);
+  font-weight: 600;
+}
+
+/* ---- Back button ---- */
+.back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 18px;
+  padding: 8px 16px;
+  border-radius: 9px;
+  border: 1px solid var(--line);
+  background: rgba(28, 43, 66, 0.4);
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  transition: color 0.14s ease, border-color 0.14s ease, background 0.14s ease;
+}
+.back-btn:hover {
+  color: var(--accent);
+  border-color: var(--accent-2);
+  background: rgba(56, 189, 248, 0.12);
+}
+
+/* ---- Pause menu ---- */
+.pause-overlay {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgba(4, 7, 13, 0.72);
+  backdrop-filter: blur(4px);
+  pointer-events: auto;
+}
+.pause-card {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+  min-width: 260px;
+  padding: 30px 30px 24px;
+  border-radius: 16px;
+  background: rgba(10, 16, 27, 0.95);
+  border: 1px solid var(--line);
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.6);
+}
+.pause-card h2 {
+  margin: 0 0 10px;
+  text-align: center;
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+.pause-btn {
+  padding: 12px 18px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: rgba(28, 43, 66, 0.5);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  transition: color 0.14s ease, background 0.14s ease, border-color 0.14s ease;
+}
+.pause-btn:hover {
+  color: var(--text);
+  background: rgba(56, 189, 248, 0.14);
+  border-color: var(--accent-2);
+}
+.pause-btn.primary {
+  color: var(--accent);
+  border-color: var(--accent-2);
+  background: rgba(56, 189, 248, 0.16);
+}
+.pause-hint {
+  margin-top: 6px;
+  text-align: center;
+  font-size: 11px;
+  color: var(--text-dim);
+}
+.pause-hint kbd {
+  font-family: inherit;
+  font-weight: 700;
+  color: var(--accent);
+  padding: 3px 8px;
+  border-radius: 5px;
+  background: rgba(56, 189, 248, 0.12);
+  border: 1px solid rgba(56, 189, 248, 0.35);
+}
+
+/* Telemetry dock hidden by default in flight */
+.app.no-panel {
+  grid-template-columns: 0 1fr 0;
+}
+.panel-tab {
+  position: absolute;
+  top: 50%;
+  right: 0;
+  transform: translateY(-50%);
+  z-index: 40;
+  width: 22px;
+  height: 74px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px 0 0 8px;
+  background: rgba(10, 16, 27, 0.88);
+  border: 1px solid var(--line);
+  border-right: none;
+  color: var(--text-dim);
+  font-size: 15px;
+  transition: color 0.14s ease, background 0.14s ease;
+}
+.panel-tab:hover {
+  color: var(--accent);
+  background: rgba(56, 189, 248, 0.14);
+}
+.panel-tab.open {
+  right: var(--panel-w);
+}
+
+/* ==========================================================================
+   Settings categories + gamepad setup
+   ========================================================================== */
+
+.settings-shell {
+  max-width: 940px;
+}
+
+.settings-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 18px 0 0;
+  border-bottom: 1px solid var(--line);
+}
+.settings-tab {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 18px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-bottom: none;
+  font-size: 11.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  /* Clipped top corners, matching the rest of the game chrome. */
+  clip-path: polygon(9px 0, 100% 0, 100% 100%, 0 100%, 0 9px);
+}
+.settings-tab:hover {
+  color: var(--text);
+  background: rgba(28, 43, 66, 0.3);
+}
+.settings-tab.active {
+  color: var(--accent);
+  background: rgba(56, 189, 248, 0.12);
+  border-color: var(--accent-2);
+  box-shadow: inset 0 -2px 0 var(--accent);
+}
+.settings-tab-icon {
+  font-size: 13px;
+  opacity: 0.85;
+}
+
+.settings-pane {
+  padding-top: 6px;
+  animation: settings-fade 160ms ease-out;
+}
+@keyframes settings-fade {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.settings-h3 {
+  margin: 30px 0 4px;
+  font-size: 13px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+/* ---- Keyboard reference ---- */
+.key-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 2px 20px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+}
+.key-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 0;
+  font-size: 12.5px;
+  color: var(--text-dim);
+}
+.key-row kbd {
+  min-width: 62px;
+  padding: 4px 8px;
+  text-align: center;
+  background: rgba(28, 43, 66, 0.55);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  font-family: inherit;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: var(--text);
+}
+
+/* ---- Small buttons shared by the gamepad editor ---- */
+.btn-sm {
+  padding: 5px 12px;
+  background: rgba(28, 43, 66, 0.5);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  font-size: 10.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+.btn-sm:hover:not(:disabled) {
+  color: var(--accent);
+  border-color: var(--accent-2);
+}
+.btn-sm:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+.btn-sm.ghost {
+  background: transparent;
+}
+/* Pulses while the module is waiting for the pilot to press or flick something. */
+.btn-sm.listening {
+  color: #08111c;
+  background: var(--warn);
+  border-color: var(--warn);
+  animation: bind-pulse 1s ease-in-out infinite;
+}
+@keyframes bind-pulse {
+  50% {
+    opacity: 0.55;
+  }
+}
+
+/* ---- Device status ---- */
+.gp-device {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 14px 0;
+  padding: 12px 16px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-left: 2px solid var(--bad);
+}
+.gp-device.ok {
+  border-left-color: var(--good);
+}
+.gp-device b {
+  display: block;
+  font-size: 13px;
+}
+.gp-device small {
+  font-size: 11px;
+  color: var(--text-dim);
+}
+.gp-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--bad);
+  box-shadow: 0 0 8px var(--bad);
+}
+.gp-device.ok .gp-dot {
+  background: var(--good);
+  box-shadow: 0 0 8px var(--good);
+}
+
+/* ---- Channel meters ---- */
+.gp-axis-row,
+.gp-bind-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 0;
+  border-top: 1px solid var(--line);
+}
+.gp-name {
+  width: 118px;
+  flex-shrink: 0;
+  font-size: 11.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+.gp-bar {
+  position: relative;
+  flex: 1;
+  min-width: 90px;
+  height: 12px;
+  background: rgba(7, 11, 18, 0.85);
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.gp-center {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  width: 1px;
+  height: 100%;
+  background: var(--line);
+}
+.gp-fill {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  width: 0;
+  background: linear-gradient(to right, var(--accent-2), var(--accent));
+}
+.gp-val {
+  width: 52px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-size: 11.5px;
+  color: var(--text);
+}
+.gp-assigned {
+  width: 86px;
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+/* ---- Button monitor ---- */
+.gp-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+.gp-btn {
+  width: 28px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(28, 43, 66, 0.4);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-dim);
+  transition: none;
+}
+.gp-btn.pressed {
+  background: rgba(56, 189, 248, 0.28);
+  border-color: var(--accent);
+  color: var(--accent);
+  box-shadow: 0 0 8px rgba(56, 189, 248, 0.45);
+}
+
+/* ---- Action bindings ---- */
+.gp-binding {
+  flex: 1;
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+.gp-reset {
+  margin-top: 22px;
+}
+
+/* ---- Device card extras ---- */
+.gp-device-text {
+  flex: 1;
+  min-width: 0;
+}
+.gp-device-text b {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.gp-picker {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 8px 0;
+}
+
+/* ---- RC channel-order presets ---- */
+.gp-order {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 10px 0 2px;
+  border-top: 1px solid var(--line);
+}
+.gp-hint {
+  flex-basis: 100%;
+  font-size: 11px;
+  color: var(--text-dim);
+}
