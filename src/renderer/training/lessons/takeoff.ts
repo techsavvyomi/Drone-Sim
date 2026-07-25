@@ -4,9 +4,9 @@ import { useFlightStore } from '../../state/flightStore';
 // Lesson (Module 3) — Takeoff. Arm on the ground, then apply smooth throttle to
 // lift into a stable hover at a safe height. Distinct from Arm (which only idles
 // the motors) and from Throttle (fine altitude control once airborne).
-const MIN_ALT = 1.4;
-const MAX_ALT = 2.2;
-const HOLD_SEC = 2;
+const MIN_ALT = 1.3;
+const MAX_ALT = 2.6;
+const HOLD_SEC = 1.5;
 
 export const takeoffLesson: Lesson = {
   id: 'takeoff',

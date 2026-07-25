@@ -75,7 +75,7 @@ export function activeInputSource(): Source {
 // How fast throttle ramps while W/S held (full range per ~1.6s), and how snappy
 // the self-centering sticks are.
 // Slower ramp = finer resolution around the hover point (~50% stick).
-const THROTTLE_RATE = 0.6;
+const THROTTLE_RATE = 0.48;
 const STICK_LAMBDA = 14;
 /** Spring-return rate for the throttle in altitude-managed modes (~200 ms). */
 const THROTTLE_CENTER_LAMBDA = 15;

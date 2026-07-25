@@ -64,14 +64,15 @@ export interface ControllerConfig {
 }
 
 export const BEGINNER_CONFIG: ControllerConfig = {
-  // A little more tilt authority at full stick so the drone isn't sluggish to
-  // build speed; the keyboard expo keeps small inputs gentle so it's not twitchy.
+  // More tilt authority at full stick so translation isn't sluggish; the
+  // keyboard expo keeps small inputs gentle so it isn't twitchy. Climb rate is
+  // kept modest so take-off is controllable and doesn't rocket past the target.
   maxTiltDeg: 34,
   maxYawRate: 2.6,
   maxRateSetpoint: 7,
   maxAngAccel: 90,
   angleP: 8,
-  maxClimbRate: 2.6,
+  maxClimbRate: 1.8,
   altP: 1.3,
   climbP: 3.2,
 };
