@@ -37,6 +37,8 @@ interface TrainingState {
   /** Result shown on the reward panel (step 5). */
   lastStars: number;
   lastXp: number;
+  /** New rank name if this completion triggered a rank-up, else null. */
+  lastRankUp: string | null;
 
   start: (lessonId: string) => void;
   setPhase: (phase: TrainingPhase) => void;
@@ -62,6 +64,7 @@ export const useTrainingStore = create<TrainingState>((set) => ({
   validation: { progress: 0, failed: false },
   lastStars: 0,
   lastXp: 0,
+  lastRankUp: null,
 
   start: (lessonId) =>
     set({
@@ -74,6 +77,7 @@ export const useTrainingStore = create<TrainingState>((set) => ({
       validation: { progress: 0, failed: false },
       lastStars: 0,
       lastXp: 0,
+      lastRankUp: null,
     }),
 
   setPhase: (phase) => set({ phase }),
@@ -98,7 +102,10 @@ export const useTrainingStore = create<TrainingState>((set) => ({
       ? XP_BASE + stars * XP_PER_STAR
       : Math.max(0, stars - prevStars) * XP_PER_STAR;
 
+    const prevRank = usePilotStore.getState().rank;
     const newTotal = usePilotStore.getState().addXp(xpGained);
+    const newRank = usePilotStore.getState().rank;
+    const rankedUp = newRank !== prevRank ? newRank : null;
 
     const nextTraining: TrainingProgress = {
       xp: newTotal,
@@ -110,7 +117,7 @@ export const useTrainingStore = create<TrainingState>((set) => ({
     // Fire-and-forget persistence through the settings document.
     settings.set('training', nextTraining);
 
-    set({ phase: 'reward', lastStars: stars, lastXp: xpGained });
+    set({ phase: 'reward', lastStars: stars, lastXp: xpGained, lastRankUp: rankedUp });
   },
 
   exitLesson: () =>

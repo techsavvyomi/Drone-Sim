@@ -14,6 +14,7 @@ import {
   setScriptedStick,
   runScriptedCommand,
 } from '../input/controls';
+import { playArm, playDisarm, playFail, playWhoosh } from '../audio/sfx';
 
 // The Director runs a lesson through Explain -> Demonstrate -> Practice ->
 // Validate -> Reward. It is headless (renders nothing) but lives inside the
@@ -70,6 +71,8 @@ export function Director() {
   const jerkAccum = useRef(0);
   const crashCount = useRef(0);
   const prevCrashed = useRef(false);
+  /** Tracks armed state to fire arm/disarm blips on the pilot's own actions. */
+  const prevArmed = useRef(false);
   const failCount = useRef(0);
   const prevStick = useRef({ roll: 0, pitch: 0, yaw: 0, throttle: 0.5 });
   /** Debounce so a single failure doesn't reset repeatedly across frames. */
@@ -109,6 +112,7 @@ export function Director() {
         training.setDemoKey(null);
         training.setDemoCaption(lesson.demo[0]?.caption ?? '');
         useUiStore.getState().setCameraMode('chase');
+        playWhoosh();
         break;
 
       case 'practice':
@@ -124,8 +128,11 @@ export function Director() {
         prevStick.current = { ...stick };
         training.setDemoKey(null);
         lesson.setup?.();
+        // Suppress the arm/disarm blip that setup itself may trigger.
+        prevArmed.current = useFlightStore.getState().armed;
         training.setHint(lesson.practice.hint);
         training.setValidation({ progress: 0, failed: false });
+        playWhoosh();
         break;
 
       case 'reward':
@@ -199,6 +206,13 @@ export function Director() {
     if (flight.crashed && !prevCrashed.current) crashCount.current += 1;
     prevCrashed.current = flight.crashed;
 
+    // Arm/disarm blips on the pilot's own actions.
+    if (flight.armed !== prevArmed.current) {
+      if (flight.armed) playArm();
+      else playDisarm();
+      prevArmed.current = flight.armed;
+    }
+
     // Control smoothness — accumulate absolute stick movement.
     jerkAccum.current +=
       Math.abs(stick.roll - prevStick.current.roll) +
@@ -254,6 +268,7 @@ export function Director() {
     if (res.failed && failCooldown.current <= 0) {
       failCount.current += 1;
       failCooldown.current = 1.0;
+      playFail();
       if (failCount.current >= REPLAY_AFTER_FAILS) {
         failCount.current = 0;
         training.setPhase('demo');

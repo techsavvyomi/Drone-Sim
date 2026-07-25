@@ -3040,8 +3040,9 @@ button {
   pointer-events: auto;
 }
 .tr-hud.min .tr-bar-id {
-  font-size: 14px;
-  color: var(--text-dim);
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--text);
   white-space: nowrap;
 }
 .tr-hud.min .tr-bar-id b {
@@ -3051,8 +3052,8 @@ button {
 }
 .tr-hud.min .tr-bar-steps {
   display: flex;
-  gap: 14px;
-  font-size: 10.5px;
+  gap: 16px;
+  font-size: 12px;
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: #45526b;
@@ -3080,7 +3081,7 @@ button {
   white-space: nowrap;
 }
 .tr-hud.min .tr-bar-meta {
-  font-size: 12px;
+  font-size: 14px;
   color: var(--text-dim);
   font-variant-numeric: tabular-nums;
 }
@@ -3140,17 +3141,18 @@ button {
 .tr-hud.min .tr-line {
   position: absolute;
   left: 50%;
-  bottom: 22px;
+  bottom: 24px;
   transform: translateX(-50%);
-  width: min(560px, 88%);
+  width: min(640px, 90%);
   display: flex;
   align-items: center;
-  gap: 12px;
-  background: rgba(9, 13, 21, 0.82);
+  gap: 14px;
+  background: rgba(9, 13, 21, 0.88);
   border: 1px solid var(--line);
-  border-radius: 10px;
-  padding: 10px 16px;
+  border-radius: 12px;
+  padding: 14px 20px;
   backdrop-filter: blur(8px);
+  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.45);
 }
 .tr-hud.min .tr-line.practice {
   flex-direction: column;
@@ -3174,8 +3176,8 @@ button {
 }
 .tr-hud.min .tr-line-txt {
   flex: 1;
-  font-size: 14px;
-  font-weight: 600;
+  font-size: 16.5px;
+  font-weight: 700;
 }
 .tr-hud.min .tr-line-skip {
   flex: none;
@@ -3193,8 +3195,8 @@ button {
 }
 .tr-hud.min .tr-line-pct {
   flex: none;
-  font-size: 15px;
-  font-weight: 800;
+  font-size: 20px;
+  font-weight: 900;
   color: var(--tr-accent);
   font-variant-numeric: tabular-nums;
 }
@@ -3202,7 +3204,7 @@ button {
   color: var(--bad);
 }
 .tr-hud.min .tr-thinbar {
-  height: 5px;
+  height: 8px;
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.08);
   overflow: hidden;
@@ -3218,12 +3220,12 @@ button {
   background: var(--bad);
 }
 
-/* Subtle sticks + keycaps so they never dominate the view */
+/* Sticks + keycaps: clearly visible (not shrunk into the corner). */
 .tr-hud.min .vstick {
-  transform: scale(0.62);
+  transform: scale(0.92);
   transform-origin: bottom center;
-  opacity: 0.5;
-  bottom: 70px;
+  opacity: 0.9;
+  bottom: 76px;
 }
 .tr-hud.min .vstick-left {
   transform-origin: bottom left;
@@ -3232,21 +3234,21 @@ button {
   transform-origin: bottom right;
 }
 .tr-hud.min .tr-keys {
-  bottom: 84px;
-  gap: 8px;
-  opacity: 0.9;
+  bottom: 96px;
+  gap: 12px;
+  opacity: 1;
 }
 .tr-hud.min .tr-key {
-  padding: 5px 9px 4px;
-  background: rgba(9, 13, 21, 0.7);
+  padding: 8px 13px 6px;
+  background: rgba(9, 13, 21, 0.8);
 }
 .tr-hud.min .tr-key kbd {
-  font-size: 12px;
-  padding: 3px 8px;
-  border-bottom-width: 2px;
+  font-size: 15px;
+  padding: 5px 12px;
+  border-bottom-width: 3px;
 }
 .tr-hud.min .tr-key span {
-  font-size: 9px;
+  font-size: 10.5px;
 }
 
 /* Reward stays understated */
@@ -3269,5 +3271,307 @@ button {
   .tr-hud.min .tr-bar-steps,
   .tr-hud.min .tr-bar-meta {
     display: none;
+  }
+}
+
+/* Reward celebration: confetti, rank-up banner, XP bar */
+.tr-hud .tr-card.reward {
+  position: relative;
+  overflow: hidden;
+}
+.tr-confetti {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+.tr-confetti span {
+  position: absolute;
+  top: -14px;
+  width: 8px;
+  height: 13px;
+  border-radius: 2px;
+  opacity: 0;
+  animation: tr-fall 1.5s ease-in forwards;
+}
+@keyframes tr-fall {
+  0% {
+    transform: translate(0, -14px) rotate(0deg);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(var(--drift, 0), 320px) rotate(540deg);
+    opacity: 0;
+  }
+}
+.tr-rankup {
+  margin: 6px 0 2px;
+  padding: 6px 16px;
+  border-radius: 999px;
+  font-weight: 900;
+  font-size: 14px;
+  letter-spacing: 0.08em;
+  color: #2a1c00;
+  background: linear-gradient(100deg, #ffe27a, #ffcf4d);
+  box-shadow: 0 0 22px rgba(255, 207, 77, 0.6);
+  animation: tr-pop 0.5s ease-out both;
+}
+.tr-xpbar {
+  width: 100%;
+  margin: 14px 0 4px;
+}
+.tr-xpbar-head {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--text-dim);
+  margin-bottom: 5px;
+}
+.tr-xpbar-head span:first-child {
+  color: var(--accent);
+  font-weight: 800;
+}
+.tr-xpbar-track {
+  height: 9px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+.tr-xpbar-fill {
+  height: 100%;
+  width: 0;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--accent-2), var(--accent));
+  box-shadow: 0 0 12px rgba(56, 189, 248, 0.5);
+  transition: width 0.9s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* ==========================================================================
+   Pluto Flight School — lesson journey map
+   ========================================================================== */
+
+.section-body.journey {
+  max-width: 900px;
+}
+.journey-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+.journey-stats {
+  display: flex;
+  gap: 12px;
+}
+.jstat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 78px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px 14px;
+}
+.jstat b {
+  font-size: 22px;
+  font-weight: 900;
+}
+.jstat b i {
+  font-style: normal;
+  color: var(--warn);
+  font-size: 16px;
+  margin-left: 2px;
+}
+.jstat span {
+  font-size: 11px;
+  color: var(--text-dim);
+}
+.jstat.rank b {
+  color: var(--accent);
+  font-size: 16px;
+}
+.jstat-xp {
+  margin-top: 5px;
+  width: 74px;
+  height: 5px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+}
+.jstat-xp span {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+}
+
+.journey-progress {
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+  margin: 18px 0 26px;
+}
+.journey-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent-2), var(--accent));
+  transition: width 0.5s ease;
+}
+
+/* The winding path */
+.journey-path {
+  position: relative;
+  padding: 6px 0 20px;
+}
+.journey-path::before {
+  content: '';
+  position: absolute;
+  top: 12px;
+  bottom: 12px;
+  left: calc(50% - 2px);
+  width: 4px;
+  background: repeating-linear-gradient(
+    to bottom,
+    var(--line) 0,
+    var(--line) 8px,
+    transparent 8px,
+    transparent 16px
+  );
+}
+
+.jnode {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr 76px 1fr;
+  align-items: center;
+  min-height: 92px;
+}
+.jnode-card {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: min(280px, 100%);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 12px 16px;
+  transition:
+    transform 0.12s ease,
+    border-color 0.12s ease;
+}
+.jnode.left .jnode-card {
+  grid-column: 1;
+  justify-self: end;
+  align-items: flex-end;
+  text-align: right;
+}
+.jnode.right .jnode-card {
+  grid-column: 3;
+  justify-self: start;
+  text-align: left;
+}
+.jnode-mod {
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+.jnode-card b {
+  font-size: 16px;
+}
+.jnode-card i {
+  font-style: normal;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+.jnode-stars {
+  margin-top: 4px;
+  letter-spacing: 2px;
+  color: #33405a;
+  font-size: 13px;
+}
+.jnode-stars .on {
+  color: var(--warn);
+}
+.jnode.locked .jnode-card {
+  opacity: 0.5;
+}
+.jnode.current .jnode-card {
+  border-color: var(--accent);
+}
+.jnode.done .jnode-card {
+  border-left: 3px solid var(--good);
+}
+
+/* The node marker sits on the centre line */
+.jnode-dot {
+  grid-column: 2;
+  justify-self: center;
+  width: 62px;
+  height: 62px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 22px;
+  font-weight: 900;
+  border: 3px solid var(--line);
+  background: var(--bg-2);
+  color: var(--text-dim);
+  z-index: 1;
+  transition:
+    transform 0.12s ease,
+    box-shadow 0.2s ease;
+}
+.jnode.open .jnode-dot,
+.jnode.current .jnode-dot {
+  color: var(--text);
+}
+.jnode.open .jnode-dot:hover,
+.jnode.current .jnode-dot:hover {
+  transform: scale(1.08);
+}
+.jnode.done .jnode-dot {
+  border-color: var(--good);
+  background: rgba(55, 224, 138, 0.16);
+  color: var(--good);
+}
+.jnode.current .jnode-dot {
+  border-color: var(--accent);
+  background: rgba(56, 189, 248, 0.14);
+  color: var(--accent);
+  animation: jnode-pulse 1.8s ease-in-out infinite;
+}
+.jnode.locked .jnode-dot {
+  cursor: not-allowed;
+  font-size: 18px;
+  opacity: 0.6;
+}
+@keyframes jnode-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(56, 189, 248, 0.5);
+  }
+  50% {
+    box-shadow: 0 0 0 10px rgba(56, 189, 248, 0);
+  }
+}
+
+@media (max-width: 620px) {
+  .jnode {
+    grid-template-columns: 60px 1fr;
+  }
+  .jnode-dot {
+    grid-column: 1;
+  }
+  .jnode.left .jnode-card,
+  .jnode.right .jnode-card {
+    grid-column: 2;
+    justify-self: start;
+    align-items: flex-start;
+    text-align: left;
+  }
+  .journey-path::before {
+    left: 28px;
   }
 }

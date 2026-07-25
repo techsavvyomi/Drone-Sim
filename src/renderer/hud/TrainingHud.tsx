@@ -1,9 +1,21 @@
+import { useEffect, useState } from 'react';
 import { useSimStore } from '../state/simStore';
 import { useFlightStore } from '../state/flightStore';
+import { usePilotStore } from '../state/pilotStore';
 import { useTrainingStore, isLessonUnlocked, type TrainingPhase } from '../state/trainingStore';
 import { getLesson, lessonIndex, nextLesson, LESSONS } from '../training/lessons';
 import { StickIndicator } from './StickIndicator';
 import { KeyHints } from './KeyHints';
+import { playClick, playSuccess, playStar, playRankUp } from '../audio/sfx';
+
+// Deterministic-ish confetti pieces (module scope so they don't reshuffle on
+// every render — only the reward mount matters visually).
+const CONFETTI = Array.from({ length: 28 }, (_, i) => ({
+  left: (i * 37) % 100,
+  delay: (i % 7) * 0.09,
+  hue: (i * 47) % 360,
+  drift: ((i * 53) % 40) - 20,
+}));
 
 const STEPS: { key: TrainingPhase; label: string }[] = [
   { key: 'intro', label: 'Learn' },
@@ -37,6 +49,7 @@ export function TrainingHud() {
   const validation = useTrainingStore((s) => s.validation);
   const lastStars = useTrainingStore((s) => s.lastStars);
   const lastXp = useTrainingStore((s) => s.lastXp);
+  const lastRankUp = useTrainingStore((s) => s.lastRankUp);
   const start = useTrainingStore((s) => s.start);
   const setPhase = useTrainingStore((s) => s.setPhase);
   const exitLesson = useTrainingStore((s) => s.exitLesson);
@@ -44,6 +57,33 @@ export function TrainingHud() {
   const altitude = useSimStore((s) => s.altitude);
   const throttle = useSimStore((s) => s.throttle);
   const armed = useFlightStore((s) => s.armed);
+
+  const rank = usePilotStore((s) => s.rank);
+  const pilotXp = usePilotStore((s) => s.xp);
+  const pilotXpNext = usePilotStore((s) => s.xpNext);
+
+  // Reward flourish: success chime, staggered star dings, rank-up fanfare, and
+  // an XP bar that animates from empty to the pilot's current level progress.
+  const [xpFill, setXpFill] = useState(0);
+  useEffect(() => {
+    if (phase !== 'reward') {
+      setXpFill(0);
+      return;
+    }
+    const timers: number[] = [];
+    playSuccess();
+    for (let i = 0; i < lastStars; i++) {
+      timers.push(window.setTimeout(() => playStar(i), 420 + i * 320));
+    }
+    if (lastRankUp) timers.push(window.setTimeout(() => playRankUp(), 500 + lastStars * 320));
+    timers.push(window.setTimeout(() => setXpFill(1), 350));
+    return () => timers.forEach(clearTimeout);
+  }, [phase, lastStars, lastRankUp]);
+
+  const clickThen = (fn: () => void) => () => {
+    playClick();
+    fn();
+  };
 
   const lesson = activeLessonId ? getLesson(activeLessonId) : undefined;
   if (!lesson) return null;
@@ -120,10 +160,10 @@ export function TrainingHud() {
               </div>
             )}
             <div className="tr-actions">
-              <button className="tr-btn primary" onClick={() => setPhase('demo')}>
+              <button className="tr-btn primary" onClick={clickThen(() => setPhase('demo'))}>
                 ▶ Watch Demonstration
               </button>
-              <button className="tr-btn" onClick={() => setPhase('practice')}>
+              <button className="tr-btn" onClick={clickThen(() => setPhase('practice'))}>
                 Skip to Practice
               </button>
             </div>
@@ -148,7 +188,7 @@ export function TrainingHud() {
             DEMO {demoRound}/{demoRounds}
           </span>
           <span className="tr-line-txt">{demoCaption}</span>
-          <button className="tr-line-skip" onClick={() => setPhase('practice')}>
+          <button className="tr-line-skip" onClick={clickThen(() => setPhase('practice'))}>
             skip ⏭
           </button>
         </div>
@@ -170,24 +210,55 @@ export function TrainingHud() {
         </div>
       )}
 
-      {/* Step 5 — Reward (clean card) */}
+      {/* Step 5 — Reward (celebration) */}
       {phase === 'reward' && (
         <div className="tr-center">
           <div className="tr-card reward">
+            <div className="tr-confetti">
+              {CONFETTI.map((c, i) => (
+                <span
+                  key={i}
+                  style={{
+                    left: `${c.left}%`,
+                    animationDelay: `${c.delay}s`,
+                    background: `hsl(${c.hue} 85% 60%)`,
+                    ['--drift' as string]: `${c.drift}px`,
+                  }}
+                />
+              ))}
+            </div>
             <span className="tr-check">✓</span>
             <h2>Lesson Complete</h2>
             <Stars value={lastStars} />
             {lastXp > 0 && <span className="tr-xp">+{lastXp} XP</span>}
+
+            {lastRankUp && <div className="tr-rankup">★ RANK UP · {lastRankUp} ★</div>}
+
+            <div className="tr-xpbar">
+              <div className="tr-xpbar-head">
+                <span>{rank}</span>
+                <span>
+                  {pilotXp} / {pilotXpNext} XP
+                </span>
+              </div>
+              <div className="tr-xpbar-track">
+                <div
+                  className="tr-xpbar-fill"
+                  style={{ width: `${xpFill * Math.min(100, (pilotXp / pilotXpNext) * 100)}%` }}
+                />
+              </div>
+            </div>
+
             <div className="tr-actions">
               {hasNext && next && (
-                <button className="tr-btn primary" onClick={() => start(next.id)}>
+                <button className="tr-btn primary" onClick={clickThen(() => start(next.id))}>
                   Next: {next.title} →
                 </button>
               )}
-              <button className="tr-btn" onClick={() => start(lesson.id)}>
+              <button className="tr-btn" onClick={clickThen(() => start(lesson.id))}>
                 ↻ Replay
               </button>
-              <button className="tr-btn" onClick={exitLesson}>
+              <button className="tr-btn" onClick={clickThen(exitLesson)}>
                 {isLast ? 'Finish' : 'Menu'}
               </button>
             </div>
