@@ -2146,3 +2146,403 @@ button {
   font-size: 11px;
   color: var(--text-dim);
 }
+
+/* ==========================================================================
+   Pluto Flight School — lesson select
+   ========================================================================== */
+
+.section-body.lessons {
+  max-width: 1000px;
+}
+.lessons-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 24px;
+  margin-bottom: 26px;
+}
+.lessons-stats {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  font-size: 13px;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+.lessons-stats b {
+  color: var(--text);
+}
+.lessons-rank {
+  margin-top: 4px;
+  color: var(--accent);
+  font-weight: 700;
+}
+.lesson-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 14px;
+}
+.lesson-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  text-align: left;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 16px 18px;
+  transition:
+    transform 0.12s ease,
+    border-color 0.12s ease,
+    background 0.12s ease;
+}
+.lesson-card:not(:disabled):hover {
+  transform: translateY(-2px);
+  border-color: var(--accent-2);
+  background: rgba(56, 189, 248, 0.07);
+}
+.lesson-card.done {
+  border-left: 3px solid var(--good);
+}
+.lesson-card.locked {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.lesson-num {
+  flex: none;
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  background: rgba(56, 189, 248, 0.14);
+  color: var(--accent);
+  font-weight: 800;
+  font-size: 15px;
+}
+.lesson-card.done .lesson-num {
+  background: rgba(55, 224, 138, 0.16);
+  color: var(--good);
+}
+.lesson-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.lesson-main b {
+  font-size: 15px;
+}
+.lesson-main i {
+  font-style: normal;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+.ls-stars {
+  flex: none;
+  letter-spacing: 1px;
+  color: #33405a;
+  font-size: 13px;
+}
+.ls-stars .on {
+  color: var(--warn);
+}
+.lesson-lock {
+  flex: none;
+  font-size: 15px;
+}
+
+/* ==========================================================================
+   Pluto Flight School — in-lesson HUD overlay
+   ========================================================================== */
+
+.tr-hud {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  font-variant-numeric: tabular-nums;
+  z-index: 5;
+}
+.tr-hud button {
+  pointer-events: auto;
+}
+
+.tr-top {
+  position: absolute;
+  top: 14px;
+  left: 14px;
+  right: 14px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+.tr-badge {
+  display: flex;
+  flex-direction: column;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-left: 2px solid var(--accent);
+  border-radius: 4px;
+  padding: 6px 12px;
+  backdrop-filter: blur(6px);
+}
+.tr-badge-num {
+  font-size: 9px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+.tr-badge-title {
+  font-size: 16px;
+  font-weight: 800;
+}
+.tr-exit {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 7px 12px;
+  font-size: 12px;
+  color: var(--text-dim);
+  backdrop-filter: blur(6px);
+}
+.tr-exit:hover {
+  color: var(--text);
+  border-color: var(--bad);
+}
+
+.tr-readout {
+  position: absolute;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 8px;
+}
+.tr-chip {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 5px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-dim);
+  backdrop-filter: blur(6px);
+}
+.tr-chip.on {
+  color: var(--good);
+  border-color: rgba(55, 224, 138, 0.5);
+}
+
+/* Centered card (intro + reward) */
+.tr-center {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+}
+.tr-card {
+  pointer-events: auto;
+  width: min(520px, 92%);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 26px 28px;
+  text-align: center;
+  backdrop-filter: blur(10px);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.55);
+}
+.tr-card h2 {
+  margin: 6px 0 12px;
+  font-size: 24px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+.tr-card p {
+  margin: 0 0 8px;
+  color: var(--text-dim);
+  line-height: 1.6;
+  font-size: 14px;
+}
+.tr-step {
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+.tr-duration {
+  display: inline-block;
+  margin-top: 10px;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+.tr-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-top: 20px;
+}
+.tr-btn {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px 18px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  transition:
+    background 0.12s ease,
+    border-color 0.12s ease;
+}
+.tr-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: var(--accent-2);
+}
+.tr-btn.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #04121c;
+}
+.tr-btn.primary:hover {
+  background: #5bcdfb;
+}
+.tr-btn.small {
+  padding: 6px 12px;
+  font-size: 12px;
+}
+
+/* Demonstration banner (bottom) */
+.tr-demo {
+  position: absolute;
+  bottom: 40px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+.tr-demo-tag {
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--warn);
+  animation: tr-pulse 1.6s ease-in-out infinite;
+}
+.tr-demo-caption {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px 22px;
+  font-size: 16px;
+  font-weight: 700;
+  backdrop-filter: blur(8px);
+}
+@keyframes tr-pulse {
+  0%,
+  100% {
+    opacity: 0.5;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/* Practice prompt (top-center) + progress */
+.tr-practice {
+  position: absolute;
+  top: 64px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(460px, 90%);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 14px 18px;
+  text-align: center;
+  backdrop-filter: blur(8px);
+}
+.tr-practice h3 {
+  margin: 4px 0 12px;
+  font-size: 17px;
+  font-weight: 700;
+}
+.tr-progress {
+  height: 7px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.09);
+  overflow: hidden;
+}
+.tr-progress-fill {
+  height: 100%;
+  width: 0;
+  background: var(--good);
+  border-radius: 999px;
+  transition: width 0.15s ease;
+}
+.tr-progress-fill.fail {
+  background: var(--bad);
+}
+
+/* Contextual guidance line (bottom) */
+.tr-hint {
+  position: absolute;
+  bottom: 44px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-left: 2px solid var(--accent);
+  border-radius: 6px;
+  padding: 10px 18px;
+  font-size: 14px;
+  font-weight: 600;
+  max-width: 80%;
+  text-align: center;
+  backdrop-filter: blur(8px);
+}
+.tr-hint.fail {
+  border-left-color: var(--bad);
+  color: var(--bad);
+}
+
+/* Reward */
+.tr-card.reward {
+  border-color: rgba(55, 224, 138, 0.4);
+}
+.tr-check {
+  display: inline-grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: rgba(55, 224, 138, 0.16);
+  color: var(--good);
+  font-size: 28px;
+  font-weight: 800;
+}
+.tr-stars {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin: 8px 0 6px;
+}
+.tr-star {
+  font-size: 40px;
+  color: #33405a;
+  transition: transform 0.2s ease;
+}
+.tr-star.on {
+  color: var(--warn);
+  text-shadow: 0 0 16px rgba(255, 207, 77, 0.6);
+  transform: scale(1.08);
+}
+.tr-xp {
+  display: inline-block;
+  color: var(--accent);
+  font-weight: 800;
+  font-size: 16px;
+}

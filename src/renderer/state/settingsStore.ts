@@ -4,6 +4,7 @@ import {
   DEFAULT_BINDINGS,
   DEFAULT_GAMEPAD,
   DEFAULT_SETTINGS,
+  DEFAULT_TRAINING,
   PROFILE_REV,
   type AppSettings,
   type GamepadKind,
@@ -11,6 +12,7 @@ import {
   type HudWidgets,
 } from '@shared/types';
 import { activeDeviceKey, setDeviceHandler, setGamepadConfig } from '../input/gamepad';
+import { usePilotStore } from './pilotStore';
 
 // Renderer-side mirror of persisted settings. Hydrated from the main process on
 // boot; every mutation writes back through IPC so changes survive a restart.
@@ -49,9 +51,16 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
         bindings: { ...DEFAULT_GAMEPAD.bindings, ...(loaded.gamepad?.bindings ?? {}) },
         devices: loaded.gamepad?.devices ?? {},
       },
+      training: {
+        ...DEFAULT_TRAINING,
+        ...(loaded.training ?? {}),
+        lessons: { ...(loaded.training?.lessons ?? {}) },
+      },
     };
     set({ settings, hydrated: true });
     setGamepadConfig(settings.gamepad);
+    // Seed the pilot badge from the persisted lifetime XP.
+    usePilotStore.getState().syncFromTotal(settings.training.xp);
   },
 
   setHud: (widget, visible) => {

@@ -1,6 +1,7 @@
 import type { EnvironmentSpec } from '@shared/types';
 import { ArenaEnv } from './ArenaEnv';
 import { AcademyEnv } from './AcademyEnv';
+import { FlightSchoolEnv } from './FlightSchoolEnv';
 
 // Renderer-side lookup from environment id to its scene component.
 //
@@ -13,6 +14,7 @@ export type EnvComponent = (props: { env: EnvironmentSpec }) => React.ReactEleme
 const ENV_COMPONENTS: Record<string, EnvComponent> = {
   'drone-arena': ArenaEnv,
   'drone-academy': AcademyEnv,
+  'flight-school': FlightSchoolEnv,
 };
 
 export function getEnvironmentComponent(id: string): EnvComponent {

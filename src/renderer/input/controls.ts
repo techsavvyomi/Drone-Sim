@@ -20,6 +20,48 @@ export const stick: StickInput = { roll: 0, pitch: 0, yaw: 0, throttle: 0 };
 
 const pressed = new Set<string>();
 
+// ---- Scripted input (Flight School demonstrations) --------------------------
+// During a lesson demo the Director drives the drone through the *real*
+// controller and physics by writing `stick` and issuing commands directly. While
+// scripted, live keyboard/gamepad input is ignored so the pilot can't fight the
+// demonstration, and `updateStick` leaves `stick` exactly as the script set it.
+let scripted = false;
+
+export function setScripted(on: boolean): void {
+  scripted = on;
+  // Drop any keys held when the mode flips, so they neither leak into the demo
+  // nor fire the instant control is handed back.
+  pressed.clear();
+}
+
+export function isScripted(): boolean {
+  return scripted;
+}
+
+/** Set stick channels during a scripted demo (unset channels are left as-is). */
+export function setScriptedStick(s: Partial<StickInput>): void {
+  if (s.roll !== undefined) stick.roll = s.roll;
+  if (s.pitch !== undefined) stick.pitch = s.pitch;
+  if (s.yaw !== undefined) stick.yaw = s.yaw;
+  if (s.throttle !== undefined) stick.throttle = s.throttle;
+}
+
+/** Issue a discrete command from a scripted demo. */
+export function runScriptedCommand(cmd: 'arm' | 'disarm' | 'takeoffLand'): void {
+  const flight = useFlightStore.getState();
+  switch (cmd) {
+    case 'arm':
+      if (!flight.armed) flight.toggleArm();
+      break;
+    case 'disarm':
+      flight.disarm();
+      break;
+    case 'takeoffLand':
+      flight.requestTakeoffLand();
+      break;
+  }
+}
+
 // Which device last actually moved a stick. A connected-but-idle gamepad must
 // not lock out the keyboard, and a keyboard resting untouched must not fight a
 // gamepad — so whichever the pilot touched most recently drives the aircraft.
@@ -73,6 +115,10 @@ function axis(neg: boolean, pos: boolean): number {
 
 /** Advance eased stick state by dt. Called once per frame by the drone entity. */
 export function updateStick(dt: number): void {
+  // A scripted demo owns the sticks outright — do not let easing or live input
+  // overwrite the values the Director just wrote.
+  if (scripted) return;
+
   const up = pressed.has(CODE.throttleUp);
   const down = pressed.has(CODE.throttleDown);
 
@@ -155,6 +201,8 @@ function runCommand(code: string): void {
 }
 
 function runGamepadAction(action: GamepadAction): void {
+  // Scripted demo in progress: ignore controller buttons too.
+  if (scripted) return;
   const flight = useFlightStore.getState();
   switch (action) {
     case 'arm':
@@ -181,6 +229,8 @@ function runGamepadAction(action: GamepadAction): void {
 /** Attach keyboard listeners. Returns a detach function. */
 export function attachKeyboard(): () => void {
   const onKeyDown = (e: KeyboardEvent) => {
+    // Scripted demo in progress: swallow all flight input.
+    if (scripted) return;
     if (e.repeat) {
       if (!COMMAND_CODES.has(e.code)) pressed.add(e.code);
       return;

@@ -1,0 +1,256 @@
+import { useEffect, useRef } from 'react';
+import { useFrame } from '@react-three/fiber';
+import { clamp } from '../sim/mathx';
+import { useSimStore } from '../state/simStore';
+import { useFlightStore } from '../state/flightStore';
+import { useUiStore } from '../state/uiStore';
+import { useTrainingStore, isLessonUnlocked, type TrainingPhase } from '../state/trainingStore';
+import { getLesson, nextLesson } from './lessons';
+import type { Lesson, LessonMemory } from './lessons/types';
+import {
+  stick,
+  resetStick,
+  setScripted,
+  setScriptedStick,
+  runScriptedCommand,
+} from '../input/controls';
+
+// The Director runs a lesson through Explain -> Demonstrate -> Practice ->
+// Validate -> Reward. It is headless (renders nothing) but lives inside the
+// training <Canvas>, so its useFrame ticks in lock-step with the sim.
+//
+// Phase is stored in trainingStore (the HUD's buttons also advance it — "Watch
+// Demonstration", "Next Lesson"). The Director detects phase *entry* and runs
+// the matching setup, then ticks the active phase each frame.
+
+/** Mean stick jerk (per second) that maps to zero smoothness. */
+const JERK_K = 3.0;
+/** Consecutive hard failures before the demo auto-replays. */
+const REPLAY_AFTER_FAILS = 2;
+/** Seconds the reward panel shows before auto-advancing. */
+const REWARD_DWELL = 4.5;
+
+function resetDrone(): void {
+  useSimStore.getState().requestReset();
+  const flight = useFlightStore.getState();
+  flight.disarm();
+  flight.clearCrash();
+  if (flight.paused) flight.togglePause();
+  resetStick();
+}
+
+function centerSticks(): void {
+  setScriptedStick({ roll: 0, pitch: 0, yaw: 0, throttle: 0.5 });
+}
+
+export function Director() {
+  const phaseTime = useRef(0);
+  const phaseRef = useRef<TrainingPhase | null>(null);
+  const lessonRef = useRef<string | null>(null);
+
+  // Demo playback
+  const demoIdx = useRef(0);
+
+  // Practice metrics / scratch
+  const mem = useRef<LessonMemory>({});
+  const practiceTime = useRef(0);
+  const jerkAccum = useRef(0);
+  const crashCount = useRef(0);
+  const prevCrashed = useRef(false);
+  const failCount = useRef(0);
+  const prevStick = useRef({ roll: 0, pitch: 0, yaw: 0, throttle: 0.5 });
+  /** Debounce so a single failure doesn't reset repeatedly across frames. */
+  const failCooldown = useRef(0);
+
+  // Ensure the pilot regains control if the training view unmounts mid-lesson.
+  useEffect(() => {
+    return () => {
+      setScripted(false);
+      resetStick();
+    };
+  }, []);
+
+  function enterPhase(phase: TrainingPhase, lesson: Lesson): void {
+    phaseTime.current = 0;
+    const training = useTrainingStore.getState();
+
+    switch (phase) {
+      case 'intro':
+        setScripted(true);
+        resetDrone();
+        centerSticks();
+        useUiStore.getState().setCameraMode('chase');
+        break;
+
+      case 'demo':
+        setScripted(true);
+        resetDrone();
+        centerSticks();
+        demoIdx.current = 0;
+        training.setDemoCaption(lesson.demo[0]?.caption ?? '');
+        useUiStore.getState().setCameraMode('chase');
+        break;
+
+      case 'practice':
+        resetDrone();
+        setScripted(false);
+        mem.current = {};
+        practiceTime.current = 0;
+        jerkAccum.current = 0;
+        crashCount.current = 0;
+        prevCrashed.current = false;
+        failCooldown.current = 0;
+        prevStick.current = { ...stick };
+        lesson.setup?.();
+        training.setHint(lesson.practice.hint);
+        training.setValidation({ progress: 0, failed: false });
+        break;
+
+      case 'reward':
+        // completeLesson already recorded the result; just let it dwell.
+        break;
+    }
+  }
+
+  function tickDemo(lesson: Lesson): void {
+    const t = phaseTime.current;
+    const steps = lesson.demo;
+    const training = useTrainingStore.getState();
+    while (demoIdx.current < steps.length && steps[demoIdx.current].at <= t) {
+      const step = steps[demoIdx.current];
+      if (step.cmd) runScriptedCommand(step.cmd);
+      if (step.stick) setScriptedStick(step.stick);
+      if (step.caption) training.setDemoCaption(step.caption);
+      demoIdx.current += 1;
+    }
+    const lastAt = steps.length ? steps[steps.length - 1].at : 0;
+    if (t > lastAt + 1.4) training.setPhase('practice');
+  }
+
+  function softResetPractice(lesson: Lesson): void {
+    resetDrone();
+    mem.current = {};
+    practiceTime.current = 0;
+    jerkAccum.current = 0;
+    prevStick.current = { ...stick };
+    lesson.setup?.();
+  }
+
+  function tickPractice(lesson: Lesson, delta: number, lessonId: string): void {
+    practiceTime.current += delta;
+    if (failCooldown.current > 0) failCooldown.current -= delta;
+
+    const sim = useSimStore.getState();
+    const flight = useFlightStore.getState();
+    const training = useTrainingStore.getState();
+
+    // Collisions.
+    if (flight.crashed && !prevCrashed.current) crashCount.current += 1;
+    prevCrashed.current = flight.crashed;
+
+    // Control smoothness — accumulate absolute stick movement.
+    jerkAccum.current +=
+      Math.abs(stick.roll - prevStick.current.roll) +
+      Math.abs(stick.pitch - prevStick.current.pitch) +
+      Math.abs(stick.yaw - prevStick.current.yaw) +
+      Math.abs(stick.throttle - prevStick.current.throttle);
+    prevStick.current = { ...stick };
+
+    const res = lesson.validate(
+      {
+        armed: flight.armed,
+        onGround: flight.onGround,
+        crashed: flight.crashed,
+        status: flight.status(),
+        altitude: sim.altitude,
+        position: sim.position,
+        yaw: sim.yaw,
+        verticalSpeed: sim.verticalSpeed,
+        groundSpeed: sim.groundSpeed,
+        roll: sim.roll,
+        pitch: sim.pitch,
+        dt: delta,
+        elapsed: practiceTime.current,
+      },
+      mem.current,
+    );
+
+    training.setValidation({ progress: res.progress ?? 0, failed: !!res.failed });
+    training.setHint(res.hint ?? lesson.practice.hint);
+
+    if (res.done) {
+      const timeSec = practiceTime.current;
+      const meanJerk = timeSec > 0 ? jerkAccum.current / timeSec : 0;
+      const smoothness = clamp(1 - meanJerk / JERK_K, 0, 1);
+      const stars = lesson.score({
+        timeSec,
+        collisions: crashCount.current,
+        smoothness,
+        mem: mem.current,
+      });
+      training.completeLesson(lessonId, stars, stars / 3);
+      return;
+    }
+
+    if (res.failed && failCooldown.current <= 0) {
+      failCount.current += 1;
+      failCooldown.current = 1.0;
+      if (failCount.current >= REPLAY_AFTER_FAILS) {
+        failCount.current = 0;
+        training.setPhase('demo');
+      } else {
+        softResetPractice(lesson);
+      }
+      return;
+    }
+
+    // Stuck too long — replay the demonstration.
+    if (practiceTime.current > (lesson.practiceTimeout ?? 20)) {
+      training.setPhase('demo');
+    }
+  }
+
+  function tickReward(lessonId: string): void {
+    if (phaseTime.current < REWARD_DWELL) return;
+    const training = useTrainingStore.getState();
+    const next = nextLesson(lessonId);
+    if (next && isLessonUnlocked(next.id)) training.start(next.id);
+    else training.exitLesson();
+  }
+
+  useFrame((_state, delta) => {
+    const { activeLessonId, phase } = useTrainingStore.getState();
+    if (!activeLessonId) return;
+    const lesson = getLesson(activeLessonId);
+    if (!lesson) return;
+
+    // A new lesson (or first mount) forces the phase-entry logic to re-run.
+    if (activeLessonId !== lessonRef.current) {
+      lessonRef.current = activeLessonId;
+      phaseRef.current = null;
+    }
+
+    if (phase !== phaseRef.current) {
+      enterPhase(phase, lesson);
+      phaseRef.current = phase;
+    }
+    phaseTime.current += delta;
+
+    switch (phase) {
+      case 'demo':
+        tickDemo(lesson);
+        break;
+      case 'practice':
+        tickPractice(lesson, delta, activeLessonId);
+        break;
+      case 'reward':
+        tickReward(activeLessonId);
+        break;
+      case 'intro':
+      default:
+        break;
+    }
+  });
+
+  return null;
+}

@@ -19,9 +19,13 @@ import { PostFX } from './PostFX';
 // The Fly view's 3D contents: sky + lighting for the selected time of day, the
 // active environment, the drone under a fixed-timestep Rapier world, and the
 // camera rig.
-export function FlightScene() {
+//
+// `envIdOverride` lets callers (e.g. Flight School) force a specific environment
+// without changing the pilot's saved selection; the Fly view passes nothing.
+export function FlightScene({ envIdOverride }: { envIdOverride?: string } = {}) {
   const droneId = useSettingsStore((s) => s.settings.selectedDroneId);
-  const envId = useSettingsStore((s) => s.settings.selectedEnvironmentId);
+  const selectedEnvId = useSettingsStore((s) => s.settings.selectedEnvironmentId);
+  const envId = envIdOverride ?? selectedEnvId;
   const cameraMode = useUiStore((s) => s.cameraMode);
   const timeOfDay = useWorldStore((s) => s.timeOfDay);
   const cloudsEnabled = useWorldStore((s) => s.cloudsEnabled);

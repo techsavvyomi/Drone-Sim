@@ -14,7 +14,7 @@ import { useControls } from '../input/useControls';
  * (HDRI environments, the Draco decoder, cloud sprites) — all blocked by the
  * app's CSP. Surfacing the message beats staring at a black screen.
  */
-class SceneBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
+export class SceneBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
   state: { error: Error | null } = { error: null };
 
   static getDerivedStateFromError(error: Error) {

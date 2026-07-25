@@ -54,7 +54,35 @@ export interface AppSettings {
   hud: HudWidgets;
   /** USB gamepad / RC transmitter configuration. */
   gamepad: GamepadSettings;
+  /** Flight School progression (completed lessons, stars, pilot XP). */
+  training: TrainingProgress;
 }
+
+// ----------------------------------------------------------------------------
+// Training progression (Pluto Flight School)
+// ----------------------------------------------------------------------------
+
+/** Per-lesson result, persisted so completion and best score survive a restart. */
+export interface LessonProgress {
+  completed: boolean;
+  /** Best star rating earned, 0..3. */
+  stars: number;
+  /** Best raw score 0..1 behind the star rating, for finer progress. */
+  bestScore: number;
+}
+
+/** Everything the Flight School needs to remember between sessions. */
+export interface TrainingProgress {
+  /** Keyed by lesson id. Absent id = not yet attempted. */
+  lessons: Record<string, LessonProgress>;
+  /** Accumulated pilot XP, drives the Home rank badge. */
+  xp: number;
+}
+
+export const DEFAULT_TRAINING: TrainingProgress = {
+  lessons: {},
+  xp: 0,
+};
 
 
 // ----------------------------------------------------------------------------
@@ -277,6 +305,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   volume: 0.7,
   cameraZoom: 1,
   gamepad: DEFAULT_GAMEPAD,
+  training: DEFAULT_TRAINING,
   hud: {
     altitudeTape: true,
     horizon: true,

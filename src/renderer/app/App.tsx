@@ -6,10 +6,12 @@ import { TelemetryPanel } from './TelemetryPanel';
 import { SettingsPanel } from './SettingsPanel';
 import { Placeholder } from './Placeholder';
 import { StatusBar } from './StatusBar';
+import { TrainingScreen } from './TrainingScreen';
 import { Viewport } from '../scene/Viewport';
 import { useUiStore } from '../state/uiStore';
 import { useFlightStore } from '../state/flightStore';
 import { useSettingsStore } from '../state/settingsStore';
+import { useTrainingStore } from '../state/trainingStore';
 import { attachGamepad } from '../input/gamepad';
 
 function MainArea() {
@@ -31,13 +33,7 @@ function MainArea() {
         />
       );
     case 'training':
-      return (
-        <Placeholder
-          title="Flight Training"
-          phase="Phase 4"
-          blurb="Guided lessons with objectives, live scoring and completion tracking."
-        />
-      );
+      return <TrainingScreen />;
     case 'missions':
       return (
         <Placeholder
@@ -73,6 +69,10 @@ export function App() {
   const section = useUiStore((s) => s.section);
   const panelOpen = useUiStore((s) => s.panelOpen);
   const togglePanel = useUiStore((s) => s.togglePanel);
+  const trainingLesson = useTrainingStore((s) => s.activeLessonId);
+
+  // A running lesson is a flight view: full-bleed, no nav rail.
+  const flightLike = section === 'fly' || (section === 'training' && !!trainingLesson);
 
   useEffect(() => {
     void hydrate();
@@ -101,6 +101,11 @@ export function App() {
       const ui = useUiStore.getState();
       if (ui.section === 'fly') {
         useFlightStore.getState().togglePause();
+      } else if (ui.section === 'training') {
+        // Inside a lesson: back out to the lesson list; on the list: back home.
+        const training = useTrainingStore.getState();
+        if (training.activeLessonId) training.exitLesson();
+        else ui.goBack();
       } else if (ui.section !== 'home') {
         ui.goBack();
       }
@@ -121,14 +126,14 @@ export function App() {
   return (
     <div
       className={`app ${section === 'home' ? 'is-home' : ''} ${
-        section === 'fly' ? 'is-fly' : ''
+        flightLike ? 'is-fly' : ''
       } ${section === 'fly' && !panelOpen ? 'no-panel' : ''}`}
     >
       <TopBar />
       {/* Menu and flight view are both full-bleed: the menu navigates via its
           mode cards, and the cockpit should not be crowded by a nav rail. The
           logo and gear in the top bar remain the way back out of both. */}
-      {section !== 'home' && section !== 'fly' && <Sidebar />}
+      {section !== 'home' && !flightLike && <Sidebar />}
       <main className="stage">
         <MainArea />
       </main>
