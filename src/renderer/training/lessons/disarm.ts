@@ -53,5 +53,7 @@ export const disarmLesson: Lesson = {
     return { done: false, progress: 0, hint: 'Press ENTER to disarm the drone' };
   },
 
-  score: () => 3,
+  // Reward a prompt disarm — dithering after landing is the habit to avoid.
+  score: ({ timeSec }) => (timeSec <= 4 ? 3 : timeSec <= 10 ? 2 : 1),
 };
+

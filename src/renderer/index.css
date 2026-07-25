@@ -3016,3 +3016,258 @@ button {
     min-width: 74px;
   }
 }
+
+/* ==========================================================================
+   Pluto Flight School — MINIMAL in-lesson HUD (view-first).
+   Scoped to .tr-hud.min so it overrides the earlier heavier styles.
+   ========================================================================== */
+
+/* Thin top bar */
+.tr-hud.min .tr-bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 18px 20px;
+  background: linear-gradient(180deg, rgba(6, 10, 18, 0.78), rgba(6, 10, 18, 0));
+  pointer-events: none;
+}
+.tr-hud.min .tr-bar > * {
+  pointer-events: auto;
+}
+.tr-hud.min .tr-bar-id {
+  font-size: 14px;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+.tr-hud.min .tr-bar-id b {
+  color: var(--tr-accent);
+  font-weight: 900;
+  margin-right: 6px;
+}
+.tr-hud.min .tr-bar-steps {
+  display: flex;
+  gap: 14px;
+  font-size: 10.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #45526b;
+}
+.tr-hud.min .tr-bar-steps span {
+  position: relative;
+}
+.tr-hud.min .tr-bar-steps span + span::before {
+  content: '›';
+  position: absolute;
+  left: -10px;
+  color: #33405a;
+}
+.tr-hud.min .tr-bar-steps .done {
+  color: var(--good);
+}
+.tr-hud.min .tr-bar-steps .active {
+  color: var(--tr-accent);
+  font-weight: 800;
+}
+.tr-hud.min .tr-bar-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  white-space: nowrap;
+}
+.tr-hud.min .tr-bar-meta {
+  font-size: 12px;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+.tr-hud.min .tr-bar-meta i {
+  font-style: normal;
+  font-weight: 800;
+  margin-right: 8px;
+  color: #6b788f;
+}
+.tr-hud.min .tr-bar-meta i.on {
+  color: var(--good);
+}
+.tr-hud.min .tr-bar-exit {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: rgba(10, 15, 25, 0.6);
+  color: var(--text-dim);
+  font-size: 13px;
+}
+.tr-hud.min .tr-bar-exit:hover {
+  color: var(--text);
+  border-color: var(--bad);
+}
+
+/* Clean cards (intro / reward) */
+.tr-hud.min .tr-card {
+  width: min(500px, 92%);
+  border: 1px solid var(--line);
+  border-top: 2px solid var(--tr-accent);
+  border-radius: 12px;
+  background: rgba(9, 13, 21, 0.94);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.55);
+  padding: 24px 26px;
+}
+.tr-hud.min .tr-card h2 {
+  font-size: 22px;
+  font-weight: 800;
+  margin: 4px 0 12px;
+}
+.tr-hud.min .tr-card p {
+  font-size: 13.5px;
+}
+.tr-hud.min .tr-kicker {
+  font-size: 10.5px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--tr-accent);
+  font-weight: 700;
+}
+
+/* One-line bottom guidance (demo + practice) */
+.tr-hud.min .tr-line {
+  position: absolute;
+  left: 50%;
+  bottom: 22px;
+  transform: translateX(-50%);
+  width: min(560px, 88%);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: rgba(9, 13, 21, 0.82);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px 16px;
+  backdrop-filter: blur(8px);
+}
+.tr-hud.min .tr-line.practice {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  border-left: 3px solid var(--tr-accent);
+}
+.tr-hud.min .tr-line.practice.fail {
+  border-color: var(--bad);
+  border-left-color: var(--bad);
+}
+.tr-hud.min .tr-line-tag {
+  flex: none;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  color: var(--tr-accent);
+  border: 1px solid color-mix(in srgb, var(--tr-accent) 45%, transparent);
+  border-radius: 999px;
+  padding: 3px 9px;
+}
+.tr-hud.min .tr-line-txt {
+  flex: 1;
+  font-size: 14px;
+  font-weight: 600;
+}
+.tr-hud.min .tr-line-skip {
+  flex: none;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+.tr-hud.min .tr-line-skip:hover {
+  color: var(--text);
+}
+.tr-hud.min .tr-line-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.tr-hud.min .tr-line-pct {
+  flex: none;
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--tr-accent);
+  font-variant-numeric: tabular-nums;
+}
+.tr-hud.min .tr-line.practice.fail .tr-line-pct {
+  color: var(--bad);
+}
+.tr-hud.min .tr-thinbar {
+  height: 5px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+.tr-hud.min .tr-thinbar .fill {
+  height: 100%;
+  width: 0;
+  border-radius: 999px;
+  background: var(--tr-accent);
+  transition: width 0.15s ease;
+}
+.tr-hud.min .tr-thinbar .fill.fail {
+  background: var(--bad);
+}
+
+/* Subtle sticks + keycaps so they never dominate the view */
+.tr-hud.min .vstick {
+  transform: scale(0.62);
+  transform-origin: bottom center;
+  opacity: 0.5;
+  bottom: 70px;
+}
+.tr-hud.min .vstick-left {
+  transform-origin: bottom left;
+}
+.tr-hud.min .vstick-right {
+  transform-origin: bottom right;
+}
+.tr-hud.min .tr-keys {
+  bottom: 84px;
+  gap: 8px;
+  opacity: 0.9;
+}
+.tr-hud.min .tr-key {
+  padding: 5px 9px 4px;
+  background: rgba(9, 13, 21, 0.7);
+}
+.tr-hud.min .tr-key kbd {
+  font-size: 12px;
+  padding: 3px 8px;
+  border-bottom-width: 2px;
+}
+.tr-hud.min .tr-key span {
+  font-size: 9px;
+}
+
+/* Reward stays understated */
+.tr-hud.min .tr-card.reward {
+  border-top-color: var(--warn);
+}
+.tr-hud.min .tr-check {
+  width: 46px;
+  height: 46px;
+  font-size: 24px;
+}
+.tr-hud.min .tr-star {
+  font-size: 40px;
+}
+.tr-hud.min .tr-xp {
+  font-size: 16px;
+}
+
+@media (max-width: 680px) {
+  .tr-hud.min .tr-bar-steps,
+  .tr-hud.min .tr-bar-meta {
+    display: none;
+  }
+}

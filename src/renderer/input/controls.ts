@@ -75,11 +75,28 @@ export function activeInputSource(): Source {
 // How fast throttle ramps while W/S held (full range per ~1.6s), and how snappy
 // the self-centering sticks are.
 // Slower ramp = finer resolution around the hover point (~50% stick).
-const THROTTLE_RATE = 0.42;
+const THROTTLE_RATE = 0.6;
 const STICK_LAMBDA = 14;
 /** Spring-return rate for the throttle in altitude-managed modes (~200 ms). */
 const THROTTLE_CENTER_LAMBDA = 15;
 const THROTTLE_CENTER = 0.5;
+/**
+ * Expo applied to the keyboard attitude sticks: gentle around centre for fine
+ * corrections (less twitchy), full authority at the ends (not sluggish). 0 =
+ * linear, 1 = fully cubic.
+ */
+const KEYBOARD_EXPO = 0.6;
+
+function expo(x: number, e: number): number {
+  return x * (e * x * x + (1 - e));
+}
+
+// Raw (pre-expo) eased stick positions. We ease these toward the key target and
+// then shape them with expo, so easing stays smooth while the sim reads a curved
+// response.
+let rawRoll = 0;
+let rawPitch = 0;
+let rawYaw = 0;
 
 // Mode-2 layout (matches a real transmitter): left stick = throttle + yaw,
 // right stick = pitch + roll.
@@ -159,9 +176,13 @@ export function updateStick(dt: number): void {
   const pitchTarget = axis(pressed.has(CODE.pitchBack), pressed.has(CODE.pitchFwd));
   const yawTarget = axis(pressed.has(CODE.yawLeft), pressed.has(CODE.yawRight));
 
-  stick.roll = damp(stick.roll, rollTarget, STICK_LAMBDA, dt);
-  stick.pitch = damp(stick.pitch, pitchTarget, STICK_LAMBDA, dt);
-  stick.yaw = damp(stick.yaw, yawTarget, STICK_LAMBDA, dt);
+  rawRoll = damp(rawRoll, rollTarget, STICK_LAMBDA, dt);
+  rawPitch = damp(rawPitch, pitchTarget, STICK_LAMBDA, dt);
+  rawYaw = damp(rawYaw, yawTarget, STICK_LAMBDA, dt);
+
+  stick.roll = expo(rawRoll, KEYBOARD_EXPO);
+  stick.pitch = expo(rawPitch, KEYBOARD_EXPO);
+  stick.yaw = expo(rawYaw, KEYBOARD_EXPO);
 }
 
 /** Reset sticks (e.g. on scene reset). */
@@ -169,6 +190,9 @@ export function resetStick(): void {
   stick.roll = 0;
   stick.pitch = 0;
   stick.yaw = 0;
+  rawRoll = 0;
+  rawPitch = 0;
+  rawYaw = 0;
   // Altitude-managed modes rest at centre; direct-thrust modes rest at zero.
   stick.throttle = ALT_MANAGED.includes(useFlightStore.getState().mode) ? THROTTLE_CENTER : 0;
   pressed.clear();

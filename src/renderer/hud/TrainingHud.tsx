@@ -12,28 +12,11 @@ const STEPS: { key: TrainingPhase; label: string }[] = [
   { key: 'reward', label: 'Done' },
 ];
 
-function Stepper({ phase }: { phase: TrainingPhase }) {
-  const active = STEPS.findIndex((s) => s.key === phase);
-  return (
-    <div className="tr-stepper">
-      {STEPS.map((s, i) => (
-        <div
-          key={s.key}
-          className={`tr-stepper-node ${i === active ? 'active' : ''} ${i < active ? 'done' : ''}`}
-        >
-          <span className="tr-stepper-dot">{i < active ? '✓' : i + 1}</span>
-          <span className="tr-stepper-label">{s.label}</span>
-        </div>
-      ))}
-    </div>
-  );
-}
-
 function Stars({ value }: { value: number }) {
   return (
     <div className="tr-stars" aria-label={`${value} of 3 stars`}>
       {[1, 2, 3].map((i) => (
-        <span key={i} className={`tr-star ${i <= value ? 'on' : ''}`} style={{ animationDelay: `${i * 0.15}s` }}>
+        <span key={i} className={`tr-star ${i <= value ? 'on' : ''}`} style={{ animationDelay: `${i * 0.12}s` }}>
           ★
         </span>
       ))}
@@ -41,6 +24,8 @@ function Stars({ value }: { value: number }) {
   );
 }
 
+// Minimal, view-first training HUD: a thin top bar with the lesson + phase
+// progress, one-line guidance at the bottom, and the 3D scene left clear.
 export function TrainingHud() {
   const phase = useTrainingStore((s) => s.phase);
   const activeLessonId = useTrainingStore((s) => s.activeLessonId);
@@ -67,51 +52,45 @@ export function TrainingHud() {
   const next = nextLesson(lesson.id);
   const hasNext = !!next && isLessonUnlocked(next.id);
   const isLast = lessonIndex(lesson.id) === LESSONS.length - 1;
+  const flying = phase === 'demo' || phase === 'practice';
+  const activeStep = STEPS.findIndex((s) => s.key === phase);
   const pct = Math.round((validation.progress || 0) * 100);
 
   return (
-    <div className={`tr-hud phase-${phase}`}>
-      {/* Top bar: module badge · phase stepper · exit */}
-      <div className="tr-top">
-        <div className="tr-badge">
-          <span className="tr-badge-num">Module {num}</span>
-          <span className="tr-badge-title">{lesson.title}</span>
+    <div className={`tr-hud min phase-${phase}`}>
+      {/* Thin top bar */}
+      <div className="tr-bar">
+        <span className="tr-bar-id">
+          <b>M{num}</b> {lesson.title}
+        </span>
+        <div className="tr-bar-steps">
+          {STEPS.map((s, i) => (
+            <span
+              key={s.key}
+              className={`${i === activeStep ? 'active' : ''} ${i < activeStep ? 'done' : ''}`}
+            >
+              {s.label}
+            </span>
+          ))}
         </div>
-        <Stepper phase={phase} />
-        <button className="tr-exit" onClick={exitLesson} title="Back to lessons">
-          ✕
-        </button>
+        <div className="tr-bar-right">
+          {flying && (
+            <span className="tr-bar-meta">
+              <i className={armed ? 'on' : ''}>{armed ? 'ARMED' : 'IDLE'}</i>
+              ALT {altitude.toFixed(1)} · THR {Math.round(throttle * 100)}%
+            </span>
+          )}
+          <button className="tr-bar-exit" onClick={exitLesson} title="Back to lessons">
+            ✕
+          </button>
+        </div>
       </div>
 
-      {/* Big flight gauges — shown once we're flying */}
-      {(phase === 'demo' || phase === 'practice') && (
-        <div className="tr-gauges">
-          <div className={`tr-gauge ${armed ? 'live' : ''}`}>
-            <span className="tr-gauge-val">{armed ? 'ARMED' : 'IDLE'}</span>
-            <span className="tr-gauge-lbl">Status</span>
-          </div>
-          <div className="tr-gauge">
-            <span className="tr-gauge-val">
-              {altitude.toFixed(1)}
-              <em>m</em>
-            </span>
-            <span className="tr-gauge-lbl">Altitude</span>
-          </div>
-          <div className="tr-gauge">
-            <span className="tr-gauge-val">
-              {Math.round(throttle * 100)}
-              <em>%</em>
-            </span>
-            <span className="tr-gauge-lbl">Throttle</span>
-          </div>
-        </div>
-      )}
-
-      {/* Step 1 — Introduction */}
+      {/* Step 1 — Introduction (clean card) */}
       {phase === 'intro' && (
         <div className="tr-center">
           <div className="tr-card">
-            <span className="tr-kicker">📖 Learn · Module {num}</span>
+            <span className="tr-kicker">Learn · Module {num}</span>
             <h2>{lesson.explain.title}</h2>
             {lesson.explain.body.map((line, i) => (
               <p key={i}>{line}</p>
@@ -140,9 +119,6 @@ export function TrainingHud() {
                 )}
               </div>
             )}
-            {lesson.explain.durationHint && (
-              <span className="tr-duration">⏱ {lesson.explain.durationHint}</span>
-            )}
             <div className="tr-actions">
               <button className="tr-btn primary" onClick={() => setPhase('demo')}>
                 ▶ Watch Demonstration
@@ -155,21 +131,8 @@ export function TrainingHud() {
         </div>
       )}
 
-      {/* Step 2 — Demonstration */}
-      {phase === 'demo' && (
-        <div className="tr-demo">
-          <div className="tr-demo-tag">
-            🎥 DEMONSTRATION · {demoRound} / {demoRounds}
-          </div>
-          {demoCaption && <div className="tr-demo-caption">{demoCaption}</div>}
-          <button className="tr-btn small" onClick={() => setPhase('practice')}>
-            Skip to Practice ⏭
-          </button>
-        </div>
-      )}
-
-      {/* Live joysticks + keycaps, shown through the demo and practice */}
-      {(phase === 'demo' || phase === 'practice') && (
+      {/* Live joysticks + keycaps (subtle) */}
+      {flying && (
         <>
           <div className={phase === 'demo' ? 'tr-demo-sticks' : undefined}>
             <StickIndicator />
@@ -178,38 +141,41 @@ export function TrainingHud() {
         </>
       )}
 
-      {/* Step 3/4 — Practice + live validation */}
-      {phase === 'practice' && (
-        <>
-          <div className={`tr-objective ${validation.failed ? 'fail' : ''}`}>
-            <div className="tr-objective-head">
-              <span className="tr-kicker">🎮 Your Mission</span>
-              <span className="tr-objective-pct">{pct}%</span>
-            </div>
-            <h3>{lesson.practice.prompt}</h3>
-            <div className="tr-progress">
-              <div
-                className={`tr-progress-fill ${validation.failed ? 'fail' : ''}`}
-                style={{ width: `${pct}%` }}
-              />
-            </div>
-            {hint && (
-              <div className={`tr-hint ${validation.failed ? 'fail' : ''}`}>
-                {validation.failed ? '⚠ ' : '➤ '}
-                {hint}
-              </div>
-            )}
-          </div>
-        </>
+      {/* Step 2 — Demonstration: one bottom line */}
+      {phase === 'demo' && (
+        <div className="tr-line">
+          <span className="tr-line-tag">
+            DEMO {demoRound}/{demoRounds}
+          </span>
+          <span className="tr-line-txt">{demoCaption}</span>
+          <button className="tr-line-skip" onClick={() => setPhase('practice')}>
+            skip ⏭
+          </button>
+        </div>
       )}
 
-      {/* Step 5 — Reward */}
+      {/* Step 3/4 — Practice: one bottom line + slim progress */}
+      {phase === 'practice' && (
+        <div className={`tr-line practice ${validation.failed ? 'fail' : ''}`}>
+          <div className="tr-line-row">
+            <span className="tr-line-txt">
+              {validation.failed ? '⚠ ' : '➤ '}
+              {hint || lesson.practice.prompt}
+            </span>
+            <span className="tr-line-pct">{pct}%</span>
+          </div>
+          <div className="tr-thinbar">
+            <div className={`fill ${validation.failed ? 'fail' : ''}`} style={{ width: `${pct}%` }} />
+          </div>
+        </div>
+      )}
+
+      {/* Step 5 — Reward (clean card) */}
       {phase === 'reward' && (
         <div className="tr-center">
           <div className="tr-card reward">
-            <div className="tr-burst" />
             <span className="tr-check">✓</span>
-            <h2>Lesson Complete!</h2>
+            <h2>Lesson Complete</h2>
             <Stars value={lastStars} />
             {lastXp > 0 && <span className="tr-xp">+{lastXp} XP</span>}
             <div className="tr-actions">
