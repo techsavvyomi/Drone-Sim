@@ -25,8 +25,8 @@ export const throttleLesson: Lesson = {
 
   demo: [
     { at: 0.0, caption: 'Throttle controls altitude' },
-    { at: 0.4, cmd: 'takeoffLand', caption: 'Take off to a hover' },
-    { at: 3.6, stick: { throttle: 0.7 }, caption: 'Push up to climb toward 2 m' },
+    { at: 0.4, cmd: 'takeoffLand', key: 'Space', caption: 'Take off to a hover' },
+    { at: 3.6, stick: { throttle: 0.7 }, key: 'KeyW', caption: 'Push up to climb toward 2 m' },
     { at: 5.6, stick: { throttle: 0.5 }, caption: 'Centre the stick to hold' },
     { at: 7.4, caption: 'Altitude locked at 2 m' },
   ],
@@ -41,6 +41,11 @@ export const throttleLesson: Lesson = {
     prompt: 'Climb to 2 m and hold for 3 seconds',
     hint: 'Increase throttle to climb',
   },
+
+  keys: [
+    { code: 'KeyW', label: 'W', hint: 'Climb' },
+    { code: 'KeyS', label: 'S', hint: 'Descend' },
+  ],
 
   validate: (p, mem) => {
     if (p.crashed) return { done: false, failed: true, hint: 'Crashed — try again' };

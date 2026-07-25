@@ -26,6 +26,11 @@ interface TrainingState {
   phase: TrainingPhase;
   /** Caption under the demo banner (step 2). */
   demoCaption: string;
+  /** Which demonstration pass is playing (1-based) and how many in total. */
+  demoRound: number;
+  demoRounds: number;
+  /** Key currently being "pressed" by the demo, for the keycap highlight. */
+  demoKey: string | null;
   /** Contextual guidance during practice (step 3/4). */
   hint: string;
   validation: Validation;
@@ -36,6 +41,8 @@ interface TrainingState {
   start: (lessonId: string) => void;
   setPhase: (phase: TrainingPhase) => void;
   setDemoCaption: (caption: string) => void;
+  setDemoRound: (round: number) => void;
+  setDemoKey: (key: string | null) => void;
   setHint: (hint: string) => void;
   setValidation: (v: Validation) => void;
   /** Persist a completed lesson, award XP, and move to the reward phase. */
@@ -48,6 +55,9 @@ export const useTrainingStore = create<TrainingState>((set) => ({
   activeLessonId: null,
   phase: 'intro',
   demoCaption: '',
+  demoRound: 1,
+  demoRounds: 3,
+  demoKey: null,
   hint: '',
   validation: { progress: 0, failed: false },
   lastStars: 0,
@@ -58,6 +68,8 @@ export const useTrainingStore = create<TrainingState>((set) => ({
       activeLessonId: lessonId,
       phase: 'intro',
       demoCaption: '',
+      demoRound: 1,
+      demoKey: null,
       hint: '',
       validation: { progress: 0, failed: false },
       lastStars: 0,
@@ -66,6 +78,8 @@ export const useTrainingStore = create<TrainingState>((set) => ({
 
   setPhase: (phase) => set({ phase }),
   setDemoCaption: (demoCaption) => set({ demoCaption }),
+  setDemoRound: (demoRound) => set({ demoRound }),
+  setDemoKey: (demoKey) => set({ demoKey }),
   setHint: (hint) => set({ hint }),
   setValidation: (validation) => set({ validation }),
 

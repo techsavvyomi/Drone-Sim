@@ -48,9 +48,9 @@ export const landingLesson: Lesson = {
   Scene: LandingHighlight,
 
   demo: [
-    { at: 0.0, cmd: 'takeoffLand', caption: 'Take off to a hover' },
+    { at: 0.0, cmd: 'takeoffLand', key: 'Space', caption: 'Take off to a hover' },
     { at: 3.4, caption: 'Now bring it down gently…' },
-    { at: 3.8, cmd: 'takeoffLand', caption: 'Reduce throttle smoothly to descend' },
+    { at: 3.8, cmd: 'takeoffLand', key: 'Space', caption: 'Reduce throttle smoothly to descend' },
     { at: 6.8, caption: 'Soft touchdown inside the circle' },
   ],
 
@@ -63,6 +63,12 @@ export const landingLesson: Lesson = {
     prompt: 'Land softly inside the landing circle',
     hint: 'Fly over the circle, then reduce throttle to descend',
   },
+
+  keys: [
+    { code: 'KeyW', label: 'W', hint: 'Up' },
+    { code: 'KeyS', label: 'S', hint: 'Down' },
+    { code: 'Space', label: 'SPACE', hint: 'Auto-land' },
+  ],
 
   validate: (p, mem) => {
     if (p.crashed) return { done: false, failed: true, hint: 'Hard landing — try again' };

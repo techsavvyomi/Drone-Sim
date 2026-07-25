@@ -21,7 +21,7 @@ export const armLesson: Lesson = {
 
   demo: [
     { at: 0.0, caption: 'Watch: press ENTER to arm' },
-    { at: 0.6, cmd: 'arm', caption: 'ENTER → motors start at idle' },
+    { at: 0.6, cmd: 'arm', key: 'Enter', caption: 'ENTER → motors start at idle' },
     { at: 2.4, caption: 'Propellers spinning — drone is armed' },
   ],
 
@@ -29,6 +29,8 @@ export const armLesson: Lesson = {
     prompt: 'Press ENTER to Arm the Drone',
     hint: 'Press ENTER',
   },
+
+  keys: [{ code: 'Enter', label: 'ENTER', hint: 'Arm' }],
 
   validate: (p) => {
     if (p.armed) return { done: true, progress: 1, hint: 'Drone armed' };

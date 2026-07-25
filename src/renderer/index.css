@@ -2430,16 +2430,22 @@ button {
   letter-spacing: 0.16em;
   text-transform: uppercase;
   color: var(--warn);
+  background: rgba(10, 15, 25, 0.82);
+  border: 1px solid rgba(255, 207, 77, 0.35);
+  border-radius: 999px;
+  padding: 6px 14px;
+  backdrop-filter: blur(8px);
   animation: tr-pulse 1.6s ease-in-out infinite;
 }
 .tr-demo-caption {
-  background: var(--panel);
+  background: rgba(10, 15, 25, 0.9);
   border: 1px solid var(--line);
   border-radius: 8px;
   padding: 12px 22px;
   font-size: 16px;
   font-weight: 700;
   backdrop-filter: blur(8px);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
 }
 @keyframes tr-pulse {
   0%,
@@ -2545,4 +2551,71 @@ button {
   color: var(--accent);
   font-weight: 800;
   font-size: 16px;
+}
+
+/* Keycap row */
+.tr-keys {
+  position: absolute;
+  bottom: 112px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 12px;
+}
+.tr-key {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  background: rgba(10, 15, 25, 0.82);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 12px 6px;
+  backdrop-filter: blur(8px);
+  transition:
+    border-color 0.12s ease,
+    transform 0.12s ease;
+}
+.tr-key kbd {
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: var(--text-dim);
+  border: 1px solid var(--line);
+  border-bottom-width: 3px;
+  border-radius: 6px;
+  padding: 4px 10px;
+  min-width: 20px;
+  text-align: center;
+  background: rgba(255, 255, 255, 0.04);
+}
+.tr-key span {
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+.tr-key.on {
+  border-color: var(--accent);
+  transform: translateY(-3px);
+}
+.tr-key.on kbd {
+  color: #04121c;
+  background: var(--accent);
+  border-color: var(--accent);
+  box-shadow: 0 0 16px rgba(56, 189, 248, 0.6);
+}
+.tr-key.on span {
+  color: var(--accent);
+}
+
+/* Smoothly glide the virtual sticks during the (scripted) demonstration. */
+.tr-demo-sticks .vstick-knob,
+.tr-demo-sticks .vstick-stem {
+  transition:
+    cx 0.45s ease,
+    cy 0.45s ease,
+    x2 0.45s ease,
+    y2 0.45s ease;
 }

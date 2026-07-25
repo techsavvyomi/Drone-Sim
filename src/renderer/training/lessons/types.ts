@@ -43,6 +43,18 @@ export interface DemoStep {
   stick?: Partial<StickInput>;
   /** Caption shown in the demo banner while this step is the latest applied. */
   caption?: string;
+  /** KeyboardEvent.code to flash on the keycap row while this step plays. */
+  key?: string;
+}
+
+/** A keycap shown under the flight view, highlighted while its key is active. */
+export interface KeyHint {
+  /** KeyboardEvent.code, e.g. 'Enter', 'KeyW', 'Space'. */
+  code: string;
+  /** Short face label, e.g. 'ENTER', 'W', 'SPACE'. */
+  label: string;
+  /** What the key does in this lesson. */
+  hint: string;
 }
 
 /** What a validator returns each frame. */
@@ -89,6 +101,9 @@ export interface Lesson {
 
   /** Step 3 — Practice prompt + a default standing hint. */
   practice: { prompt: string; hint: string };
+
+  /** Keycaps to show under the flight view for this lesson's controls. */
+  keys?: KeyHint[];
 
   /** Step 4 — Validation, evaluated every frame during Practice. */
   validate: (p: Probe, mem: LessonMemory) => ValidationResult;

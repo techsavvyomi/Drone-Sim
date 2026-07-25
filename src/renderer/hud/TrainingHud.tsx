@@ -2,6 +2,8 @@ import { useSimStore } from '../state/simStore';
 import { useFlightStore } from '../state/flightStore';
 import { useTrainingStore, isLessonUnlocked } from '../state/trainingStore';
 import { getLesson, lessonIndex, nextLesson, LESSONS } from '../training/lessons';
+import { StickIndicator } from './StickIndicator';
+import { KeyHints } from './KeyHints';
 
 function Stars({ value }: { value: number }) {
   return (
@@ -19,6 +21,9 @@ export function TrainingHud() {
   const phase = useTrainingStore((s) => s.phase);
   const activeLessonId = useTrainingStore((s) => s.activeLessonId);
   const demoCaption = useTrainingStore((s) => s.demoCaption);
+  const demoRound = useTrainingStore((s) => s.demoRound);
+  const demoRounds = useTrainingStore((s) => s.demoRounds);
+  const demoKey = useTrainingStore((s) => s.demoKey);
   const hint = useTrainingStore((s) => s.hint);
   const validation = useTrainingStore((s) => s.validation);
   const lastStars = useTrainingStore((s) => s.lastStars);
@@ -88,12 +93,24 @@ export function TrainingHud() {
       {/* Step 2 — Demonstration */}
       {phase === 'demo' && (
         <div className="tr-demo">
-          <div className="tr-demo-tag">● DEMONSTRATION — watch the drone</div>
+          <div className="tr-demo-tag">
+            ● DEMONSTRATION · {demoRound} of {demoRounds} — watch the drone
+          </div>
           {demoCaption && <div className="tr-demo-caption">{demoCaption}</div>}
           <button className="tr-btn small" onClick={() => setPhase('practice')}>
             Skip ⏭
           </button>
         </div>
+      )}
+
+      {/* Live joysticks + keycaps, shown through the demo and practice */}
+      {(phase === 'demo' || phase === 'practice') && (
+        <>
+          <div className={phase === 'demo' ? 'tr-demo-sticks' : undefined}>
+            <StickIndicator />
+          </div>
+          {lesson.keys && <KeyHints keys={lesson.keys} demoKey={demoKey} />}
+        </>
       )}
 
       {/* Step 3/4 — Practice + live validation */}

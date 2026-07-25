@@ -22,7 +22,7 @@ export const disarmLesson: Lesson = {
   // Arm first so there is something to disarm, then show the disarm.
   demo: [
     { at: 0.0, cmd: 'arm', caption: 'The drone is armed…' },
-    { at: 1.6, cmd: 'disarm', caption: 'ENTER → motors stop' },
+    { at: 1.6, cmd: 'disarm', key: 'Enter', caption: 'ENTER → motors stop' },
     { at: 3.0, caption: 'Disarmed — safe to handle' },
   ],
 
@@ -36,6 +36,8 @@ export const disarmLesson: Lesson = {
     prompt: 'Press ENTER to Disarm the Drone',
     hint: 'Press ENTER',
   },
+
+  keys: [{ code: 'Enter', label: 'ENTER', hint: 'Disarm' }],
 
   validate: (p) => {
     if (!p.armed) return { done: true, progress: 1, hint: 'Drone disarmed' };
