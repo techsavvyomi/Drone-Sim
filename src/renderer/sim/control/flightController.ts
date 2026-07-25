@@ -33,6 +33,8 @@ export interface ControlState {
   maxPerMotor: number;
   /** Extra thrust multiplier from ground effect (>= 1). */
   groundEffect: number;
+  /** Resting on the ground — arming must idle, not hold altitude. */
+  onGround: boolean;
 }
 
 export interface ControlOutput {
@@ -92,6 +94,12 @@ const _desiredUp = new THREE.Vector3();
 const _axis = new THREE.Vector3();
 
 const STICK_DEADBAND = 0.06;
+/**
+ * Thrust while armed and idling on the ground, as a fraction of hover thrust.
+ * Enough to spin the motors visibly, far too little to lift off — arming a real
+ * drone spins the props at idle; it does not take off.
+ */
+const IDLE_THRUST_FRAC = 0.25;
 
 export class FlightController {
   private rollRate: PidController;
@@ -322,6 +330,16 @@ export class FlightController {
     // Throttle stick above/below centre commands climb rate; centred = hold.
     const stick = clamp(input.throttle, 0, 1) - 0.5;
     const stickActive = Math.abs(stick) > STICK_DEADBAND;
+
+    // Armed and resting on the ground with no climb commanded: hold at idle so
+    // the props spin but the drone stays put. Holding altitude here would apply
+    // hover thrust, which ground effect then lifts into an unwanted take-off —
+    // arming is not take-off. The pilot leaves the ground by pushing the
+    // throttle up (climb) or issuing the take-off command.
+    if (state.onGround && !(stickActive && stick > 0)) {
+      this.targetAltitude = alt;
+      return state.mass * GRAVITY * IDLE_THRUST_FRAC;
+    }
 
     let climbSp: number;
     if (stickActive) {

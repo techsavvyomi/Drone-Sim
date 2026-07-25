@@ -325,6 +325,7 @@ export function Drone({ spec, spawn, bounds, outdoor = false }: DroneProps) {
         mass: rb.mass(),
         maxPerMotor,
         groundEffect: ge,
+        onGround: useFlightStore.getState().onGround,
       },
       SIM_DT,
       thrustOverride,

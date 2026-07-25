@@ -2414,10 +2414,10 @@ button {
   font-size: 12px;
 }
 
-/* Demonstration banner (bottom) */
+/* Demonstration banner (bottom, above the keycap row) */
 .tr-demo {
   position: absolute;
-  bottom: 40px;
+  bottom: 96px;
   left: 50%;
   transform: translateX(-50%);
   display: flex;
@@ -2493,10 +2493,10 @@ button {
   background: var(--bad);
 }
 
-/* Contextual guidance line (bottom) */
+/* Contextual guidance line (bottom, above the keycap row) */
 .tr-hint {
   position: absolute;
-  bottom: 44px;
+  bottom: 96px;
   left: 50%;
   transform: translateX(-50%);
   background: var(--panel);
@@ -2553,10 +2553,10 @@ button {
   font-size: 16px;
 }
 
-/* Keycap row */
+/* Keycap row (pinned to the very bottom, clear of the banners above) */
 .tr-keys {
   position: absolute;
-  bottom: 112px;
+  bottom: 24px;
   left: 50%;
   transform: translateX(-50%);
   display: flex;
