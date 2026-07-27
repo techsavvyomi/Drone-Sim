@@ -196,12 +196,26 @@ function Gltf({ spec, idleSpin = 0 }: { spec: DroneSpec; idleSpin?: number }) {
       r.pivot.visible = !gone;
       if (gone) return;
 
-      // idleSpin drives the menu hero shot, where there is no armed drone.
-      const target = idleSpin > 0 ? idleSpin : live ? Math.max(motors[r.motor], 0.2) : 0;
-      const lambda = target > (rpm.current[i] ?? 0) ? 6 : 2.2;
-      rpm.current[i] = damp(rpm.current[i] ?? 0, target, lambda, dt);
       // Diagonal pairs counter-rotate, as on a real quad.
       const dir = r.motor === 0 || r.motor === 3 ? 1 : -1;
+
+      // Menu hero shot: a visible, believable idle spin with the blades kept
+      // SOLID. The flight regime below spins far too fast for 60 fps to resolve
+      // (so it fades the blades and lets the blur disc take over) — but the menu
+      // scene has no blur disc, so there the blades themselves must stay visible
+      // and turn at a rate the eye can actually follow (~7 rev/s).
+      if (idleSpin > 0) {
+        r.pivot.rotation.y += dir * idleSpin * 55 * dt;
+        r.blades.forEach((m) => {
+          m.opacity = 1;
+          m.depthWrite = true;
+        });
+        return;
+      }
+
+      const target = live ? Math.max(motors[r.motor], 0.2) : 0;
+      const lambda = target > (rpm.current[i] ?? 0) ? 6 : 2.2;
+      rpm.current[i] = damp(rpm.current[i] ?? 0, target, lambda, dt);
       // The pivot sits axis-aligned under the model root, so Y is up.
       // Full-speed rotation. Far past the point where 60 fps can resolve a
       // two-blade prop (~15 rev/s), so the blades WOULD strobe — which is why
