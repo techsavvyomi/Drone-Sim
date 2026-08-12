@@ -59,9 +59,7 @@ function Gltf({ spec, idleSpin = 0 }: { spec: DroneSpec; idleSpin?: number }) {
   useLayoutEffect(() => {
     const root = model;
     const found: PropRotor[] = [];
-    const yaw = (spec.modelYawDeg ?? 0) * DEG2RAD;
-    const cosY = Math.cos(yaw);
-    const sinY = Math.sin(yaw);
+    const _body = new THREE.Vector3();
 
     root.updateWorldMatrix(true, true);
 
@@ -134,9 +132,18 @@ function Gltf({ spec, idleSpin = 0 }: { spec: DroneSpec; idleSpin?: number }) {
         });
       });
 
-      const bx = centre.x * cosY + centre.z * sinY;
-      const bz = -centre.x * sinY + centre.z * cosY;
-      const motor = bz < 0 ? (bx > 0 ? 0 : 1) : bx > 0 ? 2 : 3;
+      // Which corner this prop sits on, decided in the BODY frame.
+      //
+      // root.matrix carries scale, yaw AND modelOffset, so it is the only
+      // transform that lands the hub where the airframe actually has it.
+      // Rotating the raw model-space position by yaw alone silently assumes the
+      // .glb is origin-centred: the PlutoX is, the Guru is not (its prop
+      // centroid sits ~121 mm off in X), so all four of its hubs came out on
+      // the same side and collapsed onto two motors — front pair both CW, rear
+      // pair both CCW, instead of counter-rotating diagonals.
+      root.updateMatrix();
+      _body.copy(centre).applyMatrix4(root.matrix);
+      const motor = _body.z < 0 ? (_body.x > 0 ? 0 : 1) : _body.x > 0 ? 2 : 3;
 
       // Motors 0/1 are the front pair, 2/3 the rear. Tint applies to the whole
       // prop (hub included) and multiplies any baked texture, so the moulding

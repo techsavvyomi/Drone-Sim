@@ -17,9 +17,10 @@ export function loadBuiltinPlugins(): void {
   registerEnvironment(flightSchool);
   registerEnvironment(classroom2);
 
-  // Warm the model cache immediately so the menu's hero shot never shows a
-  // stand-in airframe while the .glb streams in. Every registered drone is
-  // warmed, not just the PlutoX: the hero shot renders whichever drone is
-  // selected, and settings hydrate too late to know which that is.
+  // Warm the model cache immediately so nothing shows a stand-in airframe while
+  // its .glb streams in. Every registered drone is warmed, not just the PlutoX:
+  // the menu hero is hardcoded to the PlutoX (see Home.tsx), but the Fly and
+  // Training views use the pilot's selection, and settings hydrate too late for
+  // startup to know which that is.
   listDrones().forEach(preloadDroneModel);
 }
