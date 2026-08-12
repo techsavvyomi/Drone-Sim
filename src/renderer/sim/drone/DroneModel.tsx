@@ -136,6 +136,18 @@ function Gltf({ spec, idleSpin = 0 }: { spec: DroneSpec; idleSpin?: number }) {
       const bx = centre.x * cosY + centre.z * sinY;
       const bz = -centre.x * sinY + centre.z * cosY;
       const motor = bz < 0 ? (bx > 0 ? 0 : 1) : bx > 0 ? 2 : 3;
+
+      // Motors 0/1 are the front pair, 2/3 the rear. Tint applies to the whole
+      // prop (hub included) and multiplies any baked texture, so the moulding
+      // detail survives rather than flattening to a solid colour.
+      const tint = motor < 2 ? spec.propColors?.front : spec.propColors?.rear;
+      if (tint) {
+        blades.forEach((m) => {
+          const col = (m as THREE.MeshStandardMaterial).color;
+          if (col) col.set(tint);
+        });
+      }
+
       found.push({ pivot, motor, blades });
     }
 
@@ -178,7 +190,7 @@ function Gltf({ spec, idleSpin = 0 }: { spec: DroneSpec; idleSpin?: number }) {
       rotors.current = [];
       propHubs.ready = false;
     };
-  }, [model, spec.armLength, spec.modelYawDeg]);
+  }, [model, spec.armLength, spec.modelYawDeg, spec.propColors]);
 
   // Spin from live motor output — idle on arm, faster with throttle, smoothed.
   useFrame((_s, dt) => {

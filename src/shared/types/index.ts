@@ -407,6 +407,12 @@ export interface DroneSpec {
   modelYawDeg?: number;
   /** Positional offset applied to the .glb, in metres. */
   modelOffset?: Vec3;
+  /**
+   * Optional propeller tint by position, overriding whatever the .glb bakes in.
+   * Real pilots colour the front pair differently from the rear so the nose is
+   * readable at a distance — CAD exports rarely follow that convention.
+   */
+  propColors?: { front?: string; rear?: string };
   pidDefaults: PidSet;
 }
 
