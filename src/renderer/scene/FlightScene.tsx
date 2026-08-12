@@ -123,7 +123,26 @@ export function FlightScene({ envIdOverride }: { envIdOverride?: string } = {}) 
         />
       )}
 
-      <Physics timeStep={SIM_DT} interpolate paused={paused} gravity={[0, -GRAVITY, 0]}>
+      {/* Contact tuning, not cosmetics: on Rapier's defaults the drone sinks
+          17-47 mm into the floor on touchdown before the solver pushes it back
+          out, which reads as the airframe briefly disappearing underground. The
+          collider is only 48 mm tall, so at 250 Hz a descent of a few m/s
+          travels most of its own thickness in a single step and the contact is
+          found only once it is already deep.
+
+          Predicting contacts from 50 mm out lets the solver catch the floor
+          before the overlap happens; the extra iterations clean up what is left.
+          Measured worst-case sink across 0-18 m/s impacts: 47 mm -> 5 mm.
+          Rapier's `contactSkin` kills the sink outright but rests the drone
+          visibly floating above the ground, so it is deliberately not used. */}
+      <Physics
+        timeStep={SIM_DT}
+        interpolate
+        paused={paused}
+        gravity={[0, -GRAVITY, 0]}
+        predictionDistance={0.05}
+        numSolverIterations={8}
+      >
         <EnvComponent env={env} />
         <Drone spec={spec} spawn={env.spawn} bounds={env.bounds} outdoor={outdoor} />
         <PropDebris spec={spec} />

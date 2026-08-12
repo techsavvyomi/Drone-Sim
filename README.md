@@ -1,7 +1,7 @@
 # Drone Flight Simulator
 
 A realistic multirotor flight simulator for STEM education and pilot training, built around
-the [Drona Aviation](https://www.dronaaviation.com/) **PlutoX** nano quad.
+the [Drona Aviation](https://www.dronaaviation.com/) **Pluto** airframes.
 
 It is a desktop app: real rigid-body physics, a proper flight controller with selectable
 flight modes, live telemetry, and a guided **Flight School** that teaches a complete beginner
@@ -22,7 +22,11 @@ to arm, take off, hover and land before they ever touch real hardware.
   real flight controller does — and the Arm lesson coaches you through it.
 - **Full instrument HUD.** Artificial horizon, altitude tape, compass, stick indicators and
   streaming telemetry charts (uPlot).
-- **Multiple environments.** Drone Arena, Drone Academy and the Flight School classroom.
+- **Two airframes.** The **Pluto** 160 mm nano quad and the **Pluto Guru**, a 230 mm trainer
+  with 135 mm props — 8x the mass, and a correspondingly heavier, calmer machine to fly. Both
+  are real CAD models with independently spinning propellers.
+- **Multiple environments.** Drone Arena, Drone Academy, Classroom and the Flight School
+  classroom.
 - **Keyboard or gamepad.** Mode-2 layout on both; whichever device you touched last flies the
   aircraft, so an idle gamepad never locks out the keyboard.
 
@@ -89,12 +93,37 @@ window updates without losing your place.
 
 ### 3D assets
 
-The PlutoX and environment `.glb` models are **not** in the repository — they exceed GitHub's
-100 MB file limit and are gitignored. The app detects their absence and falls back to
-procedural meshes built to the PlutoX's real proportions, so a fresh clone runs and flies
-correctly out of the box. Drop the `.glb` files into `src/assets/models/` to get the CAD
-models back; [scripts/prepare-drone-model.mjs](scripts/prepare-drone-model.mjs) produces the
-optimised `.opt.glb` variant the renderer loads.
+The drone and environment `.glb` models are **not** in the repository — they exceed GitHub's
+100 MB file limit and are gitignored.
+
+**A fresh clone will not build until you supply them.** The renderer imports each model as a
+static asset, so an absent file is a build-time `Module not found`, not a graceful fallback.
+The procedural-mesh fallback in [DroneModel.tsx](src/renderer/sim/drone/DroneModel.tsx) only
+catches models that fail to *load or parse* at runtime.
+
+Place these in `src/assets/models/`:
+
+| File | Used by |
+|------|---------|
+| `PlutoX.opt.glb` | Pluto drone |
+| `PlutoGuru.opt.glb` | Pluto Guru drone |
+| `school_class_room.glb`, `warehouse.glb` | Environments |
+
+The `.opt.glb` variants are produced from the raw CAD exports by
+[scripts/prepare-drone-model.mjs](scripts/prepare-drone-model.mjs), which shrinks them ~10x
+while keeping each propeller as a separately animatable node:
+
+```bash
+node scripts/prepare-drone-model.mjs "src/assets/models/PlutoX.glb" \
+  src/assets/models/PlutoX.opt.glb
+
+node scripts/prepare-drone-model.mjs "src/assets/models/Pluto Guru.glb" \
+  src/assets/models/PlutoGuru.opt.glb \
+  --props=Body1.010,Body1.019,Body1.009,Body1.020
+```
+
+Pass `--props` when the export gives the propellers no distinguishing name of their own — see
+the script's header for how to find the right node names.
 
 ---
 
@@ -143,7 +172,8 @@ logic all live in the renderer; the main process owns only what a browser cannot
 Electron (Forge + Vite) · TypeScript (strict) · React 19 · Three.js + React Three Fiber +
 drei · Rapier physics via `@react-three/rapier` · Zustand · uPlot
 
-Full design rationale and the phased roadmap are in [docs/PLAN.md](docs/PLAN.md).
+The full design rationale and phased roadmap live in `docs/PLAN.md`, which this branch keeps
+local rather than committing.
 
 ---
 
