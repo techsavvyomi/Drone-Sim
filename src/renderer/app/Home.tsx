@@ -1,5 +1,4 @@
 import { useUiStore, type Section } from '../state/uiStore';
-import { useSettingsStore } from '../state/settingsStore';
 import { getDrone } from '../plugins/registry';
 import { usePilotStore } from '../state/pilotStore';
 import { ArenaShowcase } from '../scene/ArenaShowcase';
@@ -78,8 +77,9 @@ const CARDS: ModeCard[] = [
 
 export function Home() {
   const setSection = useUiStore((s) => s.setSection);
-  const droneId = useSettingsStore((s) => s.settings.selectedDroneId);
-  const drone = getDrone(droneId);
+  // Home hero animation always shows Pluto — dropdown selection does not
+  // swap the background showcase (flight still uses selectedDroneId).
+  const drone = getDrone('pluto');
 
   return (
     <div className="home">

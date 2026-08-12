@@ -64,10 +64,9 @@ export interface ControllerConfig {
 }
 
 export const BEGINNER_CONFIG: ControllerConfig = {
-  // More tilt authority at full stick so translation isn't sluggish; the
-  // keyboard expo keeps small inputs gentle so it isn't twitchy. Climb rate is
-  // kept modest so take-off is controllable and doesn't rocket past the target.
-  maxTiltDeg: 34,
+  // Trainer tilt: enough lean to translate indoors, not so much that full stick
+  // looks like the whoop is diving. Keyboard expo still softens small inputs.
+  maxTiltDeg: 22,
   maxYawRate: 2.6,
   maxRateSetpoint: 7,
   maxAngAccel: 90,
@@ -165,6 +164,11 @@ export class FlightController {
     this.rollRate.resetIntegral();
     this.pitchRate.resetIntegral();
     this.yawRate.resetIntegral();
+  }
+
+  /** Capture the current altitude before handing an automatic climb to Alt Hold. */
+  captureAltitude(altitude: number): void {
+    this.targetAltitude = altitude;
   }
 
   get maxThrust(): number {

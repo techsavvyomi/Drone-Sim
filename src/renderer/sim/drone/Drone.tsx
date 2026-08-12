@@ -58,9 +58,15 @@ const CP_HEIGHT = 0.022;
  * HUD displays — that's the number a real pilot sees dip.
  */
 
-/** Impact speeds (m/s): below MINOR nothing, above MAJOR is a crash. */
+/** Impact speeds (m/s): below MINOR nothing, above MAJOR is a floor slam crash. */
 const MINOR_IMPACT = 1.8;
 const MAJOR_IMPACT = 4.5;
+/** Walls / furniture — only crash on a clear fast hit. Slow/medium bumps must not flip. */
+const WALL_CRASH_SPEED = 3.2;
+/** After a non-crash bump, keep roll/pitch locked so contact torque cannot tumble Pluto. */
+const WALL_BUMP_HOLD = 0.85;
+/** Remember peak speed this long so a tunneled hit still counts as a fast crash. */
+const PEAK_SPEED_HOLD = 0.25;
 
 /**
  * Attitude / lateral-G crash detection, ported from the Magis V2 firmware's
@@ -79,8 +85,8 @@ const ACC_SMOOTH_HZ = 12;
 /** Both conditions must persist this long — resting contact spikes are noise. */
 const CRASH_HOLD = 0.12;
 
-const GROUND_ALT = 0.06;
-const TAKEOFF_ALT = 1.5;
+const GROUND_ALT = 0.4;
+const TAKEOFF_ALT = 1.8;
 const MAX_ANGVEL = 40;
 
 interface DroneProps {
@@ -144,12 +150,17 @@ export function Drone({ spec, spawn, bounds, outdoor = false }: DroneProps) {
   const prevMode = useRef<FlightMode | null>(null);
   /** Speed at the last physics step — used to grade collision severity. */
   const impactSpeed = useRef(0);
+  /** Peak speed in a short window — tunneling can zero linvel before onCollisionEnter. */
+  const peakSpeed = useRef(0);
+  const peakSpeedUntil = useRef(0);
   /** Seconds the pack has been continuously below LOW_VOLTAGE. */
   const lowVoltageFor = useRef(0);
   /** Previous horizontal velocity, for deriving lateral G. */
   const prevVel = useRef({ x: 0, z: 0 });
   const smoothLateralG = useRef(0);
   const crashHold = useRef(0);
+  /** Sim-time until which a soft wall bump keeps roll/pitch locked level (no flip). */
+  const wallBumpUntil = useRef(0);
 
   const hoverThrust = useMemo(() => spec.mass * GRAVITY, [spec]);
   const armPerAxis = useMemo(() => spec.armLength / Math.SQRT2, [spec]);
@@ -186,6 +197,9 @@ export function Drone({ spec, spawn, bounds, outdoor = false }: DroneProps) {
     lowVoltageFor.current = 0;
     smoothLateralG.current = 0;
     crashHold.current = 0;
+    wallBumpUntil.current = 0;
+    peakSpeed.current = 0;
+    peakSpeedUntil.current = 0;
     prevVel.current = { x: 0, z: 0 };
     useFlightStore.getState().setOnGround(true);
     useFlightStore.getState().clearCrash();
@@ -214,7 +228,14 @@ export function Drone({ spec, spawn, bounds, outdoor = false }: DroneProps) {
 
     const pos = rb.translation();
     const lin = rb.linvel();
-    impactSpeed.current = Math.hypot(lin.x, lin.y, lin.z);
+    const speedNow = Math.hypot(lin.x, lin.y, lin.z);
+    impactSpeed.current = speedNow;
+    if (speedNow >= peakSpeed.current || simTime.current > peakSpeedUntil.current) {
+      peakSpeed.current = speedNow;
+    }
+    if (speedNow > 0.5) {
+      peakSpeedUntil.current = simTime.current + PEAK_SPEED_HOLD;
+    }
 
     // ---- Wind acts whether or not the drone is armed ----
     if (physics.wind.speed > 0) {
@@ -256,8 +277,23 @@ export function Drone({ spec, spawn, bounds, outdoor = false }: DroneProps) {
     const pin = rb.principalInertia();
     inertia.current = [pin.x, pin.y, pin.z];
 
-    const rot = rb.rotation();
-    const av = rb.angvel();
+    // Soft wall/desk bump: keep roll+pitch level so contact torque cannot flip
+    // the whoop. Yaw stays free. Fast hits still crash above WALL_CRASH_SPEED.
+    const bumpHold = simTime.current < wallBumpUntil.current;
+    let rot = rb.rotation();
+    let av = rb.angvel();
+    if (bumpHold && !crashed) {
+      _q.set(rot.x, rot.y, rot.z, rot.w);
+      _euler.setFromQuaternion(_q, 'YXZ');
+      _euler.x = 0;
+      _euler.z = 0;
+      _q.setFromEuler(_euler);
+      rb.setRotation({ x: _q.x, y: _q.y, z: _q.z, w: _q.w }, true);
+      // Kill tumble completely — leftover pitch/roll rate is what flips after a desk glance.
+      rb.setAngvel({ x: 0, y: av.y * 0.25, z: 0 }, true);
+      rot = rb.rotation();
+      av = rb.angvel();
+    }
 
     // ---- Battery: sag reduces the thrust each motor can make ----
     const prevFraction = lastOutput.current?.throttleFraction ?? 0;
@@ -383,28 +419,65 @@ export function Drone({ spec, spawn, bounds, outdoor = false }: DroneProps) {
     }
 
     // ---- Soft arena containment ----
-    // EnvironmentSpec.bounds previously described the play area without
-    // anything enforcing it, so leaving the arena meant flying off into empty
-    // space (and, past the floor plane, falling forever). A spring-damper near
-    // each edge eases the drone back in instead of letting it escape or
-    // slamming into the wall collider at speed.
+    // Outdoor: soft fence on all axes (no hard walls).
+    // Indoor: hard wall/floor colliders own contact — soft XZ push near walls
+    // flips a light whoop on slow approach. Only rescue Y when underground and
+    // soften the ceiling so the roof doesn't need a separate collider.
     const containK = 3.2 * rb.mass();
     const dampK = 1.4 * rb.mass();
+    const marginX = outdoor ? BOUND_MARGIN : 0.2;
+    const marginY = 0.2;
+    const marginZ = outdoor ? BOUND_MARGIN : 0.2;
+
     const axes: [number, number, number][] = [
       [pos.x, bounds.min[0], bounds.max[0]],
       [pos.y, bounds.min[1], bounds.max[1]],
       [pos.z, bounds.min[2], bounds.max[2]],
     ];
+    const margins = [marginX, marginY, marginZ];
     const vel = [lin.x, lin.y, lin.z];
     const push = [0, 0, 0];
     for (let i = 0; i < 3; i++) {
       const [p, lo, hi] = axes[i];
-      const overLow = lo + BOUND_MARGIN - p;
-      const overHigh = p - (hi - BOUND_MARGIN);
-      if (overLow > 0) {
-        push[i] = containK * overLow - (vel[i] < 0 ? dampK * vel[i] : 0);
-      } else if (overHigh > 0) {
-        push[i] = -containK * overHigh - (vel[i] > 0 ? dampK * vel[i] : 0);
+      const m = margins[i];
+      const overLow = lo + m - p;
+      const overHigh = p - (hi - m);
+
+      if (outdoor) {
+        if (overLow > 0) {
+          push[i] = containK * overLow - (vel[i] < 0 ? dampK * vel[i] : 0);
+        } else if (overHigh > 0) {
+          push[i] = -containK * overHigh - (vel[i] > 0 ? dampK * vel[i] : 0);
+        }
+        continue;
+      }
+
+      // Indoor: Y underground rescue only when past the floor.
+      // Soft ceiling margin was fighting Alt Hold and "gluing" Pluto to the roof —
+      // only push when already past hi, and bleed climb near the ceiling instead.
+      if (i === 1) {
+        if (overLow > 0 && p < lo) {
+          push[i] = containK * overLow - (vel[i] < 0 ? dampK * vel[i] : 0);
+        } else if (p > hi) {
+          push[i] = -containK * (p - hi) - (vel[i] > 0 ? dampK * vel[i] : 0);
+        }
+      } else if (p < lo || p > hi) {
+        // Past the shell — push back hard. Also snap below if deeply tunneled.
+        if (p < lo) {
+          push[i] = containK * 2.2 * (lo - p) - (vel[i] < 0 ? dampK * 1.5 * vel[i] : 0);
+        } else {
+          push[i] = -containK * 2.2 * (p - hi) - (vel[i] > 0 ? dampK * 1.5 * vel[i] : 0);
+        }
+      }
+    }
+    // Near indoor ceiling: kill climb early and peel down so Alt Hold cannot
+    // hover-glue Pluto into the visual roof mesh.
+    if (!outdoor && pos.y > bounds.max[1] - 0.28) {
+      const lv = rb.linvel();
+      if (pos.y > bounds.max[1] - 0.1) {
+        rb.setLinvel({ x: lv.x * 0.85, y: Math.min(lv.y, -0.75), z: lv.z * 0.85 }, true);
+      } else if (lv.y > 0) {
+        rb.setLinvel({ x: lv.x, y: lv.y * 0.2, z: lv.z }, true);
       }
     }
     if (push[0] || push[1] || push[2]) {
@@ -412,6 +485,65 @@ export function Drone({ spec, spawn, bounds, outdoor = false }: DroneProps) {
         { x: push[0] * SIM_DT, y: push[1] * SIM_DT, z: push[2] * SIM_DT },
         true,
       );
+    }
+    // Hard rescue if pitch-into-wall CCD still tunneled past the shell.
+    if (!outdoor) {
+      const pad = 0.02;
+      let x = pos.x;
+      let y = pos.y;
+      let z = pos.z;
+      const lv = rb.linvel();
+      let vx = lv.x;
+      let vy = lv.y;
+      let vz = lv.z;
+      let clamped = false;
+      let ceilingOnly = false;
+      if (x < bounds.min[0] + pad) {
+        x = bounds.min[0] + pad;
+        if (vx < 0) vx = 0;
+        clamped = true;
+      } else if (x > bounds.max[0] - pad) {
+        x = bounds.max[0] - pad;
+        if (vx > 0) vx = 0;
+        clamped = true;
+      }
+      if (z < bounds.min[2] + pad) {
+        z = bounds.min[2] + pad;
+        if (vz < 0) vz = 0;
+        clamped = true;
+      } else if (z > bounds.max[2] - pad) {
+        z = bounds.max[2] - pad;
+        if (vz > 0) vz = 0;
+        clamped = true;
+      }
+      // Roof: never park on the lid (that + Alt Hold = stuck in the mesh).
+      // Snap below and peel downward.
+      if (y > bounds.max[1] - 0.06) {
+        y = bounds.max[1] - 0.12;
+        vy = Math.min(vy, -0.85);
+        clamped = true;
+        ceilingOnly = true;
+      }
+      if (clamped) {
+        const hitSpeed = Math.max(impactSpeed.current, peakSpeed.current);
+        rb.setTranslation({ x, y, z }, true);
+        rb.setLinvel({ x: vx, y: vy, z: vz }, true);
+        rb.setAngvel({ x: 0, y: rb.angvel().y * 0.2, z: 0 }, true);
+        // Fast wall tunnel → crash. Soft roof touch → peel only (unless slam).
+        // Skip during auto-takeoff so a bound scrape can't abort the climb.
+        const crashThresh = ceilingOnly ? MAJOR_IMPACT : WALL_CRASH_SPEED;
+        if (
+          hitSpeed >= crashThresh &&
+          useFlightStore.getState().auto !== 'takeoff' &&
+          !useFlightStore.getState().crashed
+        ) {
+          useFlightStore.getState().crash(hitSpeed, pickBrokenProps());
+          addShake(1);
+          peakSpeed.current = 0;
+          return;
+        }
+        wallBumpUntil.current = simTime.current + WALL_BUMP_HOLD;
+      }
     }
 
     // ---- Attitude / lateral-G crash detection (Magis failsafe) ----
@@ -430,7 +562,9 @@ export function Drone({ spec, spawn, bounds, outdoor = false }: DroneProps) {
     prevVel.current.z = lin.z;
 
     const flightNow = useFlightStore.getState();
-    if (mode !== 'acro' && !flightNow.crashed && !flightNow.onGround) {
+    const isNearGround = pos.y < 0.25 || flightNow.onGround;
+    // Skip Magis tilt/G crash during a soft wall bump — contact lean is not a crash.
+    if (mode !== 'acro' && !flightNow.crashed && !isNearGround && !bumpHold) {
       _q.set(rot.x, rot.y, rot.z, rot.w);
       _euler.setFromQuaternion(_q, 'YXZ');
       const overTilt =
@@ -565,6 +699,11 @@ export function Drone({ spec, spawn, bounds, outdoor = false }: DroneProps) {
     }
 
     if (flight.auto === 'takeoff' && altitude >= TAKEOFF_ALT - 0.05 && Math.abs(verticalSpeed) < 0.3) {
+      // Auto-takeoff bypasses the altitude controller, so its previous target
+      // is still the launch height. Capture the reached hover altitude before
+      // handing back; otherwise the first pitch input makes Alt Hold descend
+      // to the floor.
+      controller.captureAltitude(altitude);
       stick.throttle = ALT_MANAGED.includes(flight.mode)
         ? 0.5
         : clamp(hoverThrust / controller.maxThrust, 0, 1);
@@ -611,20 +750,52 @@ export function Drone({ spec, spawn, bounds, outdoor = false }: DroneProps) {
       // hangar sides) between physics ticks and ends up inside the geometry.
       ccd
       onCollisionEnter={() => {
-        const v = impactSpeed.current;
+        const v = Math.max(impactSpeed.current, peakSpeed.current);
         const flight = useFlightStore.getState();
         if (flight.crashed) return;
-        if (v >= MAJOR_IMPACT) {
-          // Major impact: motors cut, controls locked until R.
+        const rb = body.current;
+        const posY = rb ? rb.translation().y : 0;
+        // Floor: hard slam → crash. Walls/desks: only a fast hit → crash.
+        // Use peak speed so a tunneled CCD hit still registers as fast.
+        const isNearGround = posY < 0.25 || flight.onGround;
+        const crashSpeedThreshold = isNearGround ? MAJOR_IMPACT : WALL_CRASH_SPEED;
+        // Auto-takeoff: ignore medium bumps so a desk scrape doesn't "crash-land".
+        if (v >= crashSpeedThreshold && flight.auto !== 'takeoff') {
           flight.crash(v, pickBrokenProps());
           addShake(1);
-        } else if (v >= MINOR_IMPACT) {
-          // Minor knock: bounce and shake, keep flying.
-          addShake(Math.min(0.6, (v - MINOR_IMPACT) / (MAJOR_IMPACT - MINOR_IMPACT)));
+          peakSpeed.current = 0;
+          return;
+        }
+        // Soft bump — level now and hold upright so Rapier contact torque can't tumble.
+        if (rb) {
+          const nearCeiling = posY > bounds.max[1] - 0.45;
+          const takingOff = flight.auto === 'takeoff';
+          wallBumpUntil.current = simTime.current + WALL_BUMP_HOLD;
+          const rot = rb.rotation();
+          _q.set(rot.x, rot.y, rot.z, rot.w);
+          _euler.setFromQuaternion(_q, 'YXZ');
+          _euler.x = 0;
+          _euler.z = 0;
+          _q.setFromEuler(_euler);
+          rb.setRotation({ x: _q.x, y: _q.y, z: _q.z, w: _q.w }, true);
+          rb.setAngvel({ x: 0, y: 0, z: 0 }, true);
+          const lv = rb.linvel();
+          if (nearCeiling) {
+            // Peel off the roof — never zero vertical speed on the lid.
+            rb.setLinvel({ x: lv.x * 0.5, y: Math.min(lv.y, -0.9), z: lv.z * 0.5 }, true);
+          } else if (takingOff) {
+            // Keep climb alive — a desk glance must not cancel auto-takeoff.
+            rb.setLinvel({ x: lv.x * 0.4, y: Math.max(lv.y, 0.45), z: lv.z * 0.4 }, true);
+          } else {
+            rb.setLinvel({ x: lv.x * 0.3, y: lv.y * 0.55, z: lv.z * 0.3 }, true);
+          }
+        }
+        if (v >= MINOR_IMPACT) {
+          addShake(Math.min(0.35, (v - MINOR_IMPACT) / (MAJOR_IMPACT - MINOR_IMPACT)));
         }
       }}
     >
-      <CuboidCollider args={half} mass={spec.mass} restitution={0.08} friction={0.25} />
+      <CuboidCollider args={half} mass={spec.mass} restitution={0} friction={0.05} />
       <group ref={visual}>
         <DroneModel spec={spec} />
         <Propellers spec={spec} />

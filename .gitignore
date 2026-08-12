@@ -8,6 +8,18 @@ dist/
 # Reference-only legacy project (separate app, large build artifacts)
 ar_drone_sim/
 
+# Local planning / AI knowledge-graph output — keep out of remote
+docs/
+graphify-out/
+
+# Cursor / agent tooling — local only
+.cursor/
+.claude/
+.codex/
+AGENTS.md
+CLAUDE.md
+**/*.canvas.tsx
+
 # Large 3D model assets exceed GitHub's 100MB limit; app falls back to
 # procedural meshes when these are absent.
 src/assets/models/*.glb

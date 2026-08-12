@@ -1,10 +1,19 @@
 import { create } from 'zustand';
 import type { FlightMode } from '@shared/types';
+import { dronePose } from '../sim/drone/pose';
 
 export type AutoState = 'manual' | 'takeoff' | 'land';
 
 /** High-level drone state, driven by arm/disarm, ground contact and crashes. */
 export type DroneStatus = 'disarmed' | 'armed' | 'flying' | 'crashed';
+
+/** Below this, Space means takeoff — above it, Space means land. */
+const TAKEOFF_ALT_GATE = 1.2;
+/** After starting takeoff, ignore Space→land for this long (ms). */
+const LAND_LOCKOUT_MS = 4000;
+
+/** Wall-clock when takeoff last started — blocks accidental land. */
+let takeoffStartedAt = 0;
 
 interface FlightState {
   armed: boolean;
@@ -94,10 +103,21 @@ export const useFlightStore = create<FlightState>((set, get) => ({
   setOnGround: (onGround) => set({ onGround }),
 
   requestTakeoffLand: () => {
-    const { armed, onGround, crashed, batteryLocked, lowBattery } = get();
+    const { armed, onGround, crashed, batteryLocked, lowBattery, auto } = get();
     if (crashed || lowBattery) return;
     if (onGround && batteryLocked) return;
-    if (onGround) {
+    // Already climbing out on auto-takeoff — don't flip to land on a second Space.
+    if (auto === 'takeoff') return;
+
+    const alt = dronePose.present ? dronePose.position.y : 0;
+    // Spawns near/on ground clearance so onGround can be false initially;
+    // treat near-ground as takeoff, not land.
+    const nearGround = onGround || alt < TAKEOFF_ALT_GATE;
+    const landLocked = performance.now() - takeoffStartedAt < LAND_LOCKOUT_MS;
+
+    if (nearGround || landLocked) {
+      // Still in the takeoff window — climb (or re-issue takeoff), never land.
+      takeoffStartedAt = performance.now();
       set({ armed: true, auto: 'takeoff' });
     } else if (armed) {
       set({ auto: 'land' });

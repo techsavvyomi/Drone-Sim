@@ -27,8 +27,9 @@ export function TrainingViewport() {
           shadows={{ type: THREE.PCFShadowMap }}
           gl={{
             antialias: true,
+            outputColorSpace: THREE.SRGBColorSpace,
             toneMapping: THREE.ACESFilmicToneMapping,
-            toneMappingExposure: 1.05,
+            toneMappingExposure: 1.0,
           }}
           camera={{ position: [8, 5, 9], fov: 60, near: 0.15, far: 700 }}
         >

@@ -29,7 +29,7 @@ export function PostFX() {
           blendFunction={BlendFunction.MULTIPLY}
           samples={16}
           radius={0.08}
-          intensity={22}
+          intensity={5}
           luminanceInfluence={0.5}
           bias={0.03}
           worldDistanceThreshold={40}

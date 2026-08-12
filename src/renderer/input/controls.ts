@@ -75,7 +75,6 @@ export function activeInputSource(): Source {
 // How fast throttle ramps while W/S held (full range per ~1.6s), and how snappy
 // the self-centering sticks are.
 // Slower ramp = finer resolution around the hover point (~50% stick).
-const THROTTLE_RATE = 0.48;
 const STICK_LAMBDA = 14;
 /** Spring-return rate for the throttle in altitude-managed modes (~200 ms). */
 const THROTTLE_CENTER_LAMBDA = 15;
@@ -157,17 +156,18 @@ export function updateStick(dt: number): void {
     return;
   }
 
+  const throttleRateUp = 0.6;
+  const throttleRateDown = 0.95;
+
   if (ALT_MANAGED.includes(useFlightStore.getState().mode)) {
-    // Altitude-managed modes: the throttle stick is spring-centred, like a DJI
-    // or a game controller. Centre holds altitude; deflection commands climb or
-    // descent rate. Releasing eases back to centre rather than snapping.
-    if (up) stick.throttle += THROTTLE_RATE * dt;
-    else if (down) stick.throttle -= THROTTLE_RATE * dt;
+    // Altitude-managed modes: W climbs, S descends responsively.
+    if (up) stick.throttle += throttleRateUp * dt;
+    else if (down) stick.throttle -= throttleRateDown * dt;
     else stick.throttle = damp(stick.throttle, THROTTLE_CENTER, THROTTLE_CENTER_LAMBDA, dt);
   } else {
-    // Direct-thrust modes: throttle is a position and holds where you leave it.
-    if (up) stick.throttle += THROTTLE_RATE * dt;
-    if (down) stick.throttle -= THROTTLE_RATE * dt;
+    // Direct-thrust modes: W increases throttle, S decreases throttle to descend.
+    if (up) stick.throttle += throttleRateUp * dt;
+    if (down) stick.throttle -= throttleRateDown * dt;
   }
   stick.throttle = clamp(stick.throttle, 0, 1);
 

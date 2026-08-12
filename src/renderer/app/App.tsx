@@ -7,6 +7,7 @@ import { SettingsPanel } from './SettingsPanel';
 import { Placeholder } from './Placeholder';
 import { StatusBar } from './StatusBar';
 import { TrainingScreen } from './TrainingScreen';
+import { MissionsScreen } from './MissionsScreen';
 import { Viewport } from '../scene/Viewport';
 import { useUiStore } from '../state/uiStore';
 import { useFlightStore } from '../state/flightStore';
@@ -35,13 +36,7 @@ function MainArea() {
     case 'training':
       return <TrainingScreen />;
     case 'missions':
-      return (
-        <Placeholder
-          title="Missions"
-          phase="Phase 4"
-          blurb="Challenge modes: hoop runs, landing pads, races, delivery and time trials."
-        />
-      );
+      return <MissionsScreen />;
     case 'studio':
       return (
         <Placeholder

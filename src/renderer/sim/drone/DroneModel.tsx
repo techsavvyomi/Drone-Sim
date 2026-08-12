@@ -141,42 +141,81 @@ function Gltf({ spec, idleSpin = 0 }: { spec: DroneSpec; idleSpin?: number }) {
 
     rotors.current = found;
 
-    // Publish hub positions in the drone's body frame (root.matrix carries the
-    // model's scale/yaw/offset) so the blur discs land exactly on the blades.
     root.updateMatrix();
-    const byMotor = [...found].sort((a, b) => a.motor - b.motor);
-    propHubs.positions = byMotor.map((f) =>
-      f.pivot.position.clone().applyMatrix4(root.matrix),
-    );
-    propHubs.ready = propHubs.positions.length === 4;
+    root.updateWorldMatrix(true, true);
 
-    // Keep a clonable copy of the real propeller for crash debris. Taken from
-    // the pivot's child, so it arrives already centred on its hub. Materials
-    // are re-cloned opaque — the in-flight ones get faded for the blur effect.
-    const source = found[0]?.pivot.children[0];
-    if (source) {
-      const template = source.clone(true);
-      template.position.set(0, 0, 0);
-      template.rotation.set(0, 0, 0);
-      template.visible = true;
-      template.traverse((o) => {
-        const mesh = o as THREE.Mesh;
-        if (!mesh.isMesh) return;
-        const mat = mesh.material as THREE.Material | THREE.Material[];
-        const opaque = Array.isArray(mat) ? mat.map((m) => m.clone()) : mat.clone();
-        (Array.isArray(opaque) ? opaque : [opaque]).forEach((m) => {
-          m.transparent = false;
-          m.opacity = 1;
-          m.depthWrite = true;
+    if (found.length === 4) {
+      propHubs.synthetic = false;
+      propHubs.propRadius = 0;
+      const byMotor = [...found].sort((a, b) => a.motor - b.motor);
+      propHubs.positions = byMotor.map((f) =>
+        f.pivot.position.clone().applyMatrix4(root.matrix),
+      );
+      propHubs.ready = true;
+
+      // Keep a clonable copy of the real propeller for crash debris. Taken from
+      // the pivot's child, so it arrives already centred on its hub. Materials
+      // are re-cloned opaque — the in-flight ones get faded for the blur effect.
+      const source = found[0]?.pivot.children[0];
+      if (source) {
+        const template = source.clone(true);
+        template.position.set(0, 0, 0);
+        template.rotation.set(0, 0, 0);
+        template.visible = true;
+        template.traverse((o) => {
+          const mesh = o as THREE.Mesh;
+          if (!mesh.isMesh) return;
+          const mat = mesh.material as THREE.Material | THREE.Material[];
+          const opaque = Array.isArray(mat) ? mat.map((m) => m.clone()) : mat.clone();
+          (Array.isArray(opaque) ? opaque : [opaque]).forEach((m) => {
+            m.transparent = false;
+            m.opacity = 1;
+            m.depthWrite = true;
+          });
+          mesh.material = opaque;
         });
-        mesh.material = opaque;
-      });
-      propHubs.template = template;
+        propHubs.template = template;
+      }
+    } else {
+      // Single-mesh airframe: estimate motor hubs from the model AABB so
+      // Propellers can spin black stand-in blades over the bake.
+      propHubs.synthetic = true;
+      propHubs.template = null;
+      box.setFromObject(root);
+      const ordered: THREE.Vector3[] = [];
+      if (!box.isEmpty()) {
+        const inv = new THREE.Matrix4().copy(root.matrixWorld).invert();
+        const lb = box.clone().applyMatrix4(inv);
+        const cx = (lb.min.x + lb.max.x) * 0.5;
+        const cz = (lb.min.z + lb.max.z) * 0.5;
+        const halfX = (lb.max.x - lb.min.x) * 0.5;
+        const halfZ = (lb.max.z - lb.min.z) * 0.5;
+        // Motors sit inboard of the prop tips (bbox edge).
+        const hx = halfX * 0.62;
+        const hz = halfZ * 0.62;
+        propHubs.propRadius = Math.min(halfX, halfZ) * 0.36;
+        // Above the baked prop plane so overlays cover the static texture.
+        const y = lb.max.y + 0.012;
+        for (const [lx, lz] of [
+          [cx + hx, cz - hz],
+          [cx - hx, cz - hz],
+          [cx + hx, cz + hz],
+          [cx - hx, cz + hz],
+        ] as const) {
+          const body = new THREE.Vector3(lx, y, lz).applyMatrix4(root.matrix);
+          const motor = body.z < 0 ? (body.x > 0 ? 0 : 1) : body.x > 0 ? 2 : 3;
+          ordered[motor] = body;
+        }
+      }
+      propHubs.positions = ordered;
+      propHubs.ready = ordered.filter(Boolean).length === 4;
     }
 
     return () => {
       rotors.current = [];
       propHubs.ready = false;
+      propHubs.synthetic = false;
+      propHubs.propRadius = 0;
     };
   }, [model, spec.armLength, spec.modelYawDeg]);
 

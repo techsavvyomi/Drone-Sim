@@ -12,8 +12,8 @@ import { cloudTexture } from './environment/textures';
 // effect fades out with altitude — which also makes it a useful visual cue for
 // how close you are during landing.
 
-const COUNT = 26;
-const MAX_ALT = 1.6;
+const COUNT = 14;
+const MAX_ALT = 1.2;
 
 export function RotorWash() {
   const tex = useMemo(() => cloudTexture(), []);
@@ -42,7 +42,7 @@ export function RotorWash() {
     const proximity = Math.max(0, 1 - altitude / MAX_ALT);
     const strength = live ? proximity * proximity * Math.min(1, throttle * 1.6) : 0;
 
-    group.current.visible = strength > 0.02;
+    group.current.visible = strength > 0.04;
     if (!group.current.visible) return;
 
     group.current.position.set(dronePose.position.x, 0.05, dronePose.position.z);
@@ -52,16 +52,16 @@ export function RotorWash() {
       const p = puffs[i];
       // Puffs drift outward and fade as they go, then loop.
       const cycle = (t * p.speed + p.phase) % 1;
-      const radius = 0.25 + cycle * 1.5;
+      const radius = 0.2 + cycle * 1.1;
       child.position.set(
         Math.cos(p.angle) * radius,
-        cycle * 0.22,
+        cycle * 0.14,
         Math.sin(p.angle) * radius,
       );
-      const scale = 0.35 + cycle * 0.85;
+      const scale = 0.22 + cycle * 0.5;
       child.scale.set(scale, scale, 1);
       const m = mats.current[i];
-      if (m) m.opacity = strength * 0.3 * (1 - cycle);
+      if (m) m.opacity = strength * 0.14 * (1 - cycle);
     });
   });
 

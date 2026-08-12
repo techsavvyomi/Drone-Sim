@@ -12,7 +12,14 @@ import type { TimePreset } from '../state/worldStore';
 // blocks. Instead we render a sky gradient plus a sun blob into a small cube
 // map: drei's <Environment> renders whatever children you give it, so this
 // costs one 128px cube render and no network at all.
-export function LocalEnvironment({ preset }: { preset: TimePreset }) {
+export function LocalEnvironment({
+  preset,
+  environmentIntensity = 1,
+}: {
+  preset: TimePreset;
+  /** Scales IBL contribution; keep low indoors so textured albedo isn't washed out. */
+  environmentIntensity?: number;
+}) {
   const gradient = useMemo(() => {
     const top = preset.night ? '#0a1020' : preset.skyTurbidity > 6 ? '#6d4a52' : '#3f7fc4';
     const horizon = preset.night ? '#141d2e' : preset.fogColor;
@@ -27,7 +34,7 @@ export function LocalEnvironment({ preset }: { preset: TimePreset }) {
 
   return (
     // frames={1} bakes it once per preset change rather than every frame.
-    <Environment frames={1} resolution={128}>
+    <Environment frames={1} resolution={128} environmentIntensity={environmentIntensity}>
       <mesh scale={50}>
         <sphereGeometry args={[1, 24, 16]} />
         <meshBasicMaterial map={gradient} side={THREE.BackSide} toneMapped={false} />

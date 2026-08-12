@@ -39,11 +39,35 @@ export function FlightScene({ envIdOverride }: { envIdOverride?: string } = {}) 
   const t = TIME_PRESETS[timeOfDay];
   const EnvComponent = getEnvironmentComponent(env.id);
   const outdoor = env.kind === 'outdoor';
+  const isClassroom = env.id === 'classroom-2';
+  // Outdoor presets wash indoor albedo. Classroom 2 brings its own light rig;
+  // keep global fill modest so textured PBR colors stay readable (Meshy-like).
+  const ambient = isClassroom ? 0.35 : outdoor ? t.ambient : t.ambient * 0.4;
+  const hemi = isClassroom
+    ? 0.25
+    : outdoor
+      ? t.night
+        ? 0.25
+        : 0.7
+      : t.night
+        ? 0.18
+        : 0.28;
+  const sun = isClassroom ? 0.2 : outdoor ? t.sunIntensity : t.sunIntensity * 0.3;
+  const bg = isClassroom
+    ? '#2a3340'
+    : outdoor
+      ? t.fogColor
+      : t.night
+        ? '#1a2230'
+        : '#c8d0da';
+  const ibl = isClassroom ? 0.6 : outdoor ? 1 : 0.22;
 
   return (
     <>
-      <color attach="background" args={[t.fogColor]} />
-      <fog attach="fog" args={[t.fogColor, t.fogNear, t.fogFar]} />
+      <color attach="background" args={[bg]} />
+      {/* Indoors: skip distance fog — small rooms sit inside outdoor fogNear
+          and the light fog colour flattens textured walls to white. */}
+      {outdoor && <fog attach="fog" args={[t.fogColor, t.fogNear, t.fogFar]} />}
 
       {/* Procedural sky — no HDRI download, so it works offline under our CSP. */}
       {outdoor && (
@@ -59,36 +83,34 @@ export function FlightScene({ envIdOverride }: { envIdOverride?: string } = {}) 
       {outdoor && t.night && <Stars radius={300} depth={60} count={3500} factor={5} fade speed={0.4} />}
       {outdoor && cloudsEnabled && !t.night && <SkyClouds tint={t.sunColor} />}
 
-      {/* Image-based lighting so PBR materials have something to reflect. */}
-      <LocalEnvironment preset={t} />
+      <LocalEnvironment preset={t} environmentIntensity={ibl} />
 
-      <ambientLight intensity={t.ambient} />
+      <ambientLight intensity={ambient} />
       <hemisphereLight
-        intensity={t.night ? 0.25 : 0.7}
+        intensity={hemi}
         color={t.night ? '#26364d' : '#cfe3ff'}
         groundColor={outdoor ? '#3f5233' : '#0a1018'}
       />
-      <directionalLight
-        position={t.sun}
-        intensity={t.sunIntensity}
-        color={t.sunColor}
-        castShadow
-        /* 4096 over a 76m span is ~1.9cm per texel. The drone is only 16cm
-           across, so at the old 2048/90m (4.4cm per texel) its shadow was about
-           four texels wide and read as a smudge. */
-        shadow-mapSize={[4096, 4096]}
-        shadow-bias={-0.0002}
-        shadow-normalBias={0.02}
-        shadow-camera-left={-38}
-        shadow-camera-right={38}
-        shadow-camera-top={38}
-        shadow-camera-bottom={-38}
-        shadow-camera-near={0.5}
-        shadow-camera-far={200}
-      />
+      {/* Classroom uses its own window + ceiling rig; skip the outdoor sun key. */}
+      {!isClassroom && (
+        <directionalLight
+          position={t.sun}
+          intensity={sun}
+          color={t.sunColor}
+          castShadow
+          shadow-mapSize={[4096, 4096]}
+          shadow-bias={-0.0002}
+          shadow-normalBias={0.02}
+          shadow-camera-left={-38}
+          shadow-camera-right={38}
+          shadow-camera-top={38}
+          shadow-camera-bottom={-38}
+          shadow-camera-near={0.5}
+          shadow-camera-far={200}
+        />
+      )}
 
-      {/* The indoor arena keeps its reference grid; outdoors has real ground. */}
-      {!outdoor && (
+      {!outdoor && !isClassroom && (
         <Grid
           args={[60, 60]}
           cellColor="#6d7d94"
@@ -101,8 +123,6 @@ export function FlightScene({ envIdOverride }: { envIdOverride?: string } = {}) 
         />
       )}
 
-      {/* Halting the world means the drone hangs where you paused it instead of
-          dropping while the menu is open. */}
       <Physics timeStep={SIM_DT} interpolate paused={paused} gravity={[0, -GRAVITY, 0]}>
         <EnvComponent env={env} />
         <Drone spec={spec} spawn={env.spawn} bounds={env.bounds} outdoor={outdoor} />
@@ -111,7 +131,7 @@ export function FlightScene({ envIdOverride }: { envIdOverride?: string } = {}) 
 
       <GroundMarker />
       <RotorWash />
-      <CameraRig spec={spec} />
+      <CameraRig spec={spec} env={env} />
       {cameraMode === 'orbit' && (
         <OrbitControls makeDefault target={[0, 1.5, 0]} maxPolarAngle={Math.PI / 2.05} />
       )}

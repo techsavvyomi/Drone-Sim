@@ -1,6 +1,6 @@
 import { useThree, useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
-import type { DroneSpec } from '@shared/types';
+import type { DroneSpec, EnvironmentSpec } from '@shared/types';
 import { useUiStore } from '../state/uiStore';
 import { useSettingsStore } from '../state/settingsStore';
 import { dronePose } from '../sim/drone/pose';
@@ -26,7 +26,7 @@ function chaseOffset(spec: DroneSpec): THREE.Vector3 {
   return new THREE.Vector3(0, span * 3.2, span * 9);
 }
 
-export function CameraRig({ spec }: { spec: DroneSpec }) {
+export function CameraRig({ spec, env }: { spec: DroneSpec; env?: EnvironmentSpec }) {
   const camera = useThree((s) => s.camera);
   const mode = useUiStore((s) => s.cameraMode);
   // Chase distance scales with the user's zoom preference, applied live.
@@ -47,13 +47,28 @@ export function CameraRig({ spec }: { spec: DroneSpec }) {
       _offset.copy(CHASE_OFFSET).applyQuaternion(_yawQuat);
       _target.copy(dronePose.position).add(_offset);
 
-      const lambda = 6;
+      // Clamp camera + look target inside indoor room so chase never clips
+      // into wall interiors (grey faces / "invisible" Pluto) when pitching back.
+      if (env && env.kind === 'indoor') {
+        const padding = 0.55;
+        _target.x = THREE.MathUtils.clamp(_target.x, env.bounds.min[0] + padding, env.bounds.max[0] - padding);
+        _target.z = THREE.MathUtils.clamp(_target.z, env.bounds.min[2] + padding, env.bounds.max[2] - padding);
+        _target.y = THREE.MathUtils.clamp(_target.y, Math.max(env.bounds.min[1] + 0.85, 0.85), env.bounds.max[1] - 0.25);
+      }
+
+      const lambda = 8;
       camera.position.x = damp(camera.position.x, _target.x, lambda, delta);
       camera.position.y = damp(camera.position.y, _target.y, lambda, delta);
       camera.position.z = damp(camera.position.z, _target.z, lambda, delta);
 
       // Aim just above the airframe, scaled to its size.
       _look.copy(dronePose.position).addScaledVector(UP, spec.armLength * 1.5);
+      if (env && env.kind === 'indoor') {
+        const lookPad = 0.35;
+        _look.x = THREE.MathUtils.clamp(_look.x, env.bounds.min[0] + lookPad, env.bounds.max[0] - lookPad);
+        _look.z = THREE.MathUtils.clamp(_look.z, env.bounds.min[2] + lookPad, env.bounds.max[2] - lookPad);
+        _look.y = THREE.MathUtils.clamp(_look.y, 0.3, env.bounds.max[1] - 0.2);
+      }
       camera.lookAt(_look);
 
       if (shake > 0.001) {

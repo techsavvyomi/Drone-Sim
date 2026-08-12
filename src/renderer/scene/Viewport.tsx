@@ -54,8 +54,9 @@ export function Viewport() {
           shadows={{ type: THREE.PCFShadowMap }}
           gl={{
             antialias: true,
+            outputColorSpace: THREE.SRGBColorSpace,
             toneMapping: THREE.ACESFilmicToneMapping,
-            toneMappingExposure: 1.05,
+            toneMappingExposure: 1.0,
           }}
           // near/far ratio drives depth precision: 0.05/2000 was 40000:1, which
           // z-fights badly on the near-coplanar ground layers.
