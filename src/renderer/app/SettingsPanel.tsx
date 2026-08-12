@@ -120,9 +120,22 @@ export function SettingsPanel() {
               />
               <span className="setting-value">{Math.round(settings.volume * 100)}%</span>
             </div>
+            <div className="setting-row">
+              <label>Motor volume</label>
+              <input
+                type="range"
+                min={0}
+                max={1}
+                step={0.05}
+                value={settings.engineVolume}
+                onChange={(e) => set('engineVolume', Number(e.target.value))}
+              />
+              <span className="setting-value">{Math.round(settings.engineVolume * 100)}%</span>
+            </div>
             <p className="section-note">
-              The audio engine is not built yet — motor tone, low-battery warning and impact
-              sounds are still to come. This setting is saved and will apply when they land.
+              The rotor sound is synthesised from the selected drone's own motor and battery
+              spec, so each airframe has its own pitch — the Pluto whines, the Guru growls.
+              Motor volume is separate because it is the one sound that never stops.
             </p>
           </>
         )}

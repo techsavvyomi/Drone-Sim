@@ -48,6 +48,14 @@ export interface AppSettings {
   selectedEnvironmentId: string;
   /** Master audio volume 0..1. */
   volume: number;
+  /**
+   * Motor/rotor engine level 0..1, applied before the master volume.
+   *
+   * Separate from `volume` because it is the one sound that never stops. A
+   * level that sits well under the one-shot effects is fine for a short flight
+   * and fatiguing over an hour, and that trade is the pilot's to make.
+   */
+  engineVolume: number;
   /** Chase-camera distance multiplier (0.5 = close, 2.5 = far). */
   cameraZoom: number;
   /** Per-widget HUD visibility. */
@@ -303,6 +311,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   selectedDroneId: 'pluto',
   selectedEnvironmentId: 'drone-academy',
   volume: 0.7,
+  engineVolume: 0.75,
   cameraZoom: 1,
   gamepad: DEFAULT_GAMEPAD,
   training: DEFAULT_TRAINING,
@@ -395,6 +404,16 @@ export interface DroneSpec {
   armLength: number;
   motors: MotorSpec[];
   propDiameterIn: number;
+  /**
+   * Blades per propeller, default 2. Only the engine sound uses it: blade-pass
+   * frequency is shaft speed times blade count, so a 3-blade prop sings a fifth
+   * higher than a 2-blade one at the same RPM.
+   *
+   * Both shipped airframes are 2-blade — measured off the CAD, by rotational
+   * symmetry of the prop geometry (PlutoX scores 0.90 for 2-fold and negative
+   * for every other order), so neither needs to set this.
+   */
+  propBlades?: number;
   battery: BatterySpec;
   maxSpeed: number; // m/s
   maxAltitude: number; // m

@@ -14,7 +14,7 @@ import {
   setScriptedStick,
   runScriptedCommand,
 } from '../input/controls';
-import { playArm, playDisarm, playFail, playWhoosh } from '../audio/sfx';
+import { playFail, playWhoosh } from '../audio/sfx';
 
 // The Director runs a lesson through Explain -> Demonstrate -> Practice ->
 // Validate -> Reward. It is headless (renders nothing) but lives inside the
@@ -71,8 +71,6 @@ export function Director() {
   const jerkAccum = useRef(0);
   const crashCount = useRef(0);
   const prevCrashed = useRef(false);
-  /** Tracks armed state to fire arm/disarm blips on the pilot's own actions. */
-  const prevArmed = useRef(false);
   const failCount = useRef(0);
   const prevStick = useRef({ roll: 0, pitch: 0, yaw: 0, throttle: 0.5 });
   /** Debounce so a single failure doesn't reset repeatedly across frames. */
@@ -128,8 +126,6 @@ export function Director() {
         prevStick.current = { ...stick };
         training.setDemoKey(null);
         lesson.setup?.();
-        // Suppress the arm/disarm blip that setup itself may trigger.
-        prevArmed.current = useFlightStore.getState().armed;
         training.setHint(lesson.practice.hint);
         training.setValidation({ progress: 0, failed: false });
         playWhoosh();
@@ -206,12 +202,8 @@ export function Director() {
     if (flight.crashed && !prevCrashed.current) crashCount.current += 1;
     prevCrashed.current = flight.crashed;
 
-    // Arm/disarm blips on the pilot's own actions.
-    if (flight.armed !== prevArmed.current) {
-      if (flight.armed) playArm();
-      else playDisarm();
-      prevArmed.current = flight.armed;
-    }
+    // Arm/disarm blips are played by DroneAudio now, so the Fly view gets them
+    // too rather than only Flight School.
 
     // Control smoothness — accumulate absolute stick movement.
     jerkAccum.current +=

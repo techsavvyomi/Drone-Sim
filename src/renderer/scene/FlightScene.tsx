@@ -15,6 +15,7 @@ import { RotorWash } from './RotorWash';
 import { PropDebris } from './PropDebris';
 import { LocalEnvironment } from './LocalEnvironment';
 import { PostFX } from './PostFX';
+import { DroneAudio } from '../audio/DroneAudio';
 
 // The Fly view's 3D contents: sky + lighting for the selected time of day, the
 // active environment, the drone under a fixed-timestep Rapier world, and the
@@ -151,6 +152,10 @@ export function FlightScene({ envIdOverride }: { envIdOverride?: string } = {}) 
       <GroundMarker />
       <RotorWash />
       <CameraRig spec={spec} env={env} />
+      {/* Must stay below CameraRig: useFrame callbacks run in mount order, and
+          the engine reads the camera pose for distance, panning and Doppler.
+          Mounted above, it would be a frame behind — audible on a fly-by. */}
+      <DroneAudio spec={spec} />
       {cameraMode === 'orbit' && (
         <OrbitControls makeDefault target={[0, 1.5, 0]} maxPolarAngle={Math.PI / 2.05} />
       )}
