@@ -5,7 +5,17 @@ import * as THREE from 'three';
 import type { EnvironmentSpec } from '@shared/types';
 import classroom2ModelUrl from '../../../assets/models/classroom2.glb?url';
 
-// classroom2.glb is already in metres (Draco decoded offline — CSP-safe).
+// classroom2.glb is already in metres, and IS Draco-compressed.
+//
+// drei defaults its DRACOLoader to gstatic.com, which the app's CSP
+// (`connect-src 'self'`) blocks — the decoder never loads, the geometry never
+// decompresses, and the room renders as untextured grey. Hence the bundled
+// decoder in public/draco/gltf/ and the explicit path below.
+//
+// The path is deliberately RELATIVE: it resolves against the document base, so
+// it works both under the dev server and under file:// in a packaged build,
+// where a leading slash would point at the filesystem root.
+const DRACO_DECODER_PATH = 'draco/gltf/';
 const MODEL_SCALE = 1;
 // Raw bbox ≈ [-100.7, -0.2, -10.2] → [-92.4, 3.3, 0.17].
 // XZ recentre only. Do NOT lift Y — visual parquet must sit on physics y=0.
@@ -174,7 +184,7 @@ function Classroom2Model({
   url: string;
   spawnPos: [number, number, number];
 }) {
-  const { scene } = useGLTF(url);
+  const { scene } = useGLTF(url, DRACO_DECODER_PATH);
 
   const { model, furnitureBoxes } = useMemo(() => {
     const root = scene.clone(true);
@@ -276,4 +286,6 @@ export function Classroom2Env({ env }: { env: EnvironmentSpec }) {
 }
 
 useGLTF.clear(classroom2ModelUrl);
-useGLTF.preload(classroom2ModelUrl);
+// Same decoder path as the hook above — drei caches per loader configuration,
+// so a preload without it warms an entry the component never reads.
+useGLTF.preload(classroom2ModelUrl, DRACO_DECODER_PATH);
