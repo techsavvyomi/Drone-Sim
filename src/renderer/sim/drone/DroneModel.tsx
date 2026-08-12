@@ -9,6 +9,7 @@ import { propHubs } from './propHubs';
 import { useSimStore } from '../../state/simStore';
 import { useFlightStore } from '../../state/flightStore';
 import { damp } from '../mathx';
+import { PROP_SPIN_Y } from '../control/mixer';
 
 // Loads a drone's .glb visual. The model is purely cosmetic — physics always
 // uses the simple box collider on the RigidBody, so mesh complexity never
@@ -247,8 +248,9 @@ function Gltf({ spec, idleSpin = 0 }: { spec: DroneSpec; idleSpin?: number }) {
       r.pivot.visible = !gone;
       if (gone) return;
 
-      // Diagonal pairs counter-rotate, as on a real quad.
-      const dir = r.motor === 0 || r.motor === 3 ? 1 : -1;
+      // Diagonal pairs counter-rotate, as on a real quad. Direction comes from
+      // the mixer so the blades match the reaction torque they represent.
+      const dir = PROP_SPIN_Y[r.motor];
 
       // Menu hero shot: a visible, believable idle spin with the blades kept
       // SOLID. The flight regime below spins far too fast for 60 fps to resolve

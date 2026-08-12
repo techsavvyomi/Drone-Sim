@@ -5,6 +5,7 @@ import type { DroneSpec } from '@shared/types';
 import { useSimStore } from '../../state/simStore';
 import { useFlightStore } from '../../state/flightStore';
 import { propHubs } from './propHubs';
+import { PROP_SPIN_Y } from '../control/mixer';
 
 // Status LED + spin-blur discs. Real PROP_ meshes are spun inside DroneModel.
 // Single-mesh airframes get black SyntheticBlades that cover the baked props
@@ -146,7 +147,7 @@ function SyntheticBlades({ spec }: { spec: DroneSpec }) {
       pivot.visible = !gone;
       if (gone) return;
 
-      const dir = i === 0 || i === 3 ? 1 : -1;
+      const dir = PROP_SPIN_Y[i];
       const m = motors[i] ?? 0;
       // Visible spin (same feel as procedural Pluto / DroneMesh).
       const refR = (spec.propDiameterIn * 25.4) / 2000;

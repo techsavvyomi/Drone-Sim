@@ -18,8 +18,30 @@ export const MOTOR_SIGNS = {
   // [pitch, roll, yaw] contribution sign per motor, in FR, FL, BR, BL order.
   pitch: [1, 1, -1, -1],
   roll: [1, -1, 1, -1],
+  // +1 = a CW propeller (viewed from above), whose reaction torque yaws the
+  // airframe CCW. Hence FR and BL positive, FL and BR negative.
   yaw: [1, -1, -1, 1],
 } as const;
+
+/**
+ * Which way each propeller turns on screen, as the sign of a Three.js rotation
+ * about body +Y, in FR, FL, BR, BL order.
+ *
+ * A CW propeller turns NEGATIVE about +Y: the coordinate system is
+ * right-handed, so a positive Y rotation carries +X toward -Z — which reads as
+ * counter-clockwise when viewed from above.
+ *
+ * Derived from MOTOR_SIGNS.yaw rather than written out again, because it was
+ * written out again — in three separate renderers — and all three ended up
+ * spinning the blades opposite to the reaction torque they were meant to be
+ * producing. The airframe is FL/RR counter-clockwise, FR/RL clockwise.
+ */
+export const PROP_SPIN_Y: readonly [number, number, number, number] = [
+  -MOTOR_SIGNS.yaw[0],
+  -MOTOR_SIGNS.yaw[1],
+  -MOTOR_SIGNS.yaw[2],
+  -MOTOR_SIGNS.yaw[3],
+];
 
 export interface MixResult {
   /** Per-motor thrust in Newtons (FR, FL, BR, BL), clamped to what motors can do. */

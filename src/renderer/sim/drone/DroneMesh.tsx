@@ -3,6 +3,7 @@ import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import type { DroneSpec } from '@shared/types';
 import { useSimStore } from '../../state/simStore';
+import { PROP_SPIN_Y } from '../control/mixer';
 
 // Procedural nano-quad built to the PlutoX's real proportions and colour scheme
 // (palette sampled from the CAD model's materials). ~3k triangles and a handful
@@ -48,7 +49,7 @@ export function DroneMesh({ spec }: { spec: DroneSpec }) {
     for (let i = 0; i < 4; i++) {
       const g = propRefs.current[i];
       if (!g) continue;
-      const dir = i === 0 || i === 3 ? 1 : -1; // CW / CCW pairs
+      const dir = PROP_SPIN_Y[i]; // FR/RL clockwise, FL/RR counter-clockwise
       g.rotation.y += dir * (6 + motors[i] * 260) * delta;
     }
   });
