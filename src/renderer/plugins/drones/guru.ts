@@ -44,7 +44,8 @@ export const guruDrone: DroneSpec = {
   // Mirrors the PlutoX mount, scaled by the ratio of the two arm lengths so FPV
   // frames the airframe the same way on both.
   cameraMount: { position: [0, 0.015, 0.07], tiltDeg: 15 },
-  // Guru Kit CAD export, optimized for realtime (194 draw calls, 275k tris).
+  // Guru Kit CAD export, optimized for realtime (222 draw calls, 275k tris —
+  // on a par with the PlutoX's 219 / 277k).
   // The four props are tagged PROP_* by scripts/prepare-drone-model.mjs so the
   // runtime can pivot them independently — see that script for why they have to
   // be named explicitly for this model.
