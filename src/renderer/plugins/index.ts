@@ -5,6 +5,7 @@ import { droneArena } from './environments/droneArena';
 import { droneAcademy } from './environments/droneAcademy';
 import { flightSchool } from './environments/flightSchool';
 import { classroom2 } from './environments/classroom2';
+import { forest } from './environments/forest';
 import { preloadDroneModel } from '../sim/drone/DroneModel';
 
 // Registers all built-in content once at app startup. Adding a new drone/map is
@@ -16,6 +17,7 @@ export function loadBuiltinPlugins(): void {
   registerEnvironment(droneAcademy);
   registerEnvironment(flightSchool);
   registerEnvironment(classroom2);
+  registerEnvironment(forest);
 
   // Warm the model cache immediately so nothing shows a stand-in airframe while
   // its .glb streams in. Every registered drone is warmed, not just the PlutoX:
