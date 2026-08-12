@@ -13,11 +13,16 @@ import forestModelUrl from '../../../assets/models/forest.opt.glb?url';
  *
  * The model's lowest geometry is at y = 96, but that is the valley floor far
  * below. The clearing you actually fly in — the bare dirt road, with the fence,
- * logs and cobblestone around it — sits at y ~= 173.15, and is centred at
- * x = 2.3, z = 53.7. Shifting by the negative of that puts the clearing at the
- * origin with its ground on y = 0, which is where the sim expects to find it.
+ * logs and cobblestone around it — sits at y ~= 173.24, centred at x = 2.3,
+ * z = 53.7. Shifting by the negative of that puts the clearing at the origin
+ * with its ground on y = 0, which is where the sim expects to find it.
+ *
+ * The height is the road SURFACE sampled at the spawn point (within 4 m: min
+ * 173.22, median 173.24, max 173.25), not the mid-point of the road mesh's
+ * bounding box. The bbox mid gave 173.15 — 9 cm low, and since the Guru's
+ * airframe is only 7.8 cm tall that sank it into the dirt up to its propellers.
  */
-const CLEARING_CENTRE: [number, number, number] = [2.3, 173.15, 53.7];
+const CLEARING_CENTRE: [number, number, number] = [2.3, 173.24, 53.7];
 
 /**
  * Scene scale, in metres per authored unit.
@@ -40,13 +45,50 @@ const MODEL_OFFSET: [number, number, number] = [
 ];
 
 /**
- * Half-thickness of the ground slab. The forest floor is a visual mesh with
- * ~0.5 m of undulation across the clearing, so physics uses a flat slab at
- * y = 0 rather than the terrain itself: the sim's landing and altitude logic
- * (GROUND_ALT, the bounds floor) all assume ground is y = 0, and a trimesh
- * terrain would put the drone metres below "zero altitude" out by the valley.
+ * Meshes the drone should hit: the landscape underfoot, and everything standing
+ * up off it — trunks, fences, logs, rocks, cliff face.
+ *
+ * The ground is the real terrain rather than a flat plane, because this map is
+ * uneven: what you can see under the drone is what it lands on. A flat slab at
+ * y = 0 only matches the clearing, and everywhere else the drone floats above
+ * or sinks into visible ground.
+ *
+ * Canopy and undergrowth are excluded. They are alpha-cut cards
+ * (Background_Tree_Atlas_0, Grass_*, Fallen_*_Leaves, Forest_Bush) and flat
+ * decals (Rock_Decal, Puddle_Streaks); colliding those would hang invisible
+ * walls in mid-air wherever a leaf plane sits, and they are most of the scene's
+ * 341k triangles. What remains is small enough for a static trimesh.
  */
-const GROUND_HALF = 0.5;
+const SOLID =
+  /Terrain|Aerial_Grass|Ground_Dirt|Dirt_Road|Cobblestone|Sloped_Rock|Tall_Cliff|Broken_Rocks|Trunk_|Wood_Log|Metal_Fence|Wood_Fence/i;
+
+/**
+ * Top face of the catch floor — a backstop for anything that finds a seam in
+ * the terrain, or flies out past it over the valley.
+ *
+ * It has to sit well INSIDE the arena floor, not level with it. A first attempt
+ * put it at -26 against a bounds floor of -25, so a drone resting on it was
+ * permanently within the containment's 0.2 m margin: the spring lifted it, it
+ * fell back, and it looped up and down forever. With the bounds floor at -60,
+ * landing here is 10 m clear of the spring.
+ */
+const CATCH_TOP = -50;
+const CATCH_HALF = 5;
+
+/**
+ * Half-width of a flat apron over the spawn clearing, top face on y = 0.
+ *
+ * This is not a substitute for the terrain — it exists because the terrain
+ * arrives inside a Suspense boundary. Until the 15 MB scene finishes streaming
+ * there is no ground at all, and the drone drops away from the pad before the
+ * map appears. The apron is always mounted, so spawn is solid immediately.
+ *
+ * It is also honest here: the road surface within this radius sits between
+ * -0.19 m and +0.05 m of the spawn height, so a flat plate matches what you see
+ * to within a couple of centimetres. Whichever is higher wins, so once the
+ * terrain loads the drone rests on the real surface anywhere it rises above 0.
+ */
+const APRON_HALF = 12;
 
 function ForestModel({ url }: { url: string }) {
   const { scene } = useGLTF(url);
@@ -75,7 +117,42 @@ function ForestModel({ url }: { url: string }) {
     return root;
   }, [scene]);
 
-  return <primitive object={model} />;
+  // Collision proxies: the solid meshes again, geometry shared with the visual
+  // model, flattened to the model root's frame so the RigidBody can place them.
+  // They stay invisible (hence includeInvisible on the body) so nothing is drawn
+  // twice — only their shapes reach Rapier.
+  const solids = useMemo(() => {
+    model.updateWorldMatrix(true, true);
+    const toRoot = new THREE.Matrix4().copy(model.matrixWorld).invert();
+    const out: THREE.Mesh[] = [];
+    model.traverse((o) => {
+      const mesh = o as THREE.Mesh;
+      if (!mesh.isMesh || !SOLID.test(mesh.name)) return;
+      const proxy = new THREE.Mesh(mesh.geometry);
+      mesh.updateWorldMatrix(true, false);
+      proxy.applyMatrix4(new THREE.Matrix4().multiplyMatrices(toRoot, mesh.matrixWorld));
+      proxy.visible = false;
+      out.push(proxy);
+    });
+    return out;
+  }, [model]);
+
+  return (
+    <>
+      <primitive object={model} />
+      <RigidBody
+        type="fixed"
+        colliders="trimesh"
+        includeInvisible
+        position={MODEL_OFFSET}
+        scale={MODEL_SCALE}
+      >
+        {solids.map((s, i) => (
+          <primitive key={i} object={s} />
+        ))}
+      </RigidBody>
+    </>
+  );
 }
 
 export function ForestEnv({ env }: { env: EnvironmentSpec }) {
@@ -85,14 +162,17 @@ export function ForestEnv({ env }: { env: EnvironmentSpec }) {
 
   return (
     <group>
-      {/* Flat ground slab, top face on y = 0. Declared as an explicit collider
-          rather than an invisible mesh with colliders="cuboid": the automatic
-          path derives shapes by walking the object tree, and a mesh with
-          visible={false} yields no collider at all — the drone falls straight
-          through. Nothing here needs to be drawn; the forest floor mesh is the
-          visual, this is only something to land on. */}
+      {/* Catch floor, far below the terrain. Declared as an explicit
+          CuboidCollider rather than an invisible mesh with colliders="cuboid":
+          the automatic path walks the tree with traverseVisible, so a hidden
+          mesh yields no collider at all and the drone drops straight through. */}
       <RigidBody type="fixed" colliders={false}>
-        <CuboidCollider args={[spanX, GROUND_HALF, spanZ]} position={[0, -GROUND_HALF, 0]} />
+        <CuboidCollider
+          args={[spanX, CATCH_HALF, spanZ]}
+          position={[0, CATCH_TOP - CATCH_HALF, 0]}
+        />
+        {/* Spawn apron — mounted before the terrain streams in. */}
+        <CuboidCollider args={[APRON_HALF, 0.5, APRON_HALF]} position={[0, -0.5, 0]} />
       </RigidBody>
 
       <Suspense fallback={null}>
@@ -101,3 +181,7 @@ export function ForestEnv({ env }: { env: EnvironmentSpec }) {
     </group>
   );
 }
+
+// Warm the cache at startup: the scene is 15 MB, and until it resolves the
+// terrain colliders do not exist, so the drone would drop off the pad waiting.
+useGLTF.preload(forestModelUrl);

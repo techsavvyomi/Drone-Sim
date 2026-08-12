@@ -8,9 +8,6 @@ import forestModelUrl from '../../../assets/models/forest.opt.glb?url';
 // everything from y = 96 to 150 is the cliff and valley the clearing looks out
 // over. ForestEnv shifts that clearing to the origin — see the offsets there.
 //
-// Bounds are deliberately tight around the flat dirt-road clearing (40 x 27 m).
-// The scene continues well past it, but the ground falls away into the valley,
-// and the sim's ground handling assumes a floor at y = 0.
 export const forest: EnvironmentSpec = {
   id: 'forest',
   name: 'Forest',
@@ -19,7 +16,18 @@ export const forest: EnvironmentSpec = {
   // On the bare dirt road, which is the flattest ground in the scene
   // (0.5 m of undulation across its whole 40 m length).
   spawn: { position: [0, 0.35, 0], heading: 0 },
-  // Canopy tops out ~34 m above the clearing, so a 40 m ceiling allows flying
-  // out above the trees.
-  bounds: { min: [-45, 0, -45], max: [45, 40, 45] },
+  /**
+   * Play area. Roughly three times the original ±45 m box, which was felt as an
+   * invisible wall a short hop from spawn while forest was still visible ahead.
+   *
+   * The floor is far below zero because the ground is the real terrain, which
+   * falls away from the clearing towards the valley: a floor at 0 would shove
+   * the drone back up out of every dip. It sits below ForestEnv's catch floor
+   * so that resting on the catch floor never engages the containment spring.
+   *
+   * Altitude is measured from the clearing, so flying out over the valley reads
+   * negative — which is what a real drone reports relative to its take-off
+   * point.
+   */
+  bounds: { min: [-80, -60, -80], max: [80, 45, 80] },
 };
