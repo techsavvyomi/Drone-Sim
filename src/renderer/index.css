@@ -2074,6 +2074,39 @@ button {
   color: var(--text-dim);
 }
 
+/* ---- Endpoint calibration ---- */
+.gp-sweep {
+  width: 86px;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--warn, #f59e0b);
+}
+.gp-sweep.ok {
+  color: var(--accent);
+}
+.gp-calibrate {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 10px 0;
+}
+.gp-calibrate.active {
+  display: block;
+  padding: 10px 12px;
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  background: rgba(56, 189, 248, 0.08);
+}
+.gp-cal-actions {
+  display: flex;
+  gap: 8px;
+  padding-top: 8px;
+}
+.gp-calibrate .gp-name {
+  flex: 1;
+}
+
 /* ---- Button monitor ---- */
 .gp-buttons {
   display: flex;

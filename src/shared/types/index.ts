@@ -107,10 +107,83 @@ export const DEFAULT_TRAINING: TrainingProgress = {
 /** Continuous control channels. */
 export type GamepadChannel = 'roll' | 'pitch' | 'yaw' | 'throttle';
 
+/**
+ * Raw readings captured at an axis's physical extremes.
+ *
+ * The Gamepad API is documented as reporting -1..+1, but almost no real
+ * transmitter does. Radios in USB-joystick mode scale their channel endpoints
+ * into the HID logical range, so ±100% travel commonly arrives as ±0.7..±0.9,
+ * and subtrim leaves the rest position off zero. Without the measured endpoints
+ * there is nothing to stretch against, and full stick deflection lands short of
+ * full output — the deadzone then eats a further slice off both ends.
+ */
+export interface AxisCalibration {
+  /** Raw reading at full negative deflection (throttle: idle). */
+  lo: number;
+  /** Raw reading with the stick at rest. */
+  mid: number;
+  /** Raw reading at full positive deflection (throttle: full). */
+  hi: number;
+}
+
 export interface GamepadAxisConfig {
   /** Index into `Gamepad.axes`. */
   axis: number;
   invert: boolean;
+  /** Measured endpoints. Absent until the pilot runs calibration. */
+  cal?: AxisCalibration;
+  /**
+   * Bottom-to-top axis with no spring centre — a real radio's throttle.
+   *
+   * A centred axis gets its deadzone and expo about the middle, which is right
+   * for a self-centring stick and wrong for this one: it puts a dead notch at
+   * mid-throttle and squashes resolution exactly where hover lives.
+   */
+  unipolar?: boolean;
+}
+
+/** Ignore an endpoint pair this close together — the stick was never swept. */
+export const CAL_MIN_SPAN = 0.15;
+
+/**
+ * Slack on a measured span, so a sweep that stops a hair short of the recorded
+ * extreme still saturates. Applied on read rather than when the calibration is
+ * stored, or repeated calibration runs would compound it.
+ */
+const CAL_MARGIN = 0.02;
+
+function clamp1(v: number, min: number, max: number): number {
+  return v < min ? min : v > max ? max : v;
+}
+
+/**
+ * Map a raw axis reading onto -1..+1 using its measured endpoints.
+ *
+ * The two halves are stretched independently so a stick whose rest position
+ * sits off centre still reaches both extremes, instead of clipping on one side
+ * and falling short on the other.
+ */
+export function normalizeAxis(raw: number, cal?: AxisCalibration): number {
+  if (!cal) return clamp1(raw, -1, 1);
+  // A half narrower than this was never really swept. Fall through to the raw
+  // reading rather than returning zero: an unmeasured half should behave as if
+  // uncalibrated, not go dead and silently cost half the stick's travel.
+  if (raw >= cal.mid) {
+    const span = (cal.hi - cal.mid) * (1 - CAL_MARGIN);
+    return span < CAL_MIN_SPAN ? clamp1(raw, -1, 1) : clamp1((raw - cal.mid) / span, 0, 1);
+  }
+  const span = (cal.mid - cal.lo) * (1 - CAL_MARGIN);
+  return span < CAL_MIN_SPAN ? clamp1(raw, -1, 1) : clamp1((raw - cal.mid) / span, -1, 0);
+}
+
+/** As `normalizeAxis`, but across one continuous travel with no centre. */
+export function normalizeUnipolar(raw: number, cal?: AxisCalibration): number {
+  if (!cal) return clamp1(raw, -1, 1);
+  if (cal.hi - cal.lo < CAL_MIN_SPAN) return clamp1(raw, -1, 1);
+  // Grow the margin outward from the middle of the travel rather than off one
+  // end, or half-throttle drifts by the whole margin instead of nothing.
+  const half = ((cal.hi - cal.lo) / 2) * (1 - CAL_MARGIN);
+  return clamp1((raw - (cal.lo + cal.hi) / 2) / half, -1, 1);
 }
 
 /** Where an axis is sitting: below -0.5, between, or above +0.5. */
@@ -152,7 +225,12 @@ export interface GamepadSettings {
   deadzone: number;
   /** Curve shape, 0 = linear, 1 = fully cubic (soft around centre). */
   expo: number;
-  /** Output multiplier applied after expo, 0.2..1.5. */
+  /**
+   * Response gain either side of centre, 0.2..1.5. Applied as an exponent, not
+   * a multiplier: full deflection still reaches full output at every setting,
+   * so this sharpens or softens the middle of the travel without capping the
+   * ends. Multiplying here is what used to shorten the usable range.
+   */
   sensitivity: number;
   /** Active mapping — what the sim reads and the editor edits. */
   axes: Record<GamepadChannel, GamepadAxisConfig>;
@@ -221,7 +299,12 @@ export function axesForOrder(order: ChannelOrder): Record<GamepadChannel, Gamepa
   const out = {} as Record<GamepadChannel, GamepadAxisConfig>;
   order.split('').forEach((letter, i) => {
     const channel = ORDER_LETTER[letter];
-    out[channel] = { axis: i, invert: RC_INVERT[channel] };
+    out[channel] = {
+      axis: i,
+      invert: RC_INVERT[channel],
+      // A radio's throttle ratchets bottom-to-top and stays where it is put.
+      ...(channel === 'throttle' ? { unipolar: true } : {}),
+    };
   });
   return out;
 }
@@ -264,8 +347,12 @@ export function axesForKind(kind: GamepadKind): Record<GamepadChannel, GamepadAx
  * layout. On a real radio that is not a preference, it is a hazard: the stick
  * reports -1 at idle, so inverting it means a resting throttle commands full
  * power. Any profile below the current rev is rebuilt rather than restored.
+ *
+ * rev 2 shaped a radio's throttle as if it were spring-centred, giving it a
+ * deadzone notch and expo about mid-stick. Rebuilding is what attaches the
+ * `unipolar` flag to throttle on profiles saved before it existed.
  */
-export const PROFILE_REV = 2;
+export const PROFILE_REV = 3;
 
 /** A remembered per-device mapping, so swapping controllers restores its setup. */
 export interface GamepadDeviceProfile {

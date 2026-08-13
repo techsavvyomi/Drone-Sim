@@ -1,5 +1,9 @@
 import {
   axisPos,
+  CAL_MIN_SPAN,
+  normalizeAxis,
+  normalizeUnipolar,
+  type AxisCalibration,
   type AxisPos,
   type GamepadAction,
   type GamepadBinding,
@@ -111,6 +115,9 @@ export const gamepadStick: StickInput = { roll: 0, pitch: 0, yaw: 0, throttle: 0
 /** True on any frame where the pilot actually moved a gamepad stick. */
 let hadActivity = false;
 
+/** Throttle position that last counted as input, for drift-based detection. */
+let throttleMark: number | null = null;
+
 export function consumeGamepadActivity(): boolean {
   const a = hadActivity;
   hadActivity = false;
@@ -155,6 +162,7 @@ export function captureState(): { action: GamepadAction | null; channel: Gamepad
 
 /** Listen for the next button press / switch flick and bind it to `action`. */
 export function beginBindAction(action: GamepadAction): void {
+  calibrating = false;
   pendingChannel = null;
   pendingAction = action;
   bindBaselinePos = gamepadLive.axes.map((v) => axisPos(v));
@@ -163,6 +171,7 @@ export function beginBindAction(action: GamepadAction): void {
 
 /** Listen for the next axis to be wiggled and assign it to `channel`. */
 export function beginDetectAxis(channel: GamepadChannel): void {
+  calibrating = false;
   pendingAction = null;
   pendingChannel = channel;
   detectBaseline = [...gamepadLive.axes];
@@ -173,6 +182,104 @@ export function cancelCapture(): void {
   pendingAction = null;
   pendingChannel = null;
   onCaptureChange?.();
+}
+
+// --- Endpoint calibration ---------------------------------------------------
+
+/**
+ * Watch every axis and remember how far it actually travels.
+ *
+ * This is the piece that lets an external controller reach the ends of the
+ * range. Nothing else in the pipeline knows what a given radio reports at full
+ * deflection, so without a measured span the code has to assume the documented
+ * ±1 and a device that only swings ±0.75 permanently falls a quarter short.
+ */
+let calibrating = false;
+let calRange: { lo: number; hi: number }[] = [];
+let calCenters: number[] = [];
+
+export function isCalibrating(): boolean {
+  return calibrating;
+}
+
+/** Snapshot the rest positions and start tracking extremes. */
+export function beginCalibration(): void {
+  pendingAction = null;
+  pendingChannel = null;
+  calCenters = [...gamepadLive.axes];
+  calRange = gamepadLive.axes.map((v) => ({ lo: v, hi: v }));
+  calibrating = true;
+  onCaptureChange?.();
+}
+
+export function cancelCalibration(): void {
+  calibrating = false;
+  onCaptureChange?.();
+}
+
+/** How far one channel has been swept either side of its rest position. */
+export interface SweepProgress {
+  /** Travel seen below rest, and above it. */
+  below: number;
+  above: number;
+  /** Whether enough has been seen to calibrate this channel. */
+  done: boolean;
+}
+
+/**
+ * Per-channel sweep progress, so the UI can say which direction is still
+ * missing rather than only whether *something* moved.
+ */
+export function calibrationProgress(cfg: GamepadSettings): Record<GamepadChannel, SweepProgress> {
+  const out = {} as Record<GamepadChannel, SweepProgress>;
+  for (const name of Object.keys(cfg.axes) as GamepadChannel[]) {
+    const idx = cfg.axes[name].axis;
+    const r = calRange[idx];
+    const mid = restPosition(idx, r);
+    const below = r ? mid - r.lo : 0;
+    const above = r ? r.hi - mid : 0;
+    out[name] = {
+      below,
+      above,
+      // A centred stick is stretched half by half, so each half needs its own
+      // measurement; a radio throttle is one travel and only needs the total.
+      done: cfg.axes[name].unipolar
+        ? below + above >= CAL_MIN_SPAN
+        : below >= CAL_MIN_SPAN && above >= CAL_MIN_SPAN,
+    };
+  }
+  return out;
+}
+
+/** Rest position for an axis, clamped inside whatever travel was observed. */
+function restPosition(idx: number, r: { lo: number; hi: number } | undefined): number {
+  const raw = calCenters[idx] ?? 0;
+  return r ? clamp(raw, r.lo, r.hi) : raw;
+}
+
+/**
+ * Freeze what was swept into a per-channel calibration.
+ *
+ * Channels that were not swept far enough are left out rather than saved with
+ * a lopsided span. This gate is not cosmetic: `normalizeAxis` stretches the two
+ * halves of a centred axis independently, so a stick pushed only one way would
+ * save a zero-width half and go completely dead in the other direction — worse
+ * than never having calibrated it.
+ */
+export function finishCalibration(
+  cfg: GamepadSettings,
+): Partial<Record<GamepadChannel, AxisCalibration>> {
+  const progress = calibrationProgress(cfg);
+  calibrating = false;
+  const out: Partial<Record<GamepadChannel, AxisCalibration>> = {};
+  for (const name of Object.keys(cfg.axes) as GamepadChannel[]) {
+    const idx = cfg.axes[name].axis;
+    const r = calRange[idx];
+    if (!r || !progress[name].done) continue;
+    out[name] = { lo: r.lo, mid: restPosition(idx, r), hi: r.hi };
+  }
+  onCaptureChange?.();
+  return out;
 }
 
 // --- Action dispatch --------------------------------------------------------
@@ -198,22 +305,52 @@ const MISS_LIMIT = 30; // ~0.5s at 60fps
  */
 let loopToken = 0;
 
-/** Deadzone, then expo, then sensitivity — the order a transmitter applies them. */
-function shape(raw: number, cfg: GamepadSettings): number {
-  const dz = cfg.deadzone;
-  const a = Math.abs(raw);
-  if (a < dz) return 0;
+/** Travel at either end that snaps to the extreme, absorbing calibration slop. */
+const END_TOLERANCE = 0.02;
+
+/**
+ * Response gain, as an exponent rather than a multiplier.
+ *
+ * `x * sensitivity` caps the endpoints: at 0.8 a fully deflected stick tops out
+ * at 0.8, which is precisely the "the stick is maxed but the channel isn't"
+ * complaint. Raising to a power leaves ±1 fixed and bends everything between.
+ */
+function gain(v: number, sensitivity: number): number {
+  if (sensitivity === 1) return v;
+  return Math.sign(v) * Math.abs(v) ** (1 / clamp(sensitivity, 0.2, 1.5));
+}
+
+/** Deadzone, then expo, then gain — the order a transmitter applies them. */
+function shapeCentered(n: number, cfg: GamepadSettings): number {
+  const dz = clamp(cfg.deadzone, 0, 0.5);
+  const a = Math.abs(n);
+  if (a <= dz) return 0;
   // Rescale so the curve starts at zero just outside the deadzone rather than
-  // jumping straight to `dz` worth of output.
-  const v = (Math.sign(raw) * (a - dz)) / (1 - dz);
+  // jumping straight to `dz` worth of output, and still reaches 1 at the end of
+  // the travel rather than 1 - dz.
+  const v = (Math.sign(n) * (a - dz)) / (1 - dz);
   const curved = cfg.expo * v * v * v + (1 - cfg.expo) * v;
-  return clamp(curved * cfg.sensitivity, -1, 1);
+  const out = gain(curved, cfg.sensitivity);
+  return clamp(Math.abs(out) >= 1 - END_TOLERANCE ? Math.sign(out) : out, -1, 1);
 }
 
 /**
- * Shaped value for one channel. Exported so the settings UI can show live
- * meters even while gamepad input is switched off — otherwise you could not
- * check that a controller works without first enabling it.
+ * A radio throttle: one continuous travel, bottom to top.
+ *
+ * No centre deadzone and no expo — both are shapes for a stick that springs
+ * back, and about a throttle's midpoint they only cost authority where hover
+ * lives. Only the ends are snapped, so idle is exactly 0 and full is exactly 1.
+ */
+function shapeUnipolar(n: number): number {
+  const u = clamp((n + 1) / 2, 0, 1);
+  const snapped = u <= END_TOLERANCE ? 0 : u >= 1 - END_TOLERANCE ? 1 : u;
+  return snapped * 2 - 1;
+}
+
+/**
+ * Shaped value for one channel, -1..1. Exported so the settings UI can show
+ * live meters even while gamepad input is switched off — otherwise you could
+ * not check that a controller works without first enabling it.
  */
 export function readChannel(
   name: GamepadChannel,
@@ -221,8 +358,15 @@ export function readChannel(
   axes: number[],
 ): number {
   const c = cfg.axes[name];
-  const raw = axes[c.axis] ?? 0;
-  return shape(c.invert ? -raw : raw, cfg);
+  const raw = c.invert ? -(axes[c.axis] ?? 0) : (axes[c.axis] ?? 0);
+  // Inverting flips which physical end is which, so the calibration has to be
+  // read through the same flip or lo and hi land on the wrong sides.
+  const cal = c.cal && c.invert
+    ? { lo: -c.cal.hi, mid: -c.cal.mid, hi: -c.cal.lo }
+    : c.cal;
+  return c.unipolar
+    ? shapeUnipolar(normalizeUnipolar(raw, cal))
+    : shapeCentered(normalizeAxis(raw, cal), cfg);
 }
 
 function findAction(pred: (b: GamepadBinding) => boolean): GamepadAction | null {
@@ -266,6 +410,17 @@ function tick(): void {
   const pos = axes.map((v) => axisPos(v));
 
   // --- Capture modes take priority and never drive the aircraft ---
+  if (calibrating) {
+    for (let i = 0; i < axes.length; i++) {
+      const r = (calRange[i] ??= { lo: axes[i], hi: axes[i] });
+      if (axes[i] < r.lo) r.lo = axes[i];
+      if (axes[i] > r.hi) r.hi = axes[i];
+    }
+    prevButtons = buttons;
+    prevPos = pos;
+    return;
+  }
+
   if (pendingChannel) {
     let best = -1;
     let bestDelta = DETECT_DELTA;
@@ -334,13 +489,28 @@ function tick(): void {
   gamepadStick.yaw = yaw;
   // A gamepad stick springs to centre, so centre must mean "hold": 0.5 is the
   // hover point in altitude-managed modes and roughly hover in direct modes.
-  gamepadStick.throttle = clamp((thr + 1) / 2, 0, 1);
+  // A radio's throttle does not spring, so its own resting position is the
+  // command and the full 0..1 travel is available.
+  const throttle = clamp((thr + 1) / 2, 0, 1);
+  gamepadStick.throttle = throttle;
+
+  // Throttle is tested for *movement*, not deflection. A radio's throttle rests
+  // at an extreme, so an absolute test reads as "the pilot is flying" on every
+  // single frame and the keyboard can never take control back.
+  //
+  // Measured as drift from the last position that counted, not as a per-frame
+  // delta: easing a throttle up over a couple of seconds moves well under a
+  // hundredth per frame, so a frame-to-frame test would miss every slow input
+  // and only ever notice a stick being slammed.
+  if (throttleMark === null) throttleMark = throttle;
+  const throttleMoved = Math.abs(throttle - throttleMark) > ACTIVITY_THRESHOLD;
+  if (throttleMoved) throttleMark = throttle;
 
   if (
     Math.abs(roll) > ACTIVITY_THRESHOLD ||
     Math.abs(pitch) > ACTIVITY_THRESHOLD ||
     Math.abs(yaw) > ACTIVITY_THRESHOLD ||
-    Math.abs(thr) > ACTIVITY_THRESHOLD
+    throttleMoved
   ) {
     hadActivity = true;
   }
@@ -404,6 +574,7 @@ function clearLive(): void {
   gamepadStick.pitch = 0;
   gamepadStick.yaw = 0;
   gamepadStick.throttle = 0.5;
+  throttleMark = null;
 }
 
 /** Switch to a specific device (device picker in settings). */
