@@ -11,7 +11,7 @@ export const classroom2: EnvironmentSpec = {
   model: classroom2ModelUrl,
   // Clear aisle near the blackboard end — room centre is under desk rows.
   spawn: { position: [0, 0.35, -3.2], heading: 0 },
-  // Visual ceiling underside ≈ 3.0 m. Cap play height below that so Alt Hold
-  // cannot drive Pluto into the roof mesh.
-  bounds: { min: [-4.15, 0, -5.15], max: [4.15, 2.95, 5.15] },
+  // Visual ceiling underside ≈ 3.0 m. Stop a few centimetres short so the drone
+  // can approach the roof without clipping through the mesh.
+  bounds: { min: [-4.15, 0, -5.15], max: [4.15, 2.97, 5.15] },
 };

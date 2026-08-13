@@ -11,9 +11,13 @@ export type DroneStatus = 'disarmed' | 'armed' | 'flying' | 'crashed';
 const TAKEOFF_ALT_GATE = 1.2;
 /** After starting takeoff, ignore Space→land for this long (ms). */
 const LAND_LOCKOUT_MS = 4000;
+/** After a landing starts or finishes, ignore Space→takeoff (ms). */
+const RELAUNCH_LOCKOUT_MS = 1800;
 
 /** Wall-clock when takeoff last started — blocks accidental land. */
 let takeoffStartedAt = 0;
+/** Wall-clock when land last started/finished — blocks accidental takeoff. */
+let landHoldUntil = 0;
 
 interface FlightState {
   armed: boolean;
@@ -91,7 +95,10 @@ export const useFlightStore = create<FlightState>((set, get) => ({
       if (!s.armed && s.batteryLocked) return s;
       return { armed: !s.armed, auto: 'manual' };
     }),
-  disarm: () => set({ armed: false, auto: 'manual' }),
+  disarm: () => {
+    if (get().auto === 'land') landHoldUntil = performance.now() + RELAUNCH_LOCKOUT_MS;
+    set({ armed: false, auto: 'manual' });
+  },
   cycleMode: () =>
     set((s) => {
       // The critical-battery landing must not be cancellable.
@@ -108,6 +115,9 @@ export const useFlightStore = create<FlightState>((set, get) => ({
     if (onGround && batteryLocked) return;
     // Already climbing out on auto-takeoff — don't flip to land on a second Space.
     if (auto === 'takeoff') return;
+    // Already landing — a second Space must not climb out near the floor.
+    if (auto === 'land') return;
+    if (performance.now() < landHoldUntil) return;
 
     const alt = dronePose.present ? dronePose.position.y : 0;
     // Spawns near/on ground clearance so onGround can be false initially;
@@ -120,6 +130,7 @@ export const useFlightStore = create<FlightState>((set, get) => ({
       takeoffStartedAt = performance.now();
       set({ armed: true, auto: 'takeoff' });
     } else if (armed) {
+      landHoldUntil = performance.now() + RELAUNCH_LOCKOUT_MS;
       set({ auto: 'land' });
     }
   },

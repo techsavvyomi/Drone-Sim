@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import {
-  CuboidCollider,
+  CylinderCollider,
   RigidBody,
   useBeforePhysicsStep,
   type RapierRigidBody,
@@ -492,14 +492,14 @@ export function Drone({ spec, spawn, bounds, outdoor = false }: DroneProps) {
         }
       }
     }
-    // Near indoor ceiling: kill climb early and peel down so Alt Hold cannot
-    // hover-glue Pluto into the visual roof mesh.
-    if (!outdoor && pos.y > bounds.max[1] - 0.28) {
+    // Soft stop in the last ~10 cm so you can get close to the roof without
+    // clipping through. Not the old 28 cm invisible wall.
+    if (!outdoor && pos.y > bounds.max[1] - 0.1) {
       const lv = rb.linvel();
-      if (pos.y > bounds.max[1] - 0.1) {
-        rb.setLinvel({ x: lv.x * 0.85, y: Math.min(lv.y, -0.75), z: lv.z * 0.85 }, true);
+      if (pos.y > bounds.max[1] - 0.04) {
+        rb.setLinvel({ x: lv.x * 0.9, y: Math.min(lv.y, -0.45), z: lv.z * 0.9 }, true);
       } else if (lv.y > 0) {
-        rb.setLinvel({ x: lv.x, y: lv.y * 0.2, z: lv.z }, true);
+        rb.setLinvel({ x: lv.x, y: lv.y * 0.45, z: lv.z }, true);
       }
     }
     if (push[0] || push[1] || push[2]) {
@@ -538,11 +538,10 @@ export function Drone({ spec, spawn, bounds, outdoor = false }: DroneProps) {
         if (vz > 0) vz = 0;
         clamped = true;
       }
-      // Roof: never park on the lid (that + Alt Hold = stuck in the mesh).
-      // Snap below and peel downward.
-      if (y > bounds.max[1] - 0.06) {
-        y = bounds.max[1] - 0.12;
-        vy = Math.min(vy, -0.85);
+      // Roof: keep a small gap so the visual mesh is not entered.
+      if (y > bounds.max[1] - 0.03) {
+        y = bounds.max[1] - 0.07;
+        vy = Math.min(vy, -0.55);
         clamped = true;
         ceilingOnly = true;
       }
@@ -789,11 +788,8 @@ export function Drone({ spec, spawn, bounds, outdoor = false }: DroneProps) {
 
   useEffect(() => resetStick, []);
 
-  const half: [number, number, number] = [
-    armPerAxis + propRadius,
-    0.024,
-    armPerAxis + propRadius,
-  ];
+  const droneRadius = armPerAxis + propRadius * 0.7;
+  const halfHeight = 0.02;
 
   return (
     <RigidBody
@@ -827,7 +823,7 @@ export function Drone({ spec, spawn, bounds, outdoor = false }: DroneProps) {
         }
         // Soft bump — level now and hold upright so Rapier contact torque can't tumble.
         if (rb) {
-          const nearCeiling = posY > bounds.max[1] - 0.45;
+          const nearCeiling = posY > bounds.max[1] - 0.16;
           const takingOff = flight.auto === 'takeoff';
           wallBumpUntil.current = simTime.current + WALL_BUMP_HOLD;
           const rot = rb.rotation();
@@ -845,8 +841,11 @@ export function Drone({ spec, spawn, bounds, outdoor = false }: DroneProps) {
           } else if (takingOff) {
             // Keep climb alive — a desk glance must not cancel auto-takeoff.
             rb.setLinvel({ x: lv.x * 0.4, y: Math.max(lv.y, 0.45), z: lv.z * 0.4 }, true);
-          } else {
+          } else if (isNearGround) {
             rb.setLinvel({ x: lv.x * 0.3, y: lv.y * 0.55, z: lv.z * 0.3 }, true);
+          } else {
+            // Side scrape (rods, furniture): kill lateral speed, do not yank altitude.
+            rb.setLinvel({ x: lv.x * 0.3, y: lv.y, z: lv.z * 0.3 }, true);
           }
         }
         if (v >= MINOR_IMPACT) {
@@ -854,7 +853,7 @@ export function Drone({ spec, spawn, bounds, outdoor = false }: DroneProps) {
         }
       }}
     >
-      <CuboidCollider args={half} mass={spec.mass} restitution={0} friction={0.05} />
+      <CylinderCollider args={[halfHeight, droneRadius]} mass={spec.mass} restitution={0} friction={0.03} />
       <group ref={visual}>
         <DroneModel spec={spec} />
         <Propellers spec={spec} />
