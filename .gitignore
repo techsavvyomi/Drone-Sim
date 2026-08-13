@@ -20,6 +20,5 @@ AGENTS.md
 CLAUDE.md
 **/*.canvas.tsx
 
-# Large 3D model assets exceed GitHub's 100MB limit; app falls back to
-# procedural meshes when these are absent.
-src/assets/models/*.glb
+# 3D model assets (.glb) are committed. Keep every file under GitHub's
+# 100MB hard limit; run the optimiser and commit the .opt.glb if one grows.

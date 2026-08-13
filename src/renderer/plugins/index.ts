@@ -1,6 +1,7 @@
 import { listDrones, registerDrone, registerEnvironment } from './registry';
 import { plutoDrone } from './drones/pluto';
 import { guruDrone } from './drones/guru';
+import { racingDrone } from './drones/racer';
 import { droneArena } from './environments/droneArena';
 import { droneAcademy } from './environments/droneAcademy';
 import { flightSchool } from './environments/flightSchool';
@@ -13,6 +14,7 @@ import { preloadDroneModel } from '../sim/drone/DroneModel';
 export function loadBuiltinPlugins(): void {
   registerDrone(plutoDrone);
   registerDrone(guruDrone);
+  registerDrone(racingDrone);
   registerEnvironment(droneArena);
   registerEnvironment(droneAcademy);
   registerEnvironment(flightSchool);

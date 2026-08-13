@@ -5,7 +5,7 @@ import * as THREE from 'three';
 import type { DroneSpec } from '@shared/types';
 import { DEG2RAD } from '../mathx';
 import { DroneMesh } from './DroneMesh';
-import { propHubs } from './propHubs';
+import { BLUR_REV_PER_SEC, blurMix, propHubs, TAU } from './propHubs';
 import { useSimStore } from '../../state/simStore';
 import { useFlightStore } from '../../state/flightStore';
 import { damp } from '../mathx';
@@ -30,6 +30,8 @@ function Gltf({ spec, idleSpin = 0 }: { spec: DroneSpec; idleSpin?: number }) {
   const { scene } = useGLTF(spec.model!);
   const rotors = useRef<PropRotor[]>([]);
   const rpm = useRef<number[]>([0, 0, 0, 0]);
+  /** Model ships pre-blurred prop discs rather than modelled blades. */
+  const blurProps = spec.propArt === 'blur';
   // Clone so multiple drones (and StrictMode double-mounts) don't share one graph.
   const model = useMemo(() => {
     const root = scene.clone(true);
@@ -176,7 +178,12 @@ function Gltf({ spec, idleSpin = 0 }: { spec: DroneSpec; idleSpin?: number }) {
       // Keep a clonable copy of the real propeller for crash debris. Taken from
       // the pivot's child, so it arrives already centred on its hub. Materials
       // are re-cloned opaque — the in-flight ones get faded for the blur effect.
-      const source = found[0]?.pivot.children[0];
+      //
+      // Skipped for blur art: there is no blade to break off, only a picture of
+      // one, and a flat disc of motion blur tumbling across the ground reads as
+      // a rendering fault rather than a snapped propeller. PropDebris draws
+      // nothing when the template is absent.
+      const source = blurProps ? null : found[0]?.pivot.children[0];
       if (source) {
         const template = source.clone(true);
         template.position.set(0, 0, 0);
@@ -236,8 +243,12 @@ function Gltf({ spec, idleSpin = 0 }: { spec: DroneSpec; idleSpin?: number }) {
       propHubs.ready = false;
       propHubs.synthetic = false;
       propHubs.propRadius = 0;
+      // Otherwise the next airframe inherits this one's rotor speeds, and a
+      // 'blur' drone mounted after a spun-up one starts with its stand-in
+      // blades already faded out.
+      propHubs.spin.fill(0);
     };
-  }, [model, spec.armLength, spec.modelYawDeg, spec.propColors]);
+  }, [model, spec.armLength, spec.modelYawDeg, spec.propColors, blurProps]);
 
   // Spin from live motor output — idle on arm, faster with throttle, smoothed.
   useFrame((_s, dt) => {
@@ -270,12 +281,39 @@ function Gltf({ spec, idleSpin = 0 }: { spec: DroneSpec; idleSpin?: number }) {
           m.opacity = 1;
           m.depthWrite = true;
         });
+        // A 'blur' airframe shown as a hero is turning, so report it as fully
+        // spun up. Leaving this unwritten would draw the disc AND the stand-in
+        // blades Propellers keeps for the stopped case, on top of each other.
+        if (blurProps) propHubs.spin[r.motor] = 1;
         return;
       }
 
       const target = live ? Math.max(motors[r.motor], 0.2) : 0;
       const lambda = target > (rpm.current[i] ?? 0) ? 6 : 2.2;
       rpm.current[i] = damp(rpm.current[i] ?? 0, target, lambda, dt);
+
+      // Motion-blur discs: the art already IS the blur, so the fade below has
+      // to run the other way. Faded forwards it would leave a drone at full
+      // throttle with no visible propellers at all.
+      //
+      // At rest it goes to ZERO, not to a ghost. A blur disc on a parked drone
+      // reads as propellers that are always spinning, which is exactly what it
+      // looks like — so the disc is hidden and Propellers draws solid stand-in
+      // blades in its place until the motors actually turn.
+      if (blurProps) {
+        propHubs.spin[r.motor] = rpm.current[i];
+        r.pivot.rotation.y += dir * rpm.current[i] * BLUR_REV_PER_SEC * TAU * dt;
+        const smear = blurMix(rpm.current[i]);
+        r.blades.forEach((m) => {
+          m.opacity = smear;
+          m.visible = smear > 0.01;
+          // Never: these are alpha-blended sprites, and writing depth from one
+          // punches a hole in whatever the next disc draws behind it.
+          m.depthWrite = false;
+        });
+        return;
+      }
+
       // The pivot sits axis-aligned under the model root, so Y is up.
       // Full-speed rotation. Far past the point where 60 fps can resolve a
       // two-blade prop (~15 rev/s), so the blades WOULD strobe — which is why

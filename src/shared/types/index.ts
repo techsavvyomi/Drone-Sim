@@ -432,6 +432,19 @@ export interface DroneSpec {
    * readable at a distance — CAD exports rarely follow that convention.
    */
   propColors?: { front?: string; rear?: string };
+  /**
+   * How the .glb draws its propellers.
+   *
+   * 'blades' (default) — real modelled blades, faded out as RPM rises. Past
+   * ~15 rev/s a prop stops resolving at 60 fps and reads as a translucent disc,
+   * which is exactly what a real one does to the eye.
+   *
+   * 'blur' — the model ships pre-rendered motion-blur discs instead of blades,
+   * which is how most game-ready drone art is built. The same fade run forwards
+   * would leave a drone at full throttle with no visible props at all, so it
+   * runs backwards: a ghost at rest, solid once turning.
+   */
+  propArt?: 'blades' | 'blur';
   pidDefaults: PidSet;
 }
 

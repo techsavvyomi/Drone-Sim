@@ -1,10 +1,10 @@
-import { useRef } from 'react';
+import { useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import type { DroneSpec } from '@shared/types';
 import { useSimStore } from '../../state/simStore';
 import { useFlightStore } from '../../state/flightStore';
-import { propHubs } from './propHubs';
+import { BLUR_REV_PER_SEC, blurMix, propHubs, TAU } from './propHubs';
 import { PROP_SPIN_Y } from '../control/mixer';
 
 // Status LED + spin-blur discs. Real PROP_ meshes are spun inside DroneModel.
@@ -91,46 +91,46 @@ function BlurDiscs({ spec }: { spec: DroneSpec }) {
 }
 
 /**
- * Black two-blade props for single-mesh .glbs — sized/placed over the baked
- * propellers so it looks like those props are spinning.
+ * Black stand-in propellers, drawn where the .glb cannot supply real ones.
+ *
+ * Two cases, and they want opposite visibility rules:
+ *
+ *  - Single-mesh airframes: the props are baked into the body and cannot turn.
+ *    Cover them and spin, but only while the motors are running — with the
+ *    drone parked, the bake underneath already looks correct.
+ *  - 'blur' airframes: the model ships motion-blur discs and no blades at all,
+ *    so these ARE the propellers whenever the rotors are stopped. Always
+ *    mounted, crossfading against the disc via blurMix.
  */
 function SyntheticBlades({ spec }: { spec: DroneSpec }) {
   const group = useRef<THREE.Group>(null);
   const pivots = useRef<(THREE.Group | null)[]>([]);
-  const bladeMats = useRef(
-    [0, 1, 2, 3].map(
-      () =>
-        new THREE.MeshStandardMaterial({
-          color: '#0d0d0d',
-          roughness: 0.65,
-          metalness: 0.05,
-          depthTest: false,
-        }),
-    ),
-  );
-  const hubMats = useRef(
-    [0, 1, 2, 3].map(
-      () =>
-        new THREE.MeshStandardMaterial({
-          color: '#2a2a2a',
-          roughness: 0.4,
-          metalness: 0.5,
-          depthTest: false,
-        }),
-    ),
-  );
+  const blurArt = spec.propArt === 'blur';
+  const blades = Math.max(2, Math.round(spec.propBlades ?? 2));
+  const mats = useMemo(() => {
+    const make = (color: string, roughness: number, metalness: number) =>
+      [0, 1, 2, 3].map(
+        () =>
+          new THREE.MeshStandardMaterial({
+            color,
+            roughness,
+            metalness,
+            // Single-mesh airframes have to draw OVER the baked propellers, so
+            // they ignore depth. A blur airframe has nothing to cover and must
+            // respect it, or its props show through the frame from underneath.
+            depthTest: blurArt,
+            transparent: blurArt,
+          }),
+      );
+    return { blade: make('#0d0d0d', 0.65, 0.05), hub: make('#2a2a2a', 0.4, 0.5) };
+  }, [blurArt]);
 
   useFrame((_s, dt) => {
     const root = group.current;
     if (!root) return;
-    const live =
-      propHubs.synthetic &&
-      propHubs.ready &&
-      (() => {
-        const s = useFlightStore.getState().status();
-        return s === 'armed' || s === 'flying';
-      })();
-    root.visible = !!(propHubs.synthetic && propHubs.ready && live);
+    const status = useFlightStore.getState().status();
+    const live = status === 'armed' || status === 'flying';
+    root.visible = propHubs.ready && (blurArt || (propHubs.synthetic && live));
     if (!root.visible) return;
 
     const propR = bladeRadius(spec);
@@ -148,10 +148,24 @@ function SyntheticBlades({ spec }: { spec: DroneSpec }) {
       if (gone) return;
 
       const dir = PROP_SPIN_Y[i];
-      const m = motors[i] ?? 0;
-      // Visible spin (same feel as procedural Pluto / DroneMesh).
       const refR = (spec.propDiameterIn * 25.4) / 2000;
       pivot.scale.setScalar(propR / Math.max(refR, 1e-4));
+
+      if (blurArt) {
+        // Driven by DroneModel's damped rotor speed, the same number feeding
+        // the disc — so exactly one of the two is ever solid. At rest that is
+        // this one, which is the whole point: a parked drone's props stop.
+        const s = propHubs.spin[i] ?? 0;
+        const solid = 1 - blurMix(s);
+        mats.blade[i].opacity = solid;
+        mats.hub[i].opacity = solid;
+        pivot.visible = solid > 0.01;
+        pivot.rotation.y += dir * s * BLUR_REV_PER_SEC * TAU * dt;
+        return;
+      }
+
+      // Visible spin (same feel as procedural Pluto / DroneMesh).
+      const m = motors[i] ?? 0;
       pivot.rotation.y += dir * (8 + Math.max(m, 0.18) * 220) * dt;
     });
   });
@@ -167,12 +181,21 @@ function SyntheticBlades({ spec }: { spec: DroneSpec }) {
               pivots.current[i] = el;
             }}
           >
-            {[0, Math.PI].map((a, k) => (
-              <mesh key={k} rotation={[0, a, 0.12]} material={bladeMats.current[i]}>
-                <boxGeometry args={[propR * 0.92, 0.001, 0.012]} />
-              </mesh>
+            {Array.from({ length: blades }, (_, k) => (
+              // Each blade is its own arm from hub to tip, rotated into place —
+              // rather than one bar across the centre, which only ever makes a
+              // two-blade prop however many you draw.
+              <group key={k} rotation={[0, (k * TAU) / blades, 0]}>
+                <mesh
+                  position={[propR * 0.47, 0, 0]}
+                  rotation={[0.22, 0, 0]}
+                  material={mats.blade[i]}
+                >
+                  <boxGeometry args={[propR * 0.9, 0.0012, 0.014]} />
+                </mesh>
+              </group>
             ))}
-            <mesh material={hubMats.current[i]}>
+            <mesh material={mats.hub[i]}>
               <cylinderGeometry args={[0.005, 0.005, 0.004, 12]} />
             </mesh>
           </group>
@@ -202,7 +225,9 @@ export function Propellers({ spec }: { spec: DroneSpec }) {
   return (
     <group>
       <SyntheticBlades spec={spec} />
-      <BlurDiscs spec={spec} />
+      {/* Skipped when the .glb already ships motion-blur discs — a second,
+          brighter disc over the top only washes the art out. */}
+      {spec.propArt !== 'blur' && <BlurDiscs spec={spec} />}
       <mesh position={[0, 0.016, spec.armLength * 0.42]}>
         <sphereGeometry args={[0.006, 8, 8]} />
         <meshStandardMaterial
