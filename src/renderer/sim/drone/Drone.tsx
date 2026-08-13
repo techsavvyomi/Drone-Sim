@@ -18,7 +18,13 @@ import {
 import { ambientDrift, groundEffect, windForce } from '../dynamics/environment';
 import { GRAVITY, SIM_DT } from '../constants';
 import { clamp, DEG2RAD } from '../mathx';
-import { stick, updateStick, resetStick } from '../../input/controls';
+import {
+  activeInputSource,
+  isThrottleCommanded,
+  stick,
+  updateStick,
+  resetStick,
+} from '../../input/controls';
 import { useSimStore } from '../../state/simStore';
 import { useFlightStore, type AutoState } from '../../state/flightStore';
 import { usePhysicsStore } from '../../state/physicsStore';
@@ -89,6 +95,17 @@ const GROUND_ALT = 0.4;
 const TAKEOFF_ALT = 1.8;
 const MAX_ANGVEL = 40;
 
+/**
+ * Throttle movement that hands an auto sequence back to the pilot.
+ *
+ * Measured as a change from where the stick sat when the sequence started, not
+ * as distance from centre. A gamepad throttle springs to the middle, but a real
+ * radio's stays wherever it was left — usually at the bottom — so an absolute
+ * test would read "the pilot is on the throttle" on the very first frame and
+ * cancel every takeoff before it left the ground.
+ */
+const AUTO_OVERRIDE_DELTA = 0.12;
+
 interface DroneProps {
   spec: DroneSpec;
   spawn: { position: Vec3; heading: number };
@@ -148,6 +165,11 @@ export function Drone({ spec, spawn, bounds, outdoor = false }: DroneProps) {
   const flightTime = useRef(0);
   const fpsAccum = useRef({ frames: 0, elapsed: 0 });
   const prevMode = useRef<FlightMode | null>(null);
+  // Throttle position when the running auto sequence took over, so a deliberate
+  // stick move can be told apart from where the stick simply happens to rest.
+  const autoEntryThrottle = useRef<number | null>(null);
+  const prevAuto = useRef<AutoState>('manual');
+  const prevSource = useRef(activeInputSource());
   /** Speed at the last physics step — used to grade collision severity. */
   const impactSpeed = useRef(0);
   /** Peak speed in a short window — tunneling can zero linvel before onCollisionEnter. */
@@ -698,15 +720,52 @@ export function Drone({ spec, spawn, bounds, outdoor = false }: DroneProps) {
       }
     }
 
-    if (flight.auto === 'takeoff' && altitude >= TAKEOFF_ALT - 0.05 && Math.abs(verticalSpeed) < 0.3) {
+    // Re-baseline on a new auto sequence, and whenever the active input device
+    // changes: switching from keyboard to gamepad mid-sequence swaps in that
+    // device's resting throttle, which is a jump the pilot did not command.
+    const source = activeInputSource();
+    if (flight.auto !== prevAuto.current || source !== prevSource.current) {
+      autoEntryThrottle.current = flight.auto === 'manual' ? null : stick.throttle;
+      prevAuto.current = flight.auto;
+      prevSource.current = source;
+    }
+
+    // Touching the throttle takes the aircraft back. Auto-takeoff overrides
+    // thrust outright, so without this the stick does nothing for the ~2s the
+    // climb takes and the pilot is left holding a dead control. The critical
+    // battery landing is the one sequence that stays uncancellable.
+    const pilotOverride =
+      flight.auto !== 'manual' &&
+      !flight.lowBattery &&
+      autoEntryThrottle.current !== null &&
+      // Both halves matter: the stick has to be under active command *and*
+      // have moved. Position alone would catch the keyboard's spring-return
+      // drift in Alt Hold, and command alone would fire the instant a gamepad
+      // is touched at all.
+      isThrottleCommanded() &&
+      Math.abs(stick.throttle - autoEntryThrottle.current) > AUTO_OVERRIDE_DELTA;
+
+    if (
+      flight.auto === 'takeoff' &&
+      (pilotOverride || (altitude >= TAKEOFF_ALT - 0.05 && Math.abs(verticalSpeed) < 0.3))
+    ) {
       // Auto-takeoff bypasses the altitude controller, so its previous target
       // is still the launch height. Capture the reached hover altitude before
       // handing back; otherwise the first pitch input makes Alt Hold descend
       // to the floor.
       controller.captureAltitude(altitude);
-      stick.throttle = ALT_MANAGED.includes(flight.mode)
-        ? 0.5
-        : clamp(hoverThrust / controller.maxThrust, 0, 1);
+      // Only synthesise a throttle position when the sequence finished on its
+      // own. On an override the stick already holds what the pilot is asking
+      // for, and overwriting it would throw that input away.
+      if (!pilotOverride) {
+        stick.throttle = ALT_MANAGED.includes(flight.mode)
+          ? 0.5
+          : clamp(hoverThrust / controller.maxThrust, 0, 1);
+      }
+      flight.setAuto('manual');
+    } else if (flight.auto === 'land' && pilotOverride) {
+      // Same handover, aborting the descent instead of the climb.
+      controller.captureAltitude(altitude);
       flight.setAuto('manual');
     } else if (flight.auto === 'land' && onGround) {
       stick.throttle = 0;

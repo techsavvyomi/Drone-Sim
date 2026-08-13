@@ -32,6 +32,9 @@ export function setScripted(on: boolean): void {
   // Drop any keys held when the mode flips, so they neither leak into the demo
   // nor fire the instant control is handed back.
   pressed.clear();
+  // `updateStick` returns early while scripted, so this would otherwise keep
+  // whatever it was when the demo started and read as live pilot input.
+  throttleCommanded = false;
 }
 
 export function isScripted(): boolean {
@@ -67,6 +70,21 @@ export function runScriptedCommand(cmd: 'arm' | 'disarm' | 'takeoffLand'): void 
 // gamepad — so whichever the pilot touched most recently drives the aircraft.
 type Source = 'keyboard' | 'gamepad';
 let activeSource: Source = 'keyboard';
+
+/**
+ * Whether the pilot is actually commanding throttle right now, as opposed to
+ * the stick merely holding or drifting.
+ *
+ * Auto sequences use this to decide that the pilot has taken over. Reading the
+ * stick value alone is not enough: in altitude-managed modes an untouched
+ * keyboard throttle springs back toward centre on its own, and that drift is
+ * indistinguishable from a deliberate push if you only watch the number.
+ */
+let throttleCommanded = false;
+
+export function isThrottleCommanded(): boolean {
+  return throttleCommanded;
+}
 
 export function activeInputSource(): Source {
   return activeSource;
@@ -148,13 +166,17 @@ export function updateStick(dt: number): void {
 
   if (activeSource === 'gamepad' && gamepadConnected()) {
     // Gamepad axes are absolute positions — no easing, the spring in the stick
-    // already does that job.
+    // already does that job. Nothing moves the throttle here but the pilot, so
+    // its position is always a live command.
     stick.roll = gamepadStick.roll;
     stick.pitch = gamepadStick.pitch;
     stick.yaw = gamepadStick.yaw;
     stick.throttle = gamepadStick.throttle;
+    throttleCommanded = true;
     return;
   }
+
+  throttleCommanded = up || down;
 
   const throttleRateUp = 0.6;
   const throttleRateDown = 0.95;
