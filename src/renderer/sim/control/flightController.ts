@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import type { DroneSpec, FlightMode, StickInput, Vec3 } from '@shared/types';
+import type { ContactState, DroneSpec, FlightMode, StickInput, Vec3 } from '@shared/types';
 import { clamp, DEG2RAD } from '../mathx';
 import { GRAVITY } from '../constants';
 import { PidController } from './pid';
@@ -35,6 +35,9 @@ export interface ControlState {
   groundEffect: number;
   /** Resting on the ground — arming must idle, not hold altitude. */
   onGround: boolean;
+  /** Physical contact & support stability state */
+  contactState?: ContactState;
+  isStable?: boolean;
 }
 
 export interface ControlOutput {
@@ -278,12 +281,30 @@ export class FlightController {
     // Altitude ceiling applies in every mode, including manual throttle.
     thrust = this.applyCeiling(thrust, state, tiltCos);
 
+    // ---- Unstable Edge Support Gating ----
+    // When resting or landing on an edge with low throttle and insufficient support (CoM outside support):
+    // Suppress PID attitude leveling torque and collective thrust so motors do NOT artificially levitate overhangs!
+    const isUnstableEdge =
+      (state.contactState === 'PARTIALLY_SUPPORTED' || state.contactState === 'UNSTABLE') &&
+      input.throttle < 0.35;
+
+    let torqueScale: number;
+    if (isUnstableEdge) {
+      torqueScale = 0.0;
+      thrust = 0.0;
+    } else if (state.contactState === 'FLYING_NEAR_SURFACE' || state.contactState === 'AIRBORNE') {
+      torqueScale = 1.0; // 100% full authority during active flight / pilot throttle
+    } else {
+      const throttleRatio = clamp(thrust / Math.max(state.mass * GRAVITY, 1e-4), 0, 1);
+      torqueScale = input.throttle <= 0.08 ? 0.05 : Math.max(0.1, throttleRatio);
+    }
+
     // ---- Mix to motors (saturation is physically real from here on) ----
     const mix: MixResult = mixQuad(
       thrust,
-      tauX,
-      tauZ,
-      tauY,
+      tauX * torqueScale,
+      tauZ * torqueScale,
+      tauY * torqueScale,
       this.armPerAxis,
       this.kQ,
       state.maxPerMotor,
@@ -334,15 +355,17 @@ export class FlightController {
     const alt = state.position[1];
     const vz = state.velocityWorld[1];
 
+    // Throttle stick pulled all the way down (<= 0.08): user wants to cut throttle / land immediately.
+    if (input.throttle <= 0.08) {
+      return 0;
+    }
+
     // Throttle stick above/below centre commands climb rate; centred = hold.
     const stick = clamp(input.throttle, 0, 1) - 0.5;
     const stickActive = Math.abs(stick) > STICK_DEADBAND;
 
     // Armed and resting on the ground with no climb commanded: hold at idle so
-    // the props spin but the drone stays put. Holding altitude here would apply
-    // hover thrust, which ground effect then lifts into an unwanted take-off —
-    // arming is not take-off. The pilot leaves the ground by pushing the
-    // throttle up (climb) or issuing the take-off command.
+    // the props spin but the drone stays put.
     if (state.onGround && !(stickActive && stick > 0)) {
       this.targetAltitude = alt;
       return state.mass * GRAVITY * IDLE_THRUST_FRAC;
@@ -360,8 +383,10 @@ export class FlightController {
       );
     }
 
-    const accel = clamp(this.config.climbP * (climbSp - vz), -6, 8);
-    // Tilt compensation: a banked drone needs more thrust to hold altitude.
-    return (state.mass * (GRAVITY + accel)) / tiltCos;
+    // When descending with stick pulled down (e.g. stick < -0.15), smoothly taper thrust toward 0
+    const descentTaper = stick < -0.15 ? clamp((input.throttle - 0.08) / 0.27, 0, 1) : 1;
+    const accel = clamp(this.config.climbP * (climbSp - vz), -9.8, 8);
+    const rawThrust = (state.mass * Math.max(0, GRAVITY + accel)) / tiltCos;
+    return rawThrust * descentTaper;
   }
 }
