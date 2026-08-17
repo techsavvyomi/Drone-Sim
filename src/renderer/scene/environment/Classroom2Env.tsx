@@ -114,6 +114,21 @@ function buildColliders(
     const overlapY = Math.abs(position[1] - sy) < half[1] + SPAWN_HY;
     const overlapZ = Math.abs(position[2] - sz) < half[2] + SPAWN_HZ;
     if (overlapX && overlapY && overlapZ) return;
+
+    // Deduplicate: avoid adding identical/concentric boxes
+    for (let b = 0; b < boxes.length; b++) {
+      const existing = boxes[b];
+      if (
+        Math.abs(existing.position[0] - position[0]) < 0.02 &&
+        Math.abs(existing.position[1] - position[1]) < 0.02 &&
+        Math.abs(existing.position[2] - position[2]) < 0.02 &&
+        Math.abs(existing.half[0] - half[0]) < 0.03 &&
+        Math.abs(existing.half[2] - half[2]) < 0.03
+      ) {
+        return; // Duplicate / near-duplicate box found, skip
+      }
+    }
+
     boxes.push({ key: `furn-${i++}-${tag}`, position, half });
   };
 
@@ -131,90 +146,106 @@ function buildColliders(
     if (size.x * size.y * size.z < 0.0001) return;
     if (size.y < 0.15 && size.x > 3 && size.z > 3) return; // Ignore room-wide floor/ceiling planes
 
-    const top = center.y + size.y * 0.5;
-    const bottom = center.y - size.y * 0.5;
-    if (top < 0.1) return;
-    if (bottom < -0.05 && size.y < 0.35) return;
+    const mat = Array.isArray(mesh.material) ? mesh.material[0] : mesh.material;
+    const matName = (mat && mat.name ? mat.name : '').toLowerCase();
+    const isWood = /wood|board|laminate/i.test(matName);
+    const isMetal = /metal|steel|iron|gray/i.test(matName);
 
-    // 1. DESKS & TABLES (top > 0.6 m)
-    if (top > 0.6) {
-      // Solid top plate (7 cm thickness) so the drone NEVER clips/passes through table top
-      const topPlateThickness = 0.035;
-      pushBox(
-        [center.x, top - topPlateThickness, center.z],
-        [size.x * 0.5, topPlateThickness, size.z * 0.5],
-        'desk-top',
-      );
+    // 1. INTEGRATED STUDENT DESK + CHAIR STATIONS (Object_53: Wood tabletop + chair seat + backrest)
+    if (isWood && size.z > 0.60 && size.y > 0.20) {
+      // 1A. Tabletop Solid Slab (Front/Desk at +Z side):
+      const deskHx = Math.max(size.x * 0.49, 0.015);
+      const deskHy = 0.035; // 7cm solid tabletop slab (y: ~0.69m to ~0.76m) to prevent penetration
+      const deskHz = 0.22;  // 44cm depth covering the full visual wooden desk
+      const deskTopY = center.y + size.y * 0.5 - deskHy;
+      const deskZ = (center.z + size.z * 0.5) - deskHz;
+      pushBox([center.x, deskTopY, deskZ], [deskHx, deskHy, deskHz], 'wood-tabletop');
 
-      // 4 corner leg pillars from floor up to desk top underside
-      if (size.y > 0.3) {
-        const legRadius = 0.02; // 4 cm thick leg
-        const legTopY = top - topPlateThickness * 2;
-        const legBottomY = Math.max(0, bottom);
-        const legHeight = Math.max(0.1, legTopY - legBottomY);
-        const legHalfY = legHeight * 0.5;
-        const legCenterY = legBottomY + legHalfY;
+      // 1B. Chair Seat Plate (Back/Chair at -Z side, lower at y ≈ 0.44m):
+      const chairSeatHx = 0.20; // 40cm wide seat
+      const chairSeatHy = 0.025; // 5cm solid seat slab to prevent penetration
+      const chairSeatHz = 0.18; // 36cm deep seat
+      const chairSeatY = (center.y - size.y * 0.5) + chairSeatHy + 0.01; // ≈ 0.44m top height
+      const chairSeatZ = (center.z - size.z * 0.5 + 0.04) + chairSeatHz;
+      pushBox([center.x, chairSeatY, chairSeatZ], [chairSeatHx, chairSeatHy, chairSeatHz], 'chair-seat');
 
-        if (size.x > 0.15 && size.z > 0.15) {
-          const cornerX = Math.max(0.01, size.x * 0.44);
-          const cornerZ = Math.max(0.01, size.z * 0.44);
-          pushBox([center.x - cornerX, legCenterY, center.z - cornerZ], [legRadius, legHalfY, legRadius], 'desk-leg-bl');
-          pushBox([center.x + cornerX, legCenterY, center.z - cornerZ], [legRadius, legHalfY, legRadius], 'desk-leg-br');
-          pushBox([center.x - cornerX, legCenterY, center.z + cornerZ], [legRadius, legHalfY, legRadius], 'desk-leg-fl');
-          pushBox([center.x + cornerX, legCenterY, center.z + cornerZ], [legRadius, legHalfY, legRadius], 'desk-leg-fr');
-        } else if (size.x > 0.3) {
-          const insetX = size.x * 0.44;
-          pushBox([center.x - insetX, legCenterY, center.z], [legRadius, legHalfY, Math.min(size.z * 0.5, 0.03)], 'desk-leg-l');
-          pushBox([center.x + insetX, legCenterY, center.z], [legRadius, legHalfY, Math.min(size.z * 0.5, 0.03)], 'desk-leg-r');
-        } else if (size.z > 0.3) {
-          const insetZ = size.z * 0.44;
-          pushBox([center.x, legCenterY, center.z - insetZ], [Math.min(size.x * 0.5, 0.03), legHalfY, legRadius], 'desk-leg-b');
-          pushBox([center.x, legCenterY, center.z + insetZ], [Math.min(size.x * 0.5, 0.03), legHalfY, legRadius], 'desk-leg-f');
-        }
-      }
+      // 1C. Chair Backrest Plate (Rear-most thin vertical plate at -Z side, y ≈ 0.65-0.78m):
+      const backrestHx = 0.20; // 40cm wide
+      const backrestHy = 0.065; // 13cm tall plate
+      const backrestHz = 0.02; // 4cm solid plate
+      const backrestY = (center.y + size.y * 0.5) - backrestHy;
+      const backrestZ = (center.z - size.z * 0.5) + backrestHz;
+      pushBox([center.x, backrestY, backrestZ], [backrestHx, backrestHy, backrestHz], 'chair-backrest');
       return;
     }
 
-    // 2. CHAIRS & STOOLS (top <= 0.6 m and top >= 0.25 m)
-    if (top >= 0.25 && top <= 0.6) {
-      // Solid seat plate (5 cm thickness) so the drone NEVER clips/passes through seat
-      const seatPlateThickness = 0.025;
-      pushBox(
-        [center.x, top - seatPlateThickness, center.z],
-        [size.x * 0.48, seatPlateThickness, size.z * 0.48],
-        'chair-seat',
-      );
-
-      // 4 corner leg pillars from floor up to seat underside
-      if (size.y > 0.2) {
-        const legRadius = 0.018; // 3.6 cm thick leg
-        const legTopY = top - seatPlateThickness * 2;
-        const legBottomY = Math.max(0, bottom);
-        const legHeight = Math.max(0.1, legTopY - legBottomY);
-        const legHalfY = legHeight * 0.5;
-        const legCenterY = legBottomY + legHalfY;
-
-        if (size.x > 0.12 && size.z > 0.12) {
-          const cornerX = Math.max(0.01, size.x * 0.42);
-          const cornerZ = Math.max(0.01, size.z * 0.42);
-          pushBox([center.x - cornerX, legCenterY, center.z - cornerZ], [legRadius, legHalfY, legRadius], 'chair-leg-bl');
-          pushBox([center.x + cornerX, legCenterY, center.z - cornerZ], [legRadius, legHalfY, legRadius], 'chair-leg-br');
-          pushBox([center.x - cornerX, legCenterY, center.z + cornerZ], [legRadius, legHalfY, legRadius], 'chair-leg-fl');
-          pushBox([center.x + cornerX, legCenterY, center.z + cornerZ], [legRadius, legHalfY, legRadius], 'chair-leg-fr');
-        }
-      }
+    // 2. OTHER SOLID WOOD BOARDS & FLAT PLATES (Single tables, doors, blackboards, podiums, shelves)
+    if (isWood || size.y < 0.06) {
+      const hx = Math.max(size.x * 0.48, 0.015);
+      const hy = Math.max(Math.min(size.y * 0.5, 0.035), 0.015);
+      const hz = Math.max(size.z * 0.48, 0.015);
+      pushBox([center.x, center.y, center.z], [hx, hy, hz], isWood ? 'wood-plate' : 'plate');
       return;
     }
 
-    // 3. Blackboards, Doors, Walls, and miscellaneous props
-    const hx = Math.max(size.x * 0.5, 0.02);
-    const hy = Math.max(size.y * 0.5, 0.02);
-    const hz = Math.max(size.z * 0.5, 0.02);
+    // 3. METAL FRAMES & LEGS (Hollow / Open Middle)
+    if (isMetal && size.y > 0.25 && size.x > 0.15 && size.z > 0.15) {
+      const legRadius = 0.02; // 4 cm sturdy leg pillar to prevent high-speed tunneling
+      if (size.z > 0.60) {
+        // Integrated desk + chair steel frame:
+        // Desk 4 leg pillars (height ~0.70m at +Z side):
+        const deskLegHalfY = 0.35;
+        const deskLegY = 0.35;
+        const deskX = size.x * 0.44;
+        const deskZFront = center.z + size.z * 0.44;
+        const deskZBack = center.z + size.z * 0.08;
+        pushBox([center.x - deskX, deskLegY, deskZFront], [legRadius, deskLegHalfY, legRadius], 'desk-leg');
+        pushBox([center.x + deskX, deskLegY, deskZFront], [legRadius, deskLegHalfY, legRadius], 'desk-leg');
+        pushBox([center.x - deskX, deskLegY, deskZBack], [legRadius, deskLegHalfY, legRadius], 'desk-leg');
+        pushBox([center.x + deskX, deskLegY, deskZBack], [legRadius, deskLegHalfY, legRadius], 'desk-leg');
+
+        // Chair 4 leg pillars (height ~0.44m at -Z side):
+        const chairLegHalfY = 0.22;
+        const chairLegY = 0.22;
+        const chairX = 0.18;
+        const chairZFront = center.z - size.z * 0.12;
+        const chairZBack = center.z - size.z * 0.44;
+        pushBox([center.x - chairX, chairLegY, chairZFront], [legRadius, chairLegHalfY, legRadius], 'chair-leg');
+        pushBox([center.x + chairX, chairLegY, chairZFront], [legRadius, chairLegHalfY, legRadius], 'chair-leg');
+        pushBox([center.x - chairX, chairLegY, chairZBack], [legRadius, chairLegHalfY, legRadius], 'chair-leg');
+        pushBox([center.x + chairX, chairLegY, chairZBack], [legRadius, chairLegHalfY, legRadius], 'chair-leg');
+
+        // Chair 2 backrest upright metal support posts (from seat y=0.44 up to backrest y=0.78):
+        const uprightHalfY = 0.17;
+        const uprightY = 0.61;
+        pushBox([center.x - chairX, uprightY, chairZBack], [legRadius, uprightHalfY, legRadius], 'chair-upright');
+        pushBox([center.x + chairX, uprightY, chairZBack], [legRadius, uprightHalfY, legRadius], 'chair-upright');
+        return;
+      }
+
+      // Single standard frame:
+      const legHalfY = size.y * 0.5;
+      const cornerX = Math.max(0.01, size.x * 0.44);
+      const cornerZ = Math.max(0.01, size.z * 0.44);
+      pushBox([center.x - cornerX, center.y, center.z - cornerZ], [legRadius, legHalfY, legRadius], 'leg-bl');
+      pushBox([center.x + cornerX, center.y, center.z - cornerZ], [legRadius, legHalfY, legRadius], 'leg-br');
+      pushBox([center.x - cornerX, center.y, center.z + cornerZ], [legRadius, legHalfY, legRadius], 'leg-fl');
+      pushBox([center.x + cornerX, center.y, center.z + cornerZ], [legRadius, legHalfY, legRadius], 'leg-fr');
+      return;
+    }
+
+    // 4. Single Pipes, Rails, Walls & Miscellaneous Props
+    const hx = Math.max(size.x * 0.5, 0.015);
+    const hy = Math.max(size.y * 0.5, 0.015);
+    const hz = Math.max(size.z * 0.5, 0.015);
     pushBox([center.x, center.y, center.z], [hx, hy, hz], mesh.name || 'prop');
   });
 
   return boxes;
 }
+
+/** Developer toggle for visual collider wireframe debugging (keep false for production) */
+const DEBUG_COLLIDERS = false;
 
 function Classroom2Model({
   url,
@@ -254,11 +285,35 @@ function Classroom2Model({
             key={b.key}
             args={b.half}
             position={b.position}
-            friction={0}
-            restitution={0}
+            friction={0.4}
+            restitution={0.02}
           />
         ))}
       </RigidBody>
+
+      {/* Visual Developer Debug Wireframe for Chair/Table Colliders (disabled by default) */}
+      {DEBUG_COLLIDERS &&
+        furnitureBoxes.map((b) => (
+          <mesh key={`debug-${b.key}`} position={b.position}>
+            <boxGeometry args={[b.half[0] * 2, b.half[1] * 2, b.half[2] * 2]} />
+            <meshBasicMaterial
+              color={
+                b.key.includes('chair-seat')
+                  ? '#4ade80' // Green: Chair Seat
+                  : b.key.includes('chair-backrest')
+                  ? '#38bdf8' // Cyan: Chair Backrest
+                  : b.key.includes('chair-leg') || b.key.includes('chair-upright')
+                  ? '#f87171' // Red: Chair Legs & Upright Support Posts
+                  : b.key.includes('wood-tabletop')
+                  ? '#fbbf24' // Amber: Tabletop
+                  : '#94a3b8' // Slate: General frame / prop
+              }
+              wireframe
+              transparent
+              opacity={0.35}
+            />
+          </mesh>
+        ))}
     </>
   );
 }
