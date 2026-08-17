@@ -7,6 +7,7 @@ import { useWorldStore, TIME_PRESETS, type TimeOfDay } from '../state/worldStore
 import { getDrone } from '../plugins/registry';
 import { RAD2DEG } from '../sim/mathx';
 import { TelemetryChart } from '../ui/TelemetryChart';
+import { SupportDebugWidget } from '../hud/SupportDebugWidget';
 import {
   attitudeBuffer,
   gyroBuffer,
@@ -225,6 +226,11 @@ function PhysicsTab() {
         <button className="recharge-btn" onClick={() => useFlightStore.getState().recharge()}>
           Recharge pack
         </button>
+      </section>
+
+      <section className="panel-section">
+        <h3 className="panel-subtitle">Physical Support & Stability</h3>
+        <SupportDebugWidget />
       </section>
 
       <p className="panel-note">Changes take effect on the next physics step — no restart.</p>
