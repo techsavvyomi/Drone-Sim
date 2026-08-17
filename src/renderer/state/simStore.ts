@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { Vec3 } from '@shared/types';
+import type { SupportInfo, Vec3 } from '@shared/types';
 
 // Hot simulation + telemetry state. Written by the drone entity each frame and
 // read by the HUD/telemetry panel. Values are flat primitives where possible so
@@ -28,6 +28,8 @@ export interface TelemetrySample {
   gyro: Vec3;
   /** Body-frame specific force (g) for the accelerometer trace. */
   accel: Vec3;
+  /** Live 4-corner physical support & stability state */
+  support: SupportInfo;
 }
 
 interface SimState extends TelemetrySample {
@@ -62,6 +64,13 @@ const initialTelemetry: TelemetrySample = {
   saturated: false,
   gyro: [0, 0, 0],
   accel: [0, 1, 0],
+  support: {
+    supported: [false, false, false, false],
+    supportedCount: 0,
+    isStable: false,
+    contactState: 'AIRBORNE',
+    distances: [1, 1, 1, 1],
+  },
 };
 
 export const useSimStore = create<SimState>((set) => ({
