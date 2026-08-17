@@ -58,9 +58,9 @@ export function Viewport() {
             toneMapping: THREE.ACESFilmicToneMapping,
             toneMappingExposure: 1.0,
           }}
-          // near/far ratio drives depth precision: 0.05/2000 was 40000:1, which
-          // z-fights badly on the near-coplanar ground layers.
-          camera={{ position: [8, 5, 9], fov: 60, near: 0.15, far: 700 }}
+          // near/far ratio drives depth precision: 0.08/700 maintains great depth resolution
+          // without near-clipping small whoop airframes.
+          camera={{ position: [8, 5, 9], fov: 60, near: 0.08, far: 700 }}
         >
           <FlightScene />
         </Canvas>
