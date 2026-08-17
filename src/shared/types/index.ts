@@ -4,6 +4,24 @@
 export type Vec3 = [number, number, number];
 export type Quat = [number, number, number, number];
 
+export type ContactState =
+  | 'AIRBORNE'
+  | 'FLYING_NEAR_SURFACE'
+  | 'LANDING'
+  | 'SUPPORTED'
+  | 'PARTIALLY_SUPPORTED'
+  | 'UNSTABLE'
+  | 'FALLING'
+  | 'CRASHED';
+
+export interface SupportInfo {
+  supported: [boolean, boolean, boolean, boolean]; // [FR, FL, BR, BL]
+  supportedCount: number;
+  isStable: boolean;
+  contactState: ContactState;
+  distances: [number, number, number, number];
+}
+
 // ----------------------------------------------------------------------------
 // Settings (persisted to disk via the main process)
 // ----------------------------------------------------------------------------
