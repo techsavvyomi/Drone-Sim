@@ -12,8 +12,8 @@ export default defineConfig({
   assetsInclude: ['**/*.glb'],
   resolve: {
     alias: {
-      '@shared': resolve(__dirname, 'src/shared'),
-      '@renderer': resolve(__dirname, 'src/renderer'),
+      '@shared': resolve(process.cwd(), 'src/shared'),
+      '@renderer': resolve(process.cwd(), 'src/renderer'),
     },
   },
 });

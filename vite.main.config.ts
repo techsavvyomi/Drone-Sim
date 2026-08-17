@@ -7,7 +7,7 @@ export default defineConfig({
     // Prefer Node/CommonJS resolution for main-process deps.
     mainFields: ['module', 'jsnext:main', 'jsnext'],
     alias: {
-      '@shared': resolve(__dirname, 'src/shared'),
+      '@shared': resolve(process.cwd(), 'src/shared'),
     },
   },
   build: {
