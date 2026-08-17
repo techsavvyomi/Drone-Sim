@@ -1,13 +1,14 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import {
-  CylinderCollider,
+  CuboidCollider,
   RigidBody,
   useBeforePhysicsStep,
+  useRapier,
   type RapierRigidBody,
 } from '@react-three/rapier';
 import * as THREE from 'three';
-import type { DroneSpec, FlightMode, Vec3 } from '@shared/types';
+import type { ContactState, DroneSpec, FlightMode, SupportInfo, Vec3 } from '@shared/types';
 import { ALT_MANAGED, FlightController, type ControlOutput } from '../control/flightController';
 import {
   Battery,
@@ -36,6 +37,7 @@ import { propHubs } from './propHubs';
 
 // Module-scope scratch (single active drone) to avoid per-step allocations.
 const _q = new THREE.Quaternion();
+const _qInv = new THREE.Quaternion();
 const _euler = new THREE.Euler();
 const _up = new THREE.Vector3();
 const _rotor = new THREE.Vector3();
@@ -47,6 +49,10 @@ const _aeroTq = new THREE.Vector3();
 const UP_AXIS = new THREE.Vector3(0, 1, 0);
 /** Scratch for the ambient drift vector. */
 const _driftVec: Vec3 = [0, 0, 0];
+const _gyroVec: Vec3 = [0, 0, 0];
+const _accelVec: Vec3 = [0, 1, 0];
+const _cornerDists: [number, number, number, number] = [0, 0, 0, 0];
+const _supported: [boolean, boolean, boolean, boolean] = [false, false, false, false];
 
 /** How far inside the arena edge the containment force starts, metres. */
 const BOUND_MARGIN = 2;
@@ -148,7 +154,11 @@ function pickBrokenProps(): number[] {
 }
 
 export function Drone({ spec, spawn, bounds, outdoor = false }: DroneProps) {
+  const { world, rapier } = useRapier();
   const body = useRef<RapierRigidBody>(null);
+  const liveSupportInfo = useRef<SupportInfo>(useSimStore.getState().support);
+  const lastContactState = useRef<ContactState>('AIRBORNE');
+  const rayRef = useRef<any>(null);
   /** The rendered (interpolated) transform — smoother than the raw physics pose. */
   const visual = useRef<THREE.Group>(null);
   const controller = useMemo(() => new FlightController(spec), [spec]);
@@ -287,6 +297,83 @@ export function Drone({ spec, spawn, bounds, outdoor = false }: DroneProps) {
       );
     }
 
+    // ---- 4-Corner Physical Surface Support & Center of Mass Stability Calculation ----
+    const rot = rb.rotation();
+    const av = rb.angvel();
+    _q.set(rot.x, rot.y, rot.z, rot.w);
+
+    if (!rayRef.current) {
+      rayRef.current = new rapier.Ray({ x: 0, y: 0, z: 0 }, { x: 0, y: -1, z: 0 });
+    }
+    const r = rayRef.current;
+
+    let supportedCount = 0;
+    let minCornerDist = Infinity;
+    let maxCornerDist = 0;
+    const maxRay = 2.0;
+
+    // Contact threshold: foot is resting within 3.5 cm of a solid horizontal surface
+    const CONTACT_DIST_THRESHOLD = 0.035;
+
+    for (let i = 0; i < 4; i++) {
+      _rotor.set(...(rotorPoints[i] as [number, number, number])).applyQuaternion(_q);
+      r.origin.x = pos.x + _rotor.x;
+      r.origin.y = pos.y + _rotor.y - 0.008; // landing foot bottom level
+      r.origin.z = pos.z + _rotor.z;
+      const hit = world.castRay(r, maxRay, true, undefined, undefined, undefined, rb);
+      const d = hit ? hit.toi : maxRay;
+      _cornerDists[i] = d;
+      if (d < minCornerDist) minCornerDist = d;
+      if (d > maxCornerDist) maxCornerDist = d;
+      const isSupp = d <= CONTACT_DIST_THRESHOLD;
+      _supported[i] = isSupp;
+      if (isSupp) supportedCount++;
+    }
+
+    // Support Polygon / Center-of-Mass (CoM) Stability Determination:
+    // CoM is at (0, 0) in the horizontal body plane.
+    // 4 feet supported -> CoM strictly inside rectangle -> STABLE
+    // 3 feet supported -> CoM inside triangle -> STABLE
+    // 2 feet supported (e.g. 2 front on table, 2 rear off) -> CoM is 5.6 cm outside support line -> UNSTABLE
+    // <= 1 foot supported -> UNSTABLE
+    const isStable = supportedCount >= 3;
+
+    // Contact State Classification
+    const isThrottleActive = stick.throttle >= 0.35;
+    let contactState: ContactState;
+    if (crashed) {
+      contactState = 'CRASHED';
+    } else if (supportedCount === 0) {
+      if (
+        lin.y < -0.4 &&
+        (lastContactState.current === 'UNSTABLE' || lastContactState.current === 'PARTIALLY_SUPPORTED')
+      ) {
+        contactState = 'FALLING';
+      } else {
+        contactState = 'AIRBORNE';
+      }
+    } else if (isThrottleActive) {
+      contactState = 'FLYING_NEAR_SURFACE';
+    } else if (isStable) {
+      contactState = 'SUPPORTED';
+    } else {
+      contactState = 'PARTIALLY_SUPPORTED';
+    }
+    lastContactState.current = contactState;
+
+    const info = liveSupportInfo.current;
+    info.supported[0] = _supported[0];
+    info.supported[1] = _supported[1];
+    info.supported[2] = _supported[2];
+    info.supported[3] = _supported[3];
+    info.distances[0] = _cornerDists[0];
+    info.distances[1] = _cornerDists[1];
+    info.distances[2] = _cornerDists[2];
+    info.distances[3] = _cornerDists[3];
+    info.supportedCount = supportedCount;
+    info.isStable = isStable;
+    info.contactState = contactState;
+
     if (!armed || crashed) {
       lastOutput.current = null;
       motorThrust.current = [0, 0, 0, 0];
@@ -298,24 +385,6 @@ export function Drone({ spec, spawn, bounds, outdoor = false }: DroneProps) {
 
     const pin = rb.principalInertia();
     inertia.current = [pin.x, pin.y, pin.z];
-
-    // Soft wall/desk bump: keep roll+pitch level so contact torque cannot flip
-    // the whoop. Yaw stays free. Fast hits still crash above WALL_CRASH_SPEED.
-    const bumpHold = simTime.current < wallBumpUntil.current;
-    let rot = rb.rotation();
-    let av = rb.angvel();
-    if (bumpHold && !crashed) {
-      _q.set(rot.x, rot.y, rot.z, rot.w);
-      _euler.setFromQuaternion(_q, 'YXZ');
-      _euler.x = 0;
-      _euler.z = 0;
-      _q.setFromEuler(_euler);
-      rb.setRotation({ x: _q.x, y: _q.y, z: _q.z, w: _q.w }, true);
-      // Kill tumble completely — leftover pitch/roll rate is what flips after a desk glance.
-      rb.setAngvel({ x: 0, y: av.y * 0.25, z: 0 }, true);
-      rot = rb.rotation();
-      av = rb.angvel();
-    }
 
     // ---- Battery: sag reduces the thrust each motor can make ----
     const prevFraction = lastOutput.current?.throttleFraction ?? 0;
@@ -384,6 +453,8 @@ export function Drone({ spec, spawn, bounds, outdoor = false }: DroneProps) {
         maxPerMotor,
         groundEffect: ge,
         onGround: useFlightStore.getState().onGround,
+        contactState,
+        isStable,
       },
       SIM_DT,
       thrustOverride,
@@ -584,8 +655,7 @@ export function Drone({ spec, spawn, bounds, outdoor = false }: DroneProps) {
 
     const flightNow = useFlightStore.getState();
     const isNearGround = pos.y < 0.25 || flightNow.onGround;
-    // Skip Magis tilt/G crash during a soft wall bump — contact lean is not a crash.
-    if (mode !== 'acro' && !flightNow.crashed && !isNearGround && !bumpHold) {
+    if (mode !== 'acro' && !flightNow.crashed && !isNearGround) {
       _q.set(rot.x, rot.y, rot.z, rot.w);
       _euler.setFromQuaternion(_q, 'YXZ');
       const overTilt =
@@ -662,12 +732,18 @@ export function Drone({ spec, spawn, bounds, outdoor = false }: DroneProps) {
     const b = batteryState.current;
 
     // Body-frame angular rates for the gyro trace.
-    _up.set(av.x, av.y, av.z).applyQuaternion(_q.clone().invert());
-    const gyro: Vec3 = [_up.x, _up.y, _up.z];
+    _qInv.copy(_q).invert();
+    _up.set(av.x, av.y, av.z).applyQuaternion(_qInv);
+    _gyroVec[0] = _up.x;
+    _gyroVec[1] = _up.y;
+    _gyroVec[2] = _up.z;
 
     // Specific force along body-up, in g — what a real IMU reports.
-    const totalThrust = out ? out.motorThrusts.reduce((s, f) => s + f, 0) : 0;
+    const totalThrust = out
+      ? out.motorThrusts[0] + out.motorThrusts[1] + out.motorThrusts[2] + out.motorThrusts[3]
+      : 0;
     const accelG = totalThrust / Math.max(rb.mass() * GRAVITY, 1e-6);
+    _accelVec[1] = accelG;
 
     useSimStore.getState().setTelemetry({
       position: [pos.x, pos.y, pos.z],
@@ -693,8 +769,9 @@ export function Drone({ spec, spawn, bounds, outdoor = false }: DroneProps) {
       batterySoc: b.soc,
       flightTime: flightTime.current,
       saturated: out ? out.saturated : false,
-      gyro,
-      accel: [0, accelG, 0],
+      gyro: _gyroVec,
+      accel: _accelVec,
+      support: liveSupportInfo.current,
     });
 
     // Fell off the world — recover rather than accelerating downward forever.
@@ -704,20 +781,18 @@ export function Drone({ spec, spawn, bounds, outdoor = false }: DroneProps) {
       return;
     }
 
-    const onGround = altitude < GROUND_ALT && Math.abs(verticalSpeed) < 0.25;
+    // Realistic on-surface detection: must be level and nearly stationary
+    const isLevel = Math.abs(_euler.x) < 0.38 && Math.abs(_euler.z) < 0.38;
+    const isStationary =
+      Math.abs(verticalSpeed) < 0.22 &&
+      groundSpeed < 0.3 &&
+      Math.hypot(av.x, av.y, av.z) < 0.8;
+    const onGround =
+      liveSupportInfo.current.isStable &&
+      isLevel &&
+      isStationary &&
+      (altitude < GROUND_ALT || (!flight.armed && isStationary));
     if (onGround !== flight.onGround) flight.setOnGround(onGround);
-
-    // Auto-right a crashed drone once disarmed and settled.
-    if (!flight.armed && onGround) {
-      _fwdV.set(0, 0, -1).applyQuaternion(_q);
-      const h = Math.hypot(_fwdV.x, _fwdV.z) > 1e-3 ? Math.atan2(-_fwdV.x, -_fwdV.z) : 0;
-      _upright.setFromAxisAngle(UP_AXIS, h);
-      if (_q.angleTo(_upright) > 0.02) {
-        _q.slerp(_upright, Math.min(1, delta * 6));
-        rb.setRotation({ x: _q.x, y: _q.y, z: _q.z, w: _q.w }, true);
-        rb.setAngvel({ x: 0, y: 0, z: 0 }, true);
-      }
-    }
 
     // Re-baseline on a new auto sequence, and whenever the active input device
     // changes: switching from keyboard to gamepad mid-sequence swaps in that
@@ -798,8 +873,8 @@ export function Drone({ spec, spawn, bounds, outdoor = false }: DroneProps) {
       position={spawn.position}
       // A 50 g quad with large props bleeds speed quickly; too little drag and
       // it glides on after you centre the sticks, which feels like overshoot.
-      linearDamping={0.55}
-      angularDamping={2.4}
+      linearDamping={0.45}
+      angularDamping={0.35}
       canSleep={false}
       // Without CCD a fast drone steps straight through thin colliders (walls,
       // hangar sides) between physics ticks and ends up inside the geometry.
@@ -810,30 +885,25 @@ export function Drone({ spec, spawn, bounds, outdoor = false }: DroneProps) {
         if (flight.crashed) return;
         const rb = body.current;
         const posY = rb ? rb.translation().y : 0;
-        // Floor: hard slam → crash. Walls/desks: only a fast hit → crash.
-        // Use peak speed so a tunneled CCD hit still registers as fast.
-        const isNearGround = posY < 0.25 || flight.onGround;
-        const crashSpeedThreshold = isNearGround ? MAJOR_IMPACT : WALL_CRASH_SPEED;
-        // Auto-takeoff: ignore medium bumps so a desk scrape doesn't "crash-land".
-        if (v >= crashSpeedThreshold && flight.auto !== 'takeoff') {
+        const rot = rb ? rb.rotation() : { x: 0, y: 0, z: 0, w: 1 };
+        _q.set(rot.x, rot.y, rot.z, rot.w);
+        _euler.setFromQuaternion(_q, 'YXZ');
+        const isTilted = Math.abs(_euler.x) > 0.45 || Math.abs(_euler.z) > 0.45; // > 25 degrees
+
+        // Crash conditions:
+        // 1. High speed impact (floor slam or wall hit >= 1.8 - 3.2 m/s)
+        // 2. Falling from table/chair onto floor or landing while tilted (> 25 deg)
+        const isImpactCrash = v >= MINOR_IMPACT || (v >= 0.9 && isTilted);
+        if (isImpactCrash && flight.auto !== 'takeoff' && flight.armed) {
           flight.crash(v, pickBrokenProps());
-          addShake(1);
+          addShake(Math.min(1, Math.max(0.4, v / MAJOR_IMPACT)));
           peakSpeed.current = 0;
           return;
         }
-        // Soft bump — level now and hold upright so Rapier contact torque can't tumble.
+
         if (rb) {
           const nearCeiling = posY > bounds.max[1] - 0.16;
           const takingOff = flight.auto === 'takeoff';
-          wallBumpUntil.current = simTime.current + WALL_BUMP_HOLD;
-          const rot = rb.rotation();
-          _q.set(rot.x, rot.y, rot.z, rot.w);
-          _euler.setFromQuaternion(_q, 'YXZ');
-          _euler.x = 0;
-          _euler.z = 0;
-          _q.setFromEuler(_euler);
-          rb.setRotation({ x: _q.x, y: _q.y, z: _q.z, w: _q.w }, true);
-          rb.setAngvel({ x: 0, y: 0, z: 0 }, true);
           const lv = rb.linvel();
           if (nearCeiling) {
             // Peel off the roof — never zero vertical speed on the lid.
@@ -841,11 +911,6 @@ export function Drone({ spec, spawn, bounds, outdoor = false }: DroneProps) {
           } else if (takingOff) {
             // Keep climb alive — a desk glance must not cancel auto-takeoff.
             rb.setLinvel({ x: lv.x * 0.4, y: Math.max(lv.y, 0.45), z: lv.z * 0.4 }, true);
-          } else if (isNearGround) {
-            rb.setLinvel({ x: lv.x * 0.3, y: lv.y * 0.55, z: lv.z * 0.3 }, true);
-          } else {
-            // Side scrape (rods, furniture): kill lateral speed, do not yank altitude.
-            rb.setLinvel({ x: lv.x * 0.3, y: lv.y, z: lv.z * 0.3 }, true);
           }
         }
         if (v >= MINOR_IMPACT) {
@@ -853,7 +918,125 @@ export function Drone({ spec, spawn, bounds, outdoor = false }: DroneProps) {
         }
       }}
     >
-      <CylinderCollider args={[halfHeight, droneRadius]} mass={spec.mass} restitution={0} friction={0.03} />
+      {/* Central fuselage body collider (elevated above ground) */}
+      <CuboidCollider
+        args={[spec.armLength * 0.18, 0.008, spec.armLength * 0.18]}
+        position={[0, 0.006, 0]}
+        mass={spec.mass * 0.25}
+        friction={0.2}
+        restitution={0.02}
+      />
+      {/* Top canopy & camera stack collider (prevents underside tabletop penetration) */}
+      <CuboidCollider
+        args={[spec.armLength * 0.14, 0.008, spec.armLength * 0.22]}
+        position={[0, 0.015, -spec.armLength * 0.12]}
+        mass={spec.mass * 0.05}
+        friction={0.2}
+        restitution={0.02}
+      />
+
+      {/* 4 discrete corner landing foot colliders (bottom-most contact points for realistic edge tipping & landing) */}
+      {/* Front-Right Foot */}
+      <CuboidCollider
+        args={[spec.armLength * 0.10, 0.01, spec.armLength * 0.10]}
+        position={[armPerAxis, -0.008, -armPerAxis]}
+        mass={spec.mass * 0.08}
+        friction={0.4}
+        restitution={0.02}
+      />
+      {/* Front-Left Foot */}
+      <CuboidCollider
+        args={[spec.armLength * 0.10, 0.01, spec.armLength * 0.10]}
+        position={[-armPerAxis, -0.008, -armPerAxis]}
+        mass={spec.mass * 0.08}
+        friction={0.4}
+        restitution={0.02}
+      />
+      {/* Back-Right Foot */}
+      <CuboidCollider
+        args={[spec.armLength * 0.10, 0.01, spec.armLength * 0.10]}
+        position={[armPerAxis, -0.008, armPerAxis]}
+        mass={spec.mass * 0.08}
+        friction={0.4}
+        restitution={0.02}
+      />
+      {/* Back-Left Foot */}
+      <CuboidCollider
+        args={[spec.armLength * 0.10, 0.01, spec.armLength * 0.10]}
+        position={[-armPerAxis, -0.008, armPerAxis]}
+        mass={spec.mass * 0.08}
+        friction={0.4}
+        restitution={0.02}
+      />
+
+      {/* 4 structural propeller & motor outer envelope colliders (elevated above feet; stops visual penetration) */}
+      {/* Front-Right Prop Envelope */}
+      <CuboidCollider
+        args={[spec.armLength * 0.45, 0.014, spec.armLength * 0.45]}
+        position={[armPerAxis, 0.008, -armPerAxis]}
+        mass={spec.mass * 0.07}
+        friction={0.3}
+        restitution={0.02}
+      />
+      {/* Front-Left Prop Envelope */}
+      <CuboidCollider
+        args={[spec.armLength * 0.45, 0.014, spec.armLength * 0.45]}
+        position={[-armPerAxis, 0.008, -armPerAxis]}
+        mass={spec.mass * 0.07}
+        friction={0.3}
+        restitution={0.02}
+      />
+      {/* Back-Right Prop Envelope */}
+      <CuboidCollider
+        args={[spec.armLength * 0.45, 0.014, spec.armLength * 0.45]}
+        position={[armPerAxis, 0.008, armPerAxis]}
+        mass={spec.mass * 0.07}
+        friction={0.3}
+        restitution={0.02}
+      />
+      {/* Back-Left Prop Envelope */}
+      <CuboidCollider
+        args={[spec.armLength * 0.45, 0.014, spec.armLength * 0.45]}
+        position={[-armPerAxis, 0.008, armPerAxis]}
+        mass={spec.mass * 0.07}
+        friction={0.3}
+        restitution={0.02}
+      />
+
+      {/* 4 diagonal frame arm bridge colliders (prevents thin furniture legs from passing through arm gaps) */}
+      {/* Front-Right Arm */}
+      <CuboidCollider
+        args={[spec.armLength * 0.20, 0.006, spec.armLength * 0.20]}
+        position={[armPerAxis * 0.5, 0.004, -armPerAxis * 0.5]}
+        mass={spec.mass * 0.025}
+        friction={0.3}
+        restitution={0.02}
+      />
+      {/* Front-Left Arm */}
+      <CuboidCollider
+        args={[spec.armLength * 0.20, 0.006, spec.armLength * 0.20]}
+        position={[-armPerAxis * 0.5, 0.004, -armPerAxis * 0.5]}
+        mass={spec.mass * 0.025}
+        friction={0.3}
+        restitution={0.02}
+      />
+      {/* Back-Right Arm */}
+      <CuboidCollider
+        args={[spec.armLength * 0.20, 0.006, spec.armLength * 0.20]}
+        position={[armPerAxis * 0.5, 0.004, armPerAxis * 0.5]}
+        mass={spec.mass * 0.025}
+        friction={0.3}
+        restitution={0.02}
+      />
+      {/* Back-Left Arm */}
+      <CuboidCollider
+        args={[spec.armLength * 0.20, 0.006, spec.armLength * 0.20]}
+        position={[-armPerAxis * 0.5, 0.004, armPerAxis * 0.5]}
+        mass={spec.mass * 0.025}
+        friction={0.3}
+        restitution={0.02}
+      />
+
       <group ref={visual}>
         <DroneModel spec={spec} />
         <Propellers spec={spec} />
