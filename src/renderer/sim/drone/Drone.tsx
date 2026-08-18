@@ -962,32 +962,32 @@ export function Drone({ spec, spawn, bounds, outdoor = false }: DroneProps) {
       {/* 4 discrete corner landing foot colliders (bottom-most contact points for realistic edge tipping & landing) */}
       {/* Front-Right Foot */}
       <CuboidCollider
-        args={[spec.armLength * 0.10, 0.01, spec.armLength * 0.10]}
-        position={[armPerAxis, -0.008, -armPerAxis]}
+        args={[spec.armLength * 0.10, 0.012, spec.armLength * 0.10]}
+        position={[armPerAxis, -0.012, -armPerAxis]}
         mass={spec.mass * 0.08}
         friction={0.4}
         restitution={0.02}
       />
       {/* Front-Left Foot */}
       <CuboidCollider
-        args={[spec.armLength * 0.10, 0.01, spec.armLength * 0.10]}
-        position={[-armPerAxis, -0.008, -armPerAxis]}
+        args={[spec.armLength * 0.10, 0.012, spec.armLength * 0.10]}
+        position={[-armPerAxis, -0.012, -armPerAxis]}
         mass={spec.mass * 0.08}
         friction={0.4}
         restitution={0.02}
       />
       {/* Back-Right Foot */}
       <CuboidCollider
-        args={[spec.armLength * 0.10, 0.01, spec.armLength * 0.10]}
-        position={[armPerAxis, -0.008, armPerAxis]}
+        args={[spec.armLength * 0.10, 0.012, spec.armLength * 0.10]}
+        position={[armPerAxis, -0.012, armPerAxis]}
         mass={spec.mass * 0.08}
         friction={0.4}
         restitution={0.02}
       />
       {/* Back-Left Foot */}
       <CuboidCollider
-        args={[spec.armLength * 0.10, 0.01, spec.armLength * 0.10]}
-        position={[-armPerAxis, -0.008, armPerAxis]}
+        args={[spec.armLength * 0.10, 0.012, spec.armLength * 0.10]}
+        position={[-armPerAxis, -0.012, armPerAxis]}
         mass={spec.mass * 0.08}
         friction={0.4}
         restitution={0.02}
