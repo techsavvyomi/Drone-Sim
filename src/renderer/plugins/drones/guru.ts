@@ -14,31 +14,27 @@ export const guruDrone: DroneSpec = {
   id: 'pluto-guru',
   name: 'Pluto Guru',
   frame: 'quad',
-  // 400 g all-up. ESTIMATE: typical for a 230 mm airframe on a 3S pack. Drives
-  // hover thrust and therefore where the hover point sits on the throttle.
-  mass: 0.4,
+  // 1.5 kg realistic trainer quad. Solid momentum, smooth gliding, and authentic airframe inertia.
+  mass: 1.5,
   // Motor-to-CoG = half the 230 mm diagonal wheelbase. Confirmed against the
   // model: the four tagged props sit at +/-81.7 mm per axis, i.e. 115.5 mm out
   // on a clean 45-degree X.
   armLength: 0.115,
   motors: Array.from({ length: 4 }, () => ({
     kv: 2300,
-    // 4 x 1.96 N = 7.85 N against a 3.92 N weight -> thrust-to-weight ~2.0, the
-    // same trainer-friendly ratio the PlutoX is tuned to, so hover lands near
-    // 50% stick and the throttle lesson transfers between the two airframes.
-    maxThrustN: 1.96,
-    // 135 mm props carry far more rotational inertia than the PlutoX's 55 mm
-    // ones, so the motors spool noticeably slower.
-    responseTime: 0.07,
+    // 4 x 7.36 N = 29.44 N against a 14.71 N weight -> thrust-to-weight ~2.0,
+    // matching standard high-stability trainer flight characteristics.
+    maxThrustN: 7.36,
+    responseTime: 0.05,
   })),
   propDiameterIn: 5.31, // 135 mm
   battery: {
-    cells: 3,
-    capacityMah: 1500,
-    nominalV: 3.7,
-    internalResistance: 0.06,
+    cells: 4,
+    capacityMah: 2200,
+    nominalV: 14.8,
+    internalResistance: 0.025,
   },
-  maxSpeed: 14,
+  maxSpeed: 18,
   /** Hard ceiling enforced by the flight controller (soft-limited from 2 m below). */
   maxAltitude: 30,
   // Mirrors the PlutoX mount, scaled by the ratio of the two arm lengths so FPV
@@ -70,13 +66,13 @@ export const guruDrone: DroneSpec = {
   // rate gains ring rather than track.
   pidDefaults: {
     rate: {
-      roll: { p: 14, i: 6, d: 0.35 },
-      pitch: { p: 14, i: 6, d: 0.35 },
-      yaw: { p: 9, i: 4, d: 0 },
+      roll: { p: 24, i: 8, d: 0.65 },
+      pitch: { p: 24, i: 8, d: 0.65 },
+      yaw: { p: 14, i: 5, d: 0 },
     },
     angle: {
-      roll: { p: 7.5, i: 0, d: 0 },
-      pitch: { p: 7.5, i: 0, d: 0 },
+      roll: { p: 10, i: 0, d: 0 },
+      pitch: { p: 10, i: 0, d: 0 },
     },
   },
 };

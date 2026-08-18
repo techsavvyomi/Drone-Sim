@@ -12,14 +12,17 @@ export function GroundMarker() {
   useFrame(() => {
     if (!dronePose.present) return;
     const { x, y, z } = dronePose.position;
+    const airborne = y > 0.06;
 
     if (ring.current) {
+      ring.current.visible = airborne;
       ring.current.position.set(x, 0.015, z);
       // Ring grows slightly with altitude so it stays readable from above.
       const s = 1 + Math.min(y, 8) * 0.12;
       ring.current.scale.setScalar(s);
     }
     if (line.current) {
+      line.current.visible = airborne;
       const h = Math.max(y, 0.001);
       line.current.position.set(x, h / 2, z);
       line.current.scale.set(1, h, 1);

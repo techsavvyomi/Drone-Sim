@@ -62,13 +62,15 @@ export function FlightScene({ envIdOverride }: { envIdOverride?: string } = {}) 
         ? '#1a2230'
         : '#c8d0da';
   const ibl = isClassroom ? 0.6 : outdoor ? 1 : 0.22;
+  const fogNear = env.fog?.near ?? t.fogNear;
+  const fogFar = env.fog?.far ?? t.fogFar;
 
   return (
     <>
       <color attach="background" args={[bg]} />
       {/* Indoors: skip distance fog — small rooms sit inside outdoor fogNear
           and the light fog colour flattens textured walls to white. */}
-      {outdoor && <fog attach="fog" args={[t.fogColor, t.fogNear, t.fogFar]} />}
+      {outdoor && <fog attach="fog" args={[t.fogColor, fogNear, fogFar]} />}
 
       {/* Procedural sky — no HDRI download, so it works offline under our CSP. */}
       {outdoor && (
@@ -99,7 +101,7 @@ export function FlightScene({ envIdOverride }: { envIdOverride?: string } = {}) 
           intensity={sun}
           color={t.sunColor}
           castShadow
-          shadow-mapSize={[4096, 4096]}
+          shadow-mapSize={[1024, 1024]}
           shadow-bias={-0.0002}
           shadow-normalBias={0.02}
           shadow-camera-left={-38}

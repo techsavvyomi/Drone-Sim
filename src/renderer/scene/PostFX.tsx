@@ -17,19 +17,17 @@ export function PostFX() {
   if (graphics === 'low') return null;
 
   const highQuality = graphics === 'high' || graphics === 'ultra';
+  const enableSSAO = graphics === 'ultra';
 
   return (
-    <EffectComposer multisampling={highQuality ? 4 : 0} enableNormalPass={highQuality}>
-      {/* Ambient occlusion darkens contact points and crevices. Without it
-          everything reads as floating on the ground rather than resting on it —
-          the single biggest "CG" tell in a procedural scene. Needs the normal
-          pass, so it's High/Ultra only. */}
-      {highQuality ? (
+    <EffectComposer multisampling={0} enableNormalPass={enableSSAO}>
+      {/* Ambient occlusion darkens contact points and crevices on Ultra preset */}
+      {enableSSAO ? (
         <SSAO
           blendFunction={BlendFunction.MULTIPLY}
-          samples={16}
+          samples={6}
           radius={0.08}
-          intensity={5}
+          intensity={3.5}
           luminanceInfluence={0.5}
           bias={0.03}
           worldDistanceThreshold={40}
@@ -44,8 +42,7 @@ export function PostFX() {
         // Emissive materials sit well above 1.0, ordinary surfaces below it.
         luminanceThreshold={night ? 0.55 : 0.95}
         luminanceSmoothing={0.25}
-        intensity={night ? 1.15 : 0.5}
-        mipmapBlur
+        intensity={night ? 1.0 : 0.45}
         radius={0.72}
       />
       <Vignette offset={0.28} darkness={0.42} eskil={false} />

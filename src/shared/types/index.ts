@@ -566,6 +566,8 @@ export interface EnvironmentSpec {
   spawn: { position: Vec3; heading: number };
   /** Axis-aligned play-area bounds [min, max]. */
   bounds: { min: Vec3; max: Vec3 };
+  /** Optional environment-specific distance fog override [near, far]. */
+  fog?: { near: number; far: number };
 }
 
 export type MissionType =

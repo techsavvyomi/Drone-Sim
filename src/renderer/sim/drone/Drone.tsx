@@ -512,15 +512,14 @@ export function Drone({ spec, spawn, bounds, outdoor = false }: DroneProps) {
     }
 
     // ---- Soft arena containment ----
-    // Outdoor: soft fence on all axes (no hard walls).
-    // Indoor: hard wall/floor colliders own contact — soft XZ push near walls
-    // flips a light whoop on slow approach. Only rescue Y when underground and
-    // soften the ceiling so the roof doesn't need a separate collider.
-    const containK = 3.2 * rb.mass();
-    const dampK = 1.4 * rb.mass();
-    const marginX = outdoor ? BOUND_MARGIN : 0.2;
-    const marginY = 0.2;
-    const marginZ = outdoor ? BOUND_MARGIN : 0.2;
+    // Outdoor: wide progressive aerodynamic air-brake at the true outer perimeter (±2000m).
+    // Zero hard collision impulses, zero fatal crash triggers.
+    // Indoor: hard wall/floor colliders own contact.
+    const containK = outdoor ? 0.8 * rb.mass() : 3.2 * rb.mass();
+    const dampK = outdoor ? 2.4 * rb.mass() : 1.4 * rb.mass();
+    const marginX = outdoor ? 8 : 0.2;
+    const marginY = outdoor ? 15 : 0.2;
+    const marginZ = outdoor ? 8 : 0.2;
 
     const axes: [number, number, number][] = [
       [pos.x, bounds.min[0], bounds.max[0]],
@@ -537,10 +536,24 @@ export function Drone({ spec, spawn, bounds, outdoor = false }: DroneProps) {
       const overHigh = p - (hi - m);
 
       if (outdoor) {
-        if (overLow > 0) {
-          push[i] = containK * overLow - (vel[i] < 0 ? dampK * vel[i] : 0);
-        } else if (overHigh > 0) {
-          push[i] = -containK * overHigh - (vel[i] > 0 ? dampK * vel[i] : 0);
+        if (i === 1) {
+          // Vertical axis (Y): ONLY rescue if genuinely breached below the underground floor bound (p < lo)
+          if (p < lo) {
+            push[i] = containK * (lo - p) * 2.0 - (vel[i] < 0 ? dampK * vel[i] : 0);
+          } else if (overHigh > 0) {
+            // Soft ceiling air-brake when approaching max altitude (160m)
+            const ratio = clamp(overHigh / m, 0, 1);
+            push[i] = -containK * ratio * 8.0 - (vel[i] > 0 ? dampK * vel[i] : 0);
+          }
+        } else {
+          // Horizontal axes (X, Z): progressive air-brake near outer map perimeter
+          if (overLow > 0) {
+            const ratio = clamp(overLow / m, 0, 1);
+            push[i] = containK * ratio * 8.0 - (vel[i] < 0 ? dampK * vel[i] : 0);
+          } else if (overHigh > 0) {
+            const ratio = clamp(overHigh / m, 0, 1);
+            push[i] = -containK * ratio * 8.0 - (vel[i] > 0 ? dampK * vel[i] : 0);
+          }
         }
         continue;
       }
@@ -655,7 +668,13 @@ export function Drone({ spec, spawn, bounds, outdoor = false }: DroneProps) {
 
     const flightNow = useFlightStore.getState();
     const isNearGround = pos.y < 0.25 || flightNow.onGround;
-    if (mode !== 'acro' && !flightNow.crashed && !isNearGround) {
+    // Suppress lateral G / tilt crash triggers near outer boundaries in outdoor maps
+    const isNearOutdoorBound = outdoor && (
+      pos.x < bounds.min[0] + 12 || pos.x > bounds.max[0] - 12 ||
+      pos.z < bounds.min[2] + 12 || pos.z > bounds.max[2] - 12 ||
+      pos.y > bounds.max[1] - 15
+    );
+    if (mode !== 'acro' && !flightNow.crashed && !isNearGround && !isNearOutdoorBound) {
       _q.set(rot.x, rot.y, rot.z, rot.w);
       _euler.setFromQuaternion(_q, 'YXZ');
       const overTilt =
@@ -871,10 +890,9 @@ export function Drone({ spec, spawn, bounds, outdoor = false }: DroneProps) {
       ref={body}
       colliders={false}
       position={spawn.position}
-      // A 50 g quad with large props bleeds speed quickly; too little drag and
-      // it glides on after you centre the sticks, which feels like overshoot.
-      linearDamping={0.45}
-      angularDamping={0.35}
+      // Low linear drag for smooth gliding momentum; high angular damping for jitter-free rotational stability
+      linearDamping={0.30}
+      angularDamping={0.85}
       canSleep={false}
       // Without CCD a fast drone steps straight through thin colliders (walls,
       // hangar sides) between physics ticks and ends up inside the geometry.
@@ -893,8 +911,14 @@ export function Drone({ spec, spawn, bounds, outdoor = false }: DroneProps) {
         // Crash conditions:
         // 1. High speed impact (floor slam or wall hit >= 1.8 - 3.2 m/s)
         // 2. Falling from table/chair onto floor or landing while tilted (> 25 deg)
+        // Outer bounds in outdoor maps never trigger fatal crash
+        const isNearOuterBound = outdoor && (
+          pos.x < bounds.min[0] + 12 || pos.x > bounds.max[0] - 12 ||
+          pos.z < bounds.min[2] + 12 || pos.z > bounds.max[2] - 12 ||
+          posY > bounds.max[1] - 15
+        );
         const isImpactCrash = v >= MINOR_IMPACT || (v >= 0.9 && isTilted);
-        if (isImpactCrash && flight.auto !== 'takeoff' && flight.armed) {
+        if (isImpactCrash && flight.auto !== 'takeoff' && flight.armed && !isNearOuterBound) {
           flight.crash(v, pickBrokenProps());
           addShake(Math.min(1, Math.max(0.4, v / MAJOR_IMPACT)));
           peakSpeed.current = 0;

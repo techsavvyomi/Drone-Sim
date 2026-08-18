@@ -10,6 +10,7 @@ export const newYork: EnvironmentSpec = {
   name: 'New York City',
   kind: 'outdoor',
   model: newYorkModelUrl,
-  spawn: { position: [0, 0.35, 0], heading: 0 },
-  bounds: { min: [-150, -10, -120], max: [150, 160, 120] },
+  spawn: { position: [0, 0.018, 30], heading: 0 },
+  bounds: { min: [-123.84, -5, -98.11], max: [123.84, 160, 98.11] },
+  fog: { near: 250, far: 1200 },
 };

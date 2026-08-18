@@ -105,6 +105,12 @@ export function grassTexture(): THREE.CanvasTexture {
 export function disposeTextures(): void {
   [_concrete, _asphalt, _grass].forEach((t) => t?.dispose());
   _concrete = _asphalt = _grass = null;
+  if (_streetPbr) {
+    _streetPbr.map.dispose();
+    _streetPbr.normalMap.dispose();
+    _streetPbr.roughnessMap.dispose();
+    _streetPbr = null;
+  }
 }
 
 let _cloud: THREE.CanvasTexture | null = null;
@@ -223,6 +229,16 @@ export function asphaltNormal(): THREE.CanvasTexture {
   return _asphaltN;
 }
 
+let _microStreetNormal: THREE.CanvasTexture | null = null;
+export function microStreetNormal(maxAniso = 16): THREE.CanvasTexture {
+  if (!_microStreetNormal) {
+    _microStreetNormal = normalFromHeight(512, (x, y) => fbm(x * 4.0, y * 4.0, 77, 4) * 0.7 + fbm(x * 16.0, y * 16.0, 93, 2) * 0.3, 3.5);
+    _microStreetNormal.repeat.set(80, 80);
+  }
+  _microStreetNormal.anisotropy = maxAniso;
+  return _microStreetNormal;
+}
+
 export function grassNormal(): THREE.CanvasTexture {
   if (!_grassN) {
     _grassN = normalFromHeight(256, (x, y) => fbm(x * 2.4, y * 2.4, 37, 2), 3.2);
@@ -248,4 +264,218 @@ export function skyGradientTexture(
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;
   return tex;
+}
+
+let _streetPbr: {
+  map: THREE.CanvasTexture;
+  normalMap: THREE.CanvasTexture;
+  roughnessMap: THREE.CanvasTexture;
+} | null = null;
+
+/**
+ * Draws sharp, multifaceted aggregate mineral chips and dark tar sockets
+ * onto both albedo and roughness canvas contexts.
+ */
+function drawAggregateChips(
+  ctx: CanvasRenderingContext2D,
+  ctxRough: CanvasRenderingContext2D,
+  size: number,
+  count: number,
+  seed: number,
+  shades: string[],
+  minR: number,
+  maxR: number,
+  roughMin: number,
+  roughMax: number,
+) {
+  for (let i = 0; i < count; i++) {
+    const cx = hash(i, 1, seed) * size;
+    const cy = hash(i, 2, seed) * size;
+    const r = minR + hash(i, 3, seed) * (maxR - minR);
+    const sides = 3 + Math.floor(hash(i, 5, seed) * 4); // 3 to 6-sided polygon stone
+    const rot = hash(i, 6, seed) * Math.PI * 2;
+    const shade = shades[Math.floor(hash(i, 4, seed) * shades.length)];
+    const roughVal = Math.floor(roughMin + hash(i, 7, seed) * (roughMax - roughMin));
+    const roughHex = roughVal.toString(16).padStart(2, '0');
+
+    // 1. Albedo stone polygon
+    ctx.fillStyle = shade;
+    ctx.beginPath();
+    for (let s = 0; s < sides; s++) {
+      const a = rot + (s / sides) * Math.PI * 2 + (hash(i * 7 + s, 8, seed) - 0.5) * 0.4;
+      const rad = r * (0.75 + hash(i * 11 + s, 9, seed) * 0.5);
+      const px = cx + Math.cos(a) * rad;
+      const py = cy + Math.sin(a) * rad;
+      if (s === 0) ctx.moveTo(px, py);
+      else ctx.lineTo(px, py);
+    }
+    ctx.closePath();
+    ctx.fill();
+
+    // 2. Dark recessed bitumen socket perimeter around medium/large aggregate
+    if (r >= 1.4) {
+      ctx.strokeStyle = 'rgba(8, 10, 12, 0.7)';
+      ctx.lineWidth = 0.75;
+      ctx.stroke();
+    }
+
+    // 3. Roughness map polygon (matte stone facets)
+    ctxRough.fillStyle = `#${roughHex}${roughHex}${roughHex}`;
+    ctxRough.beginPath();
+    for (let s = 0; s < sides; s++) {
+      const a = rot + (s / sides) * Math.PI * 2;
+      const px = cx + Math.cos(a) * r;
+      const py = cy + Math.sin(a) * r;
+      if (s === 0) ctxRough.moveTo(px, py);
+      else ctxRough.lineTo(px, py);
+    }
+    ctxRough.closePath();
+    ctxRough.fill();
+  }
+}
+
+/**
+ * Draws procedural asphalt fissures and tar seams for macro road texture.
+ */
+function drawAsphaltCracks(
+  ctx: CanvasRenderingContext2D,
+  ctxRough: CanvasRenderingContext2D,
+  size: number,
+  numCracks = 6,
+  seed = 59,
+) {
+  for (let c = 0; c < numCracks; c++) {
+    let x = hash(c, 11, seed) * size;
+    let y = hash(c, 12, seed) * size;
+    const segs = 12 + Math.floor(hash(c, 13, seed) * 14);
+
+    ctx.strokeStyle = '#0a0c0e';
+    ctx.lineWidth = 1.2 + hash(c, 14, seed) * 1.6;
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+
+    for (let s = 0; s < segs; s++) {
+      const angle = (hash(c * 17 + s, 15, seed) - 0.5) * 1.6 + (c % 2 === 0 ? 0.3 : 1.7);
+      const dist = 14 + hash(c * 19 + s, 16, seed) * 26;
+      x = (x + Math.cos(angle) * dist + size) % size;
+      y = (y + Math.sin(angle) * dist + size) % size;
+      ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+
+    // Smooth bitumen tar seal along crack core
+    ctxRough.strokeStyle = '#404040';
+    ctxRough.lineWidth = 2.0;
+    ctxRough.stroke();
+  }
+}
+
+/**
+ * Generates ultra-crisp, high-definition procedural PBR textures for New York streets.
+ * Multi-layer aggregate stone chips (quartz, granite, basalt), asphalt fissures,
+ * and high-relief normal mapping ensure pin-sharp clarity right under the drone camera
+ * and rich tactical depth at all camera angles.
+ */
+export function highResStreetPBR(maxAniso = 16): {
+  map: THREE.CanvasTexture;
+  normalMap: THREE.CanvasTexture;
+  roughnessMap: THREE.CanvasTexture;
+} {
+  if (_streetPbr) {
+    _streetPbr.map.anisotropy = maxAniso;
+    _streetPbr.normalMap.anisotropy = maxAniso;
+    _streetPbr.roughnessMap.anisotropy = maxAniso;
+    return _streetPbr;
+  }
+
+  const size = 1024;
+  const [cMap, ctxMap] = makeCanvas(size);
+  const [cRough, ctxRough] = makeCanvas(size);
+
+  // 1. Deep Rich Bitumen Base Matrix
+  ctxMap.fillStyle = '#141618';
+  ctxMap.fillRect(0, 0, size, size);
+
+  // Base asphalt binder roughness (semi-glossy compacted bitumen)
+  ctxRough.fillStyle = '#9e9e9e';
+  ctxRough.fillRect(0, 0, size, size);
+
+  // 2. Fine mineral sand & filler matrix (18,000 grains)
+  drawAggregateChips(
+    ctxMap,
+    ctxRough,
+    size,
+    18000,
+    31,
+    ['#22262a', '#2c3137', '#181b1d', '#363d44', '#1b1e20'],
+    0.4,
+    1.4,
+    140,
+    180,
+  );
+
+  // 3. Medium crushed stone aggregate (8,000 multifaceted pebbles)
+  drawAggregateChips(
+    ctxMap,
+    ctxRough,
+    size,
+    8000,
+    73,
+    ['#485058', '#383e45', '#555f69', '#2d3238', '#5e6874'],
+    1.4,
+    3.2,
+    190,
+    235,
+  );
+
+  // 4. Coarse quartz & granite mineral highlights (2,500 crisp stone chips)
+  drawAggregateChips(
+    ctxMap,
+    ctxRough,
+    size,
+    2500,
+    109,
+    ['#788490', '#95a1ad', '#66717d', '#adb9c6', '#8893a0'],
+    2.2,
+    4.8,
+    220,
+    255,
+  );
+
+  // 5. Asphalt fissures, tar veins, and compaction seams
+  drawAsphaltCracks(ctxMap, ctxRough, size, 8, 43);
+
+  const repeat = 1;
+
+  const map = finish(cMap, repeat);
+  map.anisotropy = maxAniso;
+  map.generateMipmaps = true;
+  map.minFilter = THREE.LinearMipmapLinearFilter;
+  map.magFilter = THREE.LinearFilter;
+
+  const roughnessMap = finish(cRough, repeat);
+  roughnessMap.anisotropy = maxAniso;
+  roughnessMap.generateMipmaps = true;
+  roughnessMap.minFilter = THREE.LinearMipmapLinearFilter;
+  roughnessMap.magFilter = THREE.LinearFilter;
+
+  // 6. Tangent-space micro-relief & cellular aggregate normal map (512x512 with 5.5x strength)
+  const normalMap = normalFromHeight(
+    512,
+    (x, y) => {
+      const macro = fbm(x * 1.8, y * 1.8, 37, 2) * 0.22;
+      const stone = fbm(x * 7.5, y * 7.5, 77, 3) * 0.48;
+      const grit = fbm(x * 28.0, y * 28.0, 93, 2) * 0.30;
+      return macro + stone + grit;
+    },
+    5.5,
+  );
+  normalMap.repeat.set(repeat, repeat);
+  normalMap.anisotropy = maxAniso;
+  normalMap.generateMipmaps = true;
+  normalMap.minFilter = THREE.LinearMipmapLinearFilter;
+  normalMap.magFilter = THREE.LinearFilter;
+
+  _streetPbr = { map, normalMap, roughnessMap };
+  return _streetPbr;
 }

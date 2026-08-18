@@ -89,15 +89,15 @@ export function ambientDrift(time: number, out: Vec3, strength = 0.16): Vec3 {
 
 /**
  * Ground effect: rotor efficiency rises close to the ground because the
- * downwash can't fully develop. Returns a thrust multiplier >= 1.
- * Effect is negligible beyond roughly one rotor diameter of height.
+ * downwash cannot fully develop. Returns an aerodynamic air-cushion thrust multiplier >= 1.
+ * Provides authentic floaty ground cushion during touchdown and liftoff.
  */
 export function groundEffect(altitude: number, rotorRadius: number): number {
   const r = Math.max(rotorRadius, 1e-3);
   const z = Math.max(altitude, 0);
   const ratio = z / (2 * r);
-  if (ratio > 1.5) return 1;
-  // Cheap approximation of the standard 1/(1-(R/4z)^2) curve, bounded.
-  const boost = 0.22 * Math.exp(-2.2 * ratio);
+  if (ratio > 1.8) return 1;
+  // Smooth aerodynamic air-cushion force close to the ground (up to 1.25x hover thrust boost)
+  const boost = 0.25 * Math.exp(-2.0 * ratio);
   return clamp(1 + boost, 1, 1.25);
 }

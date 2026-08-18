@@ -15,6 +15,7 @@ const _euler = new THREE.Euler();
 const _offset = new THREE.Vector3();
 const _target = new THREE.Vector3();
 const _look = new THREE.Vector3();
+const _currentLook = new THREE.Vector3();
 const _tilt = new THREE.Quaternion();
 const _mount = new THREE.Vector3();
 const UP = new THREE.Vector3(0, 1, 0);
@@ -69,7 +70,10 @@ export function CameraRig({ spec, env }: { spec: DroneSpec; env?: EnvironmentSpe
         _look.z = THREE.MathUtils.clamp(_look.z, env.bounds.min[2] + lookPad, env.bounds.max[2] - lookPad);
         _look.y = THREE.MathUtils.clamp(_look.y, 0.3, env.bounds.max[1] - 0.2);
       }
-      camera.lookAt(_look);
+      _currentLook.x = damp(_currentLook.x, _look.x, lambda, delta);
+      _currentLook.y = damp(_currentLook.y, _look.y, lambda, delta);
+      _currentLook.z = damp(_currentLook.z, _look.z, lambda, delta);
+      camera.lookAt(_currentLook);
 
       if (shake > 0.001) {
         const a = shake * 0.35;
