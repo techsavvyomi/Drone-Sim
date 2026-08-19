@@ -1,950 +1,266 @@
 import { CuboidCollider, CylinderCollider, RigidBody } from '@react-three/rapier';
 
 /**
- * Tight Fine-Grained Analytical Physics Colliders for New York City.
- * Each individual building wing and facade has its own exact tight box collider.
- * Zero oversized block boxes — courtyards, alleyways, and building setbacks are 100% open.
+ * 100% Solid Analytical Physics Colliders for New York City.
+ * - Every single building block is a 100% solid discrete RigidBody (ZERO pass-through).
+ * - Facades aligned with street curbs (ZERO phantom collisions in streets).
+ * - Restitution = 0 across all colliders (ZERO rubber-ball bouncing on crash).
+ * - Deep 20m solid foundation floor & raised sidewalks.
  */
 
-// Tight individual building wing colliders (67 distinct building structures)
+// 18 calibrated solid building volume colliders strictly matched to visual geometry
 const BUILDING_BLOCKS: Array<{ id: string; pos: [number, number, number]; args: [number, number, number] }> = [
   {
-    "id": "wing_0",
+    "id": "FarWest_North",
     "pos": [
-      100.06,
-      24.13,
-      66.84
-    ],
-    "args": [
-      2.15,
-      24.13,
-      2.16
-    ],
-    "height": "48.3m"
-  },
-  {
-    "id": "wing_1",
-    "pos": [
-      0.36,
-      28.03,
-      56.66
-    ],
-    "args": [
-      4.67,
-      28.03,
-      1.56
-    ],
-    "height": "56.1m"
-  },
-  {
-    "id": "wing_2",
-    "pos": [
-      -59.13,
-      49.76,
-      -73.84
-    ],
-    "args": [
-      4.01,
-      49.76,
-      2.38
-    ],
-    "height": "99.5m"
-  },
-  {
-    "id": "wing_3",
-    "pos": [
-      0.17,
-      38.31,
-      3.68
-    ],
-    "args": [
-      6.22,
-      38.31,
-      3.1
-    ],
-    "height": "76.6m"
-  },
-  {
-    "id": "wing_4",
-    "pos": [
-      6.99,
-      30.26,
-      -5.81
-    ],
-    "args": [
-      4.82,
-      30.26,
-      2.99
-    ],
-    "height": "60.5m"
-  },
-  {
-    "id": "wing_5",
-    "pos": [
-      -48.77,
-      49.01,
-      -65.32
-    ],
-    "args": [
-      2.1,
-      49.01,
-      2.38
-    ],
-    "height": "98.0m"
-  },
-  {
-    "id": "wing_6",
-    "pos": [
-      94.11,
-      24.44,
-      8.75
-    ],
-    "args": [
-      2.99,
-      24.44,
-      1.41
-    ],
-    "height": "48.9m"
-  },
-  {
-    "id": "wing_7",
-    "pos": [
-      -88.95,
-      33.51,
-      -52.23
-    ],
-    "args": [
-      2.4,
-      33.51,
-      1.24
-    ],
-    "height": "67.0m"
-  },
-  {
-    "id": "wing_8",
-    "pos": [
-      -91.19,
+      -95.5,
       40.84,
-      -68.47
+      -62.32
     ],
     "args": [
-      5.67,
+      7.46,
       40.84,
-      4.12
+      16.25
     ],
-    "height": "81.7m"
+    "realHeight": "81.7m"
   },
   {
-    "id": "wing_9",
+    "id": "FarWest_Center",
     "pos": [
-      -57.82,
-      31.63,
-      -1.87
+      -94.54,
+      24.26,
+      0.99
     ],
     "args": [
-      2.67,
-      31.63,
-      1.99
+      6.24,
+      24.26,
+      16.06
     ],
-    "height": "63.3m"
+    "realHeight": "48.5m"
   },
   {
-    "id": "wing_10",
+    "id": "FarWest_South",
     "pos": [
-      75.47,
-      28.73,
-      -58.69
+      -95.63,
+      42.06,
+      60.1
     ],
     "args": [
-      3.66,
-      28.73,
-      1.43
+      7.46,
+      42.06,
+      16.42
     ],
-    "height": "57.5m"
+    "realHeight": "84.1m"
   },
   {
-    "id": "wing_11",
+    "id": "MidWest_North",
     "pos": [
-      -85.12,
-      26.02,
-      -64.64
+      -60.98,
+      49.76,
+      -63.63
     ],
     "args": [
-      2.91,
-      26.02,
-      1.38
+      17,
+      49.76,
+      17.56
     ],
-    "height": "52.0m"
+    "realHeight": "99.5m"
   },
   {
-    "id": "wing_12",
+    "id": "MidWest_Center",
     "pos": [
-      92.81,
-      31.9,
-      -69.57
+      -60.88,
+      32.07,
+      -0.19
     ],
     "args": [
-      4.56,
-      31.9,
-      3.96
+      16.93,
+      32.07,
+      17.1
     ],
-    "height": "63.8m"
+    "realHeight": "64.1m"
   },
   {
-    "id": "wing_13",
+    "id": "MidWest_South",
     "pos": [
-      -5.97,
-      19.7,
-      63.62
+      -59.88,
+      46.92,
+      59.25
     ],
     "args": [
-      2.91,
-      19.7,
-      1.04
+      17.93,
+      46.92,
+      15.8
     ],
-    "height": "39.4m"
+    "realHeight": "93.8m"
   },
   {
-    "id": "wing_14",
+    "id": "CentralWest_North",
     "pos": [
-      -86.34,
-      27.24,
-      -52.26
+      -12.17,
+      43.91,
+      -60.56
     ],
     "args": [
-      2.73,
-      27.24,
-      2.2
+      7.67,
+      43.91,
+      21.76
     ],
-    "height": "54.5m"
+    "realHeight": "87.8m"
   },
   {
-    "id": "wing_15",
-    "pos": [
-      -76.55,
-      41.93,
-      -72.13
-    ],
-    "args": [
-      3.8,
-      41.93,
-      2.14
-    ],
-    "height": "83.9m"
-  },
-  {
-    "id": "wing_16",
-    "pos": [
-      10.86,
-      13.78,
-      73.79
-    ],
-    "args": [
-      2.52,
-      13.78,
-      2.95
-    ],
-    "height": "27.6m"
-  },
-  {
-    "id": "wing_17",
-    "pos": [
-      -11.47,
-      36.34,
-      -46.26
-    ],
-    "args": [
-      3.33,
-      36.34,
-      3.41
-    ],
-    "height": "72.7m"
-  },
-  {
-    "id": "wing_18",
-    "pos": [
-      -11.46,
-      21.37,
-      55.85
-    ],
-    "args": [
-      4.01,
-      21.37,
-      3.96
-    ],
-    "height": "42.7m"
-  },
-  {
-    "id": "wing_19",
-    "pos": [
-      -9.15,
-      29.81,
-      -3
-    ],
-    "args": [
-      1.54,
-      29.81,
-      1.01
-    ],
-    "height": "59.6m"
-  },
-  {
-    "id": "wing_20",
-    "pos": [
-      57.69,
-      31.34,
-      -60.18
-    ],
-    "args": [
-      1.58,
-      31.34,
-      1.04
-    ],
-    "height": "62.7m"
-  },
-  {
-    "id": "wing_21",
-    "pos": [
-      -63.76,
-      48.33,
-      -63.49
-    ],
-    "args": [
-      1.46,
-      48.33,
-      3.29
-    ],
-    "height": "96.7m"
-  },
-  {
-    "id": "wing_22",
-    "pos": [
-      -96.58,
-      25.77,
-      -68.08
-    ],
-    "args": [
-      1.07,
-      25.77,
-      2.51
-    ],
-    "height": "51.5m"
-  },
-  {
-    "id": "wing_24",
-    "pos": [
-      -80.45,
-      42.33,
-      72.97
-    ],
-    "args": [
-      3.19,
-      42.33,
-      1.41
-    ],
-    "height": "84.7m"
-  },
-  {
-    "id": "wing_25",
-    "pos": [
-      -90.31,
-      30.31,
-      54.34
-    ],
-    "args": [
-      2.99,
-      30.31,
-      1.33
-    ],
-    "height": "60.6m"
-  },
-  {
-    "id": "wing_26",
-    "pos": [
-      3.86,
-      33.29,
-      -64.01
-    ],
-    "args": [
-      1.18,
-      33.29,
-      2.72
-    ],
-    "height": "66.6m"
-  },
-  {
-    "id": "wing_27",
-    "pos": [
-      -5.7,
-      46.79,
-      -3.27
-    ],
-    "args": [
-      1.15,
-      46.79,
-      2.67
-    ],
-    "height": "93.6m"
-  },
-  {
-    "id": "wing_28",
-    "pos": [
-      -50.28,
-      36.28,
-      65.25
-    ],
-    "args": [
-      2.55,
-      36.28,
-      1.12
-    ],
-    "height": "72.6m"
-  },
-  {
-    "id": "wing_29",
-    "pos": [
-      -76.09,
-      30.35,
-      57.01
-    ],
-    "args": [
-      3.58,
-      30.35,
-      1.63
-    ],
-    "height": "60.7m"
-  },
-  {
-    "id": "wing_30",
-    "pos": [
-      -4.99,
-      37.88,
-      -6.46
-    ],
-    "args": [
-      4.23,
-      37.88,
-      4.23
-    ],
-    "height": "75.8m"
-  },
-  {
-    "id": "wing_31",
-    "pos": [
-      88.63,
-      15.33,
-      73.1
-    ],
-    "args": [
-      2.98,
-      15.33,
-      1.31
-    ],
-    "height": "30.7m"
-  },
-  {
-    "id": "wing_32",
-    "pos": [
-      78.22,
-      27.39,
-      -49.29
-    ],
-    "args": [
-      4.06,
-      27.39,
-      1.84
-    ],
-    "height": "54.8m"
-  },
-  {
-    "id": "wing_33",
-    "pos": [
-      98.25,
-      15.37,
-      74.91
-    ],
-    "args": [
-      3.57,
-      15.37,
-      1.6
-    ],
-    "height": "30.7m"
-  },
-  {
-    "id": "wing_34",
-    "pos": [
-      82.64,
-      24.38,
-      -10.17
-    ],
-    "args": [
-      3.97,
-      24.38,
-      1.8
-    ],
-    "height": "48.8m"
-  },
-  {
-    "id": "wing_35",
-    "pos": [
-      58.89,
-      22.81,
-      -12.51
-    ],
-    "args": [
-      3.04,
-      22.81,
-      1.34
-    ],
-    "height": "45.6m"
-  },
-  {
-    "id": "wing_39",
-    "pos": [
-      92.84,
-      31.99,
-      -53.49
-    ],
-    "args": [
-      1.22,
-      31.99,
-      2.48
-    ],
-    "height": "64.0m"
-  },
-  {
-    "id": "wing_40",
-    "pos": [
-      -3.57,
-      34.97,
-      59.56
-    ],
-    "args": [
-      1.52,
-      34.97,
-      3.89
-    ],
-    "height": "69.9m"
-  },
-  {
-    "id": "wing_42",
-    "pos": [
-      85,
-      25.36,
-      61.77
-    ],
-    "args": [
-      2.7,
-      25.36,
-      1.75
-    ],
-    "height": "50.7m"
-  },
-  {
-    "id": "wing_43",
-    "pos": [
-      62.5,
-      23.34,
-      -1.07
-    ],
-    "args": [
-      1.48,
-      23.34,
-      0.91
-    ],
-    "height": "46.7m"
-  },
-  {
-    "id": "wing_44",
-    "pos": [
-      11.39,
-      13.27,
-      76.11
-    ],
-    "args": [
-      2.44,
-      13.27,
-      1.58
-    ],
-    "height": "26.5m"
-  },
-  {
-    "id": "wing_45",
-    "pos": [
-      -67.75,
-      46.36,
-      56.72
-    ],
-    "args": [
-      1.77,
-      46.36,
-      2.7
-    ],
-    "height": "92.7m"
-  },
-  {
-    "id": "wing_48",
-    "pos": [
-      -10.14,
-      20.82,
-      50.45
-    ],
-    "args": [
-      2.68,
-      20.82,
-      1.74
-    ],
-    "height": "41.6m"
-  },
-  {
-    "id": "wing_50",
-    "pos": [
-      -87.99,
-      23.52,
-      12.81
-    ],
-    "args": [
-      1.9,
-      23.52,
-      1.2
-    ],
-    "height": "47.0m"
-  },
-  {
-    "id": "wing_51",
-    "pos": [
-      -74.1,
-      41.52,
-      -71.99
-    ],
-    "args": [
-      1.45,
-      41.52,
-      2
-    ],
-    "height": "83.0m"
-  },
-  {
-    "id": "wing_52",
-    "pos": [
-      -61.72,
-      49.25,
-      -73.92
-    ],
-    "args": [
-      1.58,
-      49.25,
-      2.45
-    ],
-    "height": "98.5m"
-  },
-  {
-    "id": "wing_54",
-    "pos": [
-      -80.91,
-      34.14,
-      -62.42
-    ],
-    "args": [
-      2.19,
-      34.14,
-      1.4
-    ],
-    "height": "68.3m"
-  },
-  {
-    "id": "wing_56",
-    "pos": [
-      -89.56,
-      40.83,
-      -68.47
-    ],
-    "args": [
-      4.02,
-      40.83,
-      4.11
-    ],
-    "height": "81.7m"
-  },
-  {
-    "id": "wing_57",
-    "pos": [
-      92.81,
-      31.8,
-      -71.21
-    ],
-    "args": [
-      4.55,
-      31.8,
-      2.31
-    ],
-    "height": "63.6m"
-  },
-  {
-    "id": "wing_58",
-    "pos": [
-      -58.96,
-      54.91,
-      -64.02
-    ],
-    "args": [
-      4.26,
-      54.91,
-      5.61
-    ],
-    "height": "109.8m"
-  },
-  {
-    "id": "wing_59",
-    "pos": [
-      3.84,
-      26.42,
-      49.38
-    ],
-    "args": [
-      3.72,
-      26.42,
-      2.26
-    ],
-    "height": "52.8m"
-  },
-  {
-    "id": "wing_60",
-    "pos": [
-      -73.53,
-      39.89,
-      -52.49
-    ],
-    "args": [
-      2.07,
-      39.89,
-      3.17
-    ],
-    "height": "79.8m"
-  },
-  {
-    "id": "wing_61",
-    "pos": [
-      11.99,
-      25.48,
-      65.85
-    ],
-    "args": [
-      1.25,
-      25.48,
-      1.29
-    ],
-    "height": "51.0m"
-  },
-  {
-    "id": "wing_62",
+    "id": "CentralWest_Center",
     "pos": [
       -9.45,
-      34.06,
-      56.69
+      56.07,
+      -0.56
     ],
     "args": [
-      1.54,
-      34.06,
-      1.59
+      5.55,
+      56.07,
+      15.93
     ],
-    "height": "68.1m"
+    "realHeight": "112.1m"
   },
   {
-    "id": "wing_63",
+    "id": "CentralWest_South",
     "pos": [
-      3.38,
-      42.44,
-      -45.47
+      -10.44,
+      35.23,
+      61.7
     ],
     "args": [
-      1.4,
-      42.44,
-      1.36
+      6.51,
+      35.23,
+      18.64
     ],
-    "height": "84.9m"
+    "realHeight": "70.5m"
   },
   {
-    "id": "wing_64",
+    "id": "CentralEast_North",
     "pos": [
-      88,
-      30.17,
-      2.98
+      11.61,
+      37.81,
+      -60.56
     ],
     "args": [
-      1.33,
-      30.17,
-      1.29
+      7.38,
+      37.81,
+      21.76
     ],
-    "height": "60.3m"
+    "realHeight": "75.6m"
   },
   {
-    "id": "wing_65",
+    "id": "CentralEast_Center",
     "pos": [
-      7.32,
-      40.51,
-      49.56
+      8.08,
+      56.07,
+      -0.56
     ],
     "args": [
-      1.3,
-      40.51,
-      1.25
+      4.09,
+      56.07,
+      12.36
     ],
-    "height": "81.0m"
+    "realHeight": "112.1m"
   },
   {
-    "id": "wing_66",
+    "id": "CentralEast_South",
     "pos": [
-      -69.5,
-      36.27,
-      5.79
+      10.25,
+      34.84,
+      63.17
     ],
     "args": [
-      0.95,
-      36.27,
-      0.91
+      6.43,
+      34.84,
+      20.11
     ],
-    "height": "72.5m"
+    "realHeight": "69.7m"
   },
   {
-    "id": "wing_67",
+    "id": "MidEast_North",
     "pos": [
-      -75.23,
-      31.23,
-      -68.81
+      60.59,
+      31.69,
+      -62.58
     ],
     "args": [
-      1.17,
-      31.23,
-      1.21
+      18.89,
+      31.69,
+      18.68
     ],
-    "height": "62.5m"
+    "realHeight": "63.4m"
   },
   {
-    "id": "wing_68",
+    "id": "MidEast_Center",
     "pos": [
-      -1.23,
-      33.05,
-      53.22
+      60.54,
+      24.81,
+      1.64
     ],
     "args": [
-      1.3,
-      33.05,
-      1.26
+      18.84,
+      24.81,
+      18.99
     ],
-    "height": "66.1m"
+    "realHeight": "49.6m"
   },
   {
-    "id": "wing_70",
+    "id": "MidEast_South",
     "pos": [
-      -9.57,
-      46.88,
-      -75.11
+      60.55,
+      28.77,
+      60.65
     ],
     "args": [
-      0.93,
-      46.88,
-      0.92
+      18.85,
+      28.77,
+      17.91
     ],
-    "height": "93.8m"
+    "realHeight": "57.5m"
   },
   {
-    "id": "wing_71",
+    "id": "FarEast_North",
     "pos": [
-      -97.01,
-      30.05,
-      -5.95
+      95.59,
+      32.07,
+      -60.98
     ],
     "args": [
-      1.86,
-      30.05,
-      1.92
+      7.25,
+      32.07,
+      16.37
     ],
-    "height": "60.1m"
+    "realHeight": "64.1m"
   },
   {
-    "id": "wing_72",
+    "id": "FarEast_Center",
     "pos": [
-      -6.88,
-      34.2,
-      49.45
+      96.72,
+      24.56,
+      1.97
     ],
     "args": [
-      1.83,
-      34.2,
-      1.77
+      7.76,
+      24.56,
+      18.65
     ],
-    "height": "68.4m"
+    "realHeight": "49.1m"
   },
   {
-    "id": "wing_73",
+    "id": "FarEast_South",
     "pos": [
-      -60.96,
-      55.62,
-      -65.66
+      95.5,
+      25.3,
+      61.34
     ],
     "args": [
-      2.2,
-      55.62,
-      3.87
+      7.45,
+      25.3,
+      17.93
     ],
-    "height": "111.2m"
-  },
-  {
-    "id": "wing_79",
-    "pos": [
-      -58.28,
-      51.64,
-      -61.88
-    ],
-    "args": [
-      4.57,
-      51.64,
-      4.42
-    ],
-    "height": "103.3m"
-  },
-  {
-    "id": "wing_80",
-    "pos": [
-      -1.28,
-      30.52,
-      50.93
-    ],
-    "args": [
-      2.29,
-      30.52,
-      4.52
-    ],
-    "height": "61.0m"
-  },
-  {
-    "id": "wing_88",
-    "pos": [
-      5.33,
-      21.63,
-      66.28
-    ],
-    "args": [
-      1.2,
-      21.63,
-      1.2
-    ],
-    "height": "43.3m"
-  },
-  {
-    "id": "wing_89",
-    "pos": [
-      47.75,
-      24.96,
-      -10.22
-    ],
-    "args": [
-      1.42,
-      24.96,
-      1.42
-    ],
-    "height": "49.9m"
+    "realHeight": "50.6m"
   }
 ];
 
@@ -2767,7 +2083,7 @@ export function NewYorkColliders() {
         ))}
       </RigidBody>
 
-      {/* 3. Tight Fine-Grained Building RigidBodies — positioned directly at each wing's center */}
+      {/* 3. 18 Discrete Solid Building RigidBodies — each positioned at building center for optimal Rapier BVH */}
       {BUILDING_BLOCKS.map((b) => (
         <RigidBody
           key={`rb-${b.id}`}
