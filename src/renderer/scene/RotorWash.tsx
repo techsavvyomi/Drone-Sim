@@ -34,7 +34,16 @@ export function RotorWash() {
   useFrame((s) => {
     if (!group.current || !dronePose.present) return;
 
-    const { altitude, throttle } = useSimStore.getState();
+    // Height above the surface actually beneath the drone, not above y = 0.
+    // `altitude` is world Y, which on a terrain map says nothing about how close
+    // the ground is — the Forest floor is tens of metres below the clearing, so
+    // dust kicked up on a plain reading would either never appear or appear in
+    // mid-air. The four-corner support probe already measures this each physics
+    // step; past its 2 m reach the drone is too high for wash anyway.
+    const sim = useSimStore.getState();
+    const { throttle } = sim;
+    const d = sim.support.distances;
+    const altitude = Math.min(d[0], d[1], d[2], d[3]);
     const status = useFlightStore.getState().status();
     const live = status === 'armed' || status === 'flying';
 
@@ -45,7 +54,12 @@ export function RotorWash() {
     group.current.visible = strength > 0.04;
     if (!group.current.visible) return;
 
-    group.current.position.set(dronePose.position.x, 0.05, dronePose.position.z);
+    // Sit the dust on the surface below, not on an assumed floor at zero.
+    group.current.position.set(
+      dronePose.position.x,
+      dronePose.position.y - altitude + 0.05,
+      dronePose.position.z,
+    );
 
     const t = s.clock.elapsedTime;
     group.current.children.forEach((child, i) => {
