@@ -59,6 +59,13 @@ const BOUND_MARGIN = 2;
 /** Fall below this and the drone is considered lost — reset rather than drift. */
 const LOST_ALTITUDE = -8;
 
+/**
+ * Horizontal deceleration applied to a crashed airframe, m/s².
+ * High enough that even a 20 m/s impact stops within a couple of metres, which
+ * is what a broken quad hitting concrete actually does.
+ */
+const CRASH_DECEL = 45;
+
 /** Height of the centre of pressure (rotor plane) above the CoG, metres. */
 const CP_HEIGHT = 0.022;
 
@@ -381,6 +388,23 @@ export function Drone({ spec, spawn, bounds, outdoor = false }: DroneProps) {
       lastOutput.current = null;
       motorThrust.current = [0, 0, 0, 0];
       motorNorm.current = [0, 0, 0, 0];
+
+      if (crashed) {
+        // A wrecked airframe drops where it was hit; it does not sail on across
+        // the map. Zeroing velocity once at the moment of impact is not enough —
+        // the solver pushes the drone back out of whatever it penetrated over the
+        // following steps, and that recovery is itself a large impulse. Bleeding
+        // horizontal speed every step while crashed is what turns that into a
+        // tumble instead of a launch. Vertical motion is left alone so it still
+        // falls under gravity.
+        const cv = rb.linvel();
+        const horiz = Math.hypot(cv.x, cv.z);
+        if (horiz > 0.05) {
+          const damped = Math.max(0, horiz - CRASH_DECEL * SIM_DT);
+          const k = damped / horiz;
+          rb.setLinvel({ x: cv.x * k, y: cv.y, z: cv.z * k }, true);
+        }
+      }
       return;
     }
 
