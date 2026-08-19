@@ -78,8 +78,8 @@ export function SettingsPanel() {
               </div>
             </div>
             <p className="section-lede">
-              Ambient occlusion and bloom are High and Ultra only. Drop to Low if the frame
-              rate dips.
+              Low: no post-processing (best for integrated GPUs). Medium: Bloom + Vignette.
+              High: + SMAA anti-aliasing. Ultra: + Ambient Occlusion.
             </p>
 
             <div className="setting-row">

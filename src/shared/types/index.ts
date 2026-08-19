@@ -411,7 +411,7 @@ export const SETTINGS_VERSION = 1;
 
 export const DEFAULT_SETTINGS: AppSettings = {
   version: SETTINGS_VERSION,
-  graphics: 'high',
+  graphics: 'medium',
   physics: 'beginner',
   selectedDroneId: 'pluto',
   selectedEnvironmentId: 'drone-academy',

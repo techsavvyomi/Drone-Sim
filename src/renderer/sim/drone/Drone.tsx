@@ -537,11 +537,11 @@ export function Drone({ spec, spawn, bounds, outdoor = false }: DroneProps) {
 
       if (outdoor) {
         if (i === 1) {
-          // Vertical axis (Y): ONLY rescue if genuinely breached below the underground floor bound (p < lo)
-          if (p < lo) {
-            push[i] = containK * (lo - p) * 2.0 - (vel[i] < 0 ? dampK * vel[i] : 0);
+          // Vertical axis (Y): Hard surface rescue whenever breached below ground level (p < 0.01m)
+          if (p < 0.01) {
+            push[i] = containK * (0.01 - p) * 16.0 - (vel[i] < 0 ? dampK * 2.5 * vel[i] : 0);
           } else if (overHigh > 0) {
-            // Soft ceiling air-brake when approaching max altitude (160m)
+            // Soft ceiling air-brake when approaching max altitude
             const ratio = clamp(overHigh / m, 0, 1);
             push[i] = -containK * ratio * 8.0 - (vel[i] > 0 ? dampK * vel[i] : 0);
           }
@@ -591,6 +591,73 @@ export function Drone({ spec, spawn, bounds, outdoor = false }: DroneProps) {
         { x: push[0] * SIM_DT, y: push[1] * SIM_DT, z: push[2] * SIM_DT },
         true,
       );
+    }
+    // Hard surface rescue if high-speed vertical crash breached past the ground floor
+    if (outdoor) {
+      if (pos.y < -0.005) {
+        const lv = rb.linvel();
+        rb.setTranslation({ x: pos.x, y: 0.012, z: pos.z }, true);
+        rb.setLinvel({ x: lv.x * 0.7, y: Math.max(lv.y, 0), z: lv.z * 0.7 }, true);
+      }
+
+      // Hard stop at visual road / sidewalk edge — impossible to cross into white void
+      let cx = pos.x;
+      let cz = pos.z;
+      const lv = rb.linvel();
+      let vx = lv.x;
+      let vz = lv.z;
+      let clamped = false;
+
+      if (cx < bounds.min[0] + 0.1) {
+        cx = bounds.min[0] + 0.1;
+        if (vx < 0) vx = 0;
+        clamped = true;
+      } else if (cx > bounds.max[0] - 0.1) {
+        cx = bounds.max[0] - 0.1;
+        if (vx > 0) vx = 0;
+        clamped = true;
+      }
+
+      if (cz < bounds.min[2] + 0.1) {
+        cz = bounds.min[2] + 0.1;
+        if (vz < 0) vz = 0;
+        clamped = true;
+      } else if (cz > bounds.max[2] - 0.1) {
+        cz = bounds.max[2] - 0.1;
+        if (vz > 0) vz = 0;
+        clamped = true;
+      }
+
+      if (clamped) {
+        const hitSpeed = Math.max(impactSpeed.current, peakSpeed.current);
+        rb.setTranslation({ x: cx, y: pos.y, z: cz }, true);
+        rb.setLinvel({ x: vx, y: lv.y, z: vz }, true);
+
+        // High-speed collision with outer invisible wall (hitSpeed >= 2.5 m/s) triggers fatal crash
+        if (
+          hitSpeed >= 2.5 &&
+          useFlightStore.getState().auto !== 'takeoff' &&
+          !useFlightStore.getState().crashed &&
+          useFlightStore.getState().armed
+        ) {
+          useFlightStore.getState().crash(hitSpeed, pickBrokenProps());
+          useFlightStore.getState().setArmed(false);
+          addShake(Math.min(1, Math.max(0.5, hitSpeed / MAJOR_IMPACT)));
+          peakSpeed.current = 0;
+          motorThrust.current = [0, 0, 0, 0];
+          motorNorm.current = [0, 0, 0, 0];
+          rb.setLinvel({ x: 0, y: Math.min(lv.y, -0.4), z: 0 }, true);
+          const torqueMag = THREE.MathUtils.clamp(hitSpeed * 0.05, 0.05, 0.3);
+          rb.applyTorqueImpulse(
+            {
+              x: (Math.random() - 0.5) * torqueMag,
+              y: (Math.random() - 0.5) * torqueMag * 0.5,
+              z: (Math.random() - 0.5) * torqueMag,
+            },
+            true,
+          );
+        }
+      }
     }
     // Hard rescue if pitch-into-wall CCD still tunneled past the shell.
     if (!outdoor) {
@@ -909,19 +976,34 @@ export function Drone({ spec, spawn, bounds, outdoor = false }: DroneProps) {
         const isTilted = Math.abs(_euler.x) > 0.45 || Math.abs(_euler.z) > 0.45; // > 25 degrees
 
         // Crash conditions:
-        // 1. High speed impact (floor slam or wall hit >= 1.8 - 3.2 m/s)
-        // 2. Falling from table/chair onto floor or landing while tilted (> 25 deg)
-        // Outer bounds in outdoor maps never trigger fatal crash
-        const isNearOuterBound = outdoor && (
-          pos.x < bounds.min[0] + 12 || pos.x > bounds.max[0] - 12 ||
-          pos.z < bounds.min[2] + 12 || pos.z > bounds.max[2] - 12 ||
-          posY > bounds.max[1] - 15
-        );
-        const isImpactCrash = v >= MINOR_IMPACT || (v >= 0.9 && isTilted);
-        if (isImpactCrash && flight.auto !== 'takeoff' && flight.armed && !isNearOuterBound) {
+        // 1. Any obstacle/building/pole impact while airborne (posY > 0.15m and v >= 0.8 m/s)
+        // 2. High speed floor slam (v >= 1.8 m/s)
+        // 3. Tilted contact / flip (> 25 deg) with velocity >= 0.8 m/s
+        const isAirborne = posY > 0.15;
+        const isObstacleHit = isAirborne && v >= 0.8;
+        const isImpactCrash = isObstacleHit || v >= MINOR_IMPACT || (v >= 0.8 && isTilted);
+
+        if (isImpactCrash && flight.auto !== 'takeoff' && flight.armed) {
           flight.crash(v, pickBrokenProps());
+          flight.setArmed(false);
           addShake(Math.min(1, Math.max(0.4, v / MAJOR_IMPACT)));
           peakSpeed.current = 0;
+          motorThrust.current = [0, 0, 0, 0];
+          motorNorm.current = [0, 0, 0, 0];
+
+          // Zero-bounce crash response: absorb horizontal velocity completely, cut thrust, and drop under gravity
+          if (rb) {
+            rb.setLinvel({ x: 0, y: Math.min(rb.linvel().y, -0.4), z: 0 }, true);
+            const torqueMag = THREE.MathUtils.clamp(v * 0.05, 0.05, 0.3);
+            rb.applyTorqueImpulse(
+              {
+                x: (Math.random() - 0.5) * torqueMag,
+                y: (Math.random() - 0.5) * torqueMag * 0.5,
+                z: (Math.random() - 0.5) * torqueMag,
+              },
+              true,
+            );
+          }
           return;
         }
 
@@ -947,84 +1029,84 @@ export function Drone({ spec, spawn, bounds, outdoor = false }: DroneProps) {
         args={[spec.armLength * 0.18, 0.008, spec.armLength * 0.18]}
         position={[0, 0.006, 0]}
         mass={spec.mass * 0.25}
-        friction={0.2}
-        restitution={0.02}
+        friction={0.8}
+        restitution={0}
       />
       {/* Top canopy & camera stack collider (prevents underside tabletop penetration) */}
       <CuboidCollider
         args={[spec.armLength * 0.14, 0.008, spec.armLength * 0.22]}
         position={[0, 0.015, -spec.armLength * 0.12]}
         mass={spec.mass * 0.05}
-        friction={0.2}
-        restitution={0.02}
+        friction={0.8}
+        restitution={0}
       />
 
-      {/* 4 discrete corner landing foot colliders (bottom-most contact points for realistic edge tipping & landing) */}
+      {/* 4 discrete corner landing foot colliders */}
       {/* Front-Right Foot */}
       <CuboidCollider
         args={[spec.armLength * 0.10, 0.012, spec.armLength * 0.10]}
         position={[armPerAxis, -0.012, -armPerAxis]}
         mass={spec.mass * 0.08}
-        friction={0.4}
-        restitution={0.02}
+        friction={0.8}
+        restitution={0}
       />
       {/* Front-Left Foot */}
       <CuboidCollider
         args={[spec.armLength * 0.10, 0.012, spec.armLength * 0.10]}
         position={[-armPerAxis, -0.012, -armPerAxis]}
         mass={spec.mass * 0.08}
-        friction={0.4}
-        restitution={0.02}
+        friction={0.8}
+        restitution={0}
       />
       {/* Back-Right Foot */}
       <CuboidCollider
         args={[spec.armLength * 0.10, 0.012, spec.armLength * 0.10]}
         position={[armPerAxis, -0.012, armPerAxis]}
         mass={spec.mass * 0.08}
-        friction={0.4}
-        restitution={0.02}
+        friction={0.8}
+        restitution={0}
       />
       {/* Back-Left Foot */}
       <CuboidCollider
         args={[spec.armLength * 0.10, 0.012, spec.armLength * 0.10]}
         position={[-armPerAxis, -0.012, armPerAxis]}
         mass={spec.mass * 0.08}
-        friction={0.4}
-        restitution={0.02}
+        friction={0.8}
+        restitution={0}
       />
 
-      {/* 4 structural propeller & motor outer envelope colliders (elevated above feet; stops visual penetration) */}
+      {/* 4 structural propeller & motor outer envelope colliders */}
       {/* Front-Right Prop Envelope */}
       <CuboidCollider
         args={[spec.armLength * 0.45, 0.014, spec.armLength * 0.45]}
         position={[armPerAxis, 0.008, -armPerAxis]}
         mass={spec.mass * 0.07}
-        friction={0.3}
-        restitution={0.02}
+        friction={0.6}
+        restitution={0}
       />
       {/* Front-Left Prop Envelope */}
       <CuboidCollider
         args={[spec.armLength * 0.45, 0.014, spec.armLength * 0.45]}
         position={[-armPerAxis, 0.008, -armPerAxis]}
         mass={spec.mass * 0.07}
-        friction={0.3}
-        restitution={0.02}
+        friction={0.6}
+        restitution={0}
       />
       {/* Back-Right Prop Envelope */}
       <CuboidCollider
         args={[spec.armLength * 0.45, 0.014, spec.armLength * 0.45]}
         position={[armPerAxis, 0.008, armPerAxis]}
         mass={spec.mass * 0.07}
-        friction={0.3}
-        restitution={0.02}
+        friction={0.6}
+        restitution={0}
       />
       {/* Back-Left Prop Envelope */}
       <CuboidCollider
         args={[spec.armLength * 0.45, 0.014, spec.armLength * 0.45]}
         position={[-armPerAxis, 0.008, armPerAxis]}
         mass={spec.mass * 0.07}
-        friction={0.3}
-        restitution={0.02}
+        friction={0.6}
+        restitution={0}
       />
 
       {/* 4 diagonal frame arm bridge colliders (prevents thin furniture legs from passing through arm gaps) */}
