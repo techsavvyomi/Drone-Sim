@@ -155,7 +155,13 @@ export function FlightScene({ envIdOverride }: { envIdOverride?: string } = {}) 
         numSolverIterations={8}
       >
         <EnvComponent env={env} />
-        <Drone spec={spec} spawn={env.spawn} bounds={env.bounds} outdoor={outdoor} />
+        <Drone
+          spec={spec}
+          spawn={env.spawn}
+          bounds={env.bounds}
+          outdoor={outdoor}
+          groundY={env.groundY}
+        />
         <PropDebris spec={spec} />
       </Physics>
 

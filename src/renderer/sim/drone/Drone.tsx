@@ -128,6 +128,12 @@ interface DroneProps {
   outdoor?: boolean;
   /** Play-area limits; the drone is softly contained inside them. */
   bounds: { min: Vec3; max: Vec3 };
+  /**
+   * Height of the map's flat ground plane, if it has one. Undefined on terrain
+   * maps, where there is no single ground height and the under-floor rescue
+   * must not run. See EnvironmentSpec.groundY.
+   */
+  groundY?: number;
 }
 
 function autoThrust(
@@ -162,7 +168,7 @@ function pickBrokenProps(): number[] {
   return [lowest];
 }
 
-export function Drone({ spec, spawn, bounds, outdoor = false }: DroneProps) {
+export function Drone({ spec, spawn, bounds, outdoor = false, groundY }: DroneProps) {
   const { world, rapier } = useRapier();
   const body = useRef<RapierRigidBody>(null);
   const liveSupportInfo = useRef<SupportInfo>(useSimStore.getState().support);
@@ -570,9 +576,13 @@ export function Drone({ spec, spawn, bounds, outdoor = false }: DroneProps) {
 
       if (outdoor) {
         if (i === 1) {
-          // Vertical axis (Y): Hard surface rescue whenever breached below ground level (p < 0.01m)
-          if (p < 0.01) {
-            push[i] = containK * (0.01 - p) * 16.0 - (vel[i] < 0 ? dampK * 2.5 * vel[i] : 0);
+          // Vertical axis (Y): push back up when the drone sinks below the map's
+          // ground plane. Only maps that HAVE one take part — on a terrain map
+          // there is no single ground height, and assuming one puts an invisible
+          // floor across the whole world at that height.
+          if (groundY !== undefined && p < groundY + 0.01) {
+            push[i] =
+              containK * (groundY + 0.01 - p) * 16.0 - (vel[i] < 0 ? dampK * 2.5 * vel[i] : 0);
           } else if (overHigh > 0) {
             // Soft ceiling air-brake when approaching max altitude
             const ratio = clamp(overHigh / m, 0, 1);
@@ -637,11 +647,13 @@ export function Drone({ spec, spawn, bounds, outdoor = false }: DroneProps) {
         true,
       );
     }
-    // Hard surface rescue if high-speed vertical crash breached past the ground floor
+    // Hard surface rescue if a high-speed dive punched through the ground plane.
+    // Gated on the map declaring one: on a terrain map this teleport fires every
+    // step the drone is below the clearing, which is most of the map.
     if (outdoor) {
-      if (pos.y < -0.005) {
+      if (groundY !== undefined && pos.y < groundY - 0.005) {
         const lv = rb.linvel();
-        rb.setTranslation({ x: pos.x, y: 0.012, z: pos.z }, true);
+        rb.setTranslation({ x: pos.x, y: groundY + 0.012, z: pos.z }, true);
         rb.setLinvel({ x: lv.x * 0.7, y: Math.max(lv.y, 0), z: lv.z * 0.7 }, true);
       }
 

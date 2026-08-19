@@ -19,5 +19,7 @@ export const newYork: EnvironmentSpec = {
   model: newYorkModelUrl,
   spawn: { position: [0, 0.024, 30], heading: 0 },
   bounds: { min: [-123.89, -10, -98.16], max: [123.94, 125, 98.15] },
+  // The whole map sits on one flat road plane, so the under-floor rescue applies.
+  groundY: 0,
   fog: { near: 400, far: 2000 },
 };

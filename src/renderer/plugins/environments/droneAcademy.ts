@@ -11,4 +11,6 @@ export const droneAcademy: EnvironmentSpec = {
   // Spawn on the painted "H" at the centre of the helipad.
   spawn: { position: [0, 0.2, 0], heading: 0 },
   bounds: { min: [-60, 0, -60], max: [60, 30, 60] },
+  // Flat field — a single ground height, so the under-floor rescue applies.
+  groundY: 0,
 };

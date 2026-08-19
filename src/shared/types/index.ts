@@ -566,6 +566,21 @@ export interface EnvironmentSpec {
   spawn: { position: Vec3; heading: number };
   /** Axis-aligned play-area bounds [min, max]. */
   bounds: { min: Vec3; max: Vec3 };
+  /**
+   * Height of this map's flat ground plane, if it has one.
+   *
+   * Outdoor maps get an under-floor rescue: sink below the ground and the sim
+   * pushes — eventually teleports — the drone back above it, which is what stops
+   * a fast dive ending up under the world. That only makes sense when "the
+   * ground" is a single height.
+   *
+   * Terrain maps must OMIT this. The Forest's ground is a real surface that falls
+   * from the clearing at 0 to −77 m in the valley; with a plane assumed at 0 the
+   * drone was shoved back up the moment it descended, and teleported to 0.012
+   * every step below that — an invisible floor across the whole map. There, the
+   * terrain trimesh and the catch floor do the job instead.
+   */
+  groundY?: number;
   /** Optional environment-specific distance fog override [near, far]. */
   fog?: { near: number; far: number };
 }
