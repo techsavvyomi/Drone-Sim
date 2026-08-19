@@ -82,6 +82,12 @@ const MINOR_IMPACT = 1.8;
 const MAJOR_IMPACT = 4.5;
 /** Walls / furniture — only crash on a clear fast hit. Slow/medium bumps must not flip. */
 const WALL_CRASH_SPEED = 3.2;
+/**
+ * Hitting a building, pole or tree while airborne becomes a crash from here up.
+ * Below it the contact is a bump: the drone is knocked about and shaken, and the
+ * pilot keeps the aircraft.
+ */
+const OBSTACLE_CRASH_SPEED = 2.2;
 /** After a non-crash bump, keep roll/pitch locked so contact torque cannot tumble Pluto. */
 const WALL_BUMP_HOLD = 0.85;
 /** Remember peak speed this long so a tunneled hit still counts as a fast crash. */
@@ -1006,9 +1012,15 @@ export function Drone({ spec, spawn, bounds, outdoor = false }: DroneProps) {
         // 1. Any obstacle/building/pole impact while airborne (posY > 0.15m and v >= 0.8 m/s)
         // 2. High speed floor slam (v >= 1.8 m/s)
         // 3. Tilted contact / flip (> 25 deg) with velocity >= 0.8 m/s
+        // Graded by impact speed, the way a real airframe fails. Touching a wall
+        // at walking pace scuffs a prop guard; it does not write the aircraft
+        // off. The old 0.8 m/s obstacle threshold destroyed the drone on contact
+        // barely faster than a hover drift, which is what made every building
+        // feel lethal.
         const isAirborne = posY > 0.15;
-        const isObstacleHit = isAirborne && v >= 0.8;
-        const isImpactCrash = isObstacleHit || v >= MINOR_IMPACT || (v >= 0.8 && isTilted);
+        const isObstacleHit = isAirborne && v >= OBSTACLE_CRASH_SPEED;
+        const isImpactCrash =
+          isObstacleHit || v >= MINOR_IMPACT || (v >= OBSTACLE_CRASH_SPEED && isTilted);
 
         if (isImpactCrash && flight.auto !== 'takeoff' && flight.armed) {
           // `crash()` already clears `armed`.
@@ -1044,6 +1056,12 @@ export function Drone({ spec, spawn, bounds, outdoor = false }: DroneProps) {
           } else if (takingOff) {
             // Keep climb alive — a desk glance must not cancel auto-takeoff.
             rb.setLinvel({ x: lv.x * 0.4, y: Math.max(lv.y, 0.45), z: lv.z * 0.4 }, true);
+          } else {
+            // Survivable contact: absorb it. A quad easing into a wall is stopped
+            // by it, not thrown off it — most of the approach speed goes into the
+            // structure. Without this the solver returns the full contact impulse
+            // and a gentle touch reads as a high-speed hit.
+            rb.setLinvel({ x: lv.x * 0.25, y: lv.y, z: lv.z * 0.25 }, true);
           }
         }
         if (v >= MINOR_IMPACT) {
