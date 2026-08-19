@@ -17,17 +17,39 @@ export const forest: EnvironmentSpec = {
   // (0.5 m of undulation across its whole 40 m length).
   spawn: { position: [0, 0.35, 0], heading: 0 },
   /**
-   * Play area. Roughly three times the original ±45 m box, which was felt as an
-   * invisible wall a short hop from spawn while forest was still visible ahead.
+   * Play area, measured against the model rather than guessed.
+   *
+   * The tree trunks — the forest you can actually see — span X -200..170 and
+   * Z -220..80 after ForestEnv's recentring. The previous ±80 box therefore put
+   * the boundary well INSIDE the visible tree line: you hit an invisible wall
+   * with forest still stretching ahead in every direction.
+   *
+   * These bounds roughly double the play area in each axis while staying inside
+   * the region where the terrain still reads as forest floor rather than the
+   * distant valley skirt. They are asymmetric in Z because the clearing sits at
+   * the northern edge of the woods, not in the middle of them.
+   *
+   * Containment hard-clamps at `bounds ± 0.1`, so these are the intended limit
+   * plus that margin.
    *
    * The floor is far below zero because the ground is the real terrain, which
-   * falls away from the clearing towards the valley: a floor at 0 would shove
-   * the drone back up out of every dip. It sits below ForestEnv's catch floor
-   * so that resting on the catch floor never engages the containment spring.
+   * falls away from the clearing towards the valley. Within these bounds the
+   * terrain reaches −62.5 m (measured), so four heights have to stay ordered or
+   * the drone meets an invisible floor somewhere:
+   *
+   *   terrain low point    −62.5   what you can see
+   *   bounds floor         −70     below the terrain, so containment never lifts
+   *                                the drone out of a dip
+   *   catch floor          −76     ForestEnv, below the bounds floor
+   *   "fell out of world"  −78     bounds floor − 8, so the catch floor gets
+   *                                there first and a deep valley never resets
+   *
+   * Note there is deliberately NO `groundY` here: this map has no single ground
+   * height, so the flat-plane under-floor rescue must not run.
    *
    * Altitude is measured from the clearing, so flying out over the valley reads
    * negative — which is what a real drone reports relative to its take-off
    * point.
    */
-  bounds: { min: [-80, -60, -80], max: [80, 45, 80] },
+  bounds: { min: [-130.1, -70, -150.1], max: [130.1, 60, 65.1] },
 };
