@@ -643,8 +643,8 @@ export function Drone({ spec, spawn, bounds, outdoor = false }: DroneProps) {
           !useFlightStore.getState().crashed &&
           useFlightStore.getState().armed
         ) {
+          // `crash()` already clears `armed`.
           useFlightStore.getState().crash(hitSpeed, pickBrokenProps());
-          useFlightStore.getState().setArmed(false);
           addShake(Math.min(1, Math.max(0.5, hitSpeed / MAJOR_IMPACT)));
           peakSpeed.current = 0;
           motorThrust.current = [0, 0, 0, 0];
@@ -987,8 +987,8 @@ export function Drone({ spec, spawn, bounds, outdoor = false }: DroneProps) {
         const isImpactCrash = isObstacleHit || v >= MINOR_IMPACT || (v >= 0.8 && isTilted);
 
         if (isImpactCrash && flight.auto !== 'takeoff' && flight.armed) {
+          // `crash()` already clears `armed`.
           flight.crash(v, pickBrokenProps());
-          flight.setArmed(false);
           addShake(Math.min(1, Math.max(0.4, v / MAJOR_IMPACT)));
           peakSpeed.current = 0;
           motorThrust.current = [0, 0, 0, 0];
