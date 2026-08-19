@@ -52,8 +52,19 @@ const _accelVec: Vec3 = [0, 1, 0];
 const _cornerDists: [number, number, number, number] = [0, 0, 0, 0];
 const _supported: [boolean, boolean, boolean, boolean] = [false, false, false, false];
 
-/** Fall below this and the drone is considered lost — reset rather than drift. */
-const LOST_ALTITUDE = -8;
+/**
+ * How far BELOW the play area's floor counts as having fallen out of the world.
+ *
+ * This used to be an absolute −8 m, which silently assumed every map's floor was
+ * y = 0. On the Forest the terrain descends to −77 m, so simply following the
+ * ground downhill took the drone past −8 and teleported it back to spawn — with
+ * no warning and nothing on screen to explain it.
+ *
+ * Measuring from `bounds.min[1]` keeps the original behaviour on every map whose
+ * floor is zero (arena, academy, classrooms) and makes it correct on the ones
+ * that go deeper.
+ */
+const LOST_BELOW_FLOOR = 8;
 
 /**
  * Horizontal deceleration applied to a crashed airframe, m/s².
@@ -909,7 +920,7 @@ export function Drone({ spec, spawn, bounds, outdoor = false, groundY }: DronePr
     });
 
     // Fell off the world — recover rather than accelerating downward forever.
-    if (altitude < LOST_ALTITUDE) {
+    if (altitude < bounds.min[1] - LOST_BELOW_FLOOR) {
       useSimStore.getState().requestReset();
       useFlightStore.getState().disarm();
       return;
