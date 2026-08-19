@@ -792,6 +792,17 @@ export function Drone({ spec, spawn, bounds, outdoor = false }: DroneProps) {
       crashHold.current = 0;
     }
 
+    // ---- Anti-tumble hold after a survivable bump ----
+    // Brushing a building must not roll the aircraft onto its back. Roll and
+    // pitch rates are bled off hard for a moment after contact; yaw is left
+    // alone, because being spun around by a glancing hit is realistic and
+    // recoverable, while tumbling is neither.
+    if (simTime.current < wallBumpUntil.current) {
+      const bav = rb.angvel();
+      const k = Math.exp(-SIM_DT * 14);
+      rb.setAngvel({ x: bav.x * k, y: bav.y, z: bav.z * k }, true);
+    }
+
     const w2 = av.x * av.x + av.y * av.y + av.z * av.z;
     if (w2 > MAX_ANGVEL * MAX_ANGVEL) {
       const s = MAX_ANGVEL / Math.sqrt(w2);
@@ -1063,6 +1074,10 @@ export function Drone({ spec, spawn, bounds, outdoor = false }: DroneProps) {
             // and a gentle touch reads as a high-speed hit.
             rb.setLinvel({ x: lv.x * 0.25, y: lv.y, z: lv.z * 0.25 }, true);
           }
+          // Arm the anti-tumble hold. This flag already existed and was already
+          // set on indoor wall rescues, but nothing ever read it, so the contact
+          // torque that rolls a drone over on touching a wall was never damped.
+          wallBumpUntil.current = simTime.current + WALL_BUMP_HOLD;
         }
         if (v >= MINOR_IMPACT) {
           addShake(Math.min(0.35, (v - MINOR_IMPACT) / (MAJOR_IMPACT - MINOR_IMPACT)));
