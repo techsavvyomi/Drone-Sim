@@ -32,10 +32,18 @@ export function FlightScene({ envIdOverride }: { envIdOverride?: string } = {}) 
   const cloudsEnabled = useWorldStore((s) => s.cloudsEnabled);
   const paused = useFlightStore((s) => s.paused);
 
+  const graphics = useSettingsStore((s) => s.settings.graphics);
+
   const spec = getDrone(droneId);
   const env = getEnvironment(envId);
 
   if (!spec || !env) return null;
+
+  // Shadow cost scales with map area, and the sun is the only caster. On Low the
+  // shadow pass is skipped outright — an integrated GPU cannot afford a full
+  // extra scene render for it.
+  const shadows = graphics !== 'low';
+  const shadowMap = graphics === 'ultra' ? 2048 : graphics === 'high' ? 1024 : 512;
 
   const t = TIME_PRESETS[timeOfDay];
   const EnvComponent = getEnvironmentComponent(env.id);
@@ -100,8 +108,8 @@ export function FlightScene({ envIdOverride }: { envIdOverride?: string } = {}) 
           position={t.sun}
           intensity={sun}
           color={t.sunColor}
-          castShadow
-          shadow-mapSize={[1024, 1024]}
+          castShadow={shadows}
+          shadow-mapSize={[shadowMap, shadowMap]}
           shadow-bias={-0.0002}
           shadow-normalBias={0.02}
           shadow-camera-left={-38}

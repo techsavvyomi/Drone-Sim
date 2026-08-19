@@ -181,11 +181,19 @@ function NewYorkModel({ url }: { url: string }) {
           if (/foliage|tree|leaf|leaves/i.test(matName)) {
             isAnimatedFoliage = true;
             std.transparent = false;
-            std.alphaTest = 0.45;
+            // Alpha cutoff sets how full the canopy reads. Raising it to 0.6 to
+            // chase the white fringe threw away most of each leaf card and left
+            // the trees looking bare — autumn, not summer. A low cutoff keeps the
+            // canopy dense; the fringe is handled below by darkening toward the
+            // leaf colour instead of clipping harder.
+            std.alphaTest = 0.32;
             std.depthWrite = true;
             std.side = THREE.DoubleSide;
-            std.roughness = 0.80;
-            std.metalness = 0.02;
+            // Leaves are not glossy, and a little green in the base colour stops
+            // the atlas reading grey-white where its mips average out.
+            std.color.set('#9fc27a');
+            std.roughness = 0.92;
+            std.metalness = 0.0;
 
             std.onBeforeCompile = (shader) => {
               shader.uniforms.uTime = uTimeUniform;
@@ -220,7 +228,11 @@ function NewYorkModel({ url }: { url: string }) {
             const posAttr = m.geometry.attributes.position;
             if (posAttr) {
               const uvs = new Float32Array(posAttr.count * 2);
-              const scale = 2.6;
+              // One texture tile per 4 m of road. The old 2.6 tiled every 38 cm,
+              // which put ~2700 texels on every metre — far past what the screen
+              // can resolve, so the mip chain averaged the aggregate down to flat
+              // grey. That over-tiling was the "blurry street", not a low-res map.
+              const scale = 0.25;
               for (let i = 0; i < posAttr.count; i++) {
                 uvs[i * 2] = (posAttr.getX(i) + CITY_OFFSET[0]) * scale;
                 uvs[i * 2 + 1] = (posAttr.getZ(i) + CITY_OFFSET[2]) * scale;
