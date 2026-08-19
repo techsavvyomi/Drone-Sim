@@ -321,7 +321,10 @@ export function Drone({ spec, spawn, bounds, outdoor = false }: DroneProps) {
       r.origin.y = pos.y + _rotor.y - 0.008; // landing foot bottom level
       r.origin.z = pos.z + _rotor.z;
       const hit = world.castRay(r, maxRay, true, undefined, undefined, undefined, rb);
-      const d = hit ? hit.toi : maxRay;
+      // Rapier renamed this from `toi` in 0.14; reading the old name returned
+      // undefined, so every corner graded as unsupported and `isStable` was
+      // permanently false.
+      const d = hit ? hit.timeOfImpact : maxRay;
       _cornerDists[i] = d;
       if (d < minCornerDist) minCornerDist = d;
       if (d > maxCornerDist) maxCornerDist = d;
