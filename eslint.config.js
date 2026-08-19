@@ -8,6 +8,14 @@ export default tseslint.config(
   { ignores: ['.vite/**', 'out/**', 'dist/**', 'node_modules/**', 'public/**'] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
+  // Build scripts run under Node, not the browser. Without this the shared
+  // browser globals apply and every `process`/`console` reads as no-undef.
+  {
+    files: ['scripts/**/*.{js,mjs,cjs}'],
+    languageOptions: {
+      globals: { process: 'readonly', console: 'readonly' },
+    },
+  },
   {
     rules: {
       '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
