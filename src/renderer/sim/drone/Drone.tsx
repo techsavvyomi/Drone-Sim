@@ -41,8 +41,6 @@ const _qInv = new THREE.Quaternion();
 const _euler = new THREE.Euler();
 const _up = new THREE.Vector3();
 const _rotor = new THREE.Vector3();
-const _upright = new THREE.Quaternion();
-const _fwdV = new THREE.Vector3();
 const _drag = new THREE.Vector3();
 const _cp = new THREE.Vector3();
 const _aeroTq = new THREE.Vector3();
@@ -54,8 +52,6 @@ const _accelVec: Vec3 = [0, 1, 0];
 const _cornerDists: [number, number, number, number] = [0, 0, 0, 0];
 const _supported: [boolean, boolean, boolean, boolean] = [false, false, false, false];
 
-/** How far inside the arena edge the containment force starts, metres. */
-const BOUND_MARGIN = 2;
 /** Fall below this and the drone is considered lost — reset rather than drift. */
 const LOST_ALTITUDE = -8;
 
@@ -550,9 +546,13 @@ export function Drone({ spec, spawn, bounds, outdoor = false }: DroneProps) {
     // Indoor: hard wall/floor colliders own contact.
     const containK = outdoor ? 0.8 * rb.mass() : 3.2 * rb.mass();
     const dampK = outdoor ? 2.4 * rb.mass() : 1.4 * rb.mass();
-    const marginX = outdoor ? 8 : 0.2;
+    // How far out the outdoor brake starts working. It only opposes outward
+    // MOTION (see below), so this is a drag zone, not a no-fly buffer — the drone
+    // still reaches the very edge. Kept modest so a normal cruise near the
+    // perimeter does not feel like flying through treacle.
+    const marginX = outdoor ? 12 : 0.2;
     const marginY = outdoor ? 15 : 0.2;
-    const marginZ = outdoor ? 8 : 0.2;
+    const marginZ = outdoor ? 12 : 0.2;
 
     const axes: [number, number, number][] = [
       [pos.x, bounds.min[0], bounds.max[0]],
@@ -579,13 +579,25 @@ export function Drone({ spec, spawn, bounds, outdoor = false }: DroneProps) {
             push[i] = -containK * ratio * 8.0 - (vel[i] > 0 ? dampK * vel[i] : 0);
           }
         } else {
-          // Horizontal axes (X, Z): progressive air-brake near outer map perimeter
-          if (overLow > 0) {
-            const ratio = clamp(overLow / m, 0, 1);
-            push[i] = containK * ratio * 8.0 - (vel[i] < 0 ? dampK * vel[i] : 0);
-          } else if (overHigh > 0) {
-            const ratio = clamp(overHigh / m, 0, 1);
-            push[i] = -containK * ratio * 8.0 - (vel[i] > 0 ? dampK * vel[i] : 0);
+          // Horizontal axes (X, Z): brake OUTWARD MOTION near the perimeter, and
+          // nothing else.
+          //
+          // This used to add a positional spring (`containK * ratio * 8`) that
+          // pushed inward on distance alone, whether or not the drone was moving.
+          // A Pluto has about 4 m/s^2 of horizontal authority at its 22 deg tilt
+          // limit, while that spring reached 6.4 — so the drone stalled out where
+          // the two balanced, metres short of the boundary, with open road still
+          // visible ahead. It read as a wall in the middle of the city.
+          //
+          // Damping only means a hover near the edge is left completely alone and
+          // the pilot can fly right up to the last of the road. Speed into the
+          // limit is still bled off, and the hard positional clamp below is the
+          // actual boundary.
+          const outward = overLow > 0 ? -1 : overHigh > 0 ? 1 : 0;
+          if (outward !== 0 && Math.sign(vel[i]) === outward) {
+            const over = overLow > 0 ? overLow : overHigh;
+            const ratio = clamp(over / m, 0, 1);
+            push[i] = -dampK * vel[i] * (0.5 + 2.5 * ratio);
           }
         }
         continue;
@@ -662,34 +674,14 @@ export function Drone({ spec, spawn, bounds, outdoor = false }: DroneProps) {
       }
 
       if (clamped) {
-        const hitSpeed = Math.max(impactSpeed.current, peakSpeed.current);
+        // Last-resort containment, and nothing more. The map edge is an
+        // invisible limit, not an object: it stops the drone and hands control
+        // straight back. It used to CRASH the aircraft above 2.5 m/s, so an
+        // unseeable boundary could end a flight — that is what made it read as a
+        // phantom wall. Real obstacles (buildings, poles, trees) all have
+        // colliders of their own and still crash normally.
         rb.setTranslation({ x: cx, y: pos.y, z: cz }, true);
         rb.setLinvel({ x: vx, y: lv.y, z: vz }, true);
-
-        // High-speed collision with outer invisible wall (hitSpeed >= 2.5 m/s) triggers fatal crash
-        if (
-          hitSpeed >= 2.5 &&
-          useFlightStore.getState().auto !== 'takeoff' &&
-          !useFlightStore.getState().crashed &&
-          useFlightStore.getState().armed
-        ) {
-          // `crash()` already clears `armed`.
-          useFlightStore.getState().crash(hitSpeed, pickBrokenProps());
-          addShake(Math.min(1, Math.max(0.5, hitSpeed / MAJOR_IMPACT)));
-          peakSpeed.current = 0;
-          motorThrust.current = [0, 0, 0, 0];
-          motorNorm.current = [0, 0, 0, 0];
-          rb.setLinvel({ x: 0, y: Math.min(lv.y, -0.4), z: 0 }, true);
-          const torqueMag = THREE.MathUtils.clamp(hitSpeed * 0.05, 0.05, 0.3);
-          rb.applyTorqueImpulse(
-            {
-              x: (Math.random() - 0.5) * torqueMag,
-              y: (Math.random() - 0.5) * torqueMag * 0.5,
-              z: (Math.random() - 0.5) * torqueMag,
-            },
-            true,
-          );
-        }
       }
     }
     // Hard rescue if pitch-into-wall CCD still tunneled past the shell.
@@ -992,9 +984,6 @@ export function Drone({ spec, spawn, bounds, outdoor = false }: DroneProps) {
   });
 
   useEffect(() => resetStick, []);
-
-  const droneRadius = armPerAxis + propRadius * 0.7;
-  const halfHeight = 0.02;
 
   return (
     <RigidBody
