@@ -10,9 +10,9 @@ const HOVER_ALT = 1.5;
 
 export const rollLesson: Lesson = {
   id: 'roll',
-  order: 7,
-  title: 'Roll Control',
-  subtitle: 'Slide left and right',
+  order: 3,
+  title: 'Roll',
+  subtitle: 'Left and right',
 
   explain: {
     title: 'Roll',

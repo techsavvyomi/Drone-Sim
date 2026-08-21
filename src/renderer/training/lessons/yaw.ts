@@ -9,9 +9,9 @@ const RETURN_TOL = 12;
 
 export const yawLesson: Lesson = {
   id: 'yaw',
-  order: 5,
-  title: 'Yaw Control',
-  subtitle: 'Rotate on the spot',
+  order: 4,
+  title: 'Yaw',
+  subtitle: 'Turn on the spot',
 
   explain: {
     title: 'Yaw',

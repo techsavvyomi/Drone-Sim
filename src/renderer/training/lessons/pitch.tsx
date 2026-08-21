@@ -12,9 +12,9 @@ const HOVER_ALT = 1.5;
 
 export const pitchLesson: Lesson = {
   id: 'pitch',
-  order: 6,
-  title: 'Pitch Control',
-  subtitle: 'Fly forward and back',
+  order: 2,
+  title: 'Pitch',
+  subtitle: 'Forward and back',
 
   explain: {
     title: 'Pitch',
