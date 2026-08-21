@@ -69,7 +69,9 @@ export function FlightScene({ envIdOverride }: { envIdOverride?: string } = {}) 
       : t.night
         ? '#1a2230'
         : '#c8d0da';
-  const ibl = isClassroom ? 0.6 : outdoor ? 1 : 0.22;
+  // Image-based lighting is what puts specular sheen on roads and glass, so the
+  // time preset scales it: a hard midday sun made every surface read as wet.
+  const ibl = (isClassroom ? 0.6 : outdoor ? 1 : 0.22) * t.iblScale;
   const fogNear = env.fog?.near ?? t.fogNear;
   const fogFar = env.fog?.far ?? t.fogFar;
 
