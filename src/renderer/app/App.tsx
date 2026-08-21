@@ -7,7 +7,6 @@ import { SettingsPanel } from './SettingsPanel';
 import { Placeholder } from './Placeholder';
 import { StatusBar } from './StatusBar';
 import { TrainingScreen } from './TrainingScreen';
-import { MissionsScreen } from './MissionsScreen';
 import { Viewport } from '../scene/Viewport';
 import { useUiStore } from '../state/uiStore';
 import { useFlightStore } from '../state/flightStore';
@@ -36,7 +35,13 @@ function MainArea() {
     case 'training':
       return <TrainingScreen />;
     case 'missions':
-      return <MissionsScreen />;
+      return (
+        <Placeholder
+          title="Missions"
+          phase="Phase 4"
+          blurb="Scored challenge runs. The taught syllabus now lives in Pluto Flight School, which has the runtime for it — Missions returns when it has one of its own."
+        />
+      );
     case 'studio':
       return (
         <Placeholder
