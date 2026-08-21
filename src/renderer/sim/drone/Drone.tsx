@@ -288,11 +288,20 @@ export function Drone({ spec, spawn, bounds, outdoor = false, groundY }: DronePr
     const lin = rb.linvel();
     const speedNow = Math.hypot(lin.x, lin.y, lin.z);
     impactSpeed.current = speedNow;
-    if (speedNow >= peakSpeed.current || simTime.current > peakSpeedUntil.current) {
+    // Peak speed over the LAST `PEAK_SPEED_HOLD` seconds — the approach speed a
+    // collision should be graded by, because Rapier often zeroes the velocity in
+    // the solver step before `onCollisionEnter` runs.
+    //
+    // The hold window has to start when the peak was actually set. Refreshing it
+    // on every step that merely exceeds a walking pace turned this into a latch:
+    // decelerating from cruise to a careful approach never dropped below the
+    // refresh speed, so the old cruise peak survived all the way to contact and
+    // a feather-light touch was graded as a high-speed impact.
+    if (speedNow >= peakSpeed.current) {
       peakSpeed.current = speedNow;
-    }
-    if (speedNow > 0.5) {
       peakSpeedUntil.current = simTime.current + PEAK_SPEED_HOLD;
+    } else if (simTime.current > peakSpeedUntil.current) {
+      peakSpeed.current = speedNow;
     }
 
     // ---- Wind acts whether or not the drone is armed ----
