@@ -126,9 +126,13 @@ export const useFlightStore = create<FlightState>((set, get) => ({
     const landLocked = performance.now() - takeoffStartedAt < LAND_LOCKOUT_MS;
 
     if (nearGround || landLocked) {
+      // Arming is a deliberate, separate action. A takeoff command must never
+      // arm the aircraft on the pilot's behalf — a disarmed airframe stays put,
+      // exactly as it would on real hardware.
+      if (!armed) return;
       // Still in the takeoff window — climb (or re-issue takeoff), never land.
       takeoffStartedAt = performance.now();
-      set({ armed: true, auto: 'takeoff' });
+      set({ auto: 'takeoff' });
     } else if (armed) {
       landHoldUntil = performance.now() + RELAUNCH_LOCKOUT_MS;
       set({ auto: 'land' });

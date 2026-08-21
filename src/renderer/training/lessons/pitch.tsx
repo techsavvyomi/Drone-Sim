@@ -28,6 +28,7 @@ export const pitchLesson: Lesson = {
   Scene: () => <Checkpoint position={[CP_X, HOVER_ALT, CP_Z]} color="#38bdf8" />,
 
   demo: [
+    { at: 0.0, cmd: 'arm', key: 'Enter', caption: 'Arm — motors spool up to idle' },
     { at: 0.0, cmd: 'takeoffLand', key: 'Space', caption: 'Take off to a hover' },
     { at: 3.2, stick: { pitch: 0.4 }, key: 'ArrowUp', caption: 'Pitch forward — fly to the checkpoint' },
     { at: 5.4, stick: { pitch: 0 }, caption: 'Level off at the checkpoint' },
@@ -36,7 +37,11 @@ export const pitchLesson: Lesson = {
   ],
 
   setup: () => {
-    useFlightStore.getState().requestTakeoffLand();
+    const flight = useFlightStore.getState();
+    // Takeoff no longer arms on the pilot's behalf, so a lesson that drops the
+    // student straight into the air has to arm the aircraft itself first.
+    if (!flight.armed) flight.toggleArm();
+    flight.requestTakeoffLand();
   },
 
   practice: {

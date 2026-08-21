@@ -48,6 +48,7 @@ export const landingLesson: Lesson = {
   Scene: LandingHighlight,
 
   demo: [
+    { at: 0.0, cmd: 'arm', key: 'Enter', caption: 'Arm — motors spool up to idle' },
     { at: 0.0, cmd: 'takeoffLand', key: 'Space', caption: 'Take off to a hover' },
     { at: 3.4, caption: 'Now bring it down gently…' },
     { at: 3.8, cmd: 'takeoffLand', key: 'Space', caption: 'Reduce throttle smoothly to descend' },
@@ -56,7 +57,11 @@ export const landingLesson: Lesson = {
 
   // Begin hovering so the drill is the descent, not the take-off.
   setup: () => {
-    useFlightStore.getState().requestTakeoffLand();
+    const flight = useFlightStore.getState();
+    // Takeoff no longer arms on the pilot's behalf, so a lesson that drops the
+    // student straight into the air has to arm the aircraft itself first.
+    if (!flight.armed) flight.toggleArm();
+    flight.requestTakeoffLand();
   },
 
   practice: {

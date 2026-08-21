@@ -26,6 +26,7 @@ export const throttleLesson: Lesson = {
 
   demo: [
     { at: 0.0, caption: 'Throttle controls altitude' },
+    { at: 0.4, cmd: 'arm', key: 'Enter', caption: 'Arm — motors spool up to idle' },
     { at: 0.4, cmd: 'takeoffLand', key: 'Space', caption: 'Take off to a hover' },
     { at: 3.6, stick: { throttle: 0.72 }, key: 'KeyW', caption: 'Push up — climb to 2 m' },
     { at: 5.6, stick: { throttle: 0.32 }, key: 'KeyS', caption: 'Ease down toward 1 m' },
@@ -35,7 +36,11 @@ export const throttleLesson: Lesson = {
 
   // Start already hovering so the drill is about the throttle, not the take-off.
   setup: () => {
-    useFlightStore.getState().requestTakeoffLand();
+    const flight = useFlightStore.getState();
+    // Takeoff no longer arms on the pilot's behalf, so a lesson that drops the
+    // student straight into the air has to arm the aircraft itself first.
+    if (!flight.armed) flight.toggleArm();
+    flight.requestTakeoffLand();
   },
 
   practice: {

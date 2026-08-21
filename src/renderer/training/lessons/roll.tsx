@@ -31,6 +31,7 @@ export const rollLesson: Lesson = {
   ),
 
   demo: [
+    { at: 0.0, cmd: 'arm', key: 'Enter', caption: 'Arm — motors spool up to idle' },
     { at: 0.0, cmd: 'takeoffLand', key: 'Space', caption: 'Take off to a hover' },
     { at: 3.2, stick: { roll: 0.4 }, key: 'ArrowRight', caption: 'Roll right — slide to the marker' },
     { at: 5.4, stick: { roll: 0 }, caption: 'Level off at the right marker' },
@@ -39,7 +40,11 @@ export const rollLesson: Lesson = {
   ],
 
   setup: () => {
-    useFlightStore.getState().requestTakeoffLand();
+    const flight = useFlightStore.getState();
+    // Takeoff no longer arms on the pilot's behalf, so a lesson that drops the
+    // student straight into the air has to arm the aircraft itself first.
+    if (!flight.armed) flight.toggleArm();
+    flight.requestTakeoffLand();
   },
 
   practice: {

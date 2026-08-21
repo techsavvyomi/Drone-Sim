@@ -27,6 +27,7 @@ export const hoverLesson: Lesson = {
   Scene: () => <HoverBox position={[0, BOX_Y, 0]} size={BOX} />,
 
   demo: [
+    { at: 0.0, cmd: 'arm', key: 'Enter', caption: 'Arm — motors spool up to idle' },
     { at: 0.0, cmd: 'takeoffLand', key: 'Space', caption: 'Take off into the box' },
     { at: 3.4, stick: { pitch: 0.06 }, caption: 'Tiny corrections keep it centred' },
     { at: 4.6, stick: { roll: 0.06 }, caption: 'Nudge, don’t shove' },
@@ -35,7 +36,11 @@ export const hoverLesson: Lesson = {
   ],
 
   setup: () => {
-    useFlightStore.getState().requestTakeoffLand();
+    const flight = useFlightStore.getState();
+    // Takeoff no longer arms on the pilot's behalf, so a lesson that drops the
+    // student straight into the air has to arm the aircraft itself first.
+    if (!flight.armed) flight.toggleArm();
+    flight.requestTakeoffLand();
   },
 
   practice: {

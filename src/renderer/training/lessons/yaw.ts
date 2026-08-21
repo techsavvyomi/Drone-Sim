@@ -23,6 +23,7 @@ export const yawLesson: Lesson = {
   },
 
   demo: [
+    { at: 0.0, cmd: 'arm', key: 'Enter', caption: 'Arm — motors spool up to idle' },
     { at: 0.0, cmd: 'takeoffLand', key: 'Space', caption: 'Take off to a hover' },
     { at: 3.2, stick: { yaw: -0.5 }, key: 'KeyA', caption: 'Yaw left — the nose swings round' },
     { at: 5.0, stick: { yaw: 0 }, caption: 'Stop at about 90°' },
@@ -31,7 +32,11 @@ export const yawLesson: Lesson = {
   ],
 
   setup: () => {
-    useFlightStore.getState().requestTakeoffLand();
+    const flight = useFlightStore.getState();
+    // Takeoff no longer arms on the pilot's behalf, so a lesson that drops the
+    // student straight into the air has to arm the aircraft itself first.
+    if (!flight.armed) flight.toggleArm();
+    flight.requestTakeoffLand();
   },
 
   practice: {
