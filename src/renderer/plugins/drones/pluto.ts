@@ -39,6 +39,8 @@ export const plutoDrone: DroneSpec = {
   // Real PlutoX CAD model, optimized for realtime (20 draw calls, 253k tris).
   // Authored in metres and origin-centred, so no scaling is needed.
   model: plutoModelUrl,
+  // A 160 mm airframe is a speck in the outdoor maps; drawn and collided at 1.5x so it stays readable.
+  sizeScale: 1.5,
   modelScale: 1,
   // The CAD model is authored facing +Z; the sim's convention is forward = -Z,
   // so the visual needs a half turn to match the physics heading.

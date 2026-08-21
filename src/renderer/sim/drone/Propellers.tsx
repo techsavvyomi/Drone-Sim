@@ -12,8 +12,11 @@ import { PROP_SPIN_Y } from '../control/mixer';
 // and spin with the motors — same look, actually moving.
 
 function bladeRadius(spec: DroneSpec): number {
+  // The synthetic radius is measured off the model AABB, which is already
+  // scaled; the catalogue figure is not, so it needs sizeScale applying or the
+  // blur discs sit inboard of the blades on an inflated airframe.
   if (propHubs.synthetic && propHubs.propRadius > 0) return propHubs.propRadius;
-  return (spec.propDiameterIn * 25.4) / 2000;
+  return ((spec.propDiameterIn * 25.4) / 2000) * (spec.sizeScale ?? 1);
 }
 
 /** Faint disc over each rotor — Pluto CAD path. Softer / darker when synthetic. */

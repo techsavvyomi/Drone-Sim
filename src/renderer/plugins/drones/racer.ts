@@ -70,6 +70,9 @@ export const racingDrone: DroneSpec = {
   cameraMount: { position: [0, 0.022, 0.075], tiltDeg: 25 },
   model: racerModelUrl,
   // 0.127 m prop / 3.5955 authored units.
+  // Drawn at 1.8x so the 311 mm frame reads at chase-camera distance in the
+  // outdoor maps. Render-only, like the other two — see DroneSpec.sizeScale.
+  sizeScale: 1.8,
   modelScale: 0.035322,
   modelYawDeg: 0,
   // X is already centred (the prop centroid sits 3 thousandths off). Z pulls the

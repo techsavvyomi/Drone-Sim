@@ -531,6 +531,25 @@ export interface DroneSpec {
   model?: string;
   /** Uniform scale applied to the .glb (1 = the model is already in metres). */
   modelScale?: number;
+  /**
+   * Presentation size multiplier, default 1. **Rendered model only.**
+   *
+   * A 160 mm nano is a speck in a 250 m city, and this is what makes it legible
+   * there. It scales the drawn airframe — the model, its offset and the blur
+   * discs — and NOTHING in the flight model: `armLength`, `mass`, the motors,
+   * the collider stack and the rotor positions all stay the real hardware
+   * figures.
+   *
+   * Scaling the colliders was tried and reverted. Rapier derives inertia from
+   * collider positions, so `I` grows with the square of the scale — 6.25x on
+   * the Guru at 2.5. The controller asks for `tau = I * a`, so the torque
+   * demand grew with it while the motors did not, the mixer saturated, and the
+   * aircraft flew heavy and would barely climb.
+   *
+   * The trade-off is that the drawn airframe is wider than what it collides
+   * with, so it can visually overlap a wall it has already stopped against.
+   */
+  sizeScale?: number;
   /** Yaw correction in degrees if the model doesn't face -Z. */
   modelYawDeg?: number;
   /** Positional offset applied to the .glb, in metres. */

@@ -49,6 +49,8 @@ export const guruDrone: DroneSpec = {
   // The export is ~9% under real scale: its props measure 121.9 mm against the
   // real 135 mm, and its wheelbase 210 mm against the real 230 mm. Those two
   // ratios agree to 1%, so a single uniform scale fixes both.
+  // Drawn and collided at 2.5x so the trainer reads clearly at chase-camera distance.
+  sizeScale: 2.5,
   modelScale: 1.1013,
   // The airframe is authored at an angle rather than axis-aligned; this brings
   // the front prop pair's bisector onto -Z, the sim's forward.

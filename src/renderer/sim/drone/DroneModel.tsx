@@ -347,9 +347,27 @@ function Gltf({ spec, idleSpin = 0 }: { spec: DroneSpec; idleSpin?: number }) {
     });
   });
 
-  const scale = spec.modelScale ?? 1;
+  // modelScale fits the .glb to the real airframe; sizeScale then inflates it
+  // for readability. Presentation only — the collider stack and the flight
+  // model stay at the true size (see DroneSpec.sizeScale).
+  const sizeScale = spec.sizeScale ?? 1;
+  const scale = (spec.modelScale ?? 1) * sizeScale;
   const yaw = (spec.modelYawDeg ?? 0) * DEG2RAD;
-  const offset = spec.modelOffset ?? [0, 0, 0];
+  /*
+   * modelOffset has to scale WITH the model.
+   *
+   * It exists to recentre an export that is not origin-centred, so it is really
+   * "minus the model's own centre, measured at modelScale". Enlarge the model
+   * and that centre moves out by the same factor — leave the offset behind and
+   * the airframe grows off-axis, which is what threw the Guru's propellers
+   * toward the middle of the fuselage.
+   */
+  const rawOffset = spec.modelOffset ?? [0, 0, 0];
+  const offset: [number, number, number] = [
+    rawOffset[0] * sizeScale,
+    rawOffset[1] * sizeScale,
+    rawOffset[2] * sizeScale,
+  ];
 
   // key ties the mounted object to this exact clone: <primitive> cannot swap
   // its object in place, so without it a new clone would never reach the scene.
