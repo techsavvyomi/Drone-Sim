@@ -19,6 +19,23 @@ export interface TimePreset {
   fogFar: number;
   /** Night shows stars and lights the pad with floodlights instead. */
   night: boolean;
+  /**
+   * Bloom, per preset rather than per `night` flag.
+   *
+   * It used to be a binary `night ? 0.55 : 0.95` threshold, which treated a
+   * hazy sunset and a clear midday the same. Afternoon is by far the brightest
+   * preset — sunIntensity 3.2 and ambient 1.1, against morning's 2.4 / 0.9 —
+   * so ordinary lit surfaces cleared the 0.95 threshold and the whole frame
+   * bloomed, not just the emissive things bloom exists for.
+   */
+  bloomThreshold: number;
+  bloomIntensity: number;
+  /**
+   * Multiplier on image-based lighting, which is what drives specular sheen.
+   * Turning it down takes the gloss off roads and glass without touching
+   * exposure the way sunIntensity or ambient would.
+   */
+  iblScale: number;
 }
 
 export const TIME_PRESETS: Record<TimeOfDay, TimePreset> = {
@@ -34,6 +51,9 @@ export const TIME_PRESETS: Record<TimeOfDay, TimePreset> = {
     fogNear: 70,
     fogFar: 460,
     night: false,
+    bloomThreshold: 0.95,
+    bloomIntensity: 0.45,
+    iblScale: 1,
   },
   afternoon: {
     label: 'Afternoon',
@@ -47,6 +67,9 @@ export const TIME_PRESETS: Record<TimeOfDay, TimePreset> = {
     fogNear: 100,
     fogFar: 560,
     night: false,
+    bloomThreshold: 1.05,
+    bloomIntensity: 0.28,
+    iblScale: 0.7,
   },
   sunset: {
     label: 'Sunset',
@@ -60,6 +83,9 @@ export const TIME_PRESETS: Record<TimeOfDay, TimePreset> = {
     fogNear: 55,
     fogFar: 400,
     night: false,
+    bloomThreshold: 0.95,
+    bloomIntensity: 0.45,
+    iblScale: 1,
   },
   night: {
     label: 'Night',
@@ -73,6 +99,9 @@ export const TIME_PRESETS: Record<TimeOfDay, TimePreset> = {
     fogNear: 30,
     fogFar: 240,
     night: true,
+    bloomThreshold: 0.55,
+    bloomIntensity: 1.0,
+    iblScale: 1,
   },
 };
 

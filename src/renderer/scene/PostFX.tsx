@@ -12,7 +12,7 @@ import { useWorldStore, TIME_PRESETS } from '../state/worldStore';
 export function PostFX() {
   const graphics = useSettingsStore((s) => s.settings.graphics);
   const timeOfDay = useWorldStore((s) => s.timeOfDay);
-  const night = TIME_PRESETS[timeOfDay].night;
+  const t = TIME_PRESETS[timeOfDay];
 
   if (graphics === 'low') return null;
 
@@ -39,10 +39,12 @@ export function PostFX() {
         <></>
       )}
       <Bloom
-        // Emissive materials sit well above 1.0, ordinary surfaces below it.
-        luminanceThreshold={night ? 0.55 : 0.95}
+        // Emissive materials sit well above 1.0, ordinary surfaces below it —
+        // but how far below depends on how hard the sun is driving them, so the
+        // threshold comes from the time preset rather than a night/day flag.
+        luminanceThreshold={t.bloomThreshold}
         luminanceSmoothing={0.25}
-        intensity={night ? 1.0 : 0.45}
+        intensity={t.bloomIntensity}
         radius={0.72}
       />
       <Vignette offset={0.28} darkness={0.42} eskil={false} />
