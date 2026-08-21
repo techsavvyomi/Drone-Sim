@@ -151,6 +151,94 @@ export function horizontalDist(position: Vec3, x: number, z: number): number {
   return Math.hypot(position[0] - x, position[2] - z);
 }
 
+/**
+ * Walk a route of world-XZ waypoints in order.
+ *
+ * Stores the index of the next waypoint in `mem[key]` and advances when the
+ * drone comes within `reach` of it. Returns that index, so a validator reads
+ * `visitInOrder(...) >= route.length` as "route complete". Shared by every
+ * shape lesson — square, triangle, straight line and diagonal are all just
+ * different routes.
+ */
+export function visitInOrder(
+  mem: LessonMemory,
+  key: string,
+  position: Vec3,
+  route: readonly (readonly [number, number])[],
+  reach: number,
+): number {
+  const i = mem[key] ?? 0;
+  if (i >= route.length) return i;
+  const [x, z] = route[i];
+  if (horizontalDist(position, x, z) < reach) mem[key] = i + 1;
+  return mem[key] ?? 0;
+}
+
+/** What `followRoute` saw this frame. */
+export interface RouteProgress {
+  /** Index of the waypoint the drone should be heading for now. */
+  next: number;
+  /** Every waypoint has been taken, in order. */
+  complete: boolean;
+  /** A LATER waypoint was reached before the expected one — the route was cut. */
+  outOfOrder: boolean;
+}
+
+/**
+ * Strict version of `visitInOrder` for the navigation lessons.
+ *
+ * `visitInOrder` simply ignores a waypoint taken early, which is fine for a shape
+ * you are tracing but wrong for a route you are being tested on: skipping B and
+ * going straight to C has to FAIL, not silently do nothing. This reports that as
+ * `outOfOrder` so the validator can end the attempt.
+ */
+export function followRoute(
+  mem: LessonMemory,
+  key: string,
+  position: Vec3,
+  route: readonly (readonly [number, number])[],
+  reach: number,
+): RouteProgress {
+  const next = mem[key] ?? 0;
+  if (next >= route.length) return { next, complete: true, outOfOrder: false };
+
+  const [nx, nz] = route[next];
+  if (horizontalDist(position, nx, nz) < reach) {
+    mem[key] = next + 1;
+    return { next: next + 1, complete: next + 1 >= route.length, outOfOrder: false };
+  }
+
+  // Anything further down the route counts as cutting the corner. Waypoints
+  // already taken are ignored — flying back over B on the way to C is not a fault.
+  for (let j = next + 1; j < route.length; j++) {
+    const [x, z] = route[j];
+    if (horizontalDist(position, x, z) < reach) {
+      return { next, complete: false, outOfOrder: true };
+    }
+  }
+  return { next, complete: false, outOfOrder: false };
+}
+
+/**
+ * How far the drone has strayed sideways from the straight line A->B, in metres.
+ * Shape lessons score on this: reaching the corners is the task, holding the
+ * line between them is the skill.
+ */
+export function lineDeviation(
+  position: Vec3,
+  ax: number,
+  az: number,
+  bx: number,
+  bz: number,
+): number {
+  const dx = bx - ax;
+  const dz = bz - az;
+  const len = Math.hypot(dx, dz);
+  if (len < 1e-6) return horizontalDist(position, ax, az);
+  // Perpendicular distance from the point to the infinite line through A and B.
+  return Math.abs((position[0] - ax) * dz - (position[2] - az) * dx) / len;
+}
+
 /** Smallest signed difference a-b between two angles (radians), in degrees. */
 export function angleDiffDeg(a: number, b: number): number {
   let d = ((a - b) * 180) / Math.PI;
