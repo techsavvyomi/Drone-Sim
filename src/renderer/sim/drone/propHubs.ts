@@ -33,7 +33,23 @@ export const propHubs = {
    * once during the handover.
    */
   spin: [0, 0, 0, 0],
+  /**
+   * Bumped to demand an immediate, un-damped stop of the rotors.
+   *
+   * The spool-down is normally damped, which is right when a pilot disarms and
+   * watches the props wind down. It is wrong when the aircraft is replaced under
+   * them: swapping the drone or the arena mid-flight teleports a fresh machine
+   * onto the pad, and a damped decay left the previous one's propellers turning
+   * on it for a second or two.
+   */
+  spinResetToken: 0,
 };
+
+/** Demand that the rotors stop dead on the next frame — see `spinResetToken`. */
+export function resetPropSpin(): void {
+  propHubs.spinResetToken += 1;
+  propHubs.spin.fill(0);
+}
 
 /**
  * How blurred a rotor looks at this speed: 0 = stopped, draw solid blades;

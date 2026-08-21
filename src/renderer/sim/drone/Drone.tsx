@@ -33,7 +33,7 @@ import { DroneModel } from './DroneModel';
 import { Propellers } from './Propellers';
 import { addShake } from '../effects';
 import { dronePose } from './pose';
-import { propHubs } from './propHubs';
+import { propHubs, resetPropSpin } from './propHubs';
 
 // Module-scope scratch (single active drone) to avoid per-step allocations.
 const _q = new THREE.Quaternion();
@@ -269,6 +269,37 @@ export function Drone({ spec, spawn, bounds, outdoor = false, groundY }: DronePr
     useFlightStore.getState().clearCrash();
     useFlightStore.getState().recharge();
   }, [resetToken, spawn, controller, battery]);
+
+  // Swapping the aircraft OR the arena mid-flight must not hand the pilot a
+  // machine that is already armed and still carrying the old stick position — it
+  // would climb away the instant it spawned. The reset effect above does put the
+  // body back on the pad for both (`controller`/`battery` are memoised on `spec`
+  // and `spawn` comes from the environment), but it deliberately leaves the
+  // flight store alone, so the safe state has to be set here.
+  //
+  // Both deps are stable references — drone and environment specs are the same
+  // objects out of the plugin registry — so this fires on a real switch only,
+  // and never on an incidental re-render.
+  //
+  // It must NOT also fire on `resetToken`: Flight School calls `requestReset()`
+  // and then arms from `lesson.setup()` in the same tick, so a disarm running
+  // off that token would land after the arm and silently kill every lesson.
+  // Training is safe from the deps used here — it never changes the drone, and
+  // it pins its environment to a literal `envIdOverride="flight-school"`, so
+  // neither value moves for the life of a lesson.
+  const loadoutSettled = useRef(false);
+  useEffect(() => {
+    if (!loadoutSettled.current) {
+      loadoutSettled.current = true;
+      return;
+    }
+    useFlightStore.getState().disarm();
+    resetStick();
+    // The rotors belong to the machine that just left. Disarming alone only sets
+    // their target to zero and the spool-down is damped, so without this the new
+    // airframe arrives with its predecessor's propellers still turning on it.
+    resetPropSpin();
+  }, [spec, spawn]);
 
   // Recharging refills the pack without moving the drone.
   useEffect(() => {

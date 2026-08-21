@@ -30,6 +30,7 @@ function Gltf({ spec, idleSpin = 0 }: { spec: DroneSpec; idleSpin?: number }) {
   const { scene } = useGLTF(spec.model!);
   const rotors = useRef<PropRotor[]>([]);
   const rpm = useRef<number[]>([0, 0, 0, 0]);
+  const seenSpinReset = useRef(propHubs.spinResetToken);
   /** Model ships pre-blurred prop discs rather than modelled blades. */
   const blurProps = spec.propArt === 'blur';
   // Clone so multiple drones (and StrictMode double-mounts) don't share one graph.
@@ -246,12 +247,27 @@ function Gltf({ spec, idleSpin = 0 }: { spec: DroneSpec; idleSpin?: number }) {
       // Otherwise the next airframe inherits this one's rotor speeds, and a
       // 'blur' drone mounted after a spun-up one starts with its stand-in
       // blades already faded out.
+      //
+      // `rpm` has to go with it. It is the ref the spin is actually damped
+      // through, and it outlives the model swap — zeroing only the published
+      // buffer let the very next frame write the old speeds straight back, so a
+      // drone or arena changed mid-flight arrived with its predecessor's
+      // propellers still winding down for a second or two.
       propHubs.spin.fill(0);
+      rpm.current.fill(0);
     };
   }, [model, spec.armLength, spec.modelYawDeg, spec.propColors, blurProps]);
 
-  // Spin from live motor output — idle on arm, faster with throttle, smoothed.
+  // Spin from live motor output — stopped on arm, turning only with throttle.
   useFrame((_s, dt) => {
+    // Stop dead rather than winding down — the airframe under these rotors was
+    // just replaced. Checked before the readiness guard so the speeds are
+    // cleared even while the new model is still resolving.
+    if (propHubs.spinResetToken !== seenSpinReset.current) {
+      seenSpinReset.current = propHubs.spinResetToken;
+      rpm.current.fill(0);
+      propHubs.spin.fill(0);
+    }
     if (rotors.current.length === 0) return;
     const motors = useSimStore.getState().motors;
     const status = useFlightStore.getState().status();
