@@ -288,7 +288,9 @@ function Gltf({ spec, idleSpin = 0 }: { spec: DroneSpec; idleSpin?: number }) {
         return;
       }
 
-      const target = live ? Math.max(motors[r.motor], 0.2) : 0;
+      // Follow the real motor output. The old 0.2 floor spun the blades the
+      // instant the aircraft was armed, whatever the motors were actually doing.
+      const target = live ? motors[r.motor] : 0;
       const lambda = target > (rpm.current[i] ?? 0) ? 6 : 2.2;
       rpm.current[i] = damp(rpm.current[i] ?? 0, target, lambda, dt);
 

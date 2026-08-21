@@ -99,12 +99,6 @@ const _desiredUp = new THREE.Vector3();
 const _axis = new THREE.Vector3();
 
 const STICK_DEADBAND = 0.06;
-/**
- * Thrust while armed and idling on the ground, as a fraction of hover thrust.
- * Enough to spin the motors visibly, far too little to lift off — arming a real
- * drone spins the props at idle; it does not take off.
- */
-const IDLE_THRUST_FRAC = 0.25;
 
 export class FlightController {
   private rollRate: PidController;
@@ -364,11 +358,12 @@ export class FlightController {
     const stick = clamp(input.throttle, 0, 1) - 0.5;
     const stickActive = Math.abs(stick) > STICK_DEADBAND;
 
-    // Armed and resting on the ground with no climb commanded: hold at idle so
-    // the props spin but the drone stays put.
+    // Armed and resting on the ground with no climb commanded: motors stay
+    // STOPPED. Arming makes the aircraft live, it does not spin the props —
+    // nothing turns until the pilot actually commands a climb.
     if (state.onGround && !(stickActive && stick > 0)) {
       this.targetAltitude = alt;
-      return state.mass * GRAVITY * IDLE_THRUST_FRAC;
+      return 0;
     }
 
     let climbSp: number;
