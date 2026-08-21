@@ -1335,6 +1335,73 @@ button {
   grid-template-columns: 0 1fr auto;
 }
 
+/* ---- Flight view: the navbar parks itself ----
+   Once the pilot is flying, the bar slides out of frame so the viewport runs the
+   full height of the window, and it comes back when the pointer reaches the top
+   edge. The reveal is pure CSS with no state to keep in sync: `.chip-menu` is a
+   DOM child of `.topbar`, so an open Drone/Arena dropdown still counts as
+   hovering the bar and it cannot slide away out from under the mouse. */
+.app.is-fly {
+  grid-template-rows: 0 1fr var(--status-h);
+}
+.app.is-fly .topbar {
+  position: fixed;
+  inset: 0 0 auto 0;
+  height: 96px;
+  z-index: 40;
+  /* It now floats over the 3D scene rather than over the shell gradient, so it
+     has to carry its own backdrop or the text sits on open sky. */
+  background: rgba(8, 13, 22, 0.94);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--line);
+  transform: translateY(-100%);
+  /* Asymmetric on purpose: the trailing `1s` is the delay BEFORE it leaves. A
+     bar that snapped away the moment the pointer drifted off gave nobody time to
+     read it, so the hide waits; the reveal below cancels the delay so arriving
+     still feels instant. */
+  transition: transform 0.22s ease 1s;
+  will-change: transform;
+}
+.app.is-fly .topbar:hover,
+.app.is-fly .topbar-peek:hover ~ .topbar {
+  transform: translateY(0);
+  transition-delay: 0s;
+}
+
+/* The strip is only armed in flight. Everywhere else the bar is permanent, so
+   the strip stays out of the document and cannot swallow clicks. */
+.topbar-peek {
+  display: none;
+}
+.app.is-fly .topbar-peek {
+  display: block;
+  position: fixed;
+  inset: 0 0 auto 0;
+  /* Deliberately deep, not a hairline at the very edge. In macOS full screen the
+     top edge belongs to the OS: pushing the cursor there reveals the system menu
+     bar, which takes the pointer before the page ever sees it, so a thin strip
+     was reachable when the window was merely maximised and unreachable when it
+     was full screen. Catching the pointer well before the edge fixes both. Kept
+     under the bar's own 96px so the revealed bar always covers it — no flicker.
+     Nothing is lost to it: `.hud` is `pointer-events: none`, and every clickable
+     overlay in flight sits bottom-right. */
+  height: 64px;
+  /* Below the bar: once the bar is down it covers the strip and `:hover` on the
+     bar itself keeps it there, so the strip never blocks the bar's own buttons. */
+  z-index: 39;
+}
+
+/* Telemetry dock open: stand down entirely. Its DATA / GRAPHS / PHYSICS tabs sit
+   about 60px from the top, inside the strip's own depth, so reaching for a tab
+   was pulling the navbar down over the click instead.
+   MUST stay after the `.app.is-fly` rule above: both selectors carry three
+   classes, so they tie on specificity and only source order separates them.
+   While the pilot is reading telemetry the bar stays parked; closing the dock
+   with the edge tab brings the hover reveal back. */
+.app.panel-open .topbar-peek {
+  display: none;
+}
+
 /* ---- Virtual sticks (corner gimbals) ---- */
 .vstick {
   position: absolute;

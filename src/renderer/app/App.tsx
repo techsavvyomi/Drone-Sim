@@ -122,8 +122,15 @@ export function App() {
     <div
       className={`app ${section === 'home' ? 'is-home' : ''} ${
         flightLike ? 'is-fly' : ''
-      } ${section === 'fly' && !panelOpen ? 'no-panel' : ''}`}
+      } ${section === 'fly' && !panelOpen ? 'no-panel' : ''} ${
+        section === 'fly' && panelOpen ? 'panel-open' : ''
+      }`}
     >
+      {/* Hover strip along the very top edge. In flight the bar is parked out of
+          frame, and reaching this strip is what brings it back — see the
+          `.topbar-peek` rules. It must stay a sibling *before* `.topbar` for the
+          CSS reveal to match. */}
+      <div className="topbar-peek" aria-hidden="true" />
       <TopBar />
       {/* Menu and flight view are both full-bleed: the menu navigates via its
           mode cards, and the cockpit should not be crowded by a nav rail. The
