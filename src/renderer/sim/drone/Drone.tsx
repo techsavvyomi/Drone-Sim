@@ -72,6 +72,12 @@ const LOST_BELOW_FLOOR = 8;
  * is what a broken quad hitting concrete actually does.
  */
 const CRASH_DECEL = 45;
+/**
+ * Peak tumble rate a wreck is given on impact (rad/s) — a roll the eye can
+ * follow, not a spin — and how fast that tumble bleeds off (rad/s per second).
+ */
+const CRASH_TUMBLE_RATE = 3.5;
+const CRASH_SPIN_DECEL = 6;
 
 /** Height of the centre of pressure (rotor plane) above the CoG, metres. */
 const CP_HEIGHT = 0.022;
@@ -431,6 +437,17 @@ export function Drone({ spec, spawn, bounds, outdoor = false, groundY }: DronePr
           const damped = Math.max(0, horiz - CRASH_DECEL * SIM_DT);
           const k = damped / horiz;
           rb.setLinvel({ x: cv.x * k, y: cv.y, z: cv.z * k }, true);
+        }
+        // Bleed the tumble as well. Horizontal speed was already being killed
+        // here, but the spin was left to the body's own angular damping, which
+        // is tuned for flight and takes seconds — so the wreck went on turning
+        // and kept catching the ground on its rotor pads, hopping and skittering
+        // long after it should have come to rest.
+        const av = rb.angvel();
+        const spin = Math.hypot(av.x, av.y, av.z);
+        if (spin > 0.05) {
+          const k = Math.max(0, spin - CRASH_SPIN_DECEL * SIM_DT) / spin;
+          rb.setAngvel({ x: av.x * k, y: av.y * k, z: av.z * k }, true);
         }
       }
       return;
@@ -1065,12 +1082,20 @@ export function Drone({ spec, spawn, bounds, outdoor = false, groundY }: DronePr
           // Zero-bounce crash response: absorb horizontal velocity completely, cut thrust, and drop under gravity
           if (rb) {
             rb.setLinvel({ x: 0, y: Math.min(rb.linvel().y, -0.4), z: 0 }, true);
-            const torqueMag = THREE.MathUtils.clamp(v * 0.05, 0.05, 0.3);
+            // Tumble, not a bullet spin. `applyTorqueImpulse` takes an ANGULAR
+            // IMPULSE, so the rate it produces is impulse / inertia — and these
+            // airframes carry a principal inertia around 1e-4 kg m^2. The old
+            // fixed 0.05-0.3 N m s therefore span the wreck up at hundreds of
+            // rad/s, which is exactly what read as the drone being flung away
+            // instead of dropping. Scale by the body's real inertia so the same
+            // impact looks the same on a 50 g nano and a 1.5 kg trainer.
+            const pin = rb.principalInertia();
+            const tumble = THREE.MathUtils.clamp(v * 0.4, 0.8, CRASH_TUMBLE_RATE);
             rb.applyTorqueImpulse(
               {
-                x: (Math.random() - 0.5) * torqueMag,
-                y: (Math.random() - 0.5) * torqueMag * 0.5,
-                z: (Math.random() - 0.5) * torqueMag,
+                x: (Math.random() * 2 - 1) * tumble * pin.x,
+                y: (Math.random() * 2 - 1) * tumble * pin.y * 0.5,
+                z: (Math.random() * 2 - 1) * tumble * pin.z,
               },
               true,
             );
