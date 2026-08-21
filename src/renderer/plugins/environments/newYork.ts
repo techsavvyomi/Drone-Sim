@@ -17,7 +17,12 @@ export const newYork: EnvironmentSpec = {
   name: 'New York City',
   kind: 'outdoor',
   model: newYorkModelUrl,
-  spawn: { position: [0, 0.024, 30], heading: 0 },
+  // Moved 4 m up the street from z = 30 on 2026-08-21. Heading is 0, so forward
+  // is -Z. Checked against the generated collider data before moving it: the
+  // nearest prop ahead sits about 7 m out at z = 30 and closes as you go, so
+  // z = 26 keeps ~4 m of clearance to it and ~11 m to the nearest building.
+  // Below about z = 23 the drone would spawn inside street furniture.
+  spawn: { position: [0, 0.024, 26], heading: 0 },
   bounds: { min: [-123.89, -10, -98.16], max: [123.94, 125, 98.15] },
   // The whole map sits on one flat road plane, so the under-floor rescue applies.
   groundY: 0,
