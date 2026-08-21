@@ -41,6 +41,8 @@ export interface HudWidgets {
   cameraInfo: boolean;
   tiles: boolean;
   sticks: boolean;
+  /** Blue locator ring + tether line drawn on the surface under the drone. */
+  groundMarker: boolean;
 }
 
 export const HUD_WIDGET_LABELS: Record<keyof HudWidgets, string> = {
@@ -54,6 +56,7 @@ export const HUD_WIDGET_LABELS: Record<keyof HudWidgets, string> = {
   cameraInfo: 'Camera + FPS',
   tiles: 'Flight time',
   sticks: 'Virtual sticks',
+  groundMarker: 'Ground marker (blue ring)',
 };
 
 export interface AppSettings {
@@ -431,6 +434,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
     cameraInfo: true,
     tiles: true,
     sticks: true,
+    groundMarker: true,
   },
 };
 

@@ -141,6 +141,12 @@ function PhysicsTab() {
   const clouds = useWorldStore((s) => s.cloudsEnabled);
   const setClouds = useWorldStore((s) => s.setClouds);
 
+  // Reads the same setting as Settings > Interface, so the two stay in step and
+  // the choice persists — this is just a second way in, next to the flight aids
+  // it sits alongside.
+  const groundMarker = useSettingsStore((s) => s.settings.hud.groundMarker);
+  const setHud = useSettingsStore((s) => s.setHud);
+
   return (
     <>
       <section className="panel-section">
@@ -231,6 +237,18 @@ function PhysicsTab() {
       <section className="panel-section">
         <h3 className="panel-subtitle">Physical Support & Stability</h3>
         <SupportDebugWidget />
+      </section>
+
+      <section className="panel-section">
+        <h3 className="panel-subtitle">Display</h3>
+        <label className="toggle">
+          <input
+            type="checkbox"
+            checked={groundMarker}
+            onChange={(e) => setHud('groundMarker', e.target.checked)}
+          />
+          <span>Ground marker (blue ring)</span>
+        </label>
       </section>
 
       <p className="panel-note">Changes take effect on the next physics step — no restart.</p>

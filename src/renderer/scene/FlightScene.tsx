@@ -33,6 +33,7 @@ export function FlightScene({ envIdOverride }: { envIdOverride?: string } = {}) 
   const paused = useFlightStore((s) => s.paused);
 
   const graphics = useSettingsStore((s) => s.settings.graphics);
+  const hud = useSettingsStore((s) => s.settings.hud);
 
   const spec = getDrone(droneId);
   const env = getEnvironment(envId);
@@ -167,7 +168,7 @@ export function FlightScene({ envIdOverride }: { envIdOverride?: string } = {}) 
         <PropDebris spec={spec} />
       </Physics>
 
-      <GroundMarker />
+      {hud.groundMarker && <GroundMarker />}
       <RotorWash />
       <CameraRig spec={spec} env={env} />
       {/* Must stay below CameraRig: useFrame callbacks run in mount order, and
