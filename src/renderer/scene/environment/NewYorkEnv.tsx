@@ -245,9 +245,22 @@ function NewYorkModel({ url }: { url: string }) {
             std.normalMap = streetPbr.normalMap;
             std.normalScale = new THREE.Vector2(0.4, 0.4);
             std.roughnessMap = streetPbr.roughnessMap;
-            std.roughness = 0.82;
-            std.metalness = 0.05;
-            std.color.set('#ffffff');
+            // Asphalt is one of the darkest surfaces there is, and the texture
+            // knows it — its bitumen base is #141618. It was arriving on screen
+            // as pale grey-green all the same, in every time-of-day preset, for
+            // two reasons that both had to go:
+            //
+            //   metalness 0.05 with outdoor IBL at full strength let the sky
+            //   tint the road, which is where the green cast came from; and
+            //   color #ffffff passed the map through undimmed, so the ambient
+            //   lift landed on it in full.
+            //
+            // Tinting the map down and taking the metal out gives dark, matte
+            // tarmac while the aggregate and the normal map still read.
+            std.roughness = 0.9;
+            std.metalness = 0;
+            std.envMapIntensity = 0.35;
+            std.color.set('#3b4045');
             std.needsUpdate = true;
           } else if (/lanes/i.test(matName) || /Street_Assets/i.test(matName)) {
             std.color.set('#ffffff');
