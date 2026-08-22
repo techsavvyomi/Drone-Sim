@@ -26,7 +26,7 @@ export interface SupportInfo {
 // Settings (persisted to disk via the main process)
 // ----------------------------------------------------------------------------
 
-export type GraphicsPreset = 'low' | 'medium' | 'high' | 'ultra';
+export type GraphicsPreset = 'low' | 'medium' | 'high';
 export type PhysicsPreset = 'beginner' | 'intermediate' | 'advanced';
 
 /** Which HUD widgets are visible in the flight view. */

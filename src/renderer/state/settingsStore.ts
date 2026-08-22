@@ -41,6 +41,13 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     const settings: AppSettings = {
       ...DEFAULT_SETTINGS,
       ...loaded,
+      // The Ultra preset was removed; a profile saved while it was selected
+      // would otherwise leave `graphics` on a value no preset table has an
+      // entry for, which reads as an undefined quality config at boot.
+      graphics:
+        (loaded.graphics as string) === 'ultra'
+          ? 'high'
+          : (loaded.graphics ?? DEFAULT_SETTINGS.graphics),
       hud: { ...DEFAULT_SETTINGS.hud, ...(loaded.hud ?? {}) },
       gamepad: {
         ...DEFAULT_GAMEPAD,

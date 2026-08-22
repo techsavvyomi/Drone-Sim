@@ -9,7 +9,7 @@ import { useSettingsStore } from '../state/settingsStore';
 import { useUiStore } from '../state/uiStore';
 import { GamepadSetup } from './GamepadSetup';
 
-const GRAPHICS: GraphicsPreset[] = ['low', 'medium', 'high', 'ultra'];
+const GRAPHICS: GraphicsPreset[] = ['low', 'medium', 'high'];
 const PHYSICS: PhysicsPreset[] = ['beginner', 'intermediate', 'advanced'];
 
 const CATEGORIES = [
@@ -79,7 +79,7 @@ export function SettingsPanel() {
             </div>
             <p className="section-lede">
               Low: no post-processing (best for integrated GPUs). Medium: Bloom + Vignette.
-              High: + SMAA anti-aliasing. Ultra: + Ambient Occlusion.
+              High: + SMAA anti-aliasing and sharper shadows.
             </p>
 
             <div className="setting-row">

@@ -24,7 +24,6 @@ const QUALITY: Record<GraphicsPreset, { dpr: [number, number]; shadows: boolean;
   low: { dpr: [1, 1], shadows: false, msaa: false },
   medium: { dpr: [1, 1], shadows: true, msaa: false },
   high: { dpr: [1, 1.5], shadows: true, msaa: true },
-  ultra: { dpr: [1, 2], shadows: true, msaa: true },
 };
 
 /**

@@ -51,8 +51,8 @@ export const TIME_PRESETS: Record<TimeOfDay, TimePreset> = {
     fogNear: 70,
     fogFar: 460,
     night: false,
-    bloomThreshold: 0.95,
-    bloomIntensity: 0.45,
+    bloomThreshold: 1.1,
+    bloomIntensity: 0.22,
     iblScale: 1,
   },
   afternoon: {
@@ -67,8 +67,8 @@ export const TIME_PRESETS: Record<TimeOfDay, TimePreset> = {
     fogNear: 100,
     fogFar: 560,
     night: false,
-    bloomThreshold: 1.05,
-    bloomIntensity: 0.28,
+    bloomThreshold: 1.2,
+    bloomIntensity: 0.15,
     iblScale: 0.7,
   },
   sunset: {
@@ -83,8 +83,8 @@ export const TIME_PRESETS: Record<TimeOfDay, TimePreset> = {
     fogNear: 55,
     fogFar: 400,
     night: false,
-    bloomThreshold: 0.95,
-    bloomIntensity: 0.45,
+    bloomThreshold: 1.05,
+    bloomIntensity: 0.24,
     iblScale: 1,
   },
   night: {
@@ -99,8 +99,8 @@ export const TIME_PRESETS: Record<TimeOfDay, TimePreset> = {
     fogNear: 30,
     fogFar: 240,
     night: true,
-    bloomThreshold: 0.55,
-    bloomIntensity: 1.0,
+    bloomThreshold: 0.7,
+    bloomIntensity: 0.55,
     iblScale: 1,
   },
 };

@@ -44,7 +44,7 @@ export function FlightScene({ envIdOverride }: { envIdOverride?: string } = {}) 
   // shadow pass is skipped outright — an integrated GPU cannot afford a full
   // extra scene render for it.
   const shadows = graphics !== 'low';
-  const shadowMap = graphics === 'ultra' ? 2048 : graphics === 'high' ? 1024 : 512;
+  const shadowMap = graphics === 'high' ? 1024 : 512;
 
   const t = TIME_PRESETS[timeOfDay];
   const EnvComponent = getEnvironmentComponent(env.id);

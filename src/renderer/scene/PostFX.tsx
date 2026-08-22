@@ -1,5 +1,4 @@
-import { EffectComposer, Bloom, Vignette, SMAA, SSAO } from '@react-three/postprocessing';
-import { BlendFunction } from 'postprocessing';
+import { EffectComposer, Bloom, Vignette, SMAA } from '@react-three/postprocessing';
 import { useSettingsStore } from '../state/settingsStore';
 import { useWorldStore, TIME_PRESETS } from '../state/worldStore';
 
@@ -16,28 +15,8 @@ export function PostFX() {
 
   if (graphics === 'low') return null;
 
-  const highQuality = graphics === 'high' || graphics === 'ultra';
-  const enableSSAO = graphics === 'ultra';
-
   return (
-    <EffectComposer multisampling={0} enableNormalPass={enableSSAO}>
-      {/* Ambient occlusion darkens contact points and crevices on Ultra preset */}
-      {enableSSAO ? (
-        <SSAO
-          blendFunction={BlendFunction.MULTIPLY}
-          samples={6}
-          radius={0.08}
-          intensity={3.5}
-          luminanceInfluence={0.5}
-          bias={0.03}
-          worldDistanceThreshold={40}
-          worldDistanceFalloff={12}
-          worldProximityThreshold={4}
-          worldProximityFalloff={1}
-        />
-      ) : (
-        <></>
-      )}
+    <EffectComposer multisampling={0}>
       <Bloom
         // Emissive materials sit well above 1.0, ordinary surfaces below it —
         // but how far below depends on how hard the sun is driving them, so the
@@ -45,10 +24,10 @@ export function PostFX() {
         luminanceThreshold={t.bloomThreshold}
         luminanceSmoothing={0.25}
         intensity={t.bloomIntensity}
-        radius={0.72}
+        radius={0.6}
       />
       <Vignette offset={0.28} darkness={0.42} eskil={false} />
-      {highQuality ? <SMAA /> : <></>}
+      {graphics === 'high' ? <SMAA /> : <></>}
     </EffectComposer>
   );
 }
