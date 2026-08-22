@@ -77,9 +77,20 @@ export const racingDrone: DroneSpec = {
   modelYawDeg: 0,
   // X is already centred (the prop centroid sits 3 thousandths off). Z pulls the
   // prop centroid to the origin — the frame is not symmetric front-to-back, with
-  // the front motors 2.215 out and the rear 3.182. Y drops the landing feet onto
-  // the collider's underside so the drone rests on its skids, not in them.
-  modelOffset: [0, -0.0155, -0.0171],
+  // the front motors 2.215 out and the rear 3.182.
+  //
+  // Y sets the drone down on the floor, and unlike X and Z it is NOT a recentring
+  // term, so it must be derived at the DRAWN scale (modelScale x sizeScale), not
+  // at modelScale alone. DroneModel multiplies the whole offset by sizeScale, so a
+  // Y computed at modelScale gets inflated along with it — which is what buried
+  // the airframe: the ground sits a fixed 0.024 m under the body origin whatever
+  // the drone is drawn at, and 1.8 x -0.0155 put the lowest geometry 19 mm below
+  // it, cutting the floor line straight through the motor bells.
+  //
+  // The model's lowest point (the nose bar) is at -0.23931 authored units:
+  //   (-0.024 - (-0.23931 * 0.035322 * 1.8)) / 1.8 = -0.0049
+  // which lands that bar exactly on the collider's underside.
+  modelOffset: [0, -0.0049, -0.0171],
   propArt: 'blur',
   // Highest rate bandwidth of the three airframes — this is the one that should
   // feel sharp. Still inside the range the PlutoX (20) already flies stably at.
