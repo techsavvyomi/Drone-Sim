@@ -3,6 +3,7 @@ import { useFrame } from '@react-three/fiber';
 import { CuboidCollider, CylinderCollider, RigidBody } from '@react-three/rapier';
 import * as THREE from 'three';
 import { useWorldStore } from '../../state/worldStore';
+import { ACADEMY_PAD } from '../../plugins/environments/droneAcademy';
 import { terrainHeight } from './Terrain';
 import { concreteNormal } from './textures';
 
@@ -16,7 +17,13 @@ const WHITE = '#eef2f5';
 
 export function Helipad({ position = [0, 0, 0] as [number, number, number] }) {
   const night = useWorldStore((s) => TIME_NIGHT(s.timeOfDay));
-  const lights = 16;
+  const lights = ACADEMY_PAD.perimeterLights;
+  // Radius and slab height come from ACADEMY_PAD because Flight School places
+  // every lesson prop on this surface. Hard-coding them here once meant the two
+  // could drift, and a pad 12 cm proud of the ground swallows anything drawn at
+  // y = 0.
+  const R = ACADEMY_PAD.radius;
+  const H = ACADEMY_PAD.surfaceY;
 
   return (
     <group position={position}>
@@ -24,9 +31,9 @@ export function Helipad({ position = [0, 0, 0] as [number, number, number] }) {
       <RigidBody type="fixed" colliders={false}>
         {/* Circular pad, circular collider — the auto cuboid made the square
             around the pad solid. */}
-        <CylinderCollider args={[0.06, 7]} position={[0, 0.06, 0]} />
-        <mesh position={[0, 0.06, 0]} receiveShadow castShadow>
-          <cylinderGeometry args={[7, 7, 0.12, 48]} />
+        <CylinderCollider args={[H / 2, R]} position={[0, H / 2, 0]} />
+        <mesh position={[0, H / 2, 0]} receiveShadow castShadow>
+          <cylinderGeometry args={[R, R, H, 48]} />
           <meshStandardMaterial
             color="#8d9193"
             normalMap={concreteNormal()}
@@ -66,7 +73,7 @@ export function Helipad({ position = [0, 0, 0] as [number, number, number] }) {
       {Array.from({ length: lights }, (_, i) => {
         const a = (i / lights) * Math.PI * 2;
         return (
-          <mesh key={i} position={[Math.cos(a) * 6.8, 0.18, Math.sin(a) * 6.8]}>
+          <mesh key={i} position={[Math.cos(a) * ACADEMY_PAD.lightRadius, 0.18, Math.sin(a) * ACADEMY_PAD.lightRadius]}>
             <sphereGeometry args={[0.09, 8, 8]} />
             <meshStandardMaterial
               color={night ? '#fff2c0' : '#c8cdd0'}

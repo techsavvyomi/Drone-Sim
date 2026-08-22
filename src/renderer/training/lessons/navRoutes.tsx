@@ -1,34 +1,48 @@
-import { followRoute, horizontalDist, type Lesson, type LessonMemory, type Probe } from './types';
+import { clamp01, flyRoute, type Checkpoint, type Lesson } from './types';
+import { planDemo } from './demoFlight';
+import { gate, home, routeLegs } from './arena';
 import { useFlightStore } from '../../state/flightStore';
-import { Checkpoint } from './props';
 
-// Steps 12-14 — Navigation. Three waypoint routes of growing length, built from
-// one shared factory because only the route and the wording differ.
+// Modules 11-13 — Navigation. Three routes of growing length flown through the
+// arena's own racing gates, built from one shared factory because only the
+// route and the wording differ.
 //
-// These are the first lessons that can FAIL on technique rather than on crashing:
-// taking a later gate before the one you are on ends the attempt. That is the
-// whole point — a route you are allowed to shortcut is not a route.
-const ALT = 1.6;
-const REACH = 1.2;
-/** Gate colours, in visiting order, so "the blue one" is unambiguous mid-flight. */
-const COLOURS = ['#38bdf8', '#a855f7', '#f5a524', '#34d399'];
-const NAMES = ['A', 'B', 'C', 'D'];
+// A, B, C and D are always the SAME four gates, whichever module you are in:
+// the two red rings first, then the two green rectangles. Learning the field
+// once and then being asked for longer routes across it is the whole point —
+// and the route guide puts the letter on the gate, so "fly to B" is something
+// the pilot can see rather than something they have to remember.
+//
+// These are also the first lessons that can FAIL on technique rather than on
+// crashing: taking a later gate before the one you are on ends the attempt. A
+// route you are allowed to shortcut is not a route.
 
-type Point = readonly [number, number];
+/** The lettered gates, in course order. Same letter, same gate, every module. */
+const COURSE = [
+  { letter: 'A', gate: 'red-left' },
+  { letter: 'B', gate: 'red-right' },
+  { letter: 'C', gate: 'green-left' },
+  { letter: 'D', gate: 'green-right' },
+] as const;
 
 function navLesson(cfg: {
   id: string;
   order: number;
   title: string;
   subtitle: string;
-  route: readonly Point[];
+  /** How many of the lettered gates this route uses. */
+  gates: number;
+  /** Come back to the "H" at the end (the full circuit). */
+  returnHome?: boolean;
   intro: string[];
-  demoSticks: { at: number; stick: Record<string, number>; caption: string }[];
   timeout: number;
   threeStarSec: number;
 }): Lesson {
-  const { route } = cfg;
-  const labels = route.map((_, i) => NAMES[i]).join(' → ');
+  const route: readonly Checkpoint[] = [
+    ...COURSE.slice(0, cfg.gates).map((c) => gate(c.gate, c.letter, { ease: 1.3, through: true })),
+    ...(cfg.returnHome ? [home('H')] : []),
+  ];
+  const labels = route.map((c) => c.label).join(' → ');
 
   return {
     id: cfg.id,
@@ -41,18 +55,30 @@ function navLesson(cfg: {
       body: cfg.intro,
     },
 
-    Scene: () => (
-      <>
-        {route.map(([x, z], i) => (
-          <Checkpoint key={i} position={[x, ALT, z]} color={COLOURS[i]} />
-        ))}
-      </>
-    ),
+    route,
 
+    // Flown from the route itself, so the demonstration takes the same pads in
+    // the same order the attempt is graded on — it cannot drift out of step
+    // with the lesson the way a hand-timed stick script did.
     demo: [
       { at: 0.0, cmd: 'arm', key: 'Enter', caption: 'Arm — motors spool up to idle' },
       { at: 0.0, cmd: 'takeoffLand', key: 'Space', caption: 'Take off to a hover' },
-      ...cfg.demoSticks.map((d) => ({ at: d.at, stick: d.stick, caption: d.caption })),
+      // A route is continuous flying, not a stop-start drill, so it is flown a
+      // little brisker and with a shorter pause at each gate than the shape
+      // circuits — without that the full A-D circuit runs past a minute.
+      ...planDemo(
+        routeLegs(
+          route,
+          route.map((c, i) => ({
+            caption: `Line up on ${c.label}`,
+            arrive:
+              i === route.length - 1 ? 'Route complete' : `Through ${c.label} — on to the next`,
+          })),
+          0.48,
+          { face: true },
+        ),
+        { gap: 0.45 },
+      ),
     ],
 
     setup: () => {
@@ -63,56 +89,48 @@ function navLesson(cfg: {
 
     practice: {
       prompt: `Fly the route ${labels}, in order`,
-      hint: `Head for gate ${NAMES[0]} first`,
+      hint: `Head for ${route[0].label} first`,
     },
 
     keys: [
-      { code: 'ArrowUp', label: '↑', hint: 'Forward' },
-      { code: 'ArrowDown', label: '↓', hint: 'Backward' },
-      { code: 'ArrowLeft', label: '←', hint: 'Left' },
-      { code: 'ArrowRight', label: '→', hint: 'Right' },
-      { code: 'KeyA', label: 'A', hint: 'Yaw left' },
-      { code: 'KeyD', label: 'D', hint: 'Yaw right' },
+      { code: 'ArrowUp', label: '↑', hint: 'Pitch Forward' },
+      { code: 'ArrowDown', label: '↓', hint: 'Pitch Backward' },
+      { code: 'ArrowLeft', label: '←', hint: 'Roll Left' },
+      { code: 'ArrowRight', label: '→', hint: 'Roll Right' },
+      { code: 'KeyA', label: 'A', hint: 'Yaw Left' },
+      { code: 'KeyD', label: 'D', hint: 'Yaw Right' },
     ],
 
     tips: [
       'Look ahead to the next gate before you reach the current one.',
-      'Slow down as you arrive — overshooting a gate wastes more time than easing in.',
+      'The gates stand a few metres up — climb early, not at the last moment.',
     ],
     commonMistakes: [
       'Taking the gates in the wrong order — that ends the attempt.',
-      'Flying past a gate without passing close enough to register it.',
+      'Passing beside a gate instead of through its opening.',
     ],
 
-    validate: (p: Probe, mem: LessonMemory) => {
+    validate: (p, mem) => {
       if (p.crashed) return { done: false, failed: true, hint: 'Crashed — try again' };
-      mem.altDev = Math.max(mem.altDev ?? 0, Math.abs(p.altitude - ALT));
+      mem.altDev = Math.max(mem.altDev ?? 0, Math.abs(p.altitude - route[0].at[1]));
 
-      const r = followRoute(mem, 'wp', p.position, route, REACH);
+      const r = flyRoute(mem, p.position, route, { strict: true });
       if (r.outOfOrder) {
         return {
           done: false,
           failed: true,
-          hint: `Wrong gate — the route is ${labels}. Start again.`,
+          hint: `Wrong one — the route is ${labels}. Start again.`,
         };
       }
       if (r.complete) return { done: true, progress: 1, hint: 'Route complete' };
-
-      const [tx, tz] = route[r.next];
-      const d = horizontalDist(p.position, tx, tz);
-      const leg = Math.max(0, Math.min(1, 1 - (d - REACH) / 10));
-      return {
-        done: false,
-        progress: (r.next + leg) / route.length,
-        hint: `Gate ${NAMES[r.next]} next`,
-      };
+      return { done: false, progress: clamp01(r.progress), hint: `Next: ${route[r.next].label}` };
     },
 
     score: ({ timeSec, collisions, smoothness, mem }) => {
       if (collisions > 0) return 1;
       const altDev = mem.altDev ?? 0;
-      if (altDev <= 0.9 && timeSec <= cfg.threeStarSec && smoothness >= 0.3) return 3;
-      if (altDev <= 1.8 && timeSec <= cfg.threeStarSec * 1.8) return 2;
+      if (altDev <= 1.2 && timeSec <= cfg.threeStarSec && smoothness >= 0.3) return 3;
+      if (altDev <= 2.2 && timeSec <= cfg.threeStarSec * 1.8) return 2;
       return 1;
     },
 
@@ -124,82 +142,47 @@ export const navABLesson = navLesson({
   id: 'nav-ab',
   order: 11,
   title: 'Route A → B',
-  subtitle: 'Point to point',
-  route: [
-    [0, -5],
-    [5, 3],
-  ],
+  subtitle: 'Two gates, your first set route',
+  gates: 2,
   intro: [
     'Navigation is flying a route someone else set, not wherever the drone drifts.',
-    'Two gates: fly through A, then through B.',
-    'Reach each one closely enough to register it — passing nearby does not count.',
+    'The two red rings on the field are your A and B — the guide marks each one as you go.',
+    'Fly through A, then across to B.',
     'Take them out of order and the attempt ends, so look before you move.',
   ],
-  demoSticks: [
-    { at: 3.0, stick: { pitch: 0.34 }, caption: 'Straight out to gate A' },
-    { at: 6.4, stick: { pitch: 0, roll: 0 }, caption: 'Through A — now line up for B' },
-    { at: 7.4, stick: { pitch: -0.22, roll: 0.32 }, caption: 'Across to gate B' },
-    { at: 11.2, stick: { pitch: 0, roll: 0 }, caption: 'Through B — route complete' },
-  ],
-  timeout: 50,
-  threeStarSec: 26,
+  timeout: 60,
+  threeStarSec: 42,
 });
 
 export const navABCLesson = navLesson({
   id: 'nav-abc',
   order: 12,
   title: 'Route A → B → C',
-  subtitle: 'Three waypoints',
-  route: [
-    [-5, -4],
-    [5, -4],
-    [0, 5],
-  ],
+  subtitle: 'Three gates, taken in order',
+  gates: 3,
   intro: [
-    'Three gates now, and they are not in a straight line.',
-    'Fly A, then B, then C — each turn sets up the next leg.',
-    'The gate you want next is called out on screen as you go.',
+    'Three gates now: the two red rings you know, then the green rectangle beyond them.',
+    'Fly A, then B, then C. The gate you want next is marked and called out as you go.',
+    'Reach each one closely enough to register it — passing nearby does not count.',
     'Cutting to a later gate ends the attempt.',
   ],
-  demoSticks: [
-    { at: 3.0, stick: { pitch: 0.26, roll: -0.26 }, caption: 'Out to gate A' },
-    { at: 6.6, stick: { pitch: 0, roll: 0 }, caption: 'Through A' },
-    { at: 7.4, stick: { roll: 0.34 }, caption: 'Straight across to B' },
-    { at: 11.4, stick: { roll: 0 }, caption: 'Through B' },
-    { at: 12.2, stick: { pitch: -0.3, roll: -0.2 }, caption: 'Back and left to C' },
-    { at: 16.4, stick: { pitch: 0, roll: 0 }, caption: 'Through C — route complete' },
-  ],
   timeout: 65,
-  threeStarSec: 38,
+  threeStarSec: 55,
 });
 
 export const navABCDLesson = navLesson({
   id: 'nav-abcd',
   order: 13,
   title: 'Route A → B → C → D',
-  subtitle: 'Extended navigation',
-  route: [
-    [-5, -5],
-    [5, -5],
-    [5, 5],
-    [-5, 5],
-  ],
+  subtitle: 'Four gates, the full circuit',
+  gates: 4,
+  returnHome: true,
   intro: [
-    'Four gates around the field — the full circuit.',
-    'Fly A, B, C, D in order, holding your height the whole way.',
-    'This is the square you already know, flown as a navigation task: the gates',
-    'have to be hit properly, and the order is checked.',
+    'All four gates, in order, and then home — the full circuit.',
+    'A, B, C, D, and finally back over the "H" you started from.',
+    'D is the highest gate on the field, and the run home from it is the longest leg.',
+    'Order is checked at every step, so no shortcuts.',
   ],
-  demoSticks: [
-    { at: 3.0, stick: { pitch: 0.26, roll: -0.26 }, caption: 'Out to gate A' },
-    { at: 6.8, stick: { pitch: 0, roll: 0 }, caption: 'Through A' },
-    { at: 7.6, stick: { roll: 0.34 }, caption: 'Across to B' },
-    { at: 11.6, stick: { roll: 0 }, caption: 'Through B' },
-    { at: 12.4, stick: { pitch: -0.34 }, caption: 'Back to C' },
-    { at: 16.4, stick: { pitch: 0 }, caption: 'Through C' },
-    { at: 17.2, stick: { roll: -0.34 }, caption: 'Across to D' },
-    { at: 21.2, stick: { roll: 0 }, caption: 'Through D — circuit complete' },
-  ],
-  timeout: 85,
-  threeStarSec: 52,
+  timeout: 75,
+  threeStarSec: 75,
 });

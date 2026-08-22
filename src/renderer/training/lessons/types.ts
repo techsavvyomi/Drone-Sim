@@ -1,4 +1,3 @@
-import type { FC } from 'react';
 import type { StickInput, Vec3 } from '@shared/types';
 import type { DroneStatus } from '../../state/flightStore';
 
@@ -47,6 +46,16 @@ export interface DemoStep {
   caption?: string;
   /** KeyboardEvent.code to flash on the keycap row while this step plays. */
   key?: string;
+  /** Turn to this heading, in radians, and HOLD it — `null` releases the yaw.
+   *
+   *  The only closed-loop channel in a demonstration, and it has to be. Every
+   *  other channel is open-loop by design: a leg that lands a metre off still
+   *  looks like the manoeuvre it is teaching. A turn that lands ten degrees off
+   *  does not — the heading is the frame the next leg's sticks are computed in,
+   *  so the error does not stay in the turn, it rotates the whole rest of the
+   *  route. Timed yaw holds got this right on some runs and not others; the
+   *  Director drives this one from the drone's real heading instead. */
+  yawTo?: number | null;
 }
 
 /** A keycap shown under the flight view, highlighted while its key is active. */
@@ -88,6 +97,44 @@ export interface ScoreInput {
 
 export type Stars = 1 | 2 | 3;
 
+/** How the route guide draws a highlight over the arena object it names. */
+export type MarkKind = 'gate' | 'pad' | 'marker' | 'helipad';
+
+/**
+ * One point in the ACADEMY ARENA that a lesson sends the pilot to.
+ *
+ * A checkpoint never creates scenery. It names something already standing in
+ * the arena — a racing gate, a painted landing pad, one of the white markers
+ * ringing the helipad — and the guide puts a highlight on THAT. Lessons used to
+ * draw their own rings and pylons a few metres from the "H"; the pilot then
+ * learned an arena that does not exist outside the lesson.
+ *
+ * The same list drives all three things that have to agree: what the validator
+ * accepts, what the demonstration flies, and what is lit up on screen.
+ */
+export interface Checkpoint {
+  /** Shown in the HUD as the target: 'A', 'B', 'blue gate'... */
+  label: string;
+  /** World position of the point to reach — for a gate, the centre of its
+   *  opening, so "reached it" and "flew through it" are the same test. */
+  at: readonly [number, number, number];
+  /** How close counts, in metres, measured in 3-D. */
+  reach: number;
+  /** Which arena object this is, so the guide draws the right highlight. */
+  mark: MarkKind;
+  /** Size of that object — a gate's opening, a pad's painted radius. */
+  markSize?: number;
+  /** Accent for the highlight; defaults to the object's own colour. */
+  color?: string;
+  /** For a gate: the unit direction THROUGH its opening, in world space.
+   *
+   *  A gate is not a place to arrive at, it is a hole to pass through, and a
+   *  demonstration that brakes on the centre point stops inside the frame. With
+   *  an axis the planner can line the drone up in front of the gate and carry it
+   *  out the far side — the flight the lesson is actually asking for. */
+  axis?: readonly [number, number, number];
+}
+
 export interface Lesson {
   id: string;
   /** 1-based position in the curriculum; also drives unlock order. */
@@ -104,6 +151,12 @@ export interface Lesson {
   /** Step 3 — Practice prompt + a default standing hint. */
   practice: { prompt: string; hint: string };
 
+  /** The arena checkpoints this lesson flies, in order.
+   *
+   *  Drives the validator, the demonstration and the on-screen highlight from
+   *  one list, so the demo cannot show a route the attempt does not ask for. */
+  route?: readonly Checkpoint[];
+
   /** 💡 Pilot tips — best-practice pointers, shown on the intro card. */
   tips?: string[];
   /** ⚠ Common mistakes beginners make, shown on the intro card. */
@@ -118,17 +171,23 @@ export interface Lesson {
   /** Step 5 — Reward: turn performance into a 1..3 star rating. */
   score: (input: ScoreInput) => Stars;
 
-  /** Optional lesson-specific 3D props, rendered inside the training Canvas. */
-  Scene?: FC;
-
   /** Optional setup run once when the lesson starts (e.g. pre-arm the drone). */
   setup?: () => void;
 
-  /** Seconds of failing/idle practice before the demo auto-replays (default 20). */
+  /** Seconds of *no progress* before the demo auto-replays (default 45). The
+   *  clock restarts whenever the attempt gets closer to the goal, so this is a
+   *  stall timeout, not a time limit on the lesson. */
   practiceTimeout?: number;
 }
 
 // ---- Small validator helpers ------------------------------------------------
+
+/** Clamp to 0..1. Progress bars read straight off this, and an un-clamped
+ *  "1 - distance/span" goes negative the moment the drone is further out than
+ *  the span, which the HUD then renders as a negative percentage. */
+export function clamp01(v: number): number {
+  return v < 0 ? 0 : v > 1 ? 1 : v;
+}
 
 /**
  * Track "condition held continuously for `seconds`". Returns the held fraction
@@ -146,77 +205,114 @@ export function holdFor(
   return mem[key] / seconds;
 }
 
+/**
+ * Once true, stays true for the rest of the attempt.
+ *
+ * A validator that reports `done` from a live check — "am I within 1.3 m of the
+ * marker *right now*" — flickers: the drone arrives, one frame says done, and a
+ * hand's width of drift says not-done again. The Director needs the success to
+ * hold continuously for over a second before it awards the lesson, so an attempt
+ * that visibly reached the target could run out of time having never finished.
+ * `flyRoute` latches its checkpoints for the same reason; this is the same rule
+ * for the lessons judged on a held condition rather than on a route.
+ */
+export function latch(mem: LessonMemory, key: string, condition: boolean): boolean {
+  if (condition) mem[key] = 1;
+  return mem[key] === 1;
+}
+
+/** Straight-line distance from the drone to a world point, height included. */
+export function dist3(position: Vec3, at: readonly [number, number, number]): number {
+  return Math.hypot(position[0] - at[0], position[1] - at[1], position[2] - at[2]);
+}
+
+/** What `flyRoute` saw this frame. */
+export interface RouteState {
+  /** Index of the checkpoint being flown to now. */
+  next: number;
+  /** Every checkpoint has been taken, in order. */
+  complete: boolean;
+  /** A LATER checkpoint was reached first — the route was cut. */
+  outOfOrder: boolean;
+  /** Distance to the current target. */
+  distance: number;
+  /** 0..1 across the whole route, counting part-way along the current leg. */
+  progress: number;
+}
+
+/**
+ * Walk a lesson's checkpoints in order.
+ *
+ * The one route walker for every lesson that has a route. It replaced an XZ-only
+ * pair of walkers once checkpoints became arena gates with a height, rather
+ * than marks drawn on the floor beside the pad. Arrival LATCHES: passing through a gate
+ * at speed counts, and the success cannot then be lost to the drift on the far
+ * side.
+ *
+ * `strict` reports reaching a LATER checkpoint first as `outOfOrder`, so a
+ * navigation lesson can end the attempt; without it an early corner is simply
+ * not the corner that was asked for, and is ignored.
+ */
+export function flyRoute(
+  mem: LessonMemory,
+  position: Vec3,
+  route: readonly Checkpoint[],
+  opts: { strict?: boolean; spread?: number } = {},
+): RouteState {
+  const next = mem.wp ?? 0;
+  if (next >= route.length) {
+    return { next: route.length, complete: true, outOfOrder: false, distance: 0, progress: 1 };
+  }
+
+  const target = route[next];
+  const distance = dist3(position, target.at);
+  if (distance < target.reach) {
+    mem.wp = next + 1;
+    const done = next + 1;
+    return {
+      next: done,
+      complete: done >= route.length,
+      outOfOrder: false,
+      distance: 0,
+      progress: done / route.length,
+    };
+  }
+
+  if (opts.strict) {
+    // A later checkpoint only counts as CUT once the drone has actually been
+    // clear of it. Without that guard a route which finishes where it starts —
+    // Module 13 ends back over the "H" it took off from — fails on its very
+    // first frame, before the pilot has moved.
+    let left = mem.left ?? 0;
+    for (let j = next + 1; j < route.length; j++) {
+      const bit = 1 << j;
+      const away = dist3(position, route[j].at);
+      if (away >= route[j].reach * 1.6) left |= bit;
+      else if (left & bit) {
+        mem.left = left;
+        return { next, complete: false, outOfOrder: true, distance, progress: next / route.length };
+      }
+    }
+    mem.left = left;
+  }
+
+  // How far along this leg, measured against the spread the lesson expects
+  // rather than the leg's true length: a bar that only moves in the last two
+  // metres of a forty-metre leg reads as a lesson that is not responding.
+  const spread = opts.spread ?? 14;
+  const leg = Math.max(0, Math.min(1, 1 - (distance - target.reach) / spread));
+  return {
+    next,
+    complete: false,
+    outOfOrder: false,
+    distance,
+    progress: (next + leg) / route.length,
+  };
+}
+
 /** Horizontal distance from a world position to a world XZ point. */
 export function horizontalDist(position: Vec3, x: number, z: number): number {
   return Math.hypot(position[0] - x, position[2] - z);
-}
-
-/**
- * Walk a route of world-XZ waypoints in order.
- *
- * Stores the index of the next waypoint in `mem[key]` and advances when the
- * drone comes within `reach` of it. Returns that index, so a validator reads
- * `visitInOrder(...) >= route.length` as "route complete". Shared by every
- * shape lesson — square, triangle, straight line and diagonal are all just
- * different routes.
- */
-export function visitInOrder(
-  mem: LessonMemory,
-  key: string,
-  position: Vec3,
-  route: readonly (readonly [number, number])[],
-  reach: number,
-): number {
-  const i = mem[key] ?? 0;
-  if (i >= route.length) return i;
-  const [x, z] = route[i];
-  if (horizontalDist(position, x, z) < reach) mem[key] = i + 1;
-  return mem[key] ?? 0;
-}
-
-/** What `followRoute` saw this frame. */
-export interface RouteProgress {
-  /** Index of the waypoint the drone should be heading for now. */
-  next: number;
-  /** Every waypoint has been taken, in order. */
-  complete: boolean;
-  /** A LATER waypoint was reached before the expected one — the route was cut. */
-  outOfOrder: boolean;
-}
-
-/**
- * Strict version of `visitInOrder` for the navigation lessons.
- *
- * `visitInOrder` simply ignores a waypoint taken early, which is fine for a shape
- * you are tracing but wrong for a route you are being tested on: skipping B and
- * going straight to C has to FAIL, not silently do nothing. This reports that as
- * `outOfOrder` so the validator can end the attempt.
- */
-export function followRoute(
-  mem: LessonMemory,
-  key: string,
-  position: Vec3,
-  route: readonly (readonly [number, number])[],
-  reach: number,
-): RouteProgress {
-  const next = mem[key] ?? 0;
-  if (next >= route.length) return { next, complete: true, outOfOrder: false };
-
-  const [nx, nz] = route[next];
-  if (horizontalDist(position, nx, nz) < reach) {
-    mem[key] = next + 1;
-    return { next: next + 1, complete: next + 1 >= route.length, outOfOrder: false };
-  }
-
-  // Anything further down the route counts as cutting the corner. Waypoints
-  // already taken are ignored — flying back over B on the way to C is not a fault.
-  for (let j = next + 1; j < route.length; j++) {
-    const [x, z] = route[j];
-    if (horizontalDist(position, x, z) < reach) {
-      return { next, complete: false, outOfOrder: true };
-    }
-  }
-  return { next, complete: false, outOfOrder: false };
 }
 
 /**

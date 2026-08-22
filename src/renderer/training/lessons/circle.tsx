@@ -1,59 +1,54 @@
-import { type Lesson } from './types';
+import { latch, type Lesson } from './types';
+import { planCircle } from './demoFlight';
+import { HOVER } from './arena';
+import { ACADEMY_PAD } from '../../plugins/environments/droneAcademy';
 import { useFlightStore } from '../../state/flightStore';
-import { Pylon } from './props';
 
 // Step 11 — Circle. The square and the triangle are straight lines joined by
 // stops. A circle never stops: both sticks stay in and their ratio changes
 // continuously all the way round. Scored on swept angle and how even the radius
 // stayed, so cutting a corner cannot pass.
-const ALT = 1.6;
-const RADIUS = 4;
-const BAND = 1.5;
+const ALT = HOVER;
+/** The helipad's own ring of white markers — the circle is already painted on
+ *  the field, so the lesson does not draw one. */
+const RADIUS = ACADEMY_PAD.lightRadius;
+/** Scaled to the bigger ring: the old 1.5 m band was set for a 4 m circle. */
+const BAND = 1.8;
 /** Full turn, minus a little, so the finish does not depend on a perfect close. */
 const TARGET_SWEEP = Math.PI * 2 * 0.95;
-
-/** The path to follow, drawn flat on the ground. */
-function CirclePath() {
-  return (
-    <mesh position={[0, 0.02, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-      <ringGeometry args={[RADIUS - 0.08, RADIUS + 0.08, 96]} />
-      <meshBasicMaterial color="#38bdf8" transparent opacity={0.45} depthWrite={false} />
-    </mesh>
-  );
-}
 
 export const circleLesson: Lesson = {
   id: 'circle',
   order: 10,
-  title: 'Circle',
-  subtitle: 'One continuous arc',
+  title: 'Full Circle',
+  subtitle: 'One smooth lap, never stopping',
 
   explain: {
     title: 'Flying a Circle',
     body: [
       'A circle is the one shape with no corners to rest at.',
       'Both sticks stay in the whole way round, and their balance changes continuously.',
-      'Follow the marked ring around the centre pylon, keeping the radius even.',
+      'Follow the ring of white markers around the helipad, keeping the radius even.',
       'Smooth and round beats fast — cutting in close will not count.',
     ],
   },
 
-  Scene: () => (
-    <>
-      <CirclePath />
-      <Pylon position={[0, 0, 0]} color="#34d399" />
-    </>
-  ),
-
   demo: [
     { at: 0.0, cmd: 'arm', key: 'Enter', caption: 'Arm — motors spool up to idle' },
     { at: 0.0, cmd: 'takeoffLand', key: 'Space', caption: 'Take off to a hover' },
-    { at: 3.0, stick: { roll: 0.3 }, key: 'ArrowRight', caption: 'Roll out to the ring' },
-    { at: 5.2, stick: { roll: 0.26, pitch: 0.26 }, caption: 'Now blend pitch in — start the arc' },
-    { at: 8.0, stick: { roll: -0.26, pitch: 0.26 }, caption: 'Keep rotating the mix…' },
-    { at: 11.0, stick: { roll: -0.26, pitch: -0.26 }, caption: '…the balance never stops changing' },
-    { at: 14.0, stick: { roll: 0.26, pitch: -0.26 }, caption: 'Round the far side' },
-    { at: 17.0, stick: { roll: 0, pitch: 0 }, caption: 'Full circle — one continuous arc' },
+    ...planCircle({
+      radius: RADIUS,
+      height: ALT,
+      captions: [
+        'Out to the ring of white markers',
+        'Build some speed ALONG the ring, not across it',
+        'Now lean INTO the middle — and keep leaning',
+        'The lean points at the centre the whole way round',
+        'Same lean, new direction — that is all a circle is',
+        'Round the far side and back to the start',
+        'Level out — one continuous arc, no stops',
+      ],
+    }),
   ],
 
   setup: () => {
@@ -63,15 +58,15 @@ export const circleLesson: Lesson = {
   },
 
   practice: {
-    prompt: 'Fly one full circle around the pylon, on the ring',
+    prompt: 'One full lap around the helipad, on the ring of markers',
     hint: 'Get out to the ring first, then start the arc',
   },
 
   keys: [
-    { code: 'ArrowUp', label: '↑', hint: 'Forward' },
-    { code: 'ArrowDown', label: '↓', hint: 'Backward' },
-    { code: 'ArrowLeft', label: '←', hint: 'Left' },
-    { code: 'ArrowRight', label: '→', hint: 'Right' },
+    { code: 'ArrowUp', label: '↑', hint: 'Pitch Forward' },
+    { code: 'ArrowDown', label: '↓', hint: 'Pitch Backward' },
+    { code: 'ArrowLeft', label: '←', hint: 'Roll Left' },
+    { code: 'ArrowRight', label: '→', hint: 'Roll Right' },
   ],
 
   tips: [
@@ -120,10 +115,14 @@ export const circleLesson: Lesson = {
 
     const swept = mem.sweep ?? 0;
     const pct = Math.round((swept / (Math.PI * 2)) * 100);
+    // Latched: sweep unwinds if the pilot drifts back the other way, and losing
+    // a completed circle to a wobble on the last metre is not a lesson in
+    // anything.
+    const round = latch(mem, 'round', swept >= TARGET_SWEEP);
     return {
-      done: swept >= TARGET_SWEEP,
-      progress: Math.min(1, swept / TARGET_SWEEP),
-      hint: swept >= TARGET_SWEEP ? 'Circle complete' : `Keep the arc going — ${pct}% round`,
+      done: round,
+      progress: round ? 1 : Math.min(1, swept / TARGET_SWEEP),
+      hint: round ? 'Circle complete' : `Keep the arc going — ${pct}% round`,
     };
   },
 
@@ -131,8 +130,9 @@ export const circleLesson: Lesson = {
     if (collisions > 0) return 1;
     const rDev = mem.radiusDev ?? 99;
     const altDev = mem.altDev ?? 0;
-    if (rDev <= 0.9 && altDev <= 0.8 && smoothness >= 0.35 && timeSec <= 55) return 3;
-    if (rDev <= 1.4 && altDev <= 1.6) return 2;
+    // Widened with the ring: the lap is now 43 m round rather than 25.
+    if (rDev <= 1.2 && altDev <= 0.9 && smoothness >= 0.35 && timeSec <= 70) return 3;
+    if (rDev <= 1.8 && altDev <= 1.8) return 2;
     return 1;
   },
 

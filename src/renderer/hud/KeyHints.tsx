@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
 import type { KeyHint } from '../training/lessons/types';
 
-// A row of keycaps for the active lesson's controls. A cap lights up when its
-// key is really pressed (Practice) or when the demo flashes it (Demonstration),
+// A row of keycaps for the active lesson's controls. A cap lights up while its
+// key is really held (Practice) or while the demo is holding it (Demonstration),
 // so the pilot always sees which control maps to what.
-export function KeyHints({ keys, demoKey }: { keys: KeyHint[]; demoKey: string | null }) {
+export function KeyHints({ keys, demoKeys }: { keys: KeyHint[]; demoKeys: readonly string[] }) {
   const [pressed, setPressed] = useState<ReadonlySet<string>>(new Set());
 
   useEffect(() => {
@@ -33,7 +33,7 @@ export function KeyHints({ keys, demoKey }: { keys: KeyHint[]; demoKey: string |
   return (
     <div className="tr-keys">
       {keys.map((k) => {
-        const active = demoKey === k.code || pressed.has(k.code);
+        const active = demoKeys.includes(k.code) || pressed.has(k.code);
         return (
           <div key={k.code} className={`tr-key ${active ? 'on' : ''}`}>
             <kbd>{k.label}</kbd>

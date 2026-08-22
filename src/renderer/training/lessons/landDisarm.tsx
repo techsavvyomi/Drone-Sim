@@ -1,32 +1,16 @@
-import { useRef } from 'react';
-import { useFrame } from '@react-three/fiber';
-import * as THREE from 'three';
 import { holdFor, horizontalDist, type Lesson } from './types';
+import { home } from './arena';
 import { useFlightStore } from '../../state/flightStore';
-import { FLIGHT_SCHOOL_PAD } from '../../plugins/environments/flightSchool';
+import { ACADEMY_PAD } from '../../plugins/environments/droneAcademy';
 
-const [PAD_X, PAD_Z] = FLIGHT_SCHOOL_PAD.center;
-const PAD_R = FLIGHT_SCHOOL_PAD.radius;
-
-/** A gently pulsing halo drawing the eye to the landing pad. */
-function LandingHighlight() {
-  const ring = useRef<THREE.Mesh>(null);
-  const mat = useRef<THREE.MeshBasicMaterial>(null);
-
-  useFrame((state) => {
-    const t = state.clock.elapsedTime;
-    const s = 1 + 0.12 * Math.sin(t * 2.2);
-    if (ring.current) ring.current.scale.set(s, s, 1);
-    if (mat.current) mat.current.opacity = 0.35 + 0.2 * (0.5 + 0.5 * Math.sin(t * 2.2));
-  });
-
-  return (
-    <mesh ref={ring} position={[PAD_X, 0.02, PAD_Z]} rotation={[-Math.PI / 2, 0, 0]}>
-      <ringGeometry args={[PAD_R * 1.15, PAD_R * 1.35, 48]} />
-      <meshBasicMaterial ref={mat} color="#34d399" transparent opacity={0.4} depthWrite={false} />
-    </mesh>
-  );
-}
+const [PAD_X, PAD_Z] = ACADEMY_PAD.center;
+/*
+ * The touchdown circle is deliberately NOT the helipad's own radius. The pad is
+ * 7 m across and the painted ring 4.5 — land anywhere on either and the drill
+ * scores itself, which teaches nothing. This is the target drawn on the "H" at
+ * the pad centre, and it is the same 0.9 m the lesson has always been judged on.
+ */
+const PAD_R = 0.9;
 
 // Step 2 — Land & Disarm. The mirror of Arm & Take Off, and taught as one action
 // for the same reason: a landing is not finished until the motors are off. The
@@ -35,7 +19,7 @@ export const landDisarmLesson: Lesson = {
   id: 'land-disarm',
   order: 14,
   title: 'Land & Disarm',
-  subtitle: 'Come down and shut off',
+  subtitle: 'Bring it home, set it down, shut it off',
 
   explain: {
     title: 'Landing and Disarming',
@@ -47,7 +31,10 @@ export const landDisarmLesson: Lesson = {
     ],
   },
 
-  Scene: LandingHighlight,
+
+  // The touchdown circle on the "H" is the only target, and the guide rings the
+  // pad the arena already has rather than adding one.
+  route: [home('H', { reach: PAD_R })],
 
   demo: [
     { at: 0.0, cmd: 'arm', key: 'Enter', caption: 'Armed and hovering' },
@@ -71,8 +58,8 @@ export const landDisarmLesson: Lesson = {
   },
 
   keys: [
-    { code: 'KeyW', label: 'W', hint: 'Up' },
-    { code: 'KeyS', label: 'S', hint: 'Down' },
+    { code: 'KeyW', label: 'W', hint: 'Throttle Up' },
+    { code: 'KeyS', label: 'S', hint: 'Throttle Down' },
     { code: 'Space', label: 'SPACE', hint: 'Auto-land' },
     { code: 'Enter', label: 'ENTER', hint: 'Disarm' },
   ],

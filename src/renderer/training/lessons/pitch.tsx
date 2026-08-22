@@ -1,86 +1,90 @@
-import { horizontalDist, type Lesson } from './types';
+import { clamp01, flyRoute, type Lesson } from './types';
+import { planDemo } from './demoFlight';
+import { gate, home, routeLegs } from './arena';
 import { useFlightStore } from '../../state/flightStore';
-import { Checkpoint } from './props';
 
-// Lesson (Module 6) — Pitch. Move forward and back by tilting the drone. Fly out
-// to a checkpoint ahead, then return to the start.
-const CP_X = 0;
-const CP_Z = -4; // forward is -Z for the default heading
-const REACH = 1.0;
-const HOME = 1.0;
-const HOVER_ALT = 1.5;
+// Module 2 — Pitch Control. Forward and back on one stick, flown to the blue
+// square gate standing 16 m straight off the nose. It is the first thing a
+// pilot sees from the pad and it is dead ahead, so "fly forward" needs no
+// further explanation — and the small climb to its opening is the throttle
+// lesson from Module 1 put to use.
+const ROUTE = [gate('blue-near', 'Blue gate', { ease: 1.3 }), home('H')] as const;
 
 export const pitchLesson: Lesson = {
   id: 'pitch',
   order: 2,
-  title: 'Pitch',
-  subtitle: 'Forward and back',
+  title: 'Pitch Control',
+  subtitle: 'Fly out to the marker, then back',
 
   explain: {
-    title: 'Pitch',
+    title: 'Pitch Control',
     body: [
       'Pitch tilts the drone forward or backward to move it in that direction.',
       'The more you tilt, the faster it flies — ease off to slow down.',
-      'Your goal: fly forward to the checkpoint, then return to the start.',
+      'Your goal: fly out to the blue square gate ahead, then return to the "H".',
+      'The gate sits a little above hover height, so add a touch of throttle on the way.',
     ],
   },
 
-  Scene: () => <Checkpoint position={[CP_X, HOVER_ALT, CP_Z]} color="#38bdf8" />,
+  route: ROUTE,
 
   demo: [
     { at: 0.0, cmd: 'arm', key: 'Enter', caption: 'Arm — motors spool up to idle' },
     { at: 0.0, cmd: 'takeoffLand', key: 'Space', caption: 'Take off to a hover' },
-    { at: 3.2, stick: { pitch: 0.4 }, key: 'ArrowUp', caption: 'Pitch forward — fly to the checkpoint' },
-    { at: 5.4, stick: { pitch: 0 }, caption: 'Level off at the checkpoint' },
-    { at: 6.2, stick: { pitch: -0.4 }, key: 'ArrowDown', caption: 'Pitch back — return home' },
-    { at: 8.6, stick: { pitch: 0 }, caption: 'Back at the start' },
+    ...planDemo(
+      routeLegs(ROUTE, [
+        {
+          caption: 'Pitch forward — straight out to the blue gate',
+          arrive: 'Pitch BACK to stop on it — levelling off only coasts',
+        },
+        { caption: 'Pitch back — return to the "H"', arrive: 'And forward again to stop' },
+      ]),
+    ),
   ],
 
   setup: () => {
     const flight = useFlightStore.getState();
-    // Takeoff no longer arms on the pilot's behalf, so a lesson that drops the
+    // Take-off no longer arms on the pilot's behalf, so a lesson that drops the
     // student straight into the air has to arm the aircraft itself first.
     if (!flight.armed) flight.toggleArm();
     flight.requestTakeoffLand();
   },
 
   practice: {
-    prompt: 'Fly forward to the checkpoint, then return',
-    hint: 'Pitch forward to fly to the checkpoint',
+    prompt: 'Fly out to the blue gate, then back to the "H"',
+    hint: 'Pitch forward toward the blue gate',
   },
 
   keys: [
-    { code: 'ArrowUp', label: '↑', hint: 'Forward' },
-    { code: 'ArrowDown', label: '↓', hint: 'Backward' },
+    { code: 'ArrowUp', label: '↑', hint: 'Pitch Forward' },
+    { code: 'ArrowDown', label: '↓', hint: 'Pitch Backward' },
+    { code: 'KeyW', label: 'W', hint: 'Throttle Up' },
+    { code: 'KeyS', label: 'S', hint: 'Throttle Down' },
   ],
 
-  tips: ['Keep your altitude steady while moving.', 'Level the drone to stop — don’t rely on drag alone.'],
-  commonMistakes: ['Losing height as you pitch forward.', 'Tilting too hard and overshooting.'],
+  tips: ['Keep the nose pointing straight ahead.', 'Level the drone to stop — don’t rely on drag alone.'],
+  commonMistakes: ['Tilting too hard and overshooting the gate.', 'Forgetting to climb to the opening.'],
 
   validate: (p, mem) => {
     if (p.crashed) return { done: false, failed: true, hint: 'Crashed — try again' };
-    mem.altDev = Math.max(mem.altDev ?? 0, Math.abs(p.altitude - HOVER_ALT));
+    mem.wander = Math.max(mem.wander ?? 0, Math.abs(p.position[0]));
 
-    if ((mem.stage ?? 0) === 0) {
-      const d = horizontalDist(p.position, CP_X, CP_Z);
-      if (d < REACH) mem.stage = 1;
-      return { done: false, progress: 0.5 * Math.min(1, 1 - (d - REACH) / 4), hint: 'Pitch forward to the checkpoint' };
-    }
-
-    const d = horizontalDist(p.position, 0, 0);
-    const home = d < HOME;
+    const r = flyRoute(mem, p.position, ROUTE);
+    if (r.complete) return { done: true, progress: 1, hint: 'Back home — nicely flown' };
     return {
-      done: home,
-      progress: 0.5 + 0.5 * Math.min(1, 1 - (d - HOME) / 4),
-      hint: home ? 'Home' : 'Pitch back to return to the start',
+      done: false,
+      progress: clamp01(r.progress),
+      hint: r.next === 0 ? 'Pitch forward to the blue gate' : 'Pitch back to the "H"',
     };
   },
 
   score: ({ timeSec, collisions, smoothness, mem }) => {
     if (collisions > 0) return 1;
-    const altDev = mem.altDev ?? 0;
-    if (altDev <= 0.6 && timeSec <= 22 && smoothness >= 0.35) return 3;
-    if (altDev <= 1.2 && timeSec <= 40) return 2;
+    const wander = mem.wander ?? 0;
+    if (wander <= 2.5 && timeSec <= 32 && smoothness >= 0.3) return 3;
+    if (wander <= 5 && timeSec <= 55) return 2;
     return 1;
   },
+
+  practiceTimeout: 45,
 };

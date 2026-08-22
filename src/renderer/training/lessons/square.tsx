@@ -1,57 +1,52 @@
-import { horizontalDist, visitInOrder, type Lesson } from './types';
+import { clamp01, flyRoute, type Lesson } from './types';
+import { planDemo } from './demoFlight';
+import { marker, routeLegs } from './arena';
 import { useFlightStore } from '../../state/flightStore';
-import { Pylon } from './props';
 
-// Step 9 — Square. The first closed route, and the first that has to be flown
-// as a sequence rather than a there-and-back. Each side is a single axis, so a
-// square is really "pitch, roll, pitch, roll" taken cleanly in turn.
-const ALT = 1.6;
-const S = 3.5;
+// Module 8 — Square Circuit, flown on four of the white markers ringing the
+// helipad. They sit at the four diagonals of the ring, which puts them at the
+// corners of a square about 9.6 m on a side — and, because that square is
+// aligned with the pad, every side is ONE stick. That is the drill: a side is a
+// straight line on one control, a corner is a full stop before the next one.
 const CORNERS = [
-  [S, -S],
-  [S, S],
-  [-S, S],
-  [-S, -S],
+  marker(14, 'Corner 1'), // front-right
+  marker(2, 'Corner 2'), //  back-right
+  marker(6, 'Corner 3'), //  back-left
+  marker(10, 'Corner 4'), // front-left
 ] as const;
 /** Back to the first corner to close the loop. */
-const ROUTE = [...CORNERS, CORNERS[0]] as const;
-const REACH = 1.1;
+const ROUTE = [...CORNERS, { ...CORNERS[0], label: 'Corner 1 again' }] as const;
 
 export const squareLesson: Lesson = {
   id: 'square',
   order: 8,
-  title: 'Square',
-  subtitle: 'Four sides, four corners',
+  title: 'Square Circuit',
+  subtitle: 'Four straight sides, four square corners',
 
   explain: {
     title: 'Flying a Square',
     body: [
       'A square is four straight sides joined by four square corners.',
-      'Each side needs only one stick — the skill is stopping cleanly before the next.',
-      'Fly the pylons in order and close the loop back at the first one.',
-      'Keep the same height all the way round.',
+      'The four markers you are flying sit square to the pad, so each side needs only ONE stick.',
+      'The skill is the corner: come to a stop, then start the next side cleanly.',
+      'Fly the markers in order and close the loop back at the first one.',
     ],
   },
 
-  Scene: () => (
-    <>
-      {CORNERS.map(([x, z], i) => (
-        <Pylon key={i} position={[x, 0, z]} color={i === 0 ? '#34d399' : '#38bdf8'} />
-      ))}
-    </>
-  ),
+  route: ROUTE,
 
   demo: [
     { at: 0.0, cmd: 'arm', key: 'Enter', caption: 'Arm — motors spool up to idle' },
     { at: 0.0, cmd: 'takeoffLand', key: 'Space', caption: 'Take off to a hover' },
-    { at: 3.0, stick: { roll: 0.34 }, key: 'ArrowRight', caption: 'Side 1 — roll right' },
-    { at: 5.4, stick: { roll: 0 }, caption: 'Stop square at the corner' },
-    { at: 6.2, stick: { pitch: -0.34 }, key: 'ArrowDown', caption: 'Side 2 — pitch back' },
-    { at: 9.4, stick: { pitch: 0 }, caption: 'Corner' },
-    { at: 10.2, stick: { roll: -0.34 }, key: 'ArrowLeft', caption: 'Side 3 — roll left' },
-    { at: 13.4, stick: { roll: 0 }, caption: 'Corner' },
-    { at: 14.2, stick: { pitch: 0.34 }, key: 'ArrowUp', caption: 'Side 4 — pitch forward' },
-    { at: 17.4, stick: { pitch: 0 }, caption: 'Loop closed — one clean square' },
+    ...planDemo(
+      routeLegs(ROUTE, [
+        { caption: 'Out to the first corner', arrive: 'Stop square on it' },
+        { caption: 'Side 1 — pitch back, one stick only', arrive: 'Stop at the corner' },
+        { caption: 'Side 2 — roll left', arrive: 'Stop at the corner' },
+        { caption: 'Side 3 — pitch forward', arrive: 'Stop at the corner' },
+        { caption: 'Side 4 — roll right', arrive: 'Loop closed — one clean square' },
+      ]),
+    ),
   ],
 
   setup: () => {
@@ -61,15 +56,15 @@ export const squareLesson: Lesson = {
   },
 
   practice: {
-    prompt: 'Fly the four corners in order and close the loop',
-    hint: 'One stick per side — stop square at each corner',
+    prompt: 'Fly the four markers in order and close the square',
+    hint: 'Out to the first corner',
   },
 
   keys: [
-    { code: 'ArrowUp', label: '↑', hint: 'Forward' },
-    { code: 'ArrowDown', label: '↓', hint: 'Backward' },
-    { code: 'ArrowLeft', label: '←', hint: 'Left' },
-    { code: 'ArrowRight', label: '→', hint: 'Right' },
+    { code: 'ArrowUp', label: '↑', hint: 'Pitch Forward' },
+    { code: 'ArrowDown', label: '↓', hint: 'Pitch Backward' },
+    { code: 'ArrowLeft', label: '←', hint: 'Roll Left' },
+    { code: 'ArrowRight', label: '→', hint: 'Roll Right' },
   ],
 
   tips: [
@@ -83,29 +78,22 @@ export const squareLesson: Lesson = {
 
   validate: (p, mem) => {
     if (p.crashed) return { done: false, failed: true, hint: 'Crashed — try again' };
-    mem.altDev = Math.max(mem.altDev ?? 0, Math.abs(p.altitude - ALT));
 
-    const i = visitInOrder(mem, 'wp', p.position, ROUTE, REACH);
-    if (i >= ROUTE.length) return { done: true, progress: 1, hint: 'Square complete' };
-
-    const [tx, tz] = ROUTE[i];
-    const d = horizontalDist(p.position, tx, tz);
-    const legProgress = Math.max(0, Math.min(1, 1 - (d - REACH) / (S * 2)));
-    const last = i === ROUTE.length - 1;
+    const r = flyRoute(mem, p.position, ROUTE, { spread: 10 });
+    if (r.complete) return { done: true, progress: 1, hint: 'Square complete' };
     return {
       done: false,
-      progress: (i + legProgress) / ROUTE.length,
-      hint: last ? 'Close the loop — back to the green pylon' : `Corner ${i + 1} of 4`,
+      progress: clamp01(r.progress),
+      hint: r.next === ROUTE.length - 1 ? 'Close the loop — back to the first corner' : `Next: ${ROUTE[r.next].label}`,
     };
   },
 
-  score: ({ timeSec, collisions, smoothness, mem }) => {
+  score: ({ timeSec, collisions, smoothness }) => {
     if (collisions > 0) return 1;
-    const altDev = mem.altDev ?? 0;
-    if (altDev <= 0.8 && timeSec <= 55 && smoothness >= 0.3) return 3;
-    if (altDev <= 1.6 && timeSec <= 90) return 2;
+    if (timeSec <= 60 && smoothness >= 0.3) return 3;
+    if (timeSec <= 95) return 2;
     return 1;
   },
 
-  practiceTimeout: 70,
+  practiceTimeout: 60,
 };

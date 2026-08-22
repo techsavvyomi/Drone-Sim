@@ -285,7 +285,7 @@ export function Drone({ spec, spawn, bounds, outdoor = false, groundY }: DronePr
   // and then arms from `lesson.setup()` in the same tick, so a disarm running
   // off that token would land after the arm and silently kill every lesson.
   // Training is safe from the deps used here — it never changes the drone, and
-  // it pins its environment to a literal `envIdOverride="flight-school"`, so
+  // it pins its environment to a literal `envIdOverride="drone-academy"`, so
   // neither value moves for the life of a lesson.
   const loadoutSettled = useRef(false);
   useEffect(() => {

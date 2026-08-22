@@ -1,52 +1,48 @@
-import { horizontalDist, visitInOrder, type Lesson } from './types';
+import { clamp01, flyRoute, type Lesson } from './types';
+import { planDemo } from './demoFlight';
+import { gate, home, routeLegs } from './arena';
 import { useFlightStore } from '../../state/flightStore';
-import { Checkpoint } from './props';
 
-// Step 6 — Pitch + Roll together. The first lesson where neither stick axis is
-// enough on its own: every target sits off both axes, so it has to be reached
-// by holding pitch and roll at the same time rather than flying an L-shape.
-const ALT = 1.6;
-const R = 3;
-/** Two opposite corners — each needs pitch AND roll held together to reach. */
-const ROUTE = [
-  [R, -R],
-  [-R, R],
-  [0, 0],
-] as const;
-const REACH = 1.0;
+// Module 5 — Pitch + Roll. One diagonal held on both sticks at once, flown to
+// the red ring out on the left. Of the six gates it is the one furthest off the
+// nose — 14 m across for 20 m of run — so reaching it on pitch alone, or roll
+// alone, is not possible. That is the point: an L-shape does not get there.
+const ROUTE = [gate('red-left', 'Red ring', { ease: 1.4 }), home('H')] as const;
 
 export const pitchRollLesson: Lesson = {
   id: 'pitch-roll',
   order: 5,
   title: 'Pitch + Roll',
-  subtitle: 'Both sticks together',
+  subtitle: 'Both sticks at once, one clean diagonal',
 
   explain: {
     title: 'Combining Pitch and Roll',
     body: [
-      'So far each stick moved the drone along one axis. Real flying mixes them.',
-      'Holding pitch and roll together carries the drone diagonally, in one smooth move.',
-      'Your goal: reach the far corner, cross to the opposite one, then come home.',
-      'Fly it as one motion — do not go forward first and then sideways.',
+      'Real flying is rarely along one axis. Held together, pitch and roll move the drone diagonally.',
+      'The red ring out to your left is off BOTH axes — you cannot reach it on one stick.',
+      'Hold both together and the path is a straight diagonal; take turns and you fly an L.',
+      'Your goal: out to the red ring, then straight back to the "H".',
     ],
   },
 
-  Scene: () => (
-    <>
-      <Checkpoint position={[R, ALT, -R]} color="#38bdf8" />
-      <Checkpoint position={[-R, ALT, R]} color="#a855f7" />
-    </>
-  ),
+  route: ROUTE,
 
   demo: [
     { at: 0.0, cmd: 'arm', key: 'Enter', caption: 'Arm — motors spool up to idle' },
     { at: 0.0, cmd: 'takeoffLand', key: 'Space', caption: 'Take off to a hover' },
-    { at: 3.2, stick: { pitch: 0.32, roll: 0.32 }, caption: 'Both sticks — forward AND right together' },
-    { at: 6.0, stick: { pitch: 0, roll: 0 }, caption: 'Level off at the first corner' },
-    { at: 7.0, stick: { pitch: -0.32, roll: -0.32 }, caption: 'Reverse both — cross to the far corner' },
-    { at: 11.0, stick: { pitch: 0, roll: 0 }, caption: 'Level off' },
-    { at: 12.0, stick: { pitch: 0.28, roll: 0.28 }, caption: 'Back to the middle' },
-    { at: 14.4, stick: { pitch: 0, roll: 0 }, caption: 'Home — one smooth diagonal each way' },
+    ...planDemo(
+      routeLegs(
+        ROUTE,
+        [
+          {
+            caption: 'Forward AND left together — one straight diagonal',
+            arrive: 'Both sticks back to stop at the ring',
+          },
+          { caption: 'Reverse both — the same diagonal home', arrive: 'Home — one line each way' },
+        ],
+        0.42,
+      ),
+    ),
   ],
 
   setup: () => {
@@ -56,48 +52,38 @@ export const pitchRollLesson: Lesson = {
   },
 
   practice: {
-    prompt: 'Reach both corners, then return to the middle',
+    prompt: 'Diagonal out to the red ring, then straight back',
     hint: 'Hold pitch and roll together — one diagonal move',
   },
 
   keys: [
-    { code: 'ArrowUp', label: '↑', hint: 'Forward' },
-    { code: 'ArrowDown', label: '↓', hint: 'Backward' },
-    { code: 'ArrowLeft', label: '←', hint: 'Left' },
-    { code: 'ArrowRight', label: '→', hint: 'Right' },
+    { code: 'ArrowUp', label: '↑', hint: 'Pitch Forward' },
+    { code: 'ArrowDown', label: '↓', hint: 'Pitch Backward' },
+    { code: 'ArrowLeft', label: '←', hint: 'Roll Left' },
+    { code: 'ArrowRight', label: '→', hint: 'Roll Right' },
   ],
 
-  tips: [
-    'Move both sticks by a similar amount — that is what makes the path diagonal.',
-    'Hold your altitude while you do it; combined input tends to sink.',
-  ],
-  commonMistakes: [
-    'Flying an L-shape — all pitch, then all roll.',
-    'Letting the nose drift, which turns the diagonal into a curve.',
-  ],
+  tips: ['Start both sticks at the same moment.', 'Equal amounts on each stick gives a 45° line.'],
+  commonMistakes: ['Flying an L instead of a diagonal.', 'Leading with one stick and correcting with the other.'],
 
   validate: (p, mem) => {
     if (p.crashed) return { done: false, failed: true, hint: 'Crashed — try again' };
-    mem.altDev = Math.max(mem.altDev ?? 0, Math.abs(p.altitude - ALT));
 
-    const i = visitInOrder(mem, 'wp', p.position, ROUTE, REACH);
-    if (i >= ROUTE.length) return { done: true, progress: 1, hint: 'Home — nicely coordinated' };
-
-    const [tx, tz] = ROUTE[i];
-    const d = horizontalDist(p.position, tx, tz);
-    const legProgress = Math.max(0, Math.min(1, 1 - (d - REACH) / 6));
-    const hint =
-      i === ROUTE.length - 1 ? 'Now back to the middle' : 'Hold both sticks — go diagonally';
-    return { done: false, progress: (i + legProgress) / ROUTE.length, hint };
+    const r = flyRoute(mem, p.position, ROUTE);
+    if (r.complete) return { done: true, progress: 1, hint: 'Home — nicely coordinated' };
+    return {
+      done: false,
+      progress: clamp01(r.progress),
+      hint: r.next === 0 ? 'Hold both sticks — go diagonally' : 'Now back to the "H", same line',
+    };
   },
 
-  score: ({ timeSec, collisions, smoothness, mem }) => {
+  score: ({ timeSec, collisions, smoothness }) => {
     if (collisions > 0) return 1;
-    const altDev = mem.altDev ?? 0;
-    if (altDev <= 0.7 && timeSec <= 32 && smoothness >= 0.35) return 3;
-    if (altDev <= 1.4 && timeSec <= 55) return 2;
+    if (timeSec <= 34 && smoothness >= 0.32) return 3;
+    if (timeSec <= 60) return 2;
     return 1;
   },
 
-  practiceTimeout: 45,
+  practiceTimeout: 50,
 };

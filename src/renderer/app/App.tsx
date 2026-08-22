@@ -72,7 +72,8 @@ export function App() {
   const trainingLesson = useTrainingStore((s) => s.activeLessonId);
 
   // A running lesson is a flight view: full-bleed, no nav rail.
-  const flightLike = section === 'fly' || (section === 'training' && !!trainingLesson);
+  const inLesson = section === 'training' && !!trainingLesson;
+  const flightLike = section === 'fly' || inLesson;
 
   useEffect(() => {
     void hydrate();
@@ -129,7 +130,7 @@ export function App() {
         flightLike ? 'is-fly' : ''
       } ${section === 'fly' && !panelOpen ? 'no-panel' : ''} ${
         section === 'fly' && panelOpen ? 'panel-open' : ''
-      }`}
+      } ${inLesson ? 'in-lesson' : ''}`}
     >
       {/* Hover strip along the very top edge. In flight the bar is parked out of
           frame, and reaching this strip is what brings it back — see the

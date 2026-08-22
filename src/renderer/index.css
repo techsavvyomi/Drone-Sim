@@ -1402,6 +1402,17 @@ button {
   display: none;
 }
 
+/* Inside a lesson: stand down as well. The lesson HUD owns the top of the frame
+   — the module title, the LEARN/DEMO/FLY stepper and its exit button all live
+   there — and the strip was reaching down over that row, so aiming for the exit
+   pulled the navbar down on top of the click. Nothing up there is useful
+   mid-lesson anyway (the arena is pinned to the academy), and the lesson has its
+   own way out: the exit button, or Esc.
+   MUST stay after the `.app.is-fly` rule above — same specificity, order wins. */
+.app.in-lesson .topbar-peek {
+  display: none;
+}
+
 /* ---- Virtual sticks (corner gimbals) ---- */
 .vstick {
   position: absolute;
@@ -2735,6 +2746,9 @@ button {
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--text-dim);
+  /* Caps name their axis now — PITCH BACKWARD, THROTTLE UP. Two words must stay
+     on one line or the row's caps end up different heights. */
+  white-space: nowrap;
 }
 .tr-key.on {
   border-color: var(--accent);
@@ -3132,8 +3146,12 @@ button {
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding: 12px 18px 20px;
-  background: linear-gradient(180deg, rgba(6, 10, 18, 0.78), rgba(6, 10, 18, 0));
+  /* The deep top padding is deliberate. The row used to hug the very edge, where
+     in macOS full screen the OS menu bar slides in over it — so the exit button
+     sat in a strip that belongs to the system, not to us. Starting the row below
+     that band keeps every control reachable in a plain click. */
+  padding: 44px 18px 20px;
+  background: linear-gradient(180deg, rgba(6, 10, 18, 0.82) 40%, rgba(6, 10, 18, 0));
   pointer-events: none;
 }
 .tr-hud.min .tr-bar > * {
@@ -3349,6 +3367,22 @@ button {
 }
 .tr-hud.min .tr-key span {
   font-size: 10.5px;
+}
+
+/* NEXT target on the practice line. Route lessons count checkpoints instead of
+   a percentage, because "2/4" is what the pilot actually needs to know. */
+.tr-line-next {
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  color: var(--text-dim);
+  white-space: nowrap;
+  margin-left: auto;
+  padding-right: 14px;
+}
+.tr-line-next b {
+  color: var(--tr-accent);
+  font-weight: 800;
+  margin-left: 6px;
 }
 
 /* Reward stays understated */

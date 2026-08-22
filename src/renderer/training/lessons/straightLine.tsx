@@ -1,48 +1,49 @@
-import { horizontalDist, lineDeviation, visitInOrder, type Lesson } from './types';
+import { clamp01, flyRoute, lineDeviation, type Lesson } from './types';
+import { planDemo } from './demoFlight';
+import { gate, home, routeLegs } from './arena';
 import { useFlightStore } from '../../state/flightStore';
-import { Pylon } from './props';
 
-// Step 7 — Straight Line. Pitch already taught "reach the checkpoint". This one
-// is about HOW you get there: the score is driven by sideways drift off the
-// line, not by arriving.
-const ALT = 1.6;
-const FAR_Z = -6;
-const REACH = 1.0;
-const ROUTE = [
-  [0, FAR_Z],
-  [0, 0],
-] as const;
+// Module 6 — Straight-Line Flight. Module 2 taught "reach the gate"; this one is
+// about the path taken to get there. The far blue square stands 39 m out, which
+// is long enough that a drone left to itself will wander — and the score is the
+// worst sideways drift off the line, not the time.
+const TARGET = gate('blue-far', 'Far blue gate', { ease: 1.4 });
+const ROUTE = [TARGET, home('H')] as const;
 
 export const straightLineLesson: Lesson = {
   id: 'straight-line',
   order: 6,
-  title: 'Straight Line',
-  subtitle: 'Out and back on one axis',
+  title: 'Straight-Line Flight',
+  subtitle: 'Out and back without wandering',
 
   explain: {
     title: 'Flying a Straight Line',
     body: [
       'Reaching a marker is easy. Reaching it in a straight line is the skill.',
-      'Fly out to the far pylon and back, staying on the line between them.',
-      'Hold your heading — if the nose wanders, the path curves with it.',
+      'The far blue square is nearly 40 m out — long enough for a drift to become a curve.',
+      'Fly out to it and back, staying on the line between the "H" and the gate.',
       'You are scored on how far you drift sideways, not on how fast you get there.',
     ],
   },
 
-  Scene: () => (
-    <>
-      <Pylon position={[0, 0, FAR_Z]} color="#38bdf8" />
-      <Pylon position={[0, 0, 0]} color="#34d399" />
-    </>
-  ),
+  route: ROUTE,
 
   demo: [
     { at: 0.0, cmd: 'arm', key: 'Enter', caption: 'Arm — motors spool up to idle' },
     { at: 0.0, cmd: 'takeoffLand', key: 'Space', caption: 'Take off to a hover' },
-    { at: 3.2, stick: { pitch: 0.34 }, key: 'ArrowUp', caption: 'Pitch forward — pure forward, no roll' },
-    { at: 7.0, stick: { pitch: 0 }, caption: 'Level off at the far pylon' },
-    { at: 8.2, stick: { pitch: -0.34 }, key: 'ArrowDown', caption: 'Straight back down the same line' },
-    { at: 12.0, stick: { pitch: 0 }, caption: 'Home — one clean line each way' },
+    ...planDemo(
+      routeLegs(
+        ROUTE,
+        [
+          {
+            caption: 'Pitch forward — one long straight run at the far gate',
+            arrive: 'Pitch back to stop at the gate',
+          },
+          { caption: 'Straight back down the same line', arrive: 'Home — one clean line each way' },
+        ],
+        0.45,
+      ),
+    ),
   ],
 
   setup: () => {
@@ -52,54 +53,45 @@ export const straightLineLesson: Lesson = {
   },
 
   practice: {
-    prompt: 'Fly out to the far pylon and back, on the line',
-    hint: 'Pure pitch — keep the nose and the path straight',
+    prompt: 'Out to the far blue gate and back, on the line',
+    hint: 'Straight out — hold the line to the far gate',
   },
 
   keys: [
-    { code: 'ArrowUp', label: '↑', hint: 'Forward' },
-    { code: 'ArrowDown', label: '↓', hint: 'Backward' },
-    { code: 'KeyA', label: 'A', hint: 'Yaw left' },
-    { code: 'KeyD', label: 'D', hint: 'Yaw right' },
+    { code: 'ArrowUp', label: '↑', hint: 'Pitch Forward' },
+    { code: 'ArrowDown', label: '↓', hint: 'Pitch Backward' },
+    { code: 'ArrowLeft', label: '←', hint: 'Roll Left' },
+    { code: 'ArrowRight', label: '→', hint: 'Roll Right' },
   ],
 
-  tips: [
-    'Use small roll corrections to stay on the line — do not fight it with big inputs.',
-    'Keep the heading fixed; correcting with yaw mid-run bends the path.',
-  ],
-  commonMistakes: [
-    'Drifting sideways and only noticing at the end.',
-    'Yawing instead of rolling to correct.',
-  ],
+  tips: ['Correct early and gently — a late correction becomes a swerve.', 'Keep the gate centred as you fly at it.'],
+  commonMistakes: ['Letting a small drift build over the whole run.', 'Zig-zagging while trying to correct.'],
 
   validate: (p, mem) => {
     if (p.crashed) return { done: false, failed: true, hint: 'Crashed — try again' };
-    mem.altDev = Math.max(mem.altDev ?? 0, Math.abs(p.altitude - ALT));
+    // Drift off the line between the pad and the gate — the whole point of the
+    // lesson, measured on the way out AND on the way back.
+    mem.drift = Math.max(
+      mem.drift ?? 0,
+      lineDeviation(p.position, 0, 0, TARGET.at[0], TARGET.at[2]),
+    );
 
-    // Sideways drift off the run, sampled while actually travelling.
-    const drift = lineDeviation(p.position, 0, 0, 0, FAR_Z);
-    if (p.groundSpeed > 0.3) mem.maxDrift = Math.max(mem.maxDrift ?? 0, drift);
-
-    const i = visitInOrder(mem, 'wp', p.position, ROUTE, REACH);
-    if (i >= ROUTE.length) return { done: true, progress: 1, hint: 'Home — line held' };
-
-    const [tx, tz] = ROUTE[i];
-    const d = horizontalDist(p.position, tx, tz);
-    const legProgress = Math.max(0, Math.min(1, 1 - (d - REACH) / 6));
-    let hint: string;
-    if (drift > 1.2) hint = 'Off the line — ease back onto it with roll';
-    else hint = i === 0 ? 'Out to the far pylon' : 'Straight back home';
-    return { done: false, progress: (i + legProgress) / ROUTE.length, hint };
+    const r = flyRoute(mem, p.position, ROUTE);
+    if (r.complete) return { done: true, progress: 1, hint: 'Home — line held' };
+    return {
+      done: false,
+      progress: clamp01(r.progress),
+      hint: r.next === 0 ? 'Hold the line out to the far gate' : 'Straight back down the same line',
+    };
   },
 
   score: ({ timeSec, collisions, mem }) => {
     if (collisions > 0) return 1;
-    const drift = mem.maxDrift ?? 99;
-    const altDev = mem.altDev ?? 0;
-    if (drift <= 0.6 && altDev <= 0.7 && timeSec <= 30) return 3;
-    if (drift <= 1.3 && altDev <= 1.4) return 2;
+    const drift = mem.drift ?? 99;
+    if (drift <= 2.5 && timeSec <= 55) return 3;
+    if (drift <= 5) return 2;
     return 1;
   },
 
-  practiceTimeout: 45,
+  practiceTimeout: 55,
 };

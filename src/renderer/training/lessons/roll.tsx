@@ -1,89 +1,95 @@
-import { horizontalDist, type Lesson } from './types';
+import { clamp01, flyRoute, type Lesson } from './types';
+import { planDemo } from './demoFlight';
+import { home, marker, routeLegs } from './arena';
 import { useFlightStore } from '../../state/flightStore';
-import { Pylon } from './props';
 
-// Lesson (Module 7) — Roll. Move sideways by banking left/right. Fly out to the
-// right marker, then across to the left marker.
-const MARK_X = 4;
-const REACH = 1.3;
-const HOVER_ALT = 1.5;
+// Module 3 — Roll Control. Pure sideways movement, flown between the white
+// markers ringing the helipad. They are level with the pad, symmetrical either
+// side of the "H" and close in, so the drill stays about the roll stick rather
+// than about covering ground. Marker 8 is straight out to the left, marker 0
+// straight out to the right.
+const ROUTE = [
+  marker(8, 'Left marker'),
+  home('Centre'),
+  marker(0, 'Right marker'),
+  home('Centre'),
+] as const;
 
 export const rollLesson: Lesson = {
   id: 'roll',
   order: 3,
-  title: 'Roll',
-  subtitle: 'Left and right',
+  title: 'Roll Control',
+  subtitle: 'Slide sideways without turning',
 
   explain: {
-    title: 'Roll',
+    title: 'Roll Control',
     body: [
       'Roll banks the drone to move it sideways, without changing which way it faces.',
       'It’s the sideways partner to pitch — together they let you fly anywhere.',
-      'Your goal: fly across to the right marker, then over to the left marker.',
+      'Your goal: slide out to the left marker, back to the centre, then out to the right and back.',
+      'Watch the nose: it should still point straight ahead the whole time.',
     ],
   },
 
-  Scene: () => (
-    <>
-      <Pylon position={[MARK_X, 0, 0]} color="#a855f7" />
-      <Pylon position={[-MARK_X, 0, 0]} color="#a855f7" />
-    </>
-  ),
+  route: ROUTE,
 
   demo: [
     { at: 0.0, cmd: 'arm', key: 'Enter', caption: 'Arm — motors spool up to idle' },
     { at: 0.0, cmd: 'takeoffLand', key: 'Space', caption: 'Take off to a hover' },
-    { at: 3.2, stick: { roll: 0.4 }, key: 'ArrowRight', caption: 'Roll right — slide to the marker' },
-    { at: 5.4, stick: { roll: 0 }, caption: 'Level off at the right marker' },
-    { at: 6.2, stick: { roll: -0.45 }, key: 'ArrowLeft', caption: 'Roll left — cross to the other marker' },
-    { at: 9.0, stick: { roll: 0 }, caption: 'Both markers cleared' },
+    ...planDemo(
+      routeLegs(ROUTE, [
+        {
+          caption: 'Roll left — slide out to the left marker',
+          arrive: 'Roll BACK to stop on it — levelling off only coasts',
+        },
+        { caption: 'Roll right — back to the centre', arrive: 'Ease off to stop over the "H"' },
+        { caption: 'Roll right — out to the right marker', arrive: 'Roll back to stop on it' },
+        { caption: 'Roll left — home to the centre', arrive: 'Both markers cleared' },
+      ]),
+    ),
   ],
 
   setup: () => {
     const flight = useFlightStore.getState();
-    // Takeoff no longer arms on the pilot's behalf, so a lesson that drops the
-    // student straight into the air has to arm the aircraft itself first.
     if (!flight.armed) flight.toggleArm();
     flight.requestTakeoffLand();
   },
 
   practice: {
-    prompt: 'Fly through the right marker, then the left',
-    hint: 'Roll right to slide toward the marker',
+    prompt: 'Left marker, centre, right marker, centre',
+    hint: 'Roll left to the marker on your left',
   },
 
   keys: [
-    { code: 'ArrowLeft', label: '←', hint: 'Left' },
-    { code: 'ArrowRight', label: '→', hint: 'Right' },
+    { code: 'ArrowLeft', label: '←', hint: 'Roll Left' },
+    { code: 'ArrowRight', label: '→', hint: 'Roll Right' },
   ],
 
   tips: ['Hold your altitude while sliding sideways.', 'Small bank angles keep it controllable.'],
-  commonMistakes: ['Banking too hard and overshooting.', 'Dropping altitude during the slide.'],
+  commonMistakes: ['Banking too hard and overshooting.', 'Letting the nose swing round — that is yaw, not roll.'],
 
   validate: (p, mem) => {
     if (p.crashed) return { done: false, failed: true, hint: 'Crashed — try again' };
-    mem.altDev = Math.max(mem.altDev ?? 0, Math.abs(p.altitude - HOVER_ALT));
+    mem.wander = Math.max(mem.wander ?? 0, Math.abs(p.position[2]));
 
-    if ((mem.stage ?? 0) === 0) {
-      const d = horizontalDist(p.position, MARK_X, 0);
-      if (d < REACH) mem.stage = 1;
-      return { done: false, progress: 0.5 * Math.min(1, 1 - (d - REACH) / 6), hint: 'Roll right to the marker' };
-    }
-
-    const d = horizontalDist(p.position, -MARK_X, 0);
-    const reached = d < REACH;
-    return {
-      done: reached,
-      progress: 0.5 + 0.5 * Math.min(1, 1 - (d - REACH) / 8),
-      hint: reached ? 'Both markers cleared' : 'Roll left to the far marker',
-    };
+    const r = flyRoute(mem, p.position, ROUTE, { spread: 8 });
+    if (r.complete) return { done: true, progress: 1, hint: 'Both markers cleared' };
+    const hints = [
+      'Roll left to the marker on your left',
+      'Roll right, back to the centre',
+      'Roll right to the far marker',
+      'Roll left, home to the centre',
+    ];
+    return { done: false, progress: clamp01(r.progress), hint: hints[r.next] };
   },
 
   score: ({ timeSec, collisions, smoothness, mem }) => {
     if (collisions > 0) return 1;
-    const altDev = mem.altDev ?? 0;
-    if (altDev <= 0.6 && timeSec <= 24 && smoothness >= 0.35) return 3;
-    if (altDev <= 1.2 && timeSec <= 42) return 2;
+    const wander = mem.wander ?? 0;
+    if (wander <= 2 && timeSec <= 30 && smoothness >= 0.3) return 3;
+    if (wander <= 4 && timeSec <= 50) return 2;
     return 1;
   },
+
+  practiceTimeout: 45,
 };

@@ -1,4 +1,5 @@
-import { holdFor, type Lesson } from './types';
+import { holdFor, latch, type Lesson } from './types';
+import { home } from './arena';
 
 // Step 1 — Arm & Take Off. The two halves of getting airborne, taught as one
 // action because that is how they are flown: arming alone does nothing visible
@@ -12,7 +13,7 @@ export const armTakeoffLesson: Lesson = {
   id: 'arm-takeoff',
   order: 1,
   title: 'Arm & Take Off',
-  subtitle: 'Spin up and leave the ground',
+  subtitle: 'Power up and lift off the pad',
 
   explain: {
     title: 'Arming and Taking Off',
@@ -24,6 +25,9 @@ export const armTakeoffLesson: Lesson = {
     ],
     durationHint: '15–20 seconds',
   },
+
+  // Nothing to fly to — the guide simply rings the pad being taken off from.
+  route: [home('H')],
 
   demo: [
     { at: 0.0, caption: 'Watch: press ENTER to arm' },
@@ -41,8 +45,8 @@ export const armTakeoffLesson: Lesson = {
 
   keys: [
     { code: 'Enter', label: 'ENTER', hint: 'Arm' },
-    { code: 'KeyW', label: 'W', hint: 'Climb' },
-    { code: 'KeyS', label: 'S', hint: 'Descend' },
+    { code: 'KeyW', label: 'W', hint: 'Throttle Up' },
+    { code: 'KeyS', label: 'S', hint: 'Throttle Down' },
   ],
 
   tips: [
@@ -84,7 +88,11 @@ export const armTakeoffLesson: Lesson = {
     else if (p.altitude > MAX_ALT) hint = 'Ease off — you are climbing too high';
     else hint = `Good — hold the hover ${Math.max(0, HOLD_SEC - held * HOLD_SEC).toFixed(1)}s`;
 
-    return { done: p.armed && held >= 1, progress: 0.25 + 0.75 * held, hint };
+    // The 1.5 s hover hold is the whole task, so latch it: the Director then
+    // holds the "✓" for its own confirmation beat instead of demanding a second
+    // steady stretch on top of the one the pilot was asked for.
+    const hovered = latch(mem, 'hovered', p.armed && held >= 1);
+    return { done: hovered, progress: hovered ? 1 : 0.25 + 0.75 * held, hint };
   },
 
   score: ({ timeSec, collisions, smoothness, mem }) => {

@@ -29,8 +29,14 @@ interface TrainingState {
   /** Which demonstration pass is playing (1-based) and how many in total. */
   demoRound: number;
   demoRounds: number;
-  /** Key currently being "pressed" by the demo, for the keycap highlight. */
-  demoKey: string | null;
+  /** Keys the demo is "holding" right now, for the keycap highlight. Derived
+   *  from the scripted sticks, so a diagonal lights two caps and a brake lights
+   *  the opposite one — the row shows what is being flown, not a cue that was
+   *  flashed once at the top of the leg. */
+  demoKeys: readonly string[];
+  /** How many of the active lesson's checkpoints have been taken. Drives the
+   *  route guide's "done / next / still to come" and the HUD's NEXT readout. */
+  routeIndex: number;
   /** Contextual guidance during practice (step 3/4). */
   hint: string;
   validation: Validation;
@@ -43,8 +49,9 @@ interface TrainingState {
   start: (lessonId: string) => void;
   setPhase: (phase: TrainingPhase) => void;
   setDemoCaption: (caption: string) => void;
-  setDemoRound: (round: number) => void;
-  setDemoKey: (key: string | null) => void;
+  setDemoRound: (round: number, rounds?: number) => void;
+  setDemoKeys: (keys: readonly string[]) => void;
+  setRouteIndex: (index: number) => void;
   setHint: (hint: string) => void;
   setValidation: (v: Validation) => void;
   /** Persist a completed lesson, award XP, and move to the reward phase. */
@@ -59,7 +66,8 @@ export const useTrainingStore = create<TrainingState>((set) => ({
   demoCaption: '',
   demoRound: 1,
   demoRounds: 3,
-  demoKey: null,
+  demoKeys: [],
+  routeIndex: 0,
   hint: '',
   validation: { progress: 0, failed: false },
   lastStars: 0,
@@ -72,7 +80,8 @@ export const useTrainingStore = create<TrainingState>((set) => ({
       phase: 'intro',
       demoCaption: '',
       demoRound: 1,
-      demoKey: null,
+      demoKeys: [],
+      routeIndex: 0,
       hint: '',
       validation: { progress: 0, failed: false },
       lastStars: 0,
@@ -82,8 +91,10 @@ export const useTrainingStore = create<TrainingState>((set) => ({
 
   setPhase: (phase) => set({ phase }),
   setDemoCaption: (demoCaption) => set({ demoCaption }),
-  setDemoRound: (demoRound) => set({ demoRound }),
-  setDemoKey: (demoKey) => set({ demoKey }),
+  setDemoRound: (demoRound, demoRounds) =>
+    set(demoRounds ? { demoRound, demoRounds } : { demoRound }),
+  setDemoKeys: (demoKeys) => set({ demoKeys }),
+  setRouteIndex: (routeIndex) => set({ routeIndex }),
   setHint: (hint) => set({ hint }),
   setValidation: (validation) => set({ validation }),
 
@@ -120,8 +131,7 @@ export const useTrainingStore = create<TrainingState>((set) => ({
     set({ phase: 'reward', lastStars: stars, lastXp: xpGained, lastRankUp: rankedUp });
   },
 
-  exitLesson: () =>
-    set({ activeLessonId: null, phase: 'intro', demoCaption: '', hint: '' }),
+  exitLesson: () => set({ activeLessonId: null, phase: 'intro', demoCaption: '', hint: '' }),
 }));
 
 // ---- Derived selectors (progress lives in settings) -------------------------

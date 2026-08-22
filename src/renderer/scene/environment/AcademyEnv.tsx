@@ -32,6 +32,7 @@ import {
   WaypointTower,
   Windsock,
 } from './props';
+import { ACADEMY_GATES, ACADEMY_PADS } from '../../plugins/environments/droneAcademy';
 
 // Outdoor drone academy: a helipad at the centre, a practice arena of gates,
 // slalom cones, precision pads, hover boxes and waypoint towers, wrapped in
@@ -45,13 +46,6 @@ const SLALOM = Array.from({ length: 9 }, (_, i) => {
   const x = 16 + (i % 2 === 0 ? -1.6 : 1.6);
   return [x, 0, z] as [number, number, number];
 });
-
-const PADS: { pos: [number, number, number]; label: string; color: string }[] = [
-  { pos: [-16, 0, -6], label: 'A', color: '#3b82f6' },
-  { pos: [-16, 0, 0], label: 'B', color: '#22c55e' },
-  { pos: [-16, 0, 6], label: 'C', color: '#f5a524' },
-  { pos: [-16, 0, 12], label: 'D', color: '#a855f7' },
-];
 
 export function AcademyEnv({ env }: { env: EnvironmentSpec }) {
   const concrete = useMemo(() => concreteTexture(), []);
@@ -135,13 +129,19 @@ export function AcademyEnv({ env }: { env: EnvironmentSpec }) {
       <EquipmentBox position={[10.6, 0, -4.6]} color="#3a4650" size={[0.9, 0.55, 0.7]} />
       <ChargingStation position={[-9.5, 0, 3]} />
 
-      {/* ---------- Racing gates: varied kind, size, height, some tilted ------ */}
-      <RaceGate position={[0, 2.6, -16]} kind="square" color="#2f7fff" size={3.4} />
-      <RaceGate position={[7, 3.2, -24]} kind="circle" color="#ff2b4d" size={3.6} rotation={[0, -18 * DEG, 6 * DEG]} />
-      <RaceGate position={[-7.5, 2.4, -31]} kind="rect" color="#22e06a" size={2.6} rotation={[0, 22 * DEG, -8 * DEG]} />
-      <RaceGate position={[2.5, 4.4, -39]} kind="square" color="#2f7fff" size={2.8} rotation={[0, -8 * DEG, 0]} />
-      <RaceGate position={[-14, 3.0, -20]} kind="circle" color="#ff2b4d" size={2.8} rotation={[0, 40 * DEG, 0]} />
-      <RaceGate position={[15, 5.0, -33]} kind="rect" color="#22e06a" size={3.0} rotation={[0, -32 * DEG, 5 * DEG]} />
+      {/* ---------- Racing gates ----------
+           Positions live in `plugins/environments/droneAcademy.ts` so Flight
+           School can send its lessons through the very same gates. */}
+      {ACADEMY_GATES.map((g) => (
+        <RaceGate
+          key={g.id}
+          position={g.position as [number, number, number]}
+          kind={g.kind}
+          color={g.color}
+          size={g.size}
+          rotation={g.rotation as [number, number, number] | undefined}
+        />
+      ))}
 
       {/* ---------- Slalom course ---------- */}
       {SLALOM.map((p, i) => (
@@ -149,8 +149,13 @@ export function AcademyEnv({ env }: { env: EnvironmentSpec }) {
       ))}
 
       {/* ---------- Precision landing pads ---------- */}
-      {PADS.map((p) => (
-        <LandingTarget key={p.label} position={p.pos} label={p.label} color={p.color} />
+      {ACADEMY_PADS.map((p) => (
+        <LandingTarget
+          key={p.label}
+          position={p.position as [number, number, number]}
+          label={p.label}
+          color={p.color}
+        />
       ))}
 
       {/* ---------- Hover boxes ---------- */}

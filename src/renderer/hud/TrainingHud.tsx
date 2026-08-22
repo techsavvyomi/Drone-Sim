@@ -44,7 +44,8 @@ export function TrainingHud() {
   const demoCaption = useTrainingStore((s) => s.demoCaption);
   const demoRound = useTrainingStore((s) => s.demoRound);
   const demoRounds = useTrainingStore((s) => s.demoRounds);
-  const demoKey = useTrainingStore((s) => s.demoKey);
+  const demoKeys = useTrainingStore((s) => s.demoKeys);
+  const routeIndex = useTrainingStore((s) => s.routeIndex);
   const hint = useTrainingStore((s) => s.hint);
   const validation = useTrainingStore((s) => s.validation);
   const lastStars = useTrainingStore((s) => s.lastStars);
@@ -95,13 +96,17 @@ export function TrainingHud() {
   const flying = phase === 'demo' || phase === 'practice';
   const activeStep = STEPS.findIndex((s) => s.key === phase);
   const pct = Math.round((validation.progress || 0) * 100);
+  // A route lesson counts checkpoints; the stick lessons have nothing to count.
+  const route = lesson.route;
+  const counted = !!route && route.length > 1;
+  const nextTarget = route && routeIndex < route.length ? route[routeIndex].label : null;
 
   return (
     <div className={`tr-hud min phase-${phase}`}>
       {/* Thin top bar */}
       <div className="tr-bar">
         <span className="tr-bar-id">
-          <b>M{num}</b> {lesson.title}
+          <b>Module {num}</b> {lesson.title}
         </span>
         <div className="tr-bar-steps">
           {STEPS.map((s, i) => (
@@ -177,7 +182,7 @@ export function TrainingHud() {
           <div className={phase === 'demo' ? 'tr-demo-sticks' : undefined}>
             <StickIndicator />
           </div>
-          {lesson.keys && <KeyHints keys={lesson.keys} demoKey={demoKey} />}
+          {lesson.keys && <KeyHints keys={lesson.keys} demoKeys={demoKeys} />}
         </>
       )}
 
@@ -202,7 +207,14 @@ export function TrainingHud() {
               {validation.failed ? '⚠ ' : '➤ '}
               {hint || lesson.practice.prompt}
             </span>
-            <span className="tr-line-pct">{pct}%</span>
+            {counted && nextTarget && (
+              <span className="tr-line-next">
+                NEXT <b>{nextTarget}</b>
+              </span>
+            )}
+            <span className="tr-line-pct">
+              {counted ? `${routeIndex}/${route.length}` : `${pct}%`}
+            </span>
           </div>
           <div className="tr-thinbar">
             <div className={`fill ${validation.failed ? 'fail' : ''}`} style={{ width: `${pct}%` }} />
