@@ -36,7 +36,7 @@ export const HOVER = 1.8;
 export function gate(
   id: string,
   label: string,
-  opts: { ease?: number; through?: boolean; height?: number } = {},
+  opts: { ease?: number; through?: boolean; height?: number; tag?: string } = {},
 ): Checkpoint {
   const g = academyGate(id);
   // Every gate is modelled facing local +Z — the torus hole and the square
@@ -46,6 +46,7 @@ export function gate(
   const yaw = g.rotation?.[1] ?? 0;
   return {
     label,
+    tag: opts.tag,
     // `height` moves the point the lesson is judged on to the height the pilot
     // will actually be at. A module that shows no throttle keys is flown level
     // in altitude hold, and a checkpoint sitting at the gate's own centre then
@@ -63,11 +64,12 @@ export function gate(
 }
 
 /** A painted precision landing pad, as a checkpoint at flying height. */
-export function pad(label: string, opts: { height?: number } = {}): Checkpoint {
+export function pad(label: string, opts: { height?: number; tag?: string } = {}): Checkpoint {
   const p = ACADEMY_PADS.find((q) => q.label === label);
   if (!p) throw new Error(`Unknown academy pad: ${label}`);
   return {
     label,
+    tag: opts.tag,
     at: [p.position[0], opts.height ?? HOVER, p.position[2]],
     reach: 2.2,
     mark: 'pad',
@@ -84,10 +86,15 @@ export function pad(label: string, opts: { height?: number } = {}): Checkpoint {
  * them the natural targets for the stick lessons and the shape circuits: the
  * exercise stays about the control, not about the distance.
  */
-export function marker(index: number, label: string, opts: { height?: number } = {}): Checkpoint {
+export function marker(
+  index: number,
+  label: string,
+  opts: { height?: number; tag?: string } = {},
+): Checkpoint {
   const [x, z] = academyMarker(index);
   return {
     label,
+    tag: opts.tag,
     at: [x, opts.height ?? HOVER, z],
     reach: 1.8,
     mark: 'marker',
@@ -122,6 +129,9 @@ type Leg = {
   label?: string;
   /** Index of the checkpoint this leg flies to, for the on-screen step row. */
   stage?: number;
+  /** The route cursor once this leg has arrived — only on the leg that finishes
+   *  a checkpoint, so the guide can drop its name mid-demonstration. */
+  rt?: number;
 };
 
 /**
@@ -161,7 +171,7 @@ export function routeLegs(
     const arrive = captions[i]?.arrive;
 
     if (!c.axis) {
-      legs.push({ to: c.at, caption, arrive, stick, face, label: c.label, stage: i });
+      legs.push({ to: c.at, caption, arrive, stick, face, label: c.label, stage: i, rt: i + 1 });
       [px, , pz] = c.at;
       return;
     }
@@ -190,6 +200,10 @@ export function routeLegs(
       face,
       label: c.label,
       stage: i,
+      // Out the far side: the gate is behind the aircraft now, so its letter
+      // goes with it. The line-up leg above deliberately does not do this — the
+      // letter is what the pilot is aiming at right up to the pass.
+      rt: i + 1,
     });
     px = gx - ax * FLY_THROUGH * side;
     pz = gz - az * FLY_THROUGH * side;
