@@ -39,6 +39,9 @@ import { propHubs, resetPropSpin } from './propHubs';
 const _q = new THREE.Quaternion();
 const _qInv = new THREE.Quaternion();
 const _euler = new THREE.Euler();
+/** Above this the drone is flying, so whatever it hits is an obstacle and not
+ *  the floor it is taking off from or landing on. */
+const TOUCH_ALT = 0.4;
 const _up = new THREE.Vector3();
 const _rotor = new THREE.Vector3();
 const _drag = new THREE.Vector3();
@@ -1098,6 +1101,14 @@ export function Drone({ spec, spawn, bounds, outdoor = false, groundY }: DronePr
         const isObstacleHit = isAirborne && v >= OBSTACLE_CRASH_SPEED;
         const isImpactCrash =
           isObstacleHit || v >= MINOR_IMPACT || (v >= OBSTACLE_CRASH_SPEED && isTilted);
+
+        // Anything hit while properly off the ground is a TOUCH, whether or not
+        // it was hard enough to be a crash. Flight School scores a clean flight
+        // on this, and a gate upright brushed at walking pace has to count —
+        // it survives the airframe, but it is not a clean pass through the gate.
+        // The height is well clear of a landing: the body sits about 0.1 m up
+        // with the gear on the deck, so nothing below it is an obstacle.
+        if (posY > TOUCH_ALT) flight.registerTouch();
 
         if (isImpactCrash && flight.auto !== 'takeoff' && flight.armed) {
           // `crash()` already clears `armed`.

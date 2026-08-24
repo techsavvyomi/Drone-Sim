@@ -31,6 +31,17 @@ interface FlightState {
   crashed: boolean;
   /** Impact speed of the crash, m/s — shown on the crash overlay. */
   crashSpeed: number;
+  /**
+   * Everything the drone has hit while airborne, since the app started.
+   *
+   * A running total, never reset here: whoever cares about a stretch of flying
+   * takes a reading at the start of it and subtracts. Counts CONTACTS, not
+   * crashes — brushing a gate upright at walking pace is not a crash, and until
+   * this existed it cost the pilot nothing at all, which is not what "a clean
+   * flight" means. Ground contact is excluded by the caller; taking off and
+   * landing are not things you bump into.
+   */
+  touches: number;
   /** Motor indices whose propeller broke off (FR/FL/BR/BL). */
   brokenProps: number[];
   paused: boolean;
@@ -64,6 +75,8 @@ interface FlightState {
   /** Major impact — motors cut, controls locked until reset. */
   crash: (speed: number, brokenProps?: number[]) => void;
   clearCrash: () => void;
+  /** Record one contact with something that is not the floor. */
+  registerTouch: () => void;
   togglePause: () => void;
   setBatteryWarning: (on: boolean) => void;
   /** Begin the critical-battery forced landing (uncancellable). */
@@ -87,6 +100,7 @@ export const useFlightStore = create<FlightState>((set, get) => ({
   onGround: true,
   crashed: false,
   crashSpeed: 0,
+  touches: 0,
   brokenProps: [],
   paused: false,
   batteryWarning: false,
@@ -162,6 +176,8 @@ export const useFlightStore = create<FlightState>((set, get) => ({
         : { crashed: true, crashSpeed: speed, brokenProps, armed: false, auto: 'manual' },
     ),
   clearCrash: () => set({ crashed: false, crashSpeed: 0, brokenProps: [] }),
+
+  registerTouch: () => set((s) => ({ touches: s.touches + 1 })),
 
   setBatteryWarning: (on) => set((s) => (s.batteryWarning === on ? s : { batteryWarning: on })),
 
