@@ -46,6 +46,10 @@ export interface DemoStep {
   caption?: string;
   /** KeyboardEvent.code to flash on the keycap row while this step plays. */
   key?: string;
+  /** Which step of the lesson this is demonstrating, 0-based, into `stages` or
+   *  `route`. The checkpoint row walks along with the demonstration, so what the
+   *  intro card promised is what the pilot then watches being flown. */
+  stage?: number;
   /** Turn to this heading, in radians, and HOLD it — `null` releases the yaw.
    *
    *  The only closed-loop channel in a demonstration, and it has to be. Every
@@ -56,6 +60,18 @@ export interface DemoStep {
    *  route. Timed yaw holds got this right on some runs and not others; the
    *  Director drives this one from the drone's real heading instead. */
   yawTo?: number | null;
+}
+
+/**
+ * One named step of a lesson: 'Arm', then 'Take off', then 'Hover'.
+ *
+ * `cap` is the keycap that performs it, and it is what makes the intro card
+ * answer "what do I actually press" before the pilot has flown anything. A step
+ * with nothing to press — settling into a hover — simply leaves it out.
+ */
+export interface LessonStage {
+  label: string;
+  cap?: string;
 }
 
 /** A keycap shown under the flight view, highlighted while its key is active. */
@@ -78,6 +94,51 @@ export interface ValidationResult {
   progress?: number;
   /** Contextual guidance to show right now (e.g. "Hold this altitude"). */
   hint?: string;
+  /** The control the pilot should be using RIGHT NOW, as KeyboardEvent.codes.
+   *
+   *  The keycap row breathes the caps named here and the on-screen sticks glow
+   *  in the matching direction, so the answer to "what do I press" is on screen
+   *  rather than in the sentence above it. A validator that names nothing
+   *  simply leaves the row still. */
+  cue?: readonly string[];
+}
+
+/** Cue sets, so lessons name a control once and every one of them agrees. */
+export const CUE = {
+  arm: ['Enter'] as const,
+  throttleUp: ['KeyW'] as const,
+  throttleDown: ['KeyS'] as const,
+  takeoff: ['KeyW'] as const,
+  /** Hands-off climb to the hover height. Module 1 teaches this one; the whole
+   *  flights from Module 6 on ask for the throttle itself. */
+  autoTakeoff: ['Space'] as const,
+  land: ['KeyS'] as const,
+  /** Hands-off descent onto the pad. Module 2 teaches this one. */
+  autoLand: ['Space'] as const,
+  forward: ['ArrowUp'] as const,
+  backward: ['ArrowDown'] as const,
+  left: ['ArrowLeft'] as const,
+  right: ['ArrowRight'] as const,
+  yawLeft: ['KeyA'] as const,
+  yawRight: ['KeyD'] as const,
+} satisfies Record<string, readonly string[]>;
+
+/**
+ * Which stick direction takes the drone from one point to another.
+ *
+ * The stick modules and the shape circuits are all flown nose-forward down the
+ * arena (heading 0 faces -Z), so a leg's world direction is also the direction
+ * the pilot has to push. One dominant axis per leg, which is exactly what a
+ * highlight can show: a square's side is one arrow, not two.
+ */
+export function cueBetween(
+  from: readonly [number, number, number],
+  to: readonly [number, number, number],
+): readonly string[] {
+  const dx = to[0] - from[0];
+  const dz = to[2] - from[2];
+  if (Math.abs(dz) >= Math.abs(dx)) return dz < 0 ? CUE.forward : CUE.backward;
+  return dx > 0 ? CUE.right : CUE.left;
 }
 
 /** Mutable per-attempt scratch pad for validators (hold timers, accumulators). */
@@ -96,6 +157,30 @@ export interface ScoreInput {
 }
 
 export type Stars = 1 | 2 | 3;
+
+/**
+ * One rung of a lesson's star rubric.
+ *
+ * The words and the test live in the SAME object on purpose. The card that
+ * promises "three stars: airborne in 16 seconds, smoothly" is the code that
+ * awards them, so what the pilot is told cannot drift from what the pilot gets —
+ * and the rubric can be put on screen at all, which it never could while every
+ * lesson buried its thresholds in a hand-written `score` function.
+ *
+ * A crash caps an attempt at one star, so every rule tests for that itself.
+ */
+export interface StarRule {
+  stars: Stars;
+  /** What it takes, in the pilot's words. One short line. */
+  text: string;
+  test: (i: ScoreInput) => boolean;
+}
+
+/** The stars an attempt earns: the best rung it passes, or one for finishing. */
+export function starsFor(rules: readonly StarRule[], input: ScoreInput): Stars {
+  for (const rule of rules) if (rule.test(input)) return rule.stars;
+  return 1;
+}
 
 /** How the route guide draws a highlight over the arena object it names. */
 export type MarkKind = 'gate' | 'pad' | 'marker' | 'helipad';
@@ -157,6 +242,29 @@ export interface Lesson {
    *  one list, so the demo cannot show a route the attempt does not ask for. */
   route?: readonly Checkpoint[];
 
+  /** The named steps of a lesson that is not a route: 'Arm', 'Take off',
+   *  'Hover'. They drive two things — the flow shown on the intro card, and the
+   *  same checkpoint row a route's labels drive — so a drill shows its shape
+   *  before it starts and its progress while it runs. The validator moves
+   *  between them by writing `mem.wp`. */
+  stages?: readonly LessonStage[];
+
+  /** A closed circular path to draw on the field, for a lesson whose route is
+   *  not a list of points. Only Full Circle uses it: the ring is the task, and
+   *  chopping it into checkpoints would turn the one shape with no corners into
+   *  a rounded polygon. Centred on the helipad. */
+  guideRing?: { radius: number; height: number };
+
+  /** This lesson BEGINS at a hover: the drone is placed in the air rather than
+   *  flying up to it. A landing drill that opens by watching a take-off spends
+   *  its first seconds on the previous lesson. */
+  startAirborne?: boolean;
+
+  /** This lesson ends by landing back on the "H" (it is flown with
+   *  `flyMission`). The HUD adds a final "Land" step to the checkpoint row, so
+   *  the pilot can see the landing coming before the route runs out. */
+  landing?: boolean;
+
   /** 💡 Pilot tips — best-practice pointers, shown on the intro card. */
   tips?: string[];
   /** ⚠ Common mistakes beginners make, shown on the intro card. */
@@ -168,8 +276,10 @@ export interface Lesson {
   /** Step 4 — Validation, evaluated every frame during Practice. */
   validate: (p: Probe, mem: LessonMemory) => ValidationResult;
 
-  /** Step 5 — Reward: turn performance into a 1..3 star rating. */
-  score: (input: ScoreInput) => Stars;
+  /** Step 5 — Reward: what three stars takes, then what two takes. Best first;
+   *  an attempt that passes none of them is worth one star for finishing. Shown
+   *  on the intro card before the flight and on the result after it. */
+  stars: readonly StarRule[];
 
   /** Optional setup run once when the lesson starts (e.g. pre-arm the drone). */
   setup?: () => void;
@@ -257,7 +367,7 @@ export function flyRoute(
   mem: LessonMemory,
   position: Vec3,
   route: readonly Checkpoint[],
-  opts: { strict?: boolean; spread?: number } = {},
+  opts: { strict?: boolean } = {},
 ): RouteState {
   const next = mem.wp ?? 0;
   if (next >= route.length) {
@@ -296,11 +406,19 @@ export function flyRoute(
     mem.left = left;
   }
 
-  // How far along this leg, measured against the spread the lesson expects
-  // rather than the leg's true length: a bar that only moves in the last two
-  // metres of a forty-metre leg reads as a lesson that is not responding.
-  const spread = opts.spread ?? 14;
-  const leg = Math.max(0, Math.min(1, 1 - (distance - target.reach) / spread));
+  // How far along this leg, measured from WHERE THE LEG STARTED. The first
+  // reading of a leg is its full length, so the bar sits at zero until the pilot
+  // moves and reaches one on arrival, whatever the leg's length.
+  //
+  // It used to be measured against a fixed "spread" of metres around the target,
+  // which meant a leg shorter than that spread began part-way along: Roll
+  // Control opened at 19% before the pilot had touched anything, and a pilot who
+  // has done nothing being told they are a fifth of the way there is the bar
+  // saying something untrue about them.
+  const startKey = `leg${next}`;
+  if (mem[startKey] === undefined) mem[startKey] = Math.max(distance, target.reach + 0.01);
+  const span = Math.max(mem[startKey] - target.reach, 0.01);
+  const leg = Math.max(0, Math.min(1, (mem[startKey] - distance) / span));
   return {
     next,
     complete: false,

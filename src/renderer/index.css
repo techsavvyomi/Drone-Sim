@@ -20,7 +20,13 @@
   --rail-w: 74px;
   --panel-w: 286px;
   --status-h: 26px;
-  font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  font-family:
+    'Inter',
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    Roboto,
+    sans-serif;
 }
 
 * {
@@ -677,7 +683,9 @@ button {
   color: var(--text-dim);
   padding: 8px 12px;
   border-radius: 10px;
-  transition: color 0.14s ease, background 0.14s ease;
+  transition:
+    color 0.14s ease,
+    background 0.14s ease;
 }
 .chip-gear:hover {
   color: var(--accent);
@@ -715,7 +723,9 @@ button {
   font-weight: 600;
   letter-spacing: 0.09em;
   text-transform: uppercase;
-  transition: color 0.14s ease, background 0.14s ease;
+  transition:
+    color 0.14s ease,
+    background 0.14s ease;
 }
 .nav-btn:hover {
   color: var(--text);
@@ -910,12 +920,17 @@ button {
   border: 1px solid color-mix(in srgb, var(--accent) 42%, transparent);
   box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.02) inset;
   backdrop-filter: blur(9px);
-  transition: transform 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease;
+  transition:
+    transform 0.16s ease,
+    box-shadow 0.16s ease,
+    border-color 0.16s ease;
 }
 .mcard:hover {
   transform: translateY(-5px);
   border-color: var(--accent);
-  box-shadow: 0 16px 44px rgba(0, 0, 0, 0.55), 0 0 26px color-mix(in srgb, var(--accent) 32%, transparent);
+  box-shadow:
+    0 16px 44px rgba(0, 0, 0, 0.55),
+    0 0 26px color-mix(in srgb, var(--accent) 32%, transparent);
 }
 .mcard-ico {
   color: var(--accent);
@@ -949,7 +964,9 @@ button {
   color: var(--accent);
   background: color-mix(in srgb, var(--accent) 15%, transparent);
   border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
-  transition: background 0.14s ease, color 0.14s ease;
+  transition:
+    background 0.14s ease,
+    color 0.14s ease;
 }
 .mcard:hover .mcard-cta {
   background: color-mix(in srgb, var(--accent) 28%, transparent);
@@ -1447,6 +1464,25 @@ button {
   stroke-width: 3;
   opacity: 0.55;
 }
+/* The direction the lesson is asking for. Same yellow as the keycap it belongs
+   to, so the stick and the cap read as one instruction. */
+.vstick-arrow path.vstick-cue {
+  stroke: var(--warn);
+  stroke-width: 6;
+  animation: vstick-breathe 1.2s ease-in-out infinite;
+  filter: drop-shadow(0 0 8px rgba(255, 207, 77, 0.85));
+}
+@keyframes vstick-breathe {
+  0%,
+  100% {
+    opacity: 0.45;
+    stroke-width: 5;
+  }
+  50% {
+    opacity: 1;
+    stroke-width: 7;
+  }
+}
 .vstick-knob {
   fill: #dceefc;
   filter: drop-shadow(0 0 12px rgba(56, 189, 248, 0.9));
@@ -1571,7 +1607,9 @@ button {
   place-items: center;
   color: var(--text-dim);
   transform: rotate(90deg);
-  transition: transform 0.16s ease, color 0.16s ease;
+  transition:
+    transform 0.16s ease,
+    color 0.16s ease;
 }
 .chip-caret.open {
   transform: rotate(-90deg);
@@ -1823,7 +1861,10 @@ button {
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--text-dim);
-  transition: color 0.14s ease, border-color 0.14s ease, background 0.14s ease;
+  transition:
+    color 0.14s ease,
+    border-color 0.14s ease,
+    background 0.14s ease;
 }
 .back-btn:hover {
   color: var(--accent);
@@ -1872,7 +1913,10 @@ button {
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--text-dim);
-  transition: color 0.14s ease, background 0.14s ease, border-color 0.14s ease;
+  transition:
+    color 0.14s ease,
+    background 0.14s ease,
+    border-color 0.14s ease;
 }
 .pause-btn:hover {
   color: var(--text);
@@ -1920,7 +1964,9 @@ button {
   border-right: none;
   color: var(--text-dim);
   font-size: 15px;
-  transition: color 0.14s ease, background 0.14s ease;
+  transition:
+    color 0.14s ease,
+    background 0.14s ease;
 }
 .panel-tab:hover {
   color: var(--accent);
@@ -2529,6 +2575,50 @@ button {
     grid-template-columns: 1fr;
   }
 }
+/* The star rubric: what three takes, what two takes, what one takes. Shown
+   before the flight on the intro card and after it on the result, where the
+   earned rung is picked out. */
+.tr-rubric {
+  margin-top: 16px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.02);
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.tr-rubric > b {
+  font-size: 10.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  font-weight: 700;
+}
+.tr-rubric-row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--text-dim);
+}
+.tr-rubric-stars {
+  flex: none;
+  width: 34px;
+  color: var(--warn);
+  letter-spacing: 1px;
+  opacity: 0.55;
+}
+.tr-rubric-row.earned {
+  color: var(--text);
+  font-weight: 700;
+}
+.tr-rubric-row.earned .tr-rubric-stars {
+  opacity: 1;
+}
+
 .tr-actions {
   display: flex;
   gap: 10px;
@@ -2712,12 +2802,20 @@ button {
   transform: translateX(-50%);
   display: flex;
   gap: 12px;
+  /* The HUD is click-through; the caps are not. They are buttons that press the
+     key they show, so the mouse works wherever the keyboard does. */
+  pointer-events: auto;
 }
 .tr-key {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 4px;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  user-select: none;
+  touch-action: none;
   background: rgba(10, 15, 25, 0.82);
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -2750,6 +2848,9 @@ button {
      on one line or the row's caps end up different heights. */
   white-space: nowrap;
 }
+.tr-key:hover {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
+}
 .tr-key.on {
   border-color: var(--accent);
   transform: translateY(-3px);
@@ -2762,6 +2863,49 @@ button {
 }
 .tr-key.on span {
   color: var(--accent);
+}
+/* The cap the lesson is asking for, before it has been pressed.
+   YELLOW, and only ever yellow: one colour across the whole HUD and the field
+   means "do this now", and it keeps blinking until the step is actually done.
+   Blue is the interface's own colour — the step you are on, the buttons — so a
+   blue prompt sat among blue furniture and could be looked straight past. It
+   breathes rather than lights up, because lit means "you are holding this". */
+.tr-key.cue {
+  border-color: color-mix(in srgb, var(--warn) 60%, transparent);
+  animation: tr-key-breathe 1.2s ease-in-out infinite;
+}
+.tr-key.cue kbd {
+  color: var(--warn);
+  border-color: color-mix(in srgb, var(--warn) 75%, transparent);
+}
+.tr-key.cue span {
+  color: var(--warn);
+}
+@keyframes tr-key-breathe {
+  0%,
+  100% {
+    transform: translateY(0);
+    box-shadow: 0 0 0 rgba(255, 207, 77, 0);
+  }
+  50% {
+    transform: translateY(-3px);
+    box-shadow: 0 0 20px rgba(255, 207, 77, 0.55);
+  }
+}
+
+/* Anyone who has asked for less motion gets the same information as a steady
+   highlight instead of a pulse. */
+@media (prefers-reduced-motion: reduce) {
+  .tr-key.cue,
+  .vstick-arrow path.vstick-cue {
+    animation: none;
+  }
+  .tr-key.cue {
+    box-shadow: 0 0 14px rgba(255, 207, 77, 0.5);
+  }
+  .vstick-arrow path.vstick-cue {
+    opacity: 1;
+  }
 }
 
 /* Smoothly glide the virtual sticks during the (scripted) demonstration. */
@@ -3231,7 +3375,9 @@ button {
 
 /* Clean cards (intro / reward) */
 .tr-hud.min .tr-card {
-  width: min(500px, 92%);
+  /* Wide enough for a three-step flow to stay on one line. It used to wrap the
+     last step onto a row of its own, which read as a second, unrelated list. */
+  width: min(600px, 92%);
   border: 1px solid var(--line);
   border-top: 2px solid var(--tr-accent);
   border-radius: 12px;
@@ -3247,12 +3393,103 @@ button {
 .tr-hud.min .tr-card p {
   font-size: 13.5px;
 }
+.tr-hud.min .tr-body p {
+  margin: 0 0 7px;
+  line-height: 1.55;
+}
+.tr-hud.min .tr-body p:last-child {
+  margin-bottom: 0;
+}
+.tr-hud.min .tr-notes {
+  margin-top: 18px;
+  gap: 12px;
+}
+.tr-hud.min .tr-note {
+  padding: 11px 13px;
+}
+.tr-hud.min .tr-note li {
+  font-size: 12.5px;
+  line-height: 1.45;
+}
 .tr-hud.min .tr-kicker {
   font-size: 10.5px;
   letter-spacing: 0.16em;
   text-transform: uppercase;
   color: var(--tr-accent);
   font-weight: 700;
+}
+
+/* Intro card — the lesson as a flow, then the words.
+   The card used to open with three centred sentences that a pilot had to read
+   before anything on screen meant something. The flow says the same thing in
+   the shape of the task: step, key, name. */
+.tr-flow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin: 4px 0 18px;
+}
+.tr-flow-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.tr-flow-step {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 11px 6px 7px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--tr-accent) 32%, var(--line));
+  background: color-mix(in srgb, var(--tr-accent) 8%, transparent);
+}
+.tr-flow-num {
+  display: grid;
+  place-items: center;
+  width: 19px;
+  height: 19px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--tr-accent) 22%, transparent);
+  color: var(--tr-accent);
+  font-size: 11px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+.tr-flow-step kbd {
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  color: var(--tr-accent);
+  border: 1px solid color-mix(in srgb, var(--tr-accent) 55%, transparent);
+  border-bottom-width: 2px;
+  border-radius: 5px;
+  padding: 2px 7px;
+  background: rgba(255, 255, 255, 0.04);
+}
+.tr-flow-label {
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+/* Drawn rather than typed, so it lines up with the pills either side of it. */
+.tr-flow-arrow {
+  width: 14px;
+  height: 8px;
+  flex: none;
+  background: var(--text-dim);
+  opacity: 0.55;
+  clip-path: polygon(0 38%, 62% 38%, 62% 0, 100% 50%, 62% 100%, 62% 62%, 0 62%);
+}
+
+/* Body copy reads as a paragraph, not as a stack of centred captions. */
+.tr-body {
+  text-align: left;
+  max-width: 46ch;
+  margin: 0 auto;
 }
 
 /* One-line bottom guidance (demo + practice) */
@@ -3272,16 +3509,39 @@ button {
   backdrop-filter: blur(8px);
   box-shadow: 0 12px 34px rgba(0, 0, 0, 0.45);
 }
-.tr-hud.min .tr-line.practice {
+.tr-hud.min .tr-line.practice,
+.tr-hud.min .tr-line.demo {
   flex-direction: column;
   align-items: stretch;
   gap: 8px;
   border-left: 3px solid var(--tr-accent);
 }
+/* In the demo the row is a preview of what is coming, so it sits above the
+   caption and stays quieter than the practice one. */
+.tr-hud.min .tr-line.demo .tr-chips {
+  margin: 0 0 2px;
+}
 .tr-hud.min .tr-line.practice.fail {
   border-color: var(--bad);
   border-left-color: var(--bad);
 }
+.tr-demo-pips {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-left: 6px;
+}
+.tr-demo-pips i {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.28;
+}
+.tr-demo-pips i.on {
+  opacity: 1;
+}
+
 .tr-hud.min .tr-line-tag {
   flex: none;
   font-size: 10px;
@@ -3321,6 +3581,67 @@ button {
 .tr-hud.min .tr-line.practice.fail .tr-line-pct {
   color: var(--bad);
 }
+/* Checkpoint row — one chip per point on the route, plus the landing. Cleared
+   points tick green, the live one breathes, the rest wait. */
+.tr-chips {
+  display: flex;
+  /* One line, always. Wrapping would grow the panel by a row on the longer
+     routes and push it back into the keycaps above it, so a long route scrolls
+     inside its own strip instead. */
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
+  gap: 6px;
+  margin: 8px 0 8px;
+}
+.tr-chips::-webkit-scrollbar {
+  display: none;
+}
+.tr-chip {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+.tr-chip.done {
+  color: #34d399;
+  border-color: color-mix(in srgb, #34d399 45%, transparent);
+  background: color-mix(in srgb, #34d399 12%, transparent);
+}
+/* The live step is YELLOW, in every phase, because that is the colour this HUD
+   uses for "do this now" — the cued keycap and the cued stick arrow are the same
+   yellow. It used to take the phase accent, which in Practice is the same green
+   as a CLEARED step: the row ticked along correctly and looked like it was not
+   moving at all. */
+.tr-chip.now {
+  color: #04121c;
+  background: var(--warn);
+  border-color: var(--warn);
+  animation: tr-chip-breathe 1.6s ease-in-out infinite;
+}
+.tr-chip.todo {
+  opacity: 0.55;
+}
+@keyframes tr-chip-breathe {
+  0%,
+  100% {
+    box-shadow: 0 0 0 rgba(255, 207, 77, 0);
+  }
+  50% {
+    box-shadow: 0 0 16px rgba(255, 207, 77, 0.55);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tr-chip.now {
+    animation: none;
+  }
+}
+
 .tr-hud.min .tr-thinbar {
   height: 8px;
   border-radius: 999px;
@@ -3339,11 +3660,15 @@ button {
 }
 
 /* Sticks + keycaps: clearly visible (not shrunk into the corner). */
+/* Everything at the bottom of the flight view stacks above the guidance panel,
+   and that panel grew: it now carries the step row over the caption (demo) or
+   over the progress bar (practice), which is about 100 px rather than 50. The
+   keycaps and the sticks sit clear of it. */
 .tr-hud.min .vstick {
   transform: scale(0.92);
   transform-origin: bottom center;
   opacity: 0.9;
-  bottom: 76px;
+  bottom: 128px;
 }
 .tr-hud.min .vstick-left {
   transform-origin: bottom left;
@@ -3352,7 +3677,7 @@ button {
   transform-origin: bottom right;
 }
 .tr-hud.min .tr-keys {
-  bottom: 96px;
+  bottom: 148px;
   gap: 12px;
   opacity: 1;
 }

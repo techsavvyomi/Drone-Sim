@@ -6,6 +6,8 @@ import { useFlightStore } from '../state/flightStore';
 import { useUiStore } from '../state/uiStore';
 import { useTrainingStore, isLessonUnlocked, type TrainingPhase } from '../state/trainingStore';
 import { getLesson, nextLesson } from './lessons';
+import { HOVER } from './lessons/arena';
+import { starsFor } from './lessons/types';
 import type { Lesson, LessonMemory } from './lessons/types';
 import {
   stick,
@@ -53,11 +55,13 @@ const REWARD_DWELL = 5.0;
  * lengthens the legs to match, and the drone still stops on the marker. */
 const DEMO_SPEED = 1;
 /** Roughly how long a first viewing should spend watching. Short lessons get
- *  all three passes; a four-cornered route gets one, because the cap that
- *  matters is time sitting still, not the number of repeats. */
+ *  both passes; a four-cornered route gets one, because the cap that matters is
+ *  time sitting still, not the number of repeats. */
 const DEMO_BUDGET = 34;
-/** How many times the demonstration plays before Practice, first time through. */
-const DEMO_REPEATS = 3;
+/** How many times the demonstration plays before Practice, first time through.
+ *  Two: one to watch and one to follow. Three was a third of a minute sitting
+ *  still on the short modules, and the pilot has a replay button anyway. */
+const DEMO_REPEATS = 2;
 /** ...and on every replay after that. Three run to nearly a minute, which is a
  *  long time to sit still when you have already watched it and only got sent
  *  back for running out of practice time. One is a reminder, not a lecture. */
@@ -88,10 +92,11 @@ const YAW_TAPER = 0.44;
 /** Close enough to stop steering, radians (~1.5 deg). */
 const YAW_DEADBAND = 0.026;
 
-/** Longest the demo clock will wait on auto take-off before giving up on it.
- *  Generous — the climb is about two seconds — but finite, so a take-off that
- *  never completes stalls one demonstration rather than hanging Flight School. */
-const TAKEOFF_WAIT = 6;
+/** Longest the demo clock will wait on an auto sequence before giving up on it.
+ *  Generous — a climb is about two seconds and a descent three or four — but
+ *  finite, so a sequence that never completes stalls one demonstration rather
+ *  than hanging Flight School. */
+const AUTO_WAIT = 9;
 
 /**
  * Which keycaps the demonstration is holding down, read off the scripted sticks.
@@ -126,7 +131,10 @@ function demoRepeats(lesson: Lesson, seen: boolean): number {
   return Math.max(1, Math.min(DEMO_REPEATS, Math.floor(DEMO_BUDGET / Math.max(duration, 1))));
 }
 
-function resetDrone(): void {
+function resetDrone(lesson: Lesson): void {
+  // Ask for the spawn height BEFORE the reset: the drone's reset effect reads it
+  // when it places the body.
+  useSimStore.getState().setSpawnLift(lesson.startAirborne ? HOVER : 0);
   useSimStore.getState().requestReset();
   const flight = useFlightStore.getState();
   flight.disarm();
@@ -153,14 +161,19 @@ export function Director() {
   const demoLoop = useRef(0);
   /** Heading the demonstration is currently holding, radians; null = free. */
   const yawTarget = useRef<number | null>(null);
-  /** Seconds the demo clock has spent waiting for auto take-off to hand back. */
-  const takeoffWait = useRef(0);
+  /** Seconds the demo clock has spent waiting for an auto sequence to hand back,
+   *  and which sequence it is waiting on. */
+  const autoWait = useRef(0);
+  const autoKind = useRef<string>('manual');
   /** The one-shot command cap (ARM / SPACE) and its remaining lit time. */
   const cmdKey = useRef<string | null>(null);
   const keyFlash = useRef(0);
   /** Last keycap set pushed to the store, so the demo does not write state on
    *  every single frame. */
   const lastKeys = useRef('');
+  /** Same idea for the practice cue: validators return one every frame, and the
+   *  set only changes a handful of times an attempt. */
+  const lastCue = useRef('');
 
   // Practice metrics / scratch
   const mem = useRef<LessonMemory>({});
@@ -185,6 +198,7 @@ export function Director() {
     return () => {
       setScripted(false);
       resetStick();
+      useSimStore.getState().setSpawnLift(0);
     };
   }, []);
 
@@ -195,7 +209,7 @@ export function Director() {
     switch (phase) {
       case 'intro':
         setScripted(true);
-        resetDrone();
+        resetDrone(lesson);
         centerSticks();
         yawTarget.current = null;
         training.setDemoKeys([]);
@@ -204,24 +218,26 @@ export function Director() {
 
       case 'demo':
         setScripted(true);
-        resetDrone();
+        resetDrone(lesson);
         centerSticks();
         demoIdx.current = 0;
         demoLoop.current = 0;
         yawTarget.current = null;
-        takeoffWait.current = 0;
+        autoWait.current = 0;
+        autoKind.current = 'manual';
         keyFlash.current = 0;
         cmdKey.current = null;
         lastKeys.current = '';
         training.setDemoRound(1, demoRepeats(lesson, demoSeen.current));
         training.setDemoKeys([]);
+        training.setRouteIndex(0);
         training.setDemoCaption(lesson.demo[0]?.caption ?? '');
         useUiStore.getState().setCameraMode('chase');
         playWhoosh();
         break;
 
       case 'practice':
-        resetDrone();
+        resetDrone(lesson);
         yawTarget.current = null;
         setScripted(false);
         mem.current = {};
@@ -236,6 +252,8 @@ export function Director() {
         prevStick.current = { ...stick };
         training.setDemoKeys([]);
         training.setRouteIndex(0);
+        training.setCue([]);
+        lastCue.current = '';
         lesson.setup?.();
         training.setHint(lesson.practice.hint);
         training.setValidation({ progress: 0, failed: false });
@@ -252,16 +270,27 @@ export function Director() {
     const steps = lesson.demo;
     const training = useTrainingStore.getState();
 
-    // Auto take-off owns the aircraft while it climbs, and it hands back only
+    // An auto sequence owns the aircraft while it runs, and it hands back only
     // once it has ARRIVED and settled — which takes as long as it takes. Letting
     // the timeline run underneath it was a race the demo lost about half the
     // time: the first leg's throttle step would land mid-climb, read as the
     // pilot grabbing the controls, and abandon the climb at whatever height it
     // had reached, so everything after it flew at the wrong altitude and off
-    // the wrong heading. Hold the clock instead — the demo starts when the
-    // aircraft is actually at a hover.
-    if (useFlightStore.getState().auto === 'takeoff' && takeoffWait.current < TAKEOFF_WAIT) {
-      takeoffWait.current += delta;
+    // the wrong heading.
+    //
+    // The DESCENT needs exactly the same hold, and for a worse reason. Module 2
+    // demonstrates auto-land and then disarms; on a descent that took longer
+    // than the gap the script allowed, the disarm arrived while the drone was
+    // still in the air and the demonstration ended by dropping it. Hold the
+    // clock for either sequence — the next step then plays when the aircraft is
+    // really where the caption says it is.
+    const auto = useFlightStore.getState().auto;
+    if (auto !== autoKind.current) {
+      autoKind.current = auto;
+      autoWait.current = 0;
+    }
+    if (auto !== 'manual' && autoWait.current < AUTO_WAIT) {
+      autoWait.current += delta;
       phaseTime.current -= delta;
       return;
     }
@@ -283,6 +312,12 @@ export function Director() {
         if (step.yawTo === null) setScriptedStick({ yaw: 0 });
       }
       if (step.caption) training.setDemoCaption(step.caption);
+      // The checkpoint row and the route guide follow the demonstration exactly
+      // as they follow the pilot, so the steps promised on the intro card are
+      // the steps the pilot then watches being flown.
+      if (step.stage !== undefined && step.stage !== training.routeIndex) {
+        training.setRouteIndex(step.stage);
+      }
       // Only the one-shot commands need a flash; a held stick lights its own cap.
       if (step.key && step.cmd) {
         cmdKey.current = step.key;
@@ -318,17 +353,19 @@ export function Director() {
       if (demoLoop.current < demoRepeats(lesson, demoSeen.current) - 1) {
         // Replay the demonstration from the top.
         demoLoop.current += 1;
-        resetDrone();
+        resetDrone(lesson);
         centerSticks();
         demoIdx.current = 0;
         phaseTime.current = 0;
         yawTarget.current = null;
-        takeoffWait.current = 0;
+        autoWait.current = 0;
+        autoKind.current = 'manual';
         keyFlash.current = 0;
         cmdKey.current = null;
         lastKeys.current = '';
         training.setDemoRound(demoLoop.current + 1);
         training.setDemoKeys([]);
+        training.setRouteIndex(0);
         training.setDemoCaption(steps[0]?.caption ?? '');
       } else {
         demoSeen.current = true;
@@ -338,7 +375,7 @@ export function Director() {
   }
 
   function softResetPractice(lesson: Lesson): void {
-    resetDrone();
+    resetDrone(lesson);
     mem.current = {};
     practiceTime.current = 0;
     jerkAccum.current = 0;
@@ -347,6 +384,14 @@ export function Director() {
     stallTime.current = 0;
     prevStick.current = { ...stick };
     lesson.setup?.();
+  }
+
+  /** Push the live control cue, only when it actually changes. */
+  function publishCue(cue: readonly string[]): void {
+    const joined = cue.join(' ');
+    if (joined === lastCue.current) return;
+    lastCue.current = joined;
+    useTrainingStore.getState().setCue(cue);
   }
 
   function tickPractice(lesson: Lesson, delta: number, lessonId: string): void {
@@ -401,11 +446,16 @@ export function Director() {
       doneTimer.current += delta;
       training.setValidation({ progress: 1, failed: false });
       training.setHint(`✓ ${res.hint ?? 'Well done!'}`);
+      publishCue([]);
+      // Tick the last step too. The row is the pilot's record of what they just
+      // did, and leaving the final one unticked reads as "not quite".
+      const total = lesson.stages?.length ?? lesson.route?.length ?? 0;
+      if (total > 0 && training.routeIndex !== total) training.setRouteIndex(total);
       if (doneTimer.current >= DONE_HOLD) {
         const timeSec = practiceTime.current;
         const meanJerk = timeSec > 0 ? jerkAccum.current / timeSec : 0;
         const smoothness = clamp(1 - meanJerk / JERK_K, 0, 1);
-        const stars = lesson.score({
+        const stars = starsFor(lesson.stars, {
           timeSec,
           collisions: crashCount.current,
           smoothness,
@@ -419,11 +469,13 @@ export function Director() {
 
     training.setValidation({ progress: res.progress ?? 0, failed: !!res.failed });
     training.setHint(res.hint ?? lesson.practice.hint);
-    // Which checkpoint is live. `flyRoute` keeps it in `mem.wp`, and it only
-    // moves when one is taken, so this writes state a handful of times an
-    // attempt rather than every frame.
-    if (lesson.route) {
-      const reached = Math.min(mem.current.wp ?? 0, lesson.route.length);
+    publishCue(res.cue ?? []);
+    // Which checkpoint — or stage — is live. `flyRoute` keeps it in `mem.wp`,
+    // and a staged validator writes the same field, so this writes state a
+    // handful of times an attempt rather than every frame.
+    const steps = lesson.stages?.length ?? lesson.route?.length ?? 0;
+    if (steps > 0) {
+      const reached = Math.min(mem.current.wp ?? 0, steps);
       if (reached !== training.routeIndex) training.setRouteIndex(reached);
     }
 

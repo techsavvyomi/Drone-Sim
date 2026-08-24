@@ -4,6 +4,7 @@ import { useFlightStore } from '../state/flightStore';
 import { usePilotStore } from '../state/pilotStore';
 import { useTrainingStore, isLessonUnlocked, type TrainingPhase } from '../state/trainingStore';
 import { getLesson, lessonIndex, nextLesson, LESSONS } from '../training/lessons';
+import type { Lesson } from '../training/lessons';
 import { StickIndicator } from './StickIndicator';
 import { KeyHints } from './KeyHints';
 import { playClick, playSuccess, playStar, playRankUp } from '../audio/sfx';
@@ -24,11 +25,62 @@ const STEPS: { key: TrainingPhase; label: string }[] = [
   { key: 'reward', label: 'Done' },
 ];
 
+/**
+ * The lesson's steps, as a row that walks forward.
+ *
+ * Shown in the demonstration AND in practice, deliberately: the demo marks its
+ * own steps as it flies them, so what the intro card promised is what the pilot
+ * watches, and then the same row is what they work through themselves.
+ */
+function StepChips({ steps, index }: { steps: { label: string; cap?: string }[]; index: number }) {
+  return (
+    <div className="tr-chips">
+      {steps.map((s, i) => (
+        <span
+          key={`${s.label}-${i}`}
+          className={`tr-chip ${i < index ? 'done' : i === index ? 'now' : 'todo'}`}
+        >
+          {i < index ? '✓ ' : ''}
+          {s.label}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * What the stars take, straight from the lesson's rubric.
+ *
+ * The same objects that score the attempt, so the promise and the marking can
+ * never disagree. `earned` highlights the rung an attempt actually reached.
+ */
+function Rubric({ rules, earned }: { rules: Lesson['stars']; earned?: number }) {
+  return (
+    <div className="tr-rubric">
+      <b>How the stars are earned</b>
+      {rules.map((r) => (
+        <div key={r.stars} className={`tr-rubric-row ${earned === r.stars ? 'earned' : ''}`}>
+          <span className="tr-rubric-stars">{'★'.repeat(r.stars)}</span>
+          <span>{r.text}</span>
+        </div>
+      ))}
+      <div className={`tr-rubric-row ${earned === 1 ? 'earned' : ''}`}>
+        <span className="tr-rubric-stars">★</span>
+        <span>Finish the lesson. A crash caps the attempt here.</span>
+      </div>
+    </div>
+  );
+}
+
 function Stars({ value }: { value: number }) {
   return (
     <div className="tr-stars" aria-label={`${value} of 3 stars`}>
       {[1, 2, 3].map((i) => (
-        <span key={i} className={`tr-star ${i <= value ? 'on' : ''}`} style={{ animationDelay: `${i * 0.12}s` }}>
+        <span
+          key={i}
+          className={`tr-star ${i <= value ? 'on' : ''}`}
+          style={{ animationDelay: `${i * 0.12}s` }}
+        >
           ★
         </span>
       ))}
@@ -46,6 +98,7 @@ export function TrainingHud() {
   const demoRounds = useTrainingStore((s) => s.demoRounds);
   const demoKeys = useTrainingStore((s) => s.demoKeys);
   const routeIndex = useTrainingStore((s) => s.routeIndex);
+  const cue = useTrainingStore((s) => s.cue);
   const hint = useTrainingStore((s) => s.hint);
   const validation = useTrainingStore((s) => s.validation);
   const lastStars = useTrainingStore((s) => s.lastStars);
@@ -96,10 +149,26 @@ export function TrainingHud() {
   const flying = phase === 'demo' || phase === 'practice';
   const activeStep = STEPS.findIndex((s) => s.key === phase);
   const pct = Math.round((validation.progress || 0) * 100);
-  // A route lesson counts checkpoints; the stick lessons have nothing to count.
+  // The checkpoint row: one chip per point on the route, plus a final "Land"
+  // chip for the lessons that finish on the pad. It is the answer to "how much
+  // is left" that a percentage alone does not give — the pilot can see which
+  // points are cleared, which one is live, and what is still to come.
   const route = lesson.route;
-  const counted = !!route && route.length > 1;
-  const nextTarget = route && routeIndex < route.length ? route[routeIndex].label : null;
+  const steps: { label: string; cap?: string }[] = lesson.stages
+    ? lesson.stages.map((s) => ({ label: s.label, cap: s.cap }))
+    : [
+        ...(route?.map((c) => ({ label: c.label })) ?? []),
+        ...(lesson.landing ? [{ label: 'Land', cap: 'S' }] : []),
+      ];
+  // Allowed to run one PAST the last step: that is the "all done" state, where
+  // every chip carries its tick instead of the last one still sitting live.
+  const stepIndex = Math.min(routeIndex, steps.length);
+  // Every control this lesson uses, shown from the start. A lesson lists only
+  // the controls it teaches — two of them, in the first modules — and the cue
+  // highlight is what says which one is wanted right now. Making caps appear
+  // partway through was worse: the row moved under the pilot's hand.
+  const liveKeys = lesson.keys ?? [];
+  const nextTarget = steps.length > 1 ? (steps[stepIndex]?.label ?? null) : null;
 
   return (
     <div className={`tr-hud min phase-${phase}`}>
@@ -137,9 +206,32 @@ export function TrainingHud() {
           <div className="tr-card">
             <span className="tr-kicker">Learn · Module {num}</span>
             <h2>{lesson.explain.title}</h2>
-            {lesson.explain.body.map((line, i) => (
-              <p key={i}>{line}</p>
-            ))}
+
+            {/* What this lesson is, as a flow: the steps in order, each with the
+                key that performs it. It is the first thing on the card because
+                it is the thing a pilot can act on without reading. */}
+            {steps.length > 1 && (
+              <div className="tr-flow">
+                {steps.map((s, i) => (
+                  // The arrow travels WITH the step it points at, so a flow that
+                  // wraps never leaves an arrow dangling at the end of a line.
+                  <span className="tr-flow-item" key={`${s.label}-${i}`}>
+                    {i > 0 && <span className="tr-flow-arrow" aria-hidden="true" />}
+                    <span className="tr-flow-step">
+                      <span className="tr-flow-num">{i + 1}</span>
+                      {s.cap && <kbd>{s.cap}</kbd>}
+                      <span className="tr-flow-label">{s.label}</span>
+                    </span>
+                  </span>
+                ))}
+              </div>
+            )}
+
+            <div className="tr-body">
+              {lesson.explain.body.map((line, i) => (
+                <p key={i}>{line}</p>
+              ))}
+            </div>
             {(lesson.tips?.length || lesson.commonMistakes?.length) && (
               <div className="tr-notes">
                 {lesson.tips && lesson.tips.length > 0 && (
@@ -164,6 +256,8 @@ export function TrainingHud() {
                 )}
               </div>
             )}
+            <Rubric rules={lesson.stars} />
+
             <div className="tr-actions">
               <button className="tr-btn primary" onClick={clickThen(() => setPhase('demo'))}>
                 ▶ Watch Demonstration
@@ -180,26 +274,40 @@ export function TrainingHud() {
       {flying && (
         <>
           <div className={phase === 'demo' ? 'tr-demo-sticks' : undefined}>
-            <StickIndicator />
+            <StickIndicator cue={phase === 'practice' ? cue : []} />
           </div>
-          {lesson.keys && <KeyHints keys={lesson.keys} demoKeys={demoKeys} />}
+          {liveKeys.length > 0 && (
+            <KeyHints keys={liveKeys} demoKeys={demoKeys} cue={phase === 'practice' ? cue : []} />
+          )}
         </>
       )}
 
-      {/* Step 2 — Demonstration: one bottom line */}
+      {/* Step 2 — Demonstration: the same step row the pilot will fly, walking
+          along with the demo, over the caption for the leg being shown. */}
       {phase === 'demo' && (
-        <div className="tr-line">
-          <span className="tr-line-tag">
-            DEMO {demoRound}/{demoRounds}
-          </span>
-          <span className="tr-line-txt">{demoCaption}</span>
-          <button className="tr-line-skip" onClick={clickThen(() => setPhase('practice'))}>
-            skip ⏭
-          </button>
+        <div className="tr-line demo">
+          {steps.length > 1 && <StepChips steps={steps} index={stepIndex} />}
+          <div className="tr-line-row">
+            <span className="tr-line-tag">
+              DEMO
+              {/* Which pass is playing, as pips. It used to read "DEMO 2/3",
+                  which sat directly under a row of two steps and was read as
+                  "step 2 of 3" — a lesson with two steps does not have three. */}
+              <span className="tr-demo-pips" aria-label={`Pass ${demoRound} of ${demoRounds}`}>
+                {Array.from({ length: demoRounds }, (_, i) => (
+                  <i key={i} className={i < demoRound ? 'on' : ''} />
+                ))}
+              </span>
+            </span>
+            <span className="tr-line-txt">{demoCaption}</span>
+            <button className="tr-line-skip" onClick={clickThen(() => setPhase('practice'))}>
+              skip ⏭
+            </button>
+          </div>
         </div>
       )}
 
-      {/* Step 3/4 — Practice: one bottom line + slim progress */}
+      {/* Step 3/4 — Practice: one bottom line, the checkpoint row, slim progress */}
       {phase === 'practice' && (
         <div className={`tr-line practice ${validation.failed ? 'fail' : ''}`}>
           <div className="tr-line-row">
@@ -207,17 +315,19 @@ export function TrainingHud() {
               {validation.failed ? '⚠ ' : '➤ '}
               {hint || lesson.practice.prompt}
             </span>
-            {counted && nextTarget && (
+            {nextTarget && (
               <span className="tr-line-next">
                 NEXT <b>{nextTarget}</b>
               </span>
             )}
-            <span className="tr-line-pct">
-              {counted ? `${routeIndex}/${route.length}` : `${pct}%`}
-            </span>
+            <span className="tr-line-pct">{pct}%</span>
           </div>
+          {steps.length > 1 && <StepChips steps={steps} index={stepIndex} />}
           <div className="tr-thinbar">
-            <div className={`fill ${validation.failed ? 'fail' : ''}`} style={{ width: `${pct}%` }} />
+            <div
+              className={`fill ${validation.failed ? 'fail' : ''}`}
+              style={{ width: `${pct}%` }}
+            />
           </div>
         </div>
       )}
@@ -243,6 +353,9 @@ export function TrainingHud() {
             <h2>Lesson Complete</h2>
             <Stars value={lastStars} />
             {lastXp > 0 && <span className="tr-xp">+{lastXp} XP</span>}
+
+            {/* Why that many, and what the next one up would take. */}
+            <Rubric rules={lesson.stars} earned={lastStars} />
 
             {lastRankUp && <div className="tr-rankup">★ RANK UP · {lastRankUp} ★</div>}
 

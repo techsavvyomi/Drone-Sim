@@ -37,6 +37,10 @@ interface TrainingState {
   /** How many of the active lesson's checkpoints have been taken. Drives the
    *  route guide's "done / next / still to come" and the HUD's NEXT readout. */
   routeIndex: number;
+  /** The control the pilot should be using right now, as KeyboardEvent.codes.
+   *  The keycap row breathes these and the sticks glow in the same direction —
+   *  see ValidationResult.cue. */
+  cue: readonly string[];
   /** Contextual guidance during practice (step 3/4). */
   hint: string;
   validation: Validation;
@@ -52,6 +56,7 @@ interface TrainingState {
   setDemoRound: (round: number, rounds?: number) => void;
   setDemoKeys: (keys: readonly string[]) => void;
   setRouteIndex: (index: number) => void;
+  setCue: (cue: readonly string[]) => void;
   setHint: (hint: string) => void;
   setValidation: (v: Validation) => void;
   /** Persist a completed lesson, award XP, and move to the reward phase. */
@@ -68,6 +73,7 @@ export const useTrainingStore = create<TrainingState>((set) => ({
   demoRounds: 3,
   demoKeys: [],
   routeIndex: 0,
+  cue: [],
   hint: '',
   validation: { progress: 0, failed: false },
   lastStars: 0,
@@ -82,6 +88,7 @@ export const useTrainingStore = create<TrainingState>((set) => ({
       demoRound: 1,
       demoKeys: [],
       routeIndex: 0,
+      cue: [],
       hint: '',
       validation: { progress: 0, failed: false },
       lastStars: 0,
@@ -95,6 +102,7 @@ export const useTrainingStore = create<TrainingState>((set) => ({
     set(demoRounds ? { demoRound, demoRounds } : { demoRound }),
   setDemoKeys: (demoKeys) => set({ demoKeys }),
   setRouteIndex: (routeIndex) => set({ routeIndex }),
+  setCue: (cue) => set({ cue }),
   setHint: (hint) => set({ hint }),
   setValidation: (validation) => set({ validation }),
 
@@ -131,7 +139,8 @@ export const useTrainingStore = create<TrainingState>((set) => ({
     set({ phase: 'reward', lastStars: stars, lastXp: xpGained, lastRankUp: rankedUp });
   },
 
-  exitLesson: () => set({ activeLessonId: null, phase: 'intro', demoCaption: '', hint: '' }),
+  exitLesson: () =>
+    set({ activeLessonId: null, phase: 'intro', demoCaption: '', hint: '', cue: [] }),
 }));
 
 // ---- Derived selectors (progress lives in settings) -------------------------

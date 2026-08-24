@@ -1,7 +1,7 @@
-import { clamp01, flyRoute, type Checkpoint, type Lesson } from './types';
+import { clamp01, cueBetween, flyRoute, type Checkpoint, type Lesson } from './types';
 import { planDemo } from './demoFlight';
-import { gate, home, routeLegs } from './arena';
-import { useFlightStore } from '../../state/flightStore';
+import { HOVER, gate, home, routeLegs } from './arena';
+import { ACADEMY_PAD } from '../../plugins/environments/droneAcademy';
 
 // Modules 11-13 — Navigation. Three routes of growing length flown through the
 // arena's own racing gates, built from one shared factory because only the
@@ -43,6 +43,12 @@ function navLesson(cfg: {
     ...(cfg.returnHome ? [home('H')] : []),
   ];
   const labels = route.map((c) => c.label).join(' → ');
+  /** Where the route starts from: the hover over the "H". */
+  const start: readonly [number, number, number] = [
+    ACADEMY_PAD.center[0],
+    HOVER,
+    ACADEMY_PAD.center[1],
+  ];
 
   return {
     id: cfg.id,
@@ -57,12 +63,14 @@ function navLesson(cfg: {
 
     route,
 
+    // Opens at a hover, like every lesson after Module 2 that is not itself
+    // about getting off the ground.
+    startAirborne: true,
+
     // Flown from the route itself, so the demonstration takes the same pads in
     // the same order the attempt is graded on — it cannot drift out of step
     // with the lesson the way a hand-timed stick script did.
     demo: [
-      { at: 0.0, cmd: 'arm', key: 'Enter', caption: 'Arm — motors spool up to idle' },
-      { at: 0.0, cmd: 'takeoffLand', key: 'Space', caption: 'Take off to a hover' },
       // A route is continuous flying, not a stop-start drill, so it is flown a
       // little brisker and with a shorter pause at each gate than the shape
       // circuits — without that the full A-D circuit runs past a minute.
@@ -81,22 +89,23 @@ function navLesson(cfg: {
       ),
     ],
 
-    setup: () => {
-      const flight = useFlightStore.getState();
-      if (!flight.armed) flight.toggleArm();
-      flight.requestTakeoffLand();
-    },
-
     practice: {
       prompt: `Fly the route ${labels}, in order`,
-      hint: `Head for ${route[0].label} first`,
+      hint: `Fly to ${route[0].label}`,
     },
 
+    // The throttle belongs on this row. These gates stand between 2.4 m and 5 m
+    // up, and the highest one cannot be reached from the opening hover at all —
+    // a pilot shown only the arrows would fly at it forever. Every other control
+    // the route needs is here too, because navigation is the module where they
+    // are finally used together.
     keys: [
       { code: 'ArrowUp', label: '↑', hint: 'Pitch Forward' },
       { code: 'ArrowDown', label: '↓', hint: 'Pitch Backward' },
       { code: 'ArrowLeft', label: '←', hint: 'Roll Left' },
       { code: 'ArrowRight', label: '→', hint: 'Roll Right' },
+      { code: 'KeyW', label: 'W', hint: 'Throttle Up' },
+      { code: 'KeyS', label: 'S', hint: 'Throttle Down' },
       { code: 'KeyA', label: 'A', hint: 'Yaw Left' },
       { code: 'KeyD', label: 'D', hint: 'Yaw Right' },
     ],
@@ -111,7 +120,7 @@ function navLesson(cfg: {
     ],
 
     validate: (p, mem) => {
-      if (p.crashed) return { done: false, failed: true, hint: 'Crashed — try again' };
+      if (p.crashed) return { done: false, failed: true, hint: 'Crashed. Try again', cue: [] };
       mem.altDev = Math.max(mem.altDev ?? 0, Math.abs(p.altitude - route[0].at[1]));
 
       const r = flyRoute(mem, p.position, route, { strict: true });
@@ -119,20 +128,37 @@ function navLesson(cfg: {
         return {
           done: false,
           failed: true,
-          hint: `Wrong one — the route is ${labels}. Start again.`,
+          hint: `Wrong one. The route is ${labels}. Start again`,
+          cue: [],
         };
       }
-      if (r.complete) return { done: true, progress: 1, hint: 'Route complete' };
-      return { done: false, progress: clamp01(r.progress), hint: `Next: ${route[r.next].label}` };
+      if (r.complete) return { done: true, progress: 1, hint: 'Route complete', cue: [] };
+      const from = r.next === 0 ? start : route[r.next - 1].at;
+      return {
+        done: false,
+        progress: clamp01(r.progress),
+        hint: `Fly to ${route[r.next].label}`,
+        cue: cueBetween(from, route[r.next].at),
+      };
     },
 
-    score: ({ timeSec, collisions, smoothness, mem }) => {
-      if (collisions > 0) return 1;
-      const altDev = mem.altDev ?? 0;
-      if (altDev <= 1.2 && timeSec <= cfg.threeStarSec && smoothness >= 0.3) return 3;
-      if (altDev <= 2.2 && timeSec <= cfg.threeStarSec * 1.8) return 2;
-      return 1;
-    },
+    stars: [
+      {
+        stars: 3,
+        text: `Whole route in ${cfg.threeStarSec} seconds, height held within 1.2 m`,
+        test: ({ timeSec, collisions, smoothness, mem }) =>
+          collisions === 0 &&
+          (mem.altDev ?? 0) <= 1.2 &&
+          timeSec <= cfg.threeStarSec &&
+          smoothness >= 0.3,
+      },
+      {
+        stars: 2,
+        text: `Whole route in ${Math.round(cfg.threeStarSec * 1.8)} seconds, height within 2.2 m`,
+        test: ({ timeSec, collisions, mem }) =>
+          collisions === 0 && (mem.altDev ?? 0) <= 2.2 && timeSec <= cfg.threeStarSec * 1.8,
+      },
+    ],
 
     practiceTimeout: cfg.timeout,
   };
@@ -145,10 +171,9 @@ export const navABLesson = navLesson({
   subtitle: 'Two gates, your first set route',
   gates: 2,
   intro: [
-    'Navigation is flying a route someone else set, not wherever the drone drifts.',
-    'The two red rings on the field are your A and B — the guide marks each one as you go.',
-    'Fly through A, then across to B.',
-    'Take them out of order and the attempt ends, so look before you move.',
+    'A set route this time: fly through gate A, then across to gate B.',
+    'The path is drawn on the field and the gate you want next is marked.',
+    'Take them out of order and the attempt ends.',
   ],
   timeout: 60,
   threeStarSec: 42,
@@ -161,10 +186,9 @@ export const navABCLesson = navLesson({
   subtitle: 'Three gates, taken in order',
   gates: 3,
   intro: [
-    'Three gates now: the two red rings you know, then the green rectangle beyond them.',
-    'Fly A, then B, then C. The gate you want next is marked and called out as you go.',
-    'Reach each one closely enough to register it — passing nearby does not count.',
-    'Cutting to a later gate ends the attempt.',
+    'Three gates now: A, then B, then the green one beyond them, C.',
+    'Fly through each opening. Passing beside a gate does not count.',
+    'Skipping ahead to a later gate ends the attempt.',
   ],
   timeout: 65,
   threeStarSec: 55,
@@ -178,9 +202,8 @@ export const navABCDLesson = navLesson({
   gates: 4,
   returnHome: true,
   intro: [
-    'All four gates, in order, and then home — the full circuit.',
-    'A, B, C, D, and finally back over the "H" you started from.',
-    'D is the highest gate on the field, and the run home from it is the longest leg.',
+    'The full circuit: A, B, C, D, and then back over the "H" you started from.',
+    'D is the highest gate on the field and the run home from it is the longest leg.',
     'Order is checked at every step, so no shortcuts.',
   ],
   timeout: 75,

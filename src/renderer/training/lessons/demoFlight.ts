@@ -132,6 +132,10 @@ export interface DemoLeg {
   face?: boolean;
   /** What to call the target in the turn caption. */
   label?: string;
+  /** Which checkpoint of the lesson's route this leg is flying to, 0-based.
+   *  Carried onto the emitted steps so the HUD's checkpoint row and the route
+   *  guide follow the demonstration the same way they follow the pilot. */
+  stage?: number;
 }
 
 /**
@@ -220,11 +224,16 @@ export function planDemo(
       const uz = dz / dist;
       const roll = stick * (ux * c - uz * sn);
       const pitch = stick * -(ux * sn + uz * c);
-      steps.push({ at, stick: { roll, pitch }, caption: leg.caption });
-      steps.push({ at: at + tAccel, stick: { roll: -roll, pitch: -pitch }, caption: leg.arrive });
+      steps.push({ at, stick: { roll, pitch }, caption: leg.caption, stage: leg.stage });
+      steps.push({
+        at: at + tAccel,
+        stick: { roll: -roll, pitch: -pitch },
+        caption: leg.arrive,
+        stage: leg.stage,
+      });
       steps.push({ at: at + tAccel + tBrake, stick: { roll: 0, pitch: 0 } });
     } else if (leg.caption) {
-      steps.push({ at, caption: leg.caption });
+      steps.push({ at, caption: leg.caption, stage: leg.stage });
     }
 
     at += Math.max(tAccel + tBrake, tClimb) + gap;

@@ -1,10 +1,9 @@
-import { latch, type Lesson } from './types';
+import { cueBetween, latch, type Lesson } from './types';
 import { planCircle } from './demoFlight';
 import { HOVER } from './arena';
 import { ACADEMY_PAD } from '../../plugins/environments/droneAcademy';
-import { useFlightStore } from '../../state/flightStore';
 
-// Step 11 — Circle. The square and the triangle are straight lines joined by
+// Module 10 — Circle. The square and the triangle are straight lines joined by
 // stops. A circle never stops: both sticks stay in and their ratio changes
 // continuously all the way round. Scored on swept angle and how even the radius
 // stayed, so cutting a corner cannot pass.
@@ -26,16 +25,26 @@ export const circleLesson: Lesson = {
   explain: {
     title: 'Flying a Circle',
     body: [
-      'A circle is the one shape with no corners to rest at.',
-      'Both sticks stay in the whole way round, and their balance changes continuously.',
-      'Follow the ring of white markers around the helipad, keeping the radius even.',
-      'Smooth and round beats fast — cutting in close will not count.',
+      'Fly one full lap around the helipad, following the ring drawn on the field.',
+      'A circle has no corners to rest at. Both sticks stay in the whole way round.',
+      'Keep the same distance from the middle. Cutting in close will not count.',
     ],
   },
 
+  // The ring is the task, so the guide draws the whole circle rather than a
+  // handful of points on it. Chopping it into checkpoints would turn the one
+  // shape with no corners into a rounded polygon.
+  guideRing: { radius: RADIUS, height: ALT },
+
+  // Opens at a hover: the drone is placed there rather than flying up to it,
+  // so the lesson starts on its own drill instead of on a take-off.
+  startAirborne: true,
+
+  // A circle has no corners, but it does have two halves to the task: get out
+  // onto the ring, then hold it all the way round.
+  stages: [{ label: 'Reach the ring' }, { label: 'Fly the lap' }],
+
   demo: [
-    { at: 0.0, cmd: 'arm', key: 'Enter', caption: 'Arm — motors spool up to idle' },
-    { at: 0.0, cmd: 'takeoffLand', key: 'Space', caption: 'Take off to a hover' },
     ...planCircle({
       radius: RADIUS,
       height: ALT,
@@ -51,14 +60,8 @@ export const circleLesson: Lesson = {
     }),
   ],
 
-  setup: () => {
-    const flight = useFlightStore.getState();
-    if (!flight.armed) flight.toggleArm();
-    flight.requestTakeoffLand();
-  },
-
   practice: {
-    prompt: 'One full lap around the helipad, on the ring of markers',
+    prompt: 'One full lap around the helipad, on the ring',
     hint: 'Get out to the ring first, then start the arc',
   },
 
@@ -79,7 +82,7 @@ export const circleLesson: Lesson = {
   ],
 
   validate: (p, mem) => {
-    if (p.crashed) return { done: false, failed: true, hint: 'Crashed — try again' };
+    if (p.crashed) return { done: false, failed: true, hint: 'Crashed. Try again' };
     mem.altDev = Math.max(mem.altDev ?? 0, Math.abs(p.altitude - ALT));
 
     const r = Math.hypot(p.position[0], p.position[2]);
@@ -90,10 +93,15 @@ export const circleLesson: Lesson = {
     // banks no progress. mem starts empty, hence the explicit "started" flag.
     if (!onRing) {
       mem.started = 0;
+      if (!mem.sweep) mem.wp = 0;
+      // Point at the nearest place on the ring, so "get back on it" is a
+      // direction on the sticks rather than a sentence about radius.
+      const scale = RADIUS / Math.max(r, 1e-3);
       return {
         done: false,
         progress: (mem.sweep ?? 0) / TARGET_SWEEP,
-        hint: r < RADIUS ? 'Too tight — move out to the ring' : 'Too wide — come in to the ring',
+        hint: r < RADIUS ? 'Too tight. Move out to the ring' : 'Too wide. Come in to the ring',
+        cue: cueBetween(p.position, [p.position[0] * scale, ALT, p.position[2] * scale]),
       };
     }
 
@@ -119,22 +127,33 @@ export const circleLesson: Lesson = {
     // a completed circle to a wobble on the last metre is not a lesson in
     // anything.
     const round = latch(mem, 'round', swept >= TARGET_SWEEP);
+    mem.wp = round ? 2 : 1;
     return {
       done: round,
       progress: round ? 1 : Math.min(1, swept / TARGET_SWEEP),
-      hint: round ? 'Circle complete' : `Keep the arc going — ${pct}% round`,
+      hint: round ? 'Circle complete' : `Keep the arc going. ${pct}% round`,
     };
   },
 
-  score: ({ timeSec, collisions, smoothness, mem }) => {
-    if (collisions > 0) return 1;
-    const rDev = mem.radiusDev ?? 99;
-    const altDev = mem.altDev ?? 0;
-    // Widened with the ring: the lap is now 43 m round rather than 25.
-    if (rDev <= 1.2 && altDev <= 0.9 && smoothness >= 0.35 && timeSec <= 70) return 3;
-    if (rDev <= 1.8 && altDev <= 1.8) return 2;
-    return 1;
-  },
+  // Widened with the ring: the lap is now 43 m round rather than 25.
+  stars: [
+    {
+      stars: 3,
+      text: 'Radius within 1.2 m and height within 0.9 m, lap under 70 seconds',
+      test: ({ timeSec, collisions, smoothness, mem }) =>
+        collisions === 0 &&
+        (mem.radiusDev ?? 99) <= 1.2 &&
+        (mem.altDev ?? 0) <= 0.9 &&
+        smoothness >= 0.35 &&
+        timeSec <= 70,
+    },
+    {
+      stars: 2,
+      text: 'Radius within 1.8 m and height within 1.8 m',
+      test: ({ collisions, mem }) =>
+        collisions === 0 && (mem.radiusDev ?? 99) <= 1.8 && (mem.altDev ?? 0) <= 1.8,
+    },
+  ],
 
   practiceTimeout: 75,
 };

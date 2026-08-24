@@ -1,90 +1,106 @@
-import { clamp01, flyRoute, type Lesson } from './types';
+import { CUE, clamp01, flyRoute, type Lesson } from './types';
 import { planDemo } from './demoFlight';
-import { gate, home, routeLegs } from './arena';
-import { useFlightStore } from '../../state/flightStore';
+import { HOVER, gate, home, routeLegs } from './arena';
 
-// Module 2 — Pitch Control. Forward and back on one stick, flown to the blue
+// Module 4 — Pitch Control. Forward and back on one stick, flown to the blue
 // square gate standing 16 m straight off the nose. It is the first thing a
 // pilot sees from the pad and it is dead ahead, so "fly forward" needs no
-// further explanation — and the small climb to its opening is the throttle
-// lesson from Module 1 put to use.
-const ROUTE = [gate('blue-near', 'Blue gate', { ease: 1.3 }), home('H')] as const;
+// further explanation.
+//
+// One axis only. The drone is handed over hovering and the height looks after
+// itself, so the module shows two keys and asks for two directions.
+// Judged at hover height, not at the gate's own 2.6 m. This module shows two
+// keys and neither of them is the throttle, so the whole exercise is flown level
+// in altitude hold — and the demonstration then flies level too, instead of
+// climbing on the way out and sinking on the way back, which is a throttle
+// lesson the pilot has not had yet. The blue square's opening runs from 0.9 m to
+// 4.3 m, so a level pass still goes through it.
+const ROUTE = [
+  gate('blue-near', 'Blue gate', { ease: 1.3, height: HOVER }),
+  home('Back to start'),
+] as const;
 
 export const pitchLesson: Lesson = {
   id: 'pitch',
-  order: 2,
+  order: 4,
   title: 'Pitch Control',
-  subtitle: 'Fly out to the marker, then back',
+  subtitle: 'Forward and backward',
 
   explain: {
-    title: 'Pitch Control',
+    title: 'Pitch: Forward and Backward',
     body: [
-      'Pitch tilts the drone forward or backward to move it in that direction.',
-      'The more you tilt, the faster it flies — ease off to slow down.',
-      'Your goal: fly out to the blue square gate ahead, then return to the "H".',
-      'The gate sits a little above hover height, so add a touch of throttle on the way.',
+      'Pitch moves the drone forward and backward. Nothing else.',
+      'Pitch forward to fly out to the blue gate, pitch backward to come back.',
+      'The harder you push, the faster it goes. Ease off to slow down.',
     ],
   },
 
   route: ROUTE,
 
+  // Opens at a hover: the drone is placed there rather than flying up to it,
+  // so the lesson starts on its own drill instead of on a take-off.
+  startAirborne: true,
+
   demo: [
-    { at: 0.0, cmd: 'arm', key: 'Enter', caption: 'Arm — motors spool up to idle' },
-    { at: 0.0, cmd: 'takeoffLand', key: 'Space', caption: 'Take off to a hover' },
     ...planDemo(
       routeLegs(ROUTE, [
         {
-          caption: 'Pitch forward — straight out to the blue gate',
-          arrive: 'Pitch BACK to stop on it — levelling off only coasts',
+          caption: 'PITCH FORWARD — straight out to the blue gate',
+          arrive: 'PITCH BACKWARD to stop on it. Levelling off only coasts',
         },
-        { caption: 'Pitch back — return to the "H"', arrive: 'And forward again to stop' },
+        {
+          caption: 'PITCH BACKWARD — all the way back to the start',
+          arrive: 'PITCH FORWARD again to stop on the spot',
+        },
       ]),
     ),
   ],
 
-  setup: () => {
-    const flight = useFlightStore.getState();
-    // Take-off no longer arms on the pilot's behalf, so a lesson that drops the
-    // student straight into the air has to arm the aircraft itself first.
-    if (!flight.armed) flight.toggleArm();
-    flight.requestTakeoffLand();
-  },
-
   practice: {
-    prompt: 'Fly out to the blue gate, then back to the "H"',
-    hint: 'Pitch forward toward the blue gate',
+    prompt: 'Pitch forward to the blue gate, then pitch backward to the start',
+    hint: 'Pitch forward to the blue gate',
   },
 
   keys: [
     { code: 'ArrowUp', label: '↑', hint: 'Pitch Forward' },
     { code: 'ArrowDown', label: '↓', hint: 'Pitch Backward' },
-    { code: 'KeyW', label: 'W', hint: 'Throttle Up' },
-    { code: 'KeyS', label: 'S', hint: 'Throttle Down' },
   ],
 
-  tips: ['Keep the nose pointing straight ahead.', 'Level the drone to stop — don’t rely on drag alone.'],
-  commonMistakes: ['Tilting too hard and overshooting the gate.', 'Forgetting to climb to the opening.'],
+  tips: [
+    'Keep the nose pointing straight ahead.',
+    'Pitch backward to stop. Drag alone will not do it.',
+  ],
+  commonMistakes: ['Pushing too hard and flying past the gate.'],
 
   validate: (p, mem) => {
-    if (p.crashed) return { done: false, failed: true, hint: 'Crashed — try again' };
+    if (p.crashed) return { done: false, failed: true, hint: 'Crashed. Try again', cue: [] };
     mem.wander = Math.max(mem.wander ?? 0, Math.abs(p.position[0]));
 
     const r = flyRoute(mem, p.position, ROUTE);
-    if (r.complete) return { done: true, progress: 1, hint: 'Back home — nicely flown' };
+    if (r.complete)
+      return { done: true, progress: 1, hint: 'Back at the start. Nicely flown', cue: [] };
     return {
       done: false,
       progress: clamp01(r.progress),
-      hint: r.next === 0 ? 'Pitch forward to the blue gate' : 'Pitch back to the "H"',
+      hint: r.next === 0 ? 'Pitch forward to the blue gate' : 'Pitch backward, back to the start',
+      cue: r.next === 0 ? CUE.forward : CUE.backward,
     };
   },
 
-  score: ({ timeSec, collisions, smoothness, mem }) => {
-    if (collisions > 0) return 1;
-    const wander = mem.wander ?? 0;
-    if (wander <= 2.5 && timeSec <= 32 && smoothness >= 0.3) return 3;
-    if (wander <= 5 && timeSec <= 55) return 2;
-    return 1;
-  },
+  stars: [
+    {
+      stars: 3,
+      text: 'Out and back in 32 seconds, drifting under 2.5 m sideways',
+      test: ({ timeSec, collisions, smoothness, mem }) =>
+        collisions === 0 && (mem.wander ?? 0) <= 2.5 && timeSec <= 32 && smoothness >= 0.3,
+    },
+    {
+      stars: 2,
+      text: 'Out and back in 55 seconds, drifting under 5 m',
+      test: ({ timeSec, collisions, mem }) =>
+        collisions === 0 && (mem.wander ?? 0) <= 5 && timeSec <= 55,
+    },
+  ],
 
   practiceTimeout: 45,
 };

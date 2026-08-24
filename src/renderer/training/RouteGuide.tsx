@@ -1,115 +1,110 @@
 import { useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
+import { Line } from '@react-three/drei';
 import * as THREE from 'three';
+import type { Line2, LineMaterial } from 'three-stdlib';
 import { useTrainingStore } from '../state/trainingStore';
 import { getLesson } from './lessons';
-import type { Checkpoint } from './lessons/types';
+import { HOVER } from './lessons/arena';
+import { ACADEMY_PAD } from '../plugins/environments/droneAcademy';
 
 // The route guide.
 //
-// It draws NO geometry into the arena — no rings, no pylons, no painted path.
-// Every checkpoint a lesson names is something already standing on the field: a
-// racing gate, a painted landing pad, one of the white markers ringing the
-// helipad. All this does is hang a letter over the one the pilot is being sent
-// to, so the arena the pilot learns is the arena that is actually there.
+// It builds NO scenery. Every checkpoint a lesson names is something already
+// standing on the field — a racing gate, a painted landing pad, one of the white
+// markers ringing the helipad — and all this adds is the ROUTE between them:
+// the line to fly, the point being flown to, and which parts are already done.
 //
-// Lessons used to draw their own furniture beside the arena's, which taught a
-// course that does not exist outside the lesson; the first pass at this guide
-// then ringed each target, which put a second circle over gates that are
-// already circles. Neither: name the object, do not redraw it.
+// It has been trimmed twice, both times for the same reason. First it hung a
+// letter over every checkpoint at once — the "A B C D everywhere" that made the
+// field unreadable. Then a name and a chevron over just the live one: the name
+// was a word stuck to an object the pilot was already looking at, and the
+// chevron, drawn without depth testing so it could not be hidden, filled the
+// screen whenever the target was the pad the drone was sitting on.
 //
-// Cost is one sprite per checkpoint and one shared clock read per frame. No
-// per-frame allocation, no React state.
+// What is left is the thing that could not be got from anywhere else: the line
+// to fly. Naming the target is the HUD's job, and it does it in the step row.
+//
+// Cost is one line per leg and a single clock read per frame. No per-frame
+// allocation, no React state.
 
 const DONE = '#34d399';
 const NEXT = '#ffcf4d';
-const LATER = '#94a3b8';
+const LATER = '#64748b';
 
-/**
- * A checkpoint's letter, drawn as a sprite.
- *
- * The arena has no text renderer — every marking on the field is geometry — so
- * the letter is painted into a small canvas once per label and cached. A
- * sprite, not a mesh, because it has to stay readable from wherever the chase
- * camera happens to be.
- */
-const labelTextures = new Map<string, THREE.CanvasTexture>();
-
-function labelTexture(text: string): THREE.CanvasTexture {
-  const cached = labelTextures.get(text);
-  if (cached) return cached;
-
-  const size = 128;
-  const canvas = document.createElement('canvas');
-  canvas.width = size;
-  canvas.height = size;
-  const ctx = canvas.getContext('2d');
-  if (ctx) {
-    ctx.fillStyle = '#ffffff';
-    ctx.font = `700 ${text.length > 1 ? 54 : 84}px Inter, system-ui, sans-serif`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(text, size / 2, size / 2 + 4);
-  }
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.anisotropy = 4;
-  labelTextures.set(text, texture);
-  return texture;
+/** Straight-line distance between two world points. */
+function dist(a: readonly [number, number, number], b: readonly [number, number, number]): number {
+  return Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
 }
 
-/** How far above a checkpoint its letter floats, per kind of arena landmark. */
-function labelLift(c: Checkpoint): number {
-  switch (c.mark) {
-    case 'gate':
-      // Clear of the top of the frame.
-      return (c.markSize ?? 3) * 0.62 + 0.9;
-    case 'pad':
-    case 'helipad':
-      // Flat on the ground, so the letter stands at eye level above it.
-      return 2.2;
-    default:
-      return 1.4;
-  }
-}
+/** Where a route starts from: the hover over the "H". */
+const START: readonly [number, number, number] = [
+  ACADEMY_PAD.center[0],
+  HOVER,
+  ACADEMY_PAD.center[1],
+];
 
-/**
- * One checkpoint's letter: green once taken, gold for the live target, grey for
- * the ones still to come. Only the live one pulses.
- */
-function Marker({ point, state }: { point: Checkpoint; state: 'done' | 'next' | 'later' }) {
-  const mat = useRef<THREE.SpriteMaterial>(null);
-  const [x, y, z] = point.at;
-  const flat = point.mark === 'pad' || point.mark === 'helipad';
-  const color = state === 'done' ? DONE : state === 'next' ? NEXT : LATER;
-  const opacity = state === 'next' ? 0.95 : state === 'done' ? 0.45 : 0.35;
-  const scale = state === 'next' ? 1.9 : 1.4;
+/** One leg of the route, drawn as a line the pilot can follow. */
+function Leg({
+  from,
+  to,
+  state,
+}: {
+  from: readonly [number, number, number];
+  to: readonly [number, number, number];
+  state: 'done' | 'active' | 'later';
+}) {
+  const line = useRef<Line2>(null);
+  const points = useMemo(() => [new THREE.Vector3(...from), new THREE.Vector3(...to)], [from, to]);
 
   useFrame((s) => {
-    if (state !== 'next' || !mat.current) return;
-    // Only the live target breathes. Everything else sits still, or the field
-    // turns into a christmas tree.
-    mat.current.opacity = 0.7 + 0.28 * Math.sin(s.clock.elapsedTime * 2.2);
+    // The live leg's dashes crawl toward the target, so the line reads as a
+    // direction to fly rather than as a wire between two points.
+    if (state !== 'active' || !line.current) return;
+    (line.current.material as LineMaterial).dashOffset = -s.clock.elapsedTime * 0.6;
   });
 
   return (
-    <sprite position={[x, (flat ? 0 : y) + labelLift(point), z]} scale={[scale, scale, scale]}>
-      <spriteMaterial
-        ref={mat}
-        map={labelTexture(point.label)}
-        color={color}
-        transparent
-        opacity={opacity}
-        depthWrite={false}
-        depthTest={false}
-      />
-    </sprite>
+    <Line
+      ref={line}
+      points={points}
+      color={state === 'done' ? DONE : state === 'active' ? NEXT : LATER}
+      lineWidth={state === 'active' ? 4 : 2}
+      transparent
+      opacity={state === 'active' ? 0.95 : state === 'done' ? 0.5 : 0.28}
+      dashed={state === 'active'}
+      dashSize={1.4}
+      gapSize={0.9}
+      depthTest={false}
+    />
+  );
+}
+
+/** The painted ring the circle lesson flies, drawn as a closed path. */
+function Ring({ radius, height }: { radius: number; height: number }) {
+  const points = useMemo(() => {
+    const out: THREE.Vector3[] = [];
+    for (let i = 0; i <= 64; i++) {
+      const a = (i / 64) * Math.PI * 2;
+      out.push(
+        new THREE.Vector3(
+          ACADEMY_PAD.center[0] + Math.cos(a) * radius,
+          height,
+          ACADEMY_PAD.center[1] + Math.sin(a) * radius,
+        ),
+      );
+    }
+    return out;
+  }, [radius, height]);
+
+  return (
+    <Line points={points} color={NEXT} lineWidth={3} transparent opacity={0.75} depthTest={false} />
   );
 }
 
 export function RouteGuide() {
   const activeLessonId = useTrainingStore((s) => s.activeLessonId);
   const routeIndex = useTrainingStore((s) => s.routeIndex);
-  const phase = useTrainingStore((s) => s.phase);
 
   const lesson = useMemo(
     () => (activeLessonId ? getLesson(activeLessonId) : undefined),
@@ -117,19 +112,31 @@ export function RouteGuide() {
   );
   if (!lesson) return null;
 
-  // During the demonstration the whole route is shown ahead of the drone; in
-  // practice the guide walks along with the pilot.
-  const live = phase === 'demo' ? 0 : routeIndex;
+  // The guide walks along with whoever is flying: the demonstration marks its
+  // own steps as it plays them, the pilot's validator marks theirs.
+  const live = routeIndex;
+  const route = lesson.route ?? [];
 
   return (
     <>
-      {lesson.route?.map((point, i) => (
-        <Marker
-          key={`${point.label}-${i}`}
-          point={point}
-          state={i < live ? 'done' : i === live ? 'next' : 'later'}
-        />
-      ))}
+      {lesson.guideRing && (
+        <Ring radius={lesson.guideRing.radius} height={lesson.guideRing.height} />
+      )}
+      {route.map((point, i) => {
+        const from = i === 0 ? START : route[i - 1].at;
+        // A leg that goes nowhere is not a leg. The single-checkpoint lessons
+        // name the pad they are already hovering over, which would otherwise
+        // ask the renderer for a line of zero length.
+        if (dist(from, point.at) < 0.5) return null;
+        return (
+          <Leg
+            key={`leg-${point.label}-${i}`}
+            from={from}
+            to={point.at}
+            state={i < live ? 'done' : i === live ? 'active' : 'later'}
+          />
+        );
+      })}
     </>
   );
 }

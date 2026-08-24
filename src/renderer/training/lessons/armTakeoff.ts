@@ -1,10 +1,14 @@
-import { holdFor, latch, type Lesson } from './types';
+import { CUE, holdFor, latch, type Lesson } from './types';
 import { home } from './arena';
 
-// Step 1 — Arm & Take Off. The two halves of getting airborne, taught as one
+// Module 1 — Arm & Take Off. The two halves of getting airborne, taught as one
 // action because that is how they are flown: arming alone does nothing visible
-// any more (the motors stay stopped), so it only makes sense paired with the
-// throttle that follows it.
+// (the motors stay stopped), so it only makes sense paired with the take-off
+// that follows it.
+//
+// Nothing else appears in this module. No throttle, no pitch, no roll, no yaw:
+// the pilot has two things to do, in order, and the screen shows exactly those
+// two. SPACE does the climb, so the lesson is the ORDER, not the stick work.
 const MIN_ALT = 1.3;
 const MAX_ALT = 2.6;
 const HOLD_SEC = 1.5;
@@ -13,95 +17,132 @@ export const armTakeoffLesson: Lesson = {
   id: 'arm-takeoff',
   order: 1,
   title: 'Arm & Take Off',
-  subtitle: 'Power up and lift off the pad',
+  subtitle: 'Power up, then lift off the pad',
 
   explain: {
-    title: 'Arming and Taking Off',
+    title: 'Arm, then Take Off',
     body: [
-      'Before a drone can fly it must be armed. Arming enables the flight controller.',
-      'The motors will not turn at all until you arm — that is a safety feature, not a fault.',
-      'Arming alone will not lift the drone. Raise the throttle smoothly to climb to about 2 m,',
-      'then ease back to centre to settle into a steady hover.',
+      'Arming switches the motors on. Nothing turns before you do it.',
+      'Then press SPACE and the drone lifts itself to a steady hover.',
     ],
-    durationHint: '15–20 seconds',
+    durationHint: '15 seconds',
   },
+
+  // The two steps, shown as a flow on the intro card and walked through on the
+  // checkpoint row while the pilot flies them.
+  stages: [{ label: 'Arm', cap: 'ENTER' }, { label: 'Take off', cap: 'SPACE' }, { label: 'Hover' }],
 
   // Nothing to fly to — the guide simply rings the pad being taken off from.
   route: [home('H')],
 
+  // `stage` walks the step row on screen with the demonstration, so the flow the
+  // intro card showed is the flow the pilot watches being flown.
   demo: [
-    { at: 0.0, caption: 'Watch: press ENTER to arm' },
-    { at: 0.8, cmd: 'arm', key: 'Enter', caption: 'ENTER → the aircraft is live' },
-    { at: 2.4, caption: 'Armed — but nothing turns until you ask it to' },
-    { at: 3.4, stick: { throttle: 0.66 }, key: 'KeyW', caption: 'Smooth throttle — lift off' },
-    { at: 6.0, stick: { throttle: 0.5 }, caption: 'Ease to centre at ~1.8 m' },
-    { at: 7.6, caption: 'Stable hover — you are flying' },
+    { at: 0.0, stage: 0, caption: 'Step 1 — press ENTER to arm' },
+    { at: 0.8, cmd: 'arm', key: 'Enter', caption: 'Armed. The drone is live' },
+    { at: 2.4, stage: 1, caption: 'Armed, but still on the ground' },
+    {
+      at: 3.4,
+      stage: 1,
+      cmd: 'takeoffLand',
+      key: 'Space',
+      caption: 'Step 2 — press SPACE to take off',
+    },
+    // The Director holds the demo clock while auto take-off owns the aircraft,
+    // so this beat lands at the hover rather than part way up the climb.
+    { at: 4.4, stage: 2, caption: 'It climbs to about 2 m on its own' },
+    { at: 6.0, caption: 'Steady hover. You are flying' },
   ],
 
   practice: {
     prompt: 'Arm the drone, then take off to a steady hover',
-    hint: 'Throttle centred — press ENTER to arm',
+    hint: 'Press ENTER to arm',
   },
 
+  // Two keys, one per step, both on screen from the start — the breathing cue is
+  // what says which one is wanted now. The throttle caps used to sit here too,
+  // which made a one-answer question look like it had three answers, and the
+  // throttle is Module 3's lesson, not this one. SPACE climbs to the hover
+  // height on its own, which is the band this lesson is judged on.
   keys: [
     { code: 'Enter', label: 'ENTER', hint: 'Arm' },
-    { code: 'KeyW', label: 'W', hint: 'Throttle Up' },
-    { code: 'KeyS', label: 'S', hint: 'Throttle Down' },
+    { code: 'Space', label: 'SPACE', hint: 'Take Off' },
   ],
 
   tips: [
-    'Check the area is clear before arming, and keep hands away from the props.',
-    'Feed the throttle in gradually — no jerks.',
-    'Keep the drone level as it leaves the ground.',
+    'Check the area is clear before you arm.',
+    'Arm first, then take off. It does not work the other way round.',
   ],
   commonMistakes: [
-    'Arming with the throttle stick pushed up — the interlock will refuse.',
-    'Applying too much throttle and shooting up past the hover height.',
+    'Pressing SPACE before arming, so nothing happens.',
+    'Trying to arm with the throttle already up. The drone will refuse.',
   ],
 
   validate: (p, mem) => {
-    if (p.crashed) return { done: false, failed: true, hint: 'Crashed — try again' };
+    if (p.crashed) return { done: false, failed: true, hint: 'Crashed. Try again', cue: [] };
 
-    // Stage 1: get it armed. The interlock refuses with the throttle raised, so
-    // say why rather than leaving the pilot pressing a key that does nothing.
+    // Stage 1 — get it armed. The interlock refuses with the throttle raised,
+    // so say why rather than leaving the pilot pressing a key that does nothing.
     if (!p.armed && !mem.wasArmed) {
+      mem.wp = 0;
       if (p.throttle > 0.62) {
         mem.blocked = 1;
         return {
           done: false,
           progress: 0,
-          hint: 'Throttle is up — centre it first (arming is blocked for safety)',
+          hint: 'Throttle is up. Centre it first, then arm',
+          cue: [],
         };
       }
-      return { done: false, progress: 0, hint: 'Throttle centred — press ENTER to arm' };
+      return { done: false, progress: 0, hint: 'Press ENTER to arm', cue: CUE.arm };
     }
     if (p.armed) mem.wasArmed = 1;
 
-    // Stage 2: climb into the hover band and hold it.
+    // Stage 2 — climb into the hover band and hold it.
     const inBand = p.altitude >= MIN_ALT && p.altitude <= MAX_ALT;
     const steady = inBand && Math.abs(p.verticalSpeed) < 0.4;
     const held = holdFor(mem, 'hold', steady, p.dt, HOLD_SEC);
+    mem.wp = inBand ? 2 : 1;
 
     let hint: string;
-    if (!p.armed) hint = 'Disarmed — press ENTER to arm again';
-    else if (p.altitude < MIN_ALT) hint = 'Raise the throttle smoothly to climb';
-    else if (p.altitude > MAX_ALT) hint = 'Ease off — you are climbing too high';
-    else hint = `Good — hold the hover ${Math.max(0, HOLD_SEC - held * HOLD_SEC).toFixed(1)}s`;
+    let cue: readonly string[];
+    if (!p.armed) {
+      hint = 'Disarmed. Press ENTER to arm again';
+      cue = CUE.arm;
+    } else if (p.altitude < MIN_ALT) {
+      hint = 'Press SPACE to take off';
+      cue = CUE.autoTakeoff;
+    } else if (p.altitude > MAX_ALT) {
+      hint = 'Too high. Let it settle back down';
+      cue = [];
+    } else {
+      hint = `Hold the hover ${Math.max(0, HOLD_SEC - held * HOLD_SEC).toFixed(1)}s`;
+      cue = [];
+    }
 
     // The 1.5 s hover hold is the whole task, so latch it: the Director then
     // holds the "✓" for its own confirmation beat instead of demanding a second
     // steady stretch on top of the one the pilot was asked for.
     const hovered = latch(mem, 'hovered', p.armed && held >= 1);
-    return { done: hovered, progress: hovered ? 1 : 0.25 + 0.75 * held, hint };
+    if (hovered) mem.wp = 3;
+    return { done: hovered, progress: hovered ? 1 : 0.25 + 0.75 * held, hint, cue };
   },
 
-  score: ({ timeSec, collisions, smoothness, mem }) => {
-    if (collisions > 0) return 1;
-    if (mem.blocked) return 2; // tried to arm with the throttle up
-    if (smoothness >= 0.5 && timeSec <= 16) return 3;
-    if (smoothness >= 0.25 && timeSec <= 30) return 2;
-    return 1;
-  },
+  stars: [
+    {
+      stars: 3,
+      text: 'Hovering within 16 seconds, smoothly',
+      // A blocked arming (throttle up) is capped at two, however quick the rest was.
+      test: ({ timeSec, collisions, smoothness, mem }) =>
+        collisions === 0 && !mem.blocked && smoothness >= 0.5 && timeSec <= 16,
+    },
+    {
+      stars: 2,
+      text: 'Hovering within 30 seconds',
+      test: ({ timeSec, collisions, smoothness, mem }) =>
+        collisions === 0 && (!!mem.blocked || (smoothness >= 0.25 && timeSec <= 30)),
+    },
+  ],
 
   practiceTimeout: 30,
 };

@@ -1,9 +1,8 @@
-import { angleDiffDeg, clamp01, latch, type Lesson } from './types';
+import { CUE, angleDiffDeg, clamp01, latch, type Lesson } from './types';
 import { home } from './arena';
 import { yawTime } from './demoFlight';
-import { useFlightStore } from '../../state/flightStore';
 
-// Lesson (Module 4) — Yaw. Rotate the drone about its vertical axis without
+// Module 14 — Yaw. Rotate the drone about its vertical axis without
 // changing position. Practice: turn ~90°, then rotate back to the start heading.
 const TURN = 90;
 const REACH_TOL = 12; // within this of the target counts
@@ -16,26 +15,39 @@ const TURN_SEC = yawTime(TURN, DEMO_YAW);
 
 export const yawLesson: Lesson = {
   id: 'yaw',
-  order: 4,
+  order: 14,
   title: 'Yaw Control',
   subtitle: 'Spin the nose, hold the spot',
 
   explain: {
     title: 'Yaw Control',
     body: [
-      'Yaw rotates the drone left or right without moving its position.',
-      'It changes which way the drone is facing — vital for orientation.',
-      'Your goal: yaw about 90°, then rotate back to your starting heading.',
+      'Yaw turns the drone on the spot. It does not move anywhere.',
+      'It only changes which way the nose is pointing.',
+      'Turn about 90 degrees, then turn back to where you started.',
     ],
   },
 
   // The drone turns on the spot, so the only thing to highlight is the spot.
   route: [home('H')],
 
+  stages: [
+    { label: 'Turn 90°', cap: 'A' },
+    { label: 'Turn back', cap: 'D' },
+  ],
+
+  // Opens at a hover: the drone is placed there rather than flying up to it,
+  // so the lesson starts on its own drill instead of on a take-off.
+  startAirborne: true,
+
   demo: [
-    { at: 0.0, cmd: 'arm', key: 'Enter', caption: 'Arm — motors spool up to idle' },
-    { at: 0.0, cmd: 'takeoffLand', key: 'Space', caption: 'Take off to a hover' },
-    { at: 3.0, stick: { yaw: -DEMO_YAW }, key: 'KeyA', caption: 'Yaw left — the nose swings round' },
+    { at: 0.0, caption: 'Armed and hovering over the pad' },
+    {
+      at: 3.0,
+      stick: { yaw: -DEMO_YAW },
+      key: 'KeyA',
+      caption: 'Yaw left — the nose swings round',
+    },
     { at: 3.0 + TURN_SEC, stick: { yaw: 0 }, caption: 'Centre the stick — the turn stops there' },
     {
       at: 3.0 + TURN_SEC + 1.2,
@@ -45,14 +57,6 @@ export const yawLesson: Lesson = {
     },
     { at: 3.0 + 2 * TURN_SEC + 1.2, stick: { yaw: 0 }, caption: 'Back to the start heading' },
   ],
-
-  setup: () => {
-    const flight = useFlightStore.getState();
-    // Takeoff no longer arms on the pilot's behalf, so a lesson that drops the
-    // student straight into the air has to arm the aircraft itself first.
-    if (!flight.armed) flight.toggleArm();
-    flight.requestTakeoffLand();
-  },
 
   practice: {
     prompt: 'Yaw ~90°, then rotate back to your start heading',
@@ -64,11 +68,14 @@ export const yawLesson: Lesson = {
     { code: 'KeyD', label: 'D', hint: 'Yaw Right' },
   ],
 
-  tips: ['Use short taps — yaw builds up quickly.', 'Watch the compass heading as you turn.'],
-  commonMistakes: ['Over-rotating past the target.', 'Confusing yaw (spin) with roll (slide sideways).'],
+  tips: ['Use short taps. Yaw builds up quickly.', 'Watch the compass heading as you turn.'],
+  commonMistakes: [
+    'Over-rotating past the target.',
+    'Confusing yaw (spin) with roll (slide sideways).',
+  ],
 
   validate: (p, mem) => {
-    if (p.crashed) return { done: false, failed: true, hint: 'Crashed — try again' };
+    if (p.crashed) return { done: false, failed: true, hint: 'Crashed. Try again', cue: [] };
     if (mem.startSet !== 1) {
       mem.startYaw = p.yaw;
       mem.startSet = 1;
@@ -79,30 +86,41 @@ export const yawLesson: Lesson = {
 
     if ((mem.stage ?? 0) === 0) {
       if (Math.abs(delta - TURN) <= REACH_TOL) mem.stage = 1;
+      mem.wp = mem.stage ?? 0;
       return {
         done: false,
         progress: 0.5 * clamp01(delta / TURN),
-        hint: `Rotate to about 90° — now at ${delta.toFixed(0)}°`,
+        hint: `Turn to about 90°. Now at ${delta.toFixed(0)}°`,
+        cue: CUE.yawLeft,
       };
     }
 
     // Latched — see `latch`: yaw drifts, and holding a heading is not what this
     // lesson is testing.
     const back = latch(mem, 'back', delta <= RETURN_TOL);
+    mem.wp = back ? 2 : 1;
     return {
       done: back,
       progress: back ? 1 : 0.5 + 0.5 * clamp01(1 - (delta - RETURN_TOL) / TURN),
-      hint: back ? 'On heading' : `Rotate back to centre — now at ${delta.toFixed(0)}°`,
+      hint: back ? 'On heading' : `Turn back to the start. Now at ${delta.toFixed(0)}°`,
+      cue: back ? [] : CUE.yawRight,
     };
   },
 
-  score: ({ timeSec, collisions, mem }) => {
-    if (collisions > 0) return 1;
-    const overshoot = mem.overshoot ?? 0;
-    if (overshoot <= 8 && timeSec <= 18) return 3;
-    if (overshoot <= 25 && timeSec <= 35) return 2;
-    return 1;
-  },
+  stars: [
+    {
+      stars: 3,
+      text: 'Both turns landed within 8°, under 18 seconds',
+      test: ({ timeSec, collisions, mem }) =>
+        collisions === 0 && (mem.overshoot ?? 0) <= 8 && timeSec <= 18,
+    },
+    {
+      stars: 2,
+      text: 'Both turns landed within 25°, under 35 seconds',
+      test: ({ timeSec, collisions, mem }) =>
+        collisions === 0 && (mem.overshoot ?? 0) <= 25 && timeSec <= 35,
+    },
+  ],
 
   // A quarter turn out and back is quick, but tapping yaw accurately is not —
   // and yaw is the first lesson where overshooting costs a correction.

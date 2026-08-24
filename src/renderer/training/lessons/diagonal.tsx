@@ -1,97 +1,115 @@
-import { clamp01, flyRoute, lineDeviation, type Lesson } from './types';
+import { CUE, lineDeviation, type Lesson } from './types';
+import { flyMission } from './mission';
 import { planDemo } from './demoFlight';
 import { gate, home, routeLegs } from './arena';
-import { useFlightStore } from '../../state/flightStore';
 
 // Module 7 — Diagonal Run. The long diagonal of the arena: the green rectangle
-// away to the right, 36 m out and 5 m up. Module 5 taught two sticks held
-// together over a short hop; this one holds the same ratio for a full run while
-// the throttle is also working, and scores the line.
+// away to the right, 36 m out and 5 m up. Module 5 taught the roll stick alone;
+// this holds pitch and roll TOGETHER for a full run while the throttle is also
+// working, and scores the line.
+//
+// Flown as a whole flight, like Module 6: arm, take off, out, back, land. The
+// checkpoint row carries the pilot through it, and the landing is the step the
+// screen has to ask for, because by then nothing else is.
 const TARGET = gate('green-right', 'Green gate', { ease: 1.4 });
 const ROUTE = [TARGET, home('H')] as const;
+
+const LEGS = [
+  {
+    hint: 'Both sticks together — forward and right, climbing',
+    cue: [...CUE.forward, ...CUE.right, ...CUE.throttleUp],
+  },
+  { hint: 'Reverse both — back down the same diagonal', cue: [...CUE.backward, ...CUE.left] },
+];
+
+const FLIGHT = planDemo(
+  routeLegs(
+    ROUTE,
+    [
+      {
+        caption: 'Forward and right together, climbing — one long diagonal',
+        arrive: 'Both sticks back to stop at the gate',
+      },
+      { caption: 'Reverse both — back down the same diagonal', arrive: 'Back over the "H"' },
+    ],
+    0.45,
+  ),
+);
+const LANDS_AT = (FLIGHT[FLIGHT.length - 1]?.at ?? 0) + 1.4;
 
 export const diagonalLesson: Lesson = {
   id: 'diagonal',
   order: 7,
   title: 'Diagonal Run',
-  subtitle: 'Corner to corner, holding the line',
+  subtitle: 'Pitch and roll together, then land',
 
   explain: {
     title: 'Flying a Diagonal',
     body: [
-      'A diagonal is not two moves. It is one move with both sticks held in proportion.',
-      'The green rectangle out to the right is the arena’s longest diagonal, and the highest gate on the field.',
-      'Hold the ratio between pitch and roll and the path stays straight; change it and the line bends.',
-      'Climb as you go — arriving level with the opening is part of the run.',
+      'A diagonal is one move with both sticks held together, not two moves.',
+      'Arm, take off, fly out to the green gate on the diagonal, come back, then land.',
+      'Hold the same balance between the sticks and the path stays straight.',
     ],
   },
 
   route: ROUTE,
+  landing: true,
 
   demo: [
-    { at: 0.0, cmd: 'arm', key: 'Enter', caption: 'Arm — motors spool up to idle' },
+    { at: 0.0, cmd: 'arm', key: 'Enter', caption: 'Arm the drone' },
     { at: 0.0, cmd: 'takeoffLand', key: 'Space', caption: 'Take off to a hover' },
-    ...planDemo(
-      routeLegs(
-        ROUTE,
-        [
-          {
-            caption: 'Forward and right together, climbing — one long diagonal',
-            arrive: 'Both sticks back to stop at the gate',
-          },
-          { caption: 'Reverse both — back down the same diagonal', arrive: 'Home — the ratio never changed' },
-        ],
-        0.45,
-      ),
-    ),
+    ...FLIGHT,
+    { at: LANDS_AT, cmd: 'takeoffLand', key: 'Space', caption: 'Now land on the "H"' },
+    { at: LANDS_AT + 3.0, cmd: 'disarm', key: 'Enter', caption: 'Down. The ratio never changed' },
   ],
 
-  setup: () => {
-    const flight = useFlightStore.getState();
-    if (!flight.armed) flight.toggleArm();
-    flight.requestTakeoffLand();
-  },
-
   practice: {
-    prompt: 'Diagonal out to the green gate, then back',
-    hint: 'Hold pitch and roll in the same ratio, and climb',
+    prompt: 'Arm, take off, diagonal to the green gate and back, then land',
+    hint: 'Press ENTER to arm',
   },
 
   keys: [
+    { code: 'Enter', label: 'ENTER', hint: 'Arm' },
+    { code: 'KeyW', label: 'W', hint: 'Throttle Up' },
+    { code: 'KeyS', label: 'S', hint: 'Throttle Down' },
     { code: 'ArrowUp', label: '↑', hint: 'Pitch Forward' },
     { code: 'ArrowDown', label: '↓', hint: 'Pitch Backward' },
     { code: 'ArrowLeft', label: '←', hint: 'Roll Left' },
     { code: 'ArrowRight', label: '→', hint: 'Roll Right' },
-    { code: 'KeyW', label: 'W', hint: 'Throttle Up' },
-    { code: 'KeyS', label: 'S', hint: 'Throttle Down' },
   ],
 
-  tips: ['Set both sticks together and then leave them alone.', 'Add throttle early — arrive at the height, not below it.'],
-  commonMistakes: ['Letting the ratio slip so the line bends.', 'Reaching the gate below its opening.'],
+  tips: [
+    'Set both sticks together, then leave them alone.',
+    'Add throttle early. Arrive at the height, not below it.',
+  ],
+  commonMistakes: [
+    'Letting one stick lead, so the line bends into an L.',
+    'Reaching the gate below its opening.',
+  ],
 
   validate: (p, mem) => {
-    if (p.crashed) return { done: false, failed: true, hint: 'Crashed — try again' };
-    mem.drift = Math.max(
-      mem.drift ?? 0,
-      lineDeviation(p.position, 0, 0, TARGET.at[0], TARGET.at[2]),
-    );
-
-    const r = flyRoute(mem, p.position, ROUTE);
-    if (r.complete) return { done: true, progress: 1, hint: 'Home — diagonal held' };
-    return {
-      done: false,
-      progress: clamp01(r.progress),
-      hint: r.next === 0 ? 'Both sticks together, out to the green gate' : 'Back down the same diagonal',
-    };
+    if (mem.airborne) {
+      mem.drift = Math.max(
+        mem.drift ?? 0,
+        lineDeviation(p.position, 0, 0, TARGET.at[0], TARGET.at[2]),
+      );
+    }
+    return flyMission(p, mem, ROUTE, LEGS);
   },
 
-  score: ({ timeSec, collisions, mem }) => {
-    if (collisions > 0) return 1;
-    const drift = mem.drift ?? 99;
-    if (drift <= 3 && timeSec <= 55) return 3;
-    if (drift <= 6) return 2;
-    return 1;
-  },
+  stars: [
+    {
+      stars: 3,
+      text: 'Hold the diagonal within 3 m, whole flight under 75 seconds',
+      test: ({ timeSec, collisions, mem }) =>
+        collisions === 0 && (mem.drift ?? 99) <= 3 && timeSec <= 75,
+    },
+    {
+      stars: 2,
+      text: 'Hold the diagonal within 6 m',
+      test: ({ collisions, mem }) => collisions === 0 && (mem.drift ?? 99) <= 6,
+    },
+  ],
 
-  practiceTimeout: 55,
+  practiceTimeout: 60,
 };

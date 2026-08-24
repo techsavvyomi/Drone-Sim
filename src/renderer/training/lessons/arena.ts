@@ -27,8 +27,8 @@ export const HOVER = 1.8;
  * A racing gate as a checkpoint.
  *
  * The same gate serves two standards, which is what the options pick between.
- * `ease` widens the acceptance sphere for the teaching lessons: Module 2 asks
- * the pilot to get TO the blue gate and stop on it. `through` says the gate is
+ * `ease` widens the acceptance sphere for the teaching lessons: the pitch module
+ * asks the pilot to get TO the blue gate and stop on it. `through` says the gate is
  * a hole to pass, not a place to arrive — the navigation modules fly it
  * properly, and the demonstration lines up on its axis and carries on out the
  * far side instead of parking inside the frame.
@@ -36,7 +36,7 @@ export const HOVER = 1.8;
 export function gate(
   id: string,
   label: string,
-  opts: { ease?: number; through?: boolean } = {},
+  opts: { ease?: number; through?: boolean; height?: number } = {},
 ): Checkpoint {
   const g = academyGate(id);
   // Every gate is modelled facing local +Z — the torus hole and the square
@@ -46,7 +46,12 @@ export function gate(
   const yaw = g.rotation?.[1] ?? 0;
   return {
     label,
-    at: g.position,
+    // `height` moves the point the lesson is judged on to the height the pilot
+    // will actually be at. A module that shows no throttle keys is flown level
+    // in altitude hold, and a checkpoint sitting at the gate's own centre then
+    // asks for a climb the pilot has not been taught and cannot see how to make.
+    // The opening is tall enough that a level pass still goes through it.
+    at: opts.height === undefined ? g.position : [g.position[0], opts.height, g.position[2]],
     // Half the opening, kept inside the frame so a pass that clips an upright
     // does not read as a clean one.
     reach: g.size * 0.45 * (opts.ease ?? 1),
@@ -115,6 +120,8 @@ type Leg = {
   stick?: number;
   face?: boolean;
   label?: string;
+  /** Index of the checkpoint this leg flies to, for the on-screen step row. */
+  stage?: number;
 };
 
 /**
@@ -154,7 +161,7 @@ export function routeLegs(
     const arrive = captions[i]?.arrive;
 
     if (!c.axis) {
-      legs.push({ to: c.at, caption, arrive, stick, face, label: c.label });
+      legs.push({ to: c.at, caption, arrive, stick, face, label: c.label, stage: i });
       [px, , pz] = c.at;
       return;
     }
@@ -173,6 +180,7 @@ export function routeLegs(
       stick,
       face,
       label: c.label,
+      stage: i,
     });
     legs.push({
       to: [gx - ax * FLY_THROUGH * side, gy, gz - az * FLY_THROUGH * side],
@@ -181,6 +189,7 @@ export function routeLegs(
       stick,
       face,
       label: c.label,
+      stage: i,
     });
     px = gx - ax * FLY_THROUGH * side;
     pz = gz - az * FLY_THROUGH * side;

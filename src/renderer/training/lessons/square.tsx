@@ -1,13 +1,18 @@
-import { clamp01, flyRoute, type Lesson } from './types';
+import { clamp01, cueBetween, flyRoute, lineDeviation, type Lesson } from './types';
 import { planDemo } from './demoFlight';
-import { marker, routeLegs } from './arena';
-import { useFlightStore } from '../../state/flightStore';
+import { HOVER, marker, routeLegs } from './arena';
+import { ACADEMY_PAD } from '../../plugins/environments/droneAcademy';
 
 // Module 8 — Square Circuit, flown on four of the white markers ringing the
 // helipad. They sit at the four diagonals of the ring, which puts them at the
 // corners of a square about 9.6 m on a side — and, because that square is
 // aligned with the pad, every side is ONE stick. That is the drill: a side is a
 // straight line on one control, a corner is a full stop before the next one.
+//
+// A square that can be crossed down the middle is not a square, and that is
+// what it used to look like on screen: four lettered points and no sides. The
+// sides are now drawn on the field, each one names the single stick that flies
+// it, and straying off a side says so and costs stars.
 const CORNERS = [
   marker(14, 'Corner 1'), // front-right
   marker(2, 'Corner 2'), //  back-right
@@ -16,6 +21,16 @@ const CORNERS = [
 ] as const;
 /** Back to the first corner to close the loop. */
 const ROUTE = [...CORNERS, { ...CORNERS[0], label: 'Corner 1 again' }] as const;
+
+/** Where the drone starts the circuit from: the hover over the "H". */
+const START: readonly [number, number, number] = [
+  ACADEMY_PAD.center[0],
+  HOVER,
+  ACADEMY_PAD.center[1],
+];
+
+/** How far off a side counts as cutting the corner, in metres. */
+const SIDE_TOL = 3;
 
 export const squareLesson: Lesson = {
   id: 'square',
@@ -26,37 +41,32 @@ export const squareLesson: Lesson = {
   explain: {
     title: 'Flying a Square',
     body: [
-      'A square is four straight sides joined by four square corners.',
-      'The four markers you are flying sit square to the pad, so each side needs only ONE stick.',
-      'The skill is the corner: come to a stop, then start the next side cleanly.',
-      'Fly the markers in order and close the loop back at the first one.',
+      'Fly the four corners in order, along the sides. Do not cut across the middle.',
+      'Each side is one stick only: forward, left, back, right.',
+      'Stop at every corner before you start the next side.',
     ],
   },
 
   route: ROUTE,
 
+  // Opens at a hover: the drone is placed there rather than flying up to it,
+  // so the lesson starts on its own drill instead of on a take-off.
+  startAirborne: true,
+
   demo: [
-    { at: 0.0, cmd: 'arm', key: 'Enter', caption: 'Arm — motors spool up to idle' },
-    { at: 0.0, cmd: 'takeoffLand', key: 'Space', caption: 'Take off to a hover' },
     ...planDemo(
       routeLegs(ROUTE, [
         { caption: 'Out to the first corner', arrive: 'Stop square on it' },
-        { caption: 'Side 1 — pitch back, one stick only', arrive: 'Stop at the corner' },
-        { caption: 'Side 2 — roll left', arrive: 'Stop at the corner' },
-        { caption: 'Side 3 — pitch forward', arrive: 'Stop at the corner' },
-        { caption: 'Side 4 — roll right', arrive: 'Loop closed — one clean square' },
+        { caption: 'Side 1 — one stick only', arrive: 'Stop at the corner' },
+        { caption: 'Side 2 — one stick only', arrive: 'Stop at the corner' },
+        { caption: 'Side 3 — one stick only', arrive: 'Stop at the corner' },
+        { caption: 'Side 4 — the loop is closed', arrive: 'One clean square' },
       ]),
     ),
   ],
 
-  setup: () => {
-    const flight = useFlightStore.getState();
-    if (!flight.armed) flight.toggleArm();
-    flight.requestTakeoffLand();
-  },
-
   practice: {
-    prompt: 'Fly the four markers in order and close the square',
+    prompt: 'Fly the four corners in order, along the sides',
     hint: 'Out to the first corner',
   },
 
@@ -69,31 +79,53 @@ export const squareLesson: Lesson = {
 
   tips: [
     'Come to a stop at each corner before starting the next side.',
-    'Sides are single-axis — if you need both sticks, you have drifted.',
+    'A side needs one stick. If you are using both, you have drifted off it.',
   ],
   commonMistakes: [
+    'Cutting across the middle instead of flying the side.',
     'Rounding the corners into a circle.',
-    'Sinking a little on every side until the square is a spiral.',
   ],
 
   validate: (p, mem) => {
-    if (p.crashed) return { done: false, failed: true, hint: 'Crashed — try again' };
+    if (p.crashed) return { done: false, failed: true, hint: 'Crashed. Try again', cue: [] };
 
-    const r = flyRoute(mem, p.position, ROUTE, { spread: 10 });
-    if (r.complete) return { done: true, progress: 1, hint: 'Square complete' };
+    const r = flyRoute(mem, p.position, ROUTE);
+    if (r.complete) return { done: true, progress: 1, hint: 'Square complete', cue: [] };
+
+    // How far off the side being flown. The first leg runs from the pad out to
+    // corner 1 and is not part of the square, so it is not judged.
+    const target = ROUTE[r.next];
+    const from = r.next === 0 ? START : ROUTE[r.next - 1].at;
+    const off = lineDeviation(p.position, from[0], from[2], target.at[0], target.at[2]);
+    if (r.next > 0) mem.cut = Math.max(mem.cut ?? 0, off);
+
+    const wandered = r.next > 0 && off > SIDE_TOL;
     return {
       done: false,
       progress: clamp01(r.progress),
-      hint: r.next === ROUTE.length - 1 ? 'Close the loop — back to the first corner' : `Next: ${ROUTE[r.next].label}`,
+      hint: wandered
+        ? 'Off the side. Get back on the line, do not cross the middle'
+        : r.next === ROUTE.length - 1
+          ? 'Last side — close the square back at the first corner'
+          : `Fly the side to ${target.label}`,
+      cue: cueBetween(from, target.at),
     };
   },
 
-  score: ({ timeSec, collisions, smoothness }) => {
-    if (collisions > 0) return 1;
-    if (timeSec <= 60 && smoothness >= 0.3) return 3;
-    if (timeSec <= 95) return 2;
-    return 1;
-  },
+  stars: [
+    {
+      stars: 3,
+      text: 'Sides held within 2.2 m, circuit under 60 seconds',
+      test: ({ timeSec, collisions, smoothness, mem }) =>
+        collisions === 0 && (mem.cut ?? 0) <= 2.2 && timeSec <= 60 && smoothness >= 0.3,
+    },
+    {
+      stars: 2,
+      text: `Never more than ${SIDE_TOL} m off a side, circuit under 95 seconds`,
+      test: ({ timeSec, collisions, mem }) =>
+        collisions === 0 && (mem.cut ?? 0) <= SIDE_TOL && timeSec <= 95,
+    },
+  ],
 
   practiceTimeout: 60,
 };
