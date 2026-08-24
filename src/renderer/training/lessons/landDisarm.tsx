@@ -1,15 +1,28 @@
-import { CUE, holdFor, horizontalDist, type Lesson } from './types';
+import { CUE, clamp01, holdFor, horizontalDist, type Lesson } from './types';
 import { home } from './arena';
 import { ACADEMY_PAD } from '../../plugins/environments/droneAcademy';
 
 const [PAD_X, PAD_Z] = ACADEMY_PAD.center;
+
 /*
- * The touchdown circle is deliberately NOT the helipad's own radius. The pad is
- * 7 m across and the painted ring 4.5 — land anywhere on either and the drill
- * scores itself, which teaches nothing. This is the target drawn on the "H" at
- * the pad centre, and it is the same 0.9 m the lesson has always been judged on.
+ * How far off the "H" a touchdown may be and still count: the painted ring, the
+ * whole 4.5 m of it.
+ *
+ * It used to be 0.9 m — a precision circle at the pad centre — and that was a
+ * standard this module cannot ask for. Module 2 shows SPACE and ENTER and
+ * nothing else: there is no roll or pitch key on screen, so the pilot has no
+ * way to answer the outdoor ambient drift that pushes a hovering drone around
+ * while it waits in altitude hold. A metre or two of wander before the pilot
+ * even presses SPACE is the NORMAL outcome, and the drill then landed outside
+ * its own circle, scored zero, refused the disarm it had just asked for, and
+ * told the pilot to "take off and line up again" using controls the module does
+ * not give them. A dead end.
+ *
+ * A lesson may only be judged on an axis it hands the pilot a control for. This
+ * one is judged on the descent and the shutdown; where on the pad it comes down
+ * is the drift's doing, not the pilot's.
  */
-const PAD_R = 0.9;
+const TOUCHDOWN_R = ACADEMY_PAD.markRadius;
 
 // Module 2 — Land & Disarm. The mirror of Module 1, and taught as one action for
 // the same reason: a landing is not finished until the motors are off. The drill
@@ -27,7 +40,7 @@ export const landDisarmLesson: Lesson = {
   explain: {
     title: 'Landing and Disarming',
     body: [
-      'Press SPACE and the drone comes down onto the circle by itself.',
+      'Press SPACE and the drone comes down onto the pad by itself.',
       'Once it is down, press ENTER to stop the motors. Never stop them in the air.',
     ],
     durationHint: '20 seconds',
@@ -42,27 +55,25 @@ export const landDisarmLesson: Lesson = {
   // PLACED at a hover over the pad rather than taking off first.
   startAirborne: true,
 
-  // The touchdown circle on the "H" is the only target, and the guide rings the
-  // pad the arena already has rather than adding one.
-  route: [home('H', { reach: PAD_R })],
+  // The helipad is the only target, and the guide rings the pad the arena
+  // already has rather than adding one.
+  route: [home('H', { reach: TOUCHDOWN_R })],
 
   // Timed against a clock the Director HOLDS while an auto sequence is running,
   // so these beats play where the captions say they do: the drone is really at a
   // hover before the land step, and really on the ground before the disarm.
-  // Timed against a clock the Director HOLDS while the descent is running, so
-  // the disarm beat plays when the drone is really on the ground.
   demo: [
     { at: 0.0, stage: 0, caption: 'Armed, hovering over the pad' },
     { at: 2.0, caption: 'Holding here. Nothing happens on its own' },
     { at: 3.6, caption: 'Step 1 — press SPACE to land' },
-    { at: 4.2, cmd: 'takeoffLand', key: 'Space', caption: 'It comes down onto the circle' },
-    { at: 5.0, caption: 'Soft touchdown inside the circle' },
+    { at: 4.2, cmd: 'takeoffLand', key: 'Space', caption: 'It comes down onto the pad' },
+    { at: 5.0, caption: 'Soft touchdown on the pad' },
     { at: 6.0, stage: 1, cmd: 'disarm', key: 'Enter', caption: 'Step 2 — ENTER stops the motors' },
     { at: 7.2, caption: 'Motors off. Safe to handle' },
   ],
 
   practice: {
-    prompt: 'Land inside the circle, then disarm',
+    prompt: 'Land on the pad, then disarm',
     hint: 'Press SPACE to land',
   },
 
@@ -88,6 +99,10 @@ export const landDisarmLesson: Lesson = {
     if (p.crashed) return { done: false, failed: true, hint: 'Hard landing. Try again', cue: [] };
 
     if (p.altitude > 1.0) mem.airborne = 1;
+    // The highest the drone has been this attempt, so the descent can be scored
+    // against the height it actually has to lose.
+    mem.top = Math.max(mem.top ?? 0, p.altitude);
+
     const dist = horizontalDist(p.position, PAD_X, PAD_Z);
 
     // Remember the fastest descent seen near the ground, for scoring the touchdown.
@@ -95,17 +110,22 @@ export const landDisarmLesson: Lesson = {
       mem.touchVs = Math.max(mem.touchVs ?? 0, Math.abs(p.verticalSpeed));
     }
 
-    const onPad = p.onGround && dist <= PAD_R;
-    if (onPad) mem.finalDist = dist;
-    const settled = holdFor(mem, 'settle', onPad && Math.abs(p.verticalSpeed) < 0.4, p.dt, 0.8);
+    const down = p.onGround && dist <= TOUCHDOWN_R;
+    const settled = holdFor(mem, 'settle', down && Math.abs(p.verticalSpeed) < 0.4, p.dt, 0.8);
     const landed = mem.airborne === 1 && settled >= 1;
-    if (landed) mem.landed = 1;
+    if (landed) {
+      mem.landed = 1;
+      // When it touched down, so the shutdown can be timed from it. Module 2's
+      // whole point is that the motors come off PROMPTLY once the drone is down.
+      if (mem.landAt === undefined) mem.landAt = p.elapsed;
+    }
 
     // Second half: the motors have to be off before this counts as finished.
     if (mem.landed) {
       mem.wp = 1;
       if (!p.armed) {
         mem.wp = 2;
+        if (mem.shutdown === undefined) mem.shutdown = p.elapsed - (mem.landAt ?? p.elapsed);
         return { done: true, progress: 1, hint: 'Down and disarmed. Well flown', cue: [] };
       }
       return {
@@ -118,41 +138,58 @@ export const landDisarmLesson: Lesson = {
 
     mem.wp = 0;
 
+    // Down, but clean off the helipad. There is no lateral control in this
+    // module to walk it back with, so the attempt ENDS and the Director puts the
+    // drone back over the "H" — a fresh try, rather than a hint asking for a key
+    // that is not on screen.
+    if (p.onGround && dist > TOUCHDOWN_R) {
+      return { done: false, failed: true, hint: 'Landed off the pad. Try again', cue: [] };
+    }
+
     // Already on the way down: stop asking for the key that started it. A cap
     // that keeps blinking after it has been pressed reads as "that did not
     // work", and the pilot presses it again — which aborts the descent.
     const descending = !p.onGround && p.verticalSpeed < -0.15;
 
+    // The descent IS the first half of the drill, so it is worth half the bar
+    // WHILE IT RUNS. It used to be worth nothing until the wheels were down: the
+    // pilot pressed the one key the lesson asked for, watched four seconds of
+    // descent with the bar still reading 0%, and read that as the key having
+    // done nothing.
+    const fall = clamp01((mem.top - p.altitude) / Math.max(mem.top - ACADEMY_PAD.surfaceY, 0.01));
+
     let hint: string;
-    if (p.onGround && dist > PAD_R) hint = 'Off the circle. Take off and line up again';
-    else if (!p.onGround && dist > PAD_R) hint = 'Move back over the landing circle';
-    else if (descending) hint = 'Coming down onto the circle';
+    if (descending) hint = 'Coming down onto the pad';
     else if (!p.onGround) hint = 'Press SPACE to land';
     else hint = 'Hold it steady on the pad';
 
     return {
       done: false,
-      progress: onPad ? 0.6 * settled : 0,
+      progress: p.onGround ? 0.6 + 0.2 * settled : 0.6 * fall,
       hint,
       cue: descending ? [] : CUE.autoLand,
     };
   },
 
+  // Scored on the two things this module's controls decide: how softly it
+  // arrives, and how quickly the motors come off once it has. Precision on the
+  // pad is not on the list — see TOUCHDOWN_R above.
   stars: [
     {
       stars: 3,
-      text: 'Touch down within 30 cm of the centre, softly',
-      test: ({ collisions, smoothness, mem }) =>
+      text: 'Soft touchdown, motors off within 2 seconds, nothing touched',
+      test: ({ touches, collisions, smoothness, mem }) =>
         collisions === 0 &&
-        (mem.finalDist ?? PAD_R) <= PAD_R * 0.35 &&
+        touches === 0 &&
         (mem.touchVs ?? 1) <= 0.5 &&
+        (mem.shutdown ?? 99) <= 2.0 &&
         smoothness >= 0.4,
     },
     {
       stars: 2,
-      text: 'Touch down inside the circle, gently',
+      text: 'Gentle touchdown, motors off within 5 seconds',
       test: ({ collisions, mem }) =>
-        collisions === 0 && (mem.finalDist ?? PAD_R) <= PAD_R * 0.7 && (mem.touchVs ?? 1) <= 0.9,
+        collisions === 0 && (mem.touchVs ?? 1) <= 0.9 && (mem.shutdown ?? 99) <= 5.0,
     },
   ],
 
