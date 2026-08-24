@@ -1,31 +1,47 @@
 import { clamp01, cueBetween, flyRoute, lineDeviation, type Lesson } from './types';
 import { planDemo } from './demoFlight';
-import { HOVER, marker, routeLegs } from './arena';
+import { marker, routeLegs } from './arena';
 import { ACADEMY_PAD } from '../../plugins/environments/droneAcademy';
 
-// Module 8 — Square Circuit, flown on four of the white markers ringing the
+// Module 9 — Square Circuit, flown on four of the white markers ringing the
 // helipad. They sit at the four diagonals of the ring, which puts them at the
 // corners of a square about 9.6 m on a side — and, because that square is
 // aligned with the pad, every side is ONE stick. That is the drill: a side is a
 // straight line on one control, a corner is a full stop before the next one.
 //
-// A square that can be crossed down the middle is not a square, and that is
-// what it used to look like on screen: four lettered points and no sides. The
-// sides are now drawn on the field, each one names the single stick that flies
-// it, and straying off a side says so and costs stars.
+// A square that can be crossed down the middle is not a square. The sides are
+// not drawn — a guide line over the arena has to skip depth testing to be seen,
+// which paints it flat on the ground rather than hanging where the drone flies.
+// Instead each side names the single stick that flies it, and straying off one
+// says so in the hint and costs stars.
+// Lettered on the deck by the guide: four of sixteen identical white spheres is
+// not something a chip reading "Corner C" can point at on its own.
+/** How high the circuit is flown, in metres.
+ *
+ *  Higher than the standard 1.8 m hover, and it is a question of SEEING rather
+ *  than of flying: the corners are lettered on the deck, and from 1.8 m the far
+ *  ones are read edge-on across the pad. From here the pilot is looking down at
+ *  the shape. The checkpoints move up with it — they are judged in 3-D — and so
+ *  does the point the demonstration flies from.
+ */
+const FLY_AT = 3.3;
+
 const CORNERS = [
-  marker(14, 'Corner 1'), // front-right
-  marker(2, 'Corner 2'), //  back-right
-  marker(6, 'Corner 3'), //  back-left
-  marker(10, 'Corner 4'), // front-left
+  marker(14, 'Corner A', { tag: 'A', height: FLY_AT }), // front-right
+  marker(2, 'Corner B', { tag: 'B', height: FLY_AT }), //  back-right
+  marker(6, 'Corner C', { tag: 'C', height: FLY_AT }), //  back-left
+  marker(10, 'Corner D', { tag: 'D', height: FLY_AT }), // front-left
 ] as const;
-/** Back to the first corner to close the loop. */
-const ROUTE = [...CORNERS, { ...CORNERS[0], label: 'Corner 1 again' }] as const;
+/** The loop closes where it began. Named as a RETURN, not as another corner:
+ *  the intro card lays the route out as a numbered flow, and "Corner A again"
+ *  sitting in the fourth slot of a three-corner shape reads as a fourth corner
+ *  the pilot has not been told about. */
+const ROUTE = [...CORNERS, { ...CORNERS[0], label: 'Return to Corner A' }] as const;
 
 /** Where the drone starts the circuit from: the hover over the "H". */
 const START: readonly [number, number, number] = [
   ACADEMY_PAD.center[0],
-  HOVER,
+  FLY_AT,
   ACADEMY_PAD.center[1],
 ];
 
@@ -34,7 +50,7 @@ const SIDE_TOL = 3;
 
 export const squareLesson: Lesson = {
   id: 'square',
-  order: 8,
+  order: 9,
   title: 'Square Circuit',
   subtitle: 'Four straight sides, four square corners',
 
@@ -48,6 +64,7 @@ export const squareLesson: Lesson = {
   },
 
   route: ROUTE,
+  hoverHeight: FLY_AT,
 
   // Opens at a hover: the drone is placed there rather than flying up to it,
   // so the lesson starts on its own drill instead of on a take-off.
@@ -55,19 +72,25 @@ export const squareLesson: Lesson = {
 
   demo: [
     ...planDemo(
-      routeLegs(ROUTE, [
-        { caption: 'Out to the first corner', arrive: 'Stop square on it' },
-        { caption: 'Side 1 — one stick only', arrive: 'Stop at the corner' },
-        { caption: 'Side 2 — one stick only', arrive: 'Stop at the corner' },
-        { caption: 'Side 3 — one stick only', arrive: 'Stop at the corner' },
-        { caption: 'Side 4 — the loop is closed', arrive: 'One clean square' },
-      ]),
+      routeLegs(
+        ROUTE,
+        [
+          { caption: 'Out to A', arrive: 'Stop square on it' },
+          { caption: 'Side 1 — one stick only', arrive: 'Stop on B' },
+          { caption: 'Side 2 — one stick only', arrive: 'Stop on C' },
+          { caption: 'Side 3 — one stick only', arrive: 'Stop on D' },
+          { caption: 'Side 4 — back to A, the loop is closed', arrive: 'One clean square' },
+        ],
+        undefined,
+        { from: START },
+      ),
+      { from: START },
     ),
   ],
 
   practice: {
-    prompt: 'Fly the four corners in order, along the sides',
-    hint: 'Out to the first corner',
+    prompt: 'Fly A, B, C and D in order along the sides, then back to A',
+    hint: 'Fly the side to Corner A',
   },
 
   keys: [
@@ -93,7 +116,7 @@ export const squareLesson: Lesson = {
     if (r.complete) return { done: true, progress: 1, hint: 'Square complete', cue: [] };
 
     // How far off the side being flown. The first leg runs from the pad out to
-    // corner 1 and is not part of the square, so it is not judged.
+    // Corner A and is not part of the square, so it is not judged.
     const target = ROUTE[r.next];
     const from = r.next === 0 ? START : ROUTE[r.next - 1].at;
     const off = lineDeviation(p.position, from[0], from[2], target.at[0], target.at[2]);
@@ -106,7 +129,7 @@ export const squareLesson: Lesson = {
       hint: wandered
         ? 'Off the side. Get back on the line, do not cross the middle'
         : r.next === ROUTE.length - 1
-          ? 'Last side — close the square back at the first corner'
+          ? 'Last side — close the square back at Corner A'
           : `Fly the side to ${target.label}`,
       cue: cueBetween(from, target.at),
     };
@@ -115,9 +138,13 @@ export const squareLesson: Lesson = {
   stars: [
     {
       stars: 3,
-      text: 'Sides held within 2.2 m, circuit under 60 seconds',
-      test: ({ timeSec, collisions, smoothness, mem }) =>
-        collisions === 0 && (mem.cut ?? 0) <= 2.2 && timeSec <= 60 && smoothness >= 0.3,
+      text: 'Sides held within 2.2 m, circuit under 60 seconds, nothing touched',
+      test: ({ touches, timeSec, collisions, smoothness, mem }) =>
+        collisions === 0 &&
+        touches === 0 &&
+        (mem.cut ?? 0) <= 2.2 &&
+        timeSec <= 60 &&
+        smoothness >= 0.3,
     },
     {
       stars: 2,

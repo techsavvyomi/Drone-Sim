@@ -2,7 +2,7 @@ import { CUE, clamp01, flyRoute, type Lesson } from './types';
 import { planDemo } from './demoFlight';
 import { marker, routeLegs } from './arena';
 
-// Module 5 — Roll Control. Pure sideways movement, flown between the white
+// Module 6 — Roll Control. Pure sideways movement, flown between the white
 // markers ringing the helipad. They are level with the pad, symmetrical either
 // side of the "H" and close in, so the drill stays about the roll stick rather
 // than about covering ground. Marker 8 is straight out to the left, marker 0
@@ -10,7 +10,10 @@ import { marker, routeLegs } from './arena';
 // Two legs, one per direction. It used to be four — out, back to the centre,
 // out the other way, back again — which is the same two movements done twice and
 // twice as long to sit through. Roll left once, roll right once, done.
-const ROUTE = [marker(8, 'Left marker'), marker(0, 'Right marker')] as const;
+const ROUTE = [
+  marker(8, 'Left marker', { tag: 'A' }),
+  marker(0, 'Right marker', { tag: 'B' }),
+] as const;
 
 /** Which way each leg goes, for the hint and the stick highlight. */
 const LEGS = [
@@ -20,7 +23,7 @@ const LEGS = [
 
 export const rollLesson: Lesson = {
   id: 'roll',
-  order: 5,
+  order: 6,
   title: 'Roll Control',
   subtitle: 'Left and right',
 
@@ -83,9 +86,13 @@ export const rollLesson: Lesson = {
   stars: [
     {
       stars: 3,
-      text: 'Both markers in 24 seconds, drifting under 2 m forward or back',
-      test: ({ timeSec, collisions, smoothness, mem }) =>
-        collisions === 0 && (mem.wander ?? 0) <= 2 && timeSec <= 24 && smoothness >= 0.3,
+      text: 'Both markers in 24 seconds, drifting under 2 m forward or back, nothing touched',
+      test: ({ touches, timeSec, collisions, smoothness, mem }) =>
+        collisions === 0 &&
+        touches === 0 &&
+        (mem.wander ?? 0) <= 2 &&
+        timeSec <= 24 &&
+        smoothness >= 0.3,
     },
     {
       stars: 2,

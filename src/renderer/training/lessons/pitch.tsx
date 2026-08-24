@@ -2,7 +2,7 @@ import { CUE, clamp01, flyRoute, type Lesson } from './types';
 import { planDemo } from './demoFlight';
 import { HOVER, gate, home, routeLegs } from './arena';
 
-// Module 4 — Pitch Control. Forward and back on one stick, flown to the blue
+// Module 5 — Pitch Control. Forward and back on one stick, flown to the blue
 // square gate standing 16 m straight off the nose. It is the first thing a
 // pilot sees from the pad and it is dead ahead, so "fly forward" needs no
 // further explanation.
@@ -16,13 +16,13 @@ import { HOVER, gate, home, routeLegs } from './arena';
 // lesson the pilot has not had yet. The blue square's opening runs from 0.9 m to
 // 4.3 m, so a level pass still goes through it.
 const ROUTE = [
-  gate('blue-near', 'Blue gate', { ease: 1.3, height: HOVER }),
+  gate('blue-near', 'Blue gate', { ease: 1.3, height: HOVER, tag: 'A' }),
   home('Back to start'),
 ] as const;
 
 export const pitchLesson: Lesson = {
   id: 'pitch',
-  order: 4,
+  order: 5,
   title: 'Pitch Control',
   subtitle: 'Forward and backward',
 
@@ -90,9 +90,13 @@ export const pitchLesson: Lesson = {
   stars: [
     {
       stars: 3,
-      text: 'Out and back in 32 seconds, drifting under 2.5 m sideways',
-      test: ({ timeSec, collisions, smoothness, mem }) =>
-        collisions === 0 && (mem.wander ?? 0) <= 2.5 && timeSec <= 32 && smoothness >= 0.3,
+      text: 'Out and back in 32 seconds, drifting under 2.5 m sideways, nothing touched',
+      test: ({ touches, timeSec, collisions, smoothness, mem }) =>
+        collisions === 0 &&
+        touches === 0 &&
+        (mem.wander ?? 0) <= 2.5 &&
+        timeSec <= 32 &&
+        smoothness >= 0.3,
     },
     {
       stars: 2,
