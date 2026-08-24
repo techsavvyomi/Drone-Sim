@@ -57,6 +57,67 @@ export function accelFor(stick: number): number {
 }
 
 /**
+ * A leg flown with no brake: push, let go, and drift onto the mark.
+ *
+ * The braked leg above is the right shape for a module that shows both pitch
+ * directions. Module 7 shows one — pitch forward, and nothing to stop with — so
+ * a demonstration that counter-tilted would be flying with a key the pilot has
+ * not been given, and the caption telling them to ease off early would be a lie
+ * about what they had just watched.
+ *
+ * Without a brake there is no stopping, only slowing: linear damping alone
+ * bleeds speed asymptotically, so the drone is always still creeping. What can
+ * be demonstrated is arriving SLOWLY — push early, let go early, and cross the
+ * mark at a walking pace. `arriveAt` is that pace, and the push is solved for
+ * it. Returns when to let go and when the mark is crossed, both relative to the
+ * start of the push.
+ */
+export function solveCoast(
+  metres: number,
+  stick: number,
+  arriveAt = 0.35,
+): { tPush: number; tArrive: number } {
+  const cmdAngle = stick * BEGINNER_CONFIG.maxTiltDeg * DEG2RAD;
+  const k = Math.min(1, DT / TILT_LAG);
+
+  /** Fly it: push for `tPush`, release, and report the crossing. */
+  const run = (tPush: number): { v: number; t: number } => {
+    let v = 0;
+    let x = 0;
+    let angle = 0;
+    let t = 0;
+    for (; t < tPush; t += DT) {
+      angle += (cmdAngle - angle) * k;
+      v += (G * Math.tan(angle) - LINEAR_DAMPING * v) * DT;
+      x += v * DT;
+      if (x >= metres) return { v, t };
+    }
+    // Released: the tilt decays to nothing and damping does the rest. Give up
+    // after a minute — a push too short to cover the distance never will.
+    for (; t < 60; t += DT) {
+      angle += (0 - angle) * k;
+      v += (G * Math.tan(angle) - LINEAR_DAMPING * v) * DT;
+      x += v * DT;
+      if (x >= metres) return { v, t };
+    }
+    return { v: -1, t: 60 };
+  };
+
+  // Arrival speed rises with the length of the push, so bisect on it. A push
+  // that never gets there reads as v = -1, which sits below any target and
+  // pushes the search the right way.
+  let lo = 0.05;
+  let hi = 12;
+  for (let i = 0; i < 40; i++) {
+    const mid = (lo + hi) / 2;
+    if (run(mid).v < arriveAt) lo = mid;
+    else hi = mid;
+  }
+  const tPush = (lo + hi) / 2;
+  return { tPush, tArrive: run(tPush).t };
+}
+
+/**
  * Fly one leg offline: accelerate, brake, release, coast to a stop.
  *
  * The lag is on the ANGLE, and the acceleration is `g tan(angle)` — the same
@@ -136,6 +197,10 @@ export interface DemoLeg {
    *  Carried onto the emitted steps so the HUD's checkpoint row and the route
    *  guide follow the demonstration the same way they follow the pilot. */
   stage?: number;
+  /** The route cursor once this leg has ARRIVED — set only on the leg that
+   *  actually finishes a checkpoint, so a gate's two legs (line up, then run
+   *  through) advance it once, on the way out. */
+  rt?: number;
 }
 
 /**
@@ -230,10 +295,13 @@ export function planDemo(
         stick: { roll: -roll, pitch: -pitch },
         caption: leg.arrive,
         stage: leg.stage,
+        // The braking beat IS the arrival: past the gate, on the way out. That
+        // is the moment the letter comes off it.
+        rt: leg.rt,
       });
       steps.push({ at: at + tAccel + tBrake, stick: { roll: 0, pitch: 0 } });
     } else if (leg.caption) {
-      steps.push({ at, caption: leg.caption, stage: leg.stage });
+      steps.push({ at, caption: leg.caption, stage: leg.stage, rt: leg.rt });
     }
 
     at += Math.max(tAccel + tBrake, tClimb) + gap;
