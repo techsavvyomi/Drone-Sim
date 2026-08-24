@@ -22,6 +22,8 @@ let landHoldUntil = 0;
 interface FlightState {
   armed: boolean;
   mode: FlightMode;
+  /** See `setAutoDisarmOnLand`. */
+  autoDisarmOnLand: boolean;
   auto: AutoState;
   /** Whether the drone is resting on the ground (set by the drone entity). */
   onGround: boolean;
@@ -45,7 +47,18 @@ interface FlightState {
   toggleArm: () => void;
   disarm: () => void;
   cycleMode: () => void;
+  /** Put the aircraft in a specific mode. Flight School uses it to pin Altitude
+   *  Hold for the duration of a lesson: every lesson is written around "centre
+   *  the stick and it holds height", which is only true in that mode. */
+  setMode: (mode: FlightMode) => void;
   setAuto: (auto: AutoState) => void;
+  /** Whether an auto-landing shuts the motors down when it touches down.
+   *
+   *  True in free flight, where nobody else is going to do it. Flight School
+   *  turns it OFF: Module 2 is called Land & Disarm, and a landing that disarms
+   *  itself leaves the pilot one key to press instead of two, which is not the
+   *  lesson. */
+  setAutoDisarmOnLand: (on: boolean) => void;
   setOnGround: (onGround: boolean) => void;
   requestTakeoffLand: () => void;
   /** Major impact — motors cut, controls locked until reset. */
@@ -66,6 +79,7 @@ const CYCLE: FlightMode[] = ['stabilize', 'altitude-hold', 'acro'];
 
 export const useFlightStore = create<FlightState>((set, get) => ({
   armed: false,
+  autoDisarmOnLand: true,
   // Altitude Hold by default: the drone holds height when the throttle stick
   // is centred, which is far more forgiving for a first flight than Stabilize.
   mode: 'altitude-hold',
@@ -99,6 +113,7 @@ export const useFlightStore = create<FlightState>((set, get) => ({
     if (get().auto === 'land') landHoldUntil = performance.now() + RELAUNCH_LOCKOUT_MS;
     set({ armed: false, auto: 'manual' });
   },
+  setMode: (mode) => set((s) => (s.lowBattery ? s : { mode })),
   cycleMode: () =>
     set((s) => {
       // The critical-battery landing must not be cancellable.
@@ -107,6 +122,7 @@ export const useFlightStore = create<FlightState>((set, get) => ({
       return { mode: CYCLE[(i + 1) % CYCLE.length] };
     }),
   setAuto: (auto) => set({ auto }),
+  setAutoDisarmOnLand: (autoDisarmOnLand) => set({ autoDisarmOnLand }),
   setOnGround: (onGround) => set({ onGround }),
 
   requestTakeoffLand: () => {
@@ -151,11 +167,8 @@ export const useFlightStore = create<FlightState>((set, get) => ({
 
   // Critical: force Altitude Hold and a landing the pilot cannot cancel.
   triggerLowBattery: () =>
-    set((s) =>
-      s.lowBattery ? s : { lowBattery: true, auto: 'land', mode: 'altitude-hold' },
-    ),
-  lockBattery: () =>
-    set({ batteryLocked: true, lowBattery: false, armed: false, auto: 'manual' }),
+    set((s) => (s.lowBattery ? s : { lowBattery: true, auto: 'land', mode: 'altitude-hold' })),
+  lockBattery: () => set({ batteryLocked: true, lowBattery: false, armed: false, auto: 'manual' }),
   recharge: () =>
     set((s) => ({
       rechargeToken: s.rechargeToken + 1,

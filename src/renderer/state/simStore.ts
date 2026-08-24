@@ -38,11 +38,19 @@ interface SimState extends TelemetrySample {
   simTime: number;
   fps: number;
   resetToken: number;
+  /** See `setSpawnLift`. Read by the drone's reset effect. */
+  spawnLift: number;
 
   setTelemetry: (sample: TelemetrySample) => void;
   setClock: (tick: number, simTime: number) => void;
   setFps: (fps: number) => void;
   requestReset: () => void;
+  /** Height above the pad the next reset should place the drone at, in metres.
+   *
+   *  Zero for every normal spawn. Flight School sets it for the lessons that
+   *  BEGIN in the air: Module 2 is a landing drill, and watching the drone climb
+   *  first is thirty seconds of the previous lesson before this one starts. */
+  setSpawnLift: (metres: number) => void;
   reset: () => void;
 }
 
@@ -80,10 +88,12 @@ export const useSimStore = create<SimState>((set) => ({
   simTime: 0,
   fps: 0,
   resetToken: 0,
+  spawnLift: 0,
 
   setTelemetry: (sample) => set(sample),
   setClock: (tick, simTime) => set({ tick, simTime }),
   setFps: (fps) => set({ fps }),
   requestReset: () => set((s) => ({ resetToken: s.resetToken + 1, tick: 0, simTime: 0 })),
+  setSpawnLift: (spawnLift) => set({ spawnLift }),
   reset: () => set({ ...initialTelemetry, tick: 0, simTime: 0 }),
 }));

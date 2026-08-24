@@ -161,8 +161,7 @@ function autoThrust(
   hoverThrust: number,
 ): number {
   // Landing descent is deliberately gentle (~0.4 m/s), per spec.
-  const climbRate =
-    auto === 'takeoff' ? clamp(0.9 * (TAKEOFF_ALT - altitude), -0.8, 1.2) : -0.4;
+  const climbRate = auto === 'takeoff' ? clamp(0.9 * (TAKEOFF_ALT - altitude), -0.8, 1.2) : -0.4;
   return hoverThrust + mass * 4.0 * (climbRate - verticalSpeed);
 }
 
@@ -250,8 +249,13 @@ export function Drone({ spec, spawn, bounds, outdoor = false, groundY }: DronePr
     const rb = body.current;
     if (!rb) return;
     const [x, y, z] = spawn.position;
+    // A lesson can ask to START in the air (Flight School's landing drill). The
+    // drone is PLACED at the hover rather than flown up to it: armed, off the
+    // ground, and with the altitude controller already holding that height, so
+    // the first thing the pilot sees is the situation the lesson is about.
+    const lift = useSimStore.getState().spawnLift;
     _q.setFromAxisAngle(UP_AXIS, spawn.heading * DEG2RAD);
-    rb.setTranslation({ x, y, z }, true);
+    rb.setTranslation({ x, y: y + lift, z }, true);
     rb.setRotation({ x: _q.x, y: _q.y, z: _q.z, w: _q.w }, true);
     rb.setLinvel({ x: 0, y: 0, z: 0 }, true);
     rb.setAngvel({ x: 0, y: 0, z: 0 }, true);
@@ -265,9 +269,14 @@ export function Drone({ spec, spawn, bounds, outdoor = false, groundY }: DronePr
     peakSpeed.current = 0;
     peakSpeedUntil.current = 0;
     prevVel.current = { x: 0, z: 0 };
-    useFlightStore.getState().setOnGround(true);
+    useFlightStore.getState().setOnGround(lift <= 0);
     useFlightStore.getState().clearCrash();
     useFlightStore.getState().recharge();
+    if (lift > 0) {
+      controller.captureAltitude(y + lift);
+      const flight = useFlightStore.getState();
+      if (!flight.armed) flight.toggleArm();
+    }
   }, [resetToken, spawn, controller, battery]);
 
   // Swapping the aircraft OR the arena mid-flight must not hand the pilot a
@@ -343,16 +352,8 @@ export function Drone({ spec, spawn, bounds, outdoor = false, groundY }: DronePr
 
     // ---- Wind acts whether or not the drone is armed ----
     if (physics.wind.speed > 0) {
-      const f = windForce(
-        physics.wind,
-        [lin.x, lin.y, lin.z],
-        simTime.current,
-        dragArea,
-      );
-      rb.applyImpulse(
-        { x: f[0] * SIM_DT, y: f[1] * SIM_DT, z: f[2] * SIM_DT },
-        true,
-      );
+      const f = windForce(physics.wind, [lin.x, lin.y, lin.z], simTime.current, dragArea);
+      rb.applyImpulse({ x: f[0] * SIM_DT, y: f[1] * SIM_DT, z: f[2] * SIM_DT }, true);
     }
 
     // A crashed drone keeps its physics (so it tumbles and settles) but the
@@ -363,10 +364,7 @@ export function Drone({ spec, spawn, bounds, outdoor = false, groundY }: DronePr
     if (outdoor && physics.ambientDriftEnabled && armed && !useFlightStore.getState().onGround) {
       const d = ambientDrift(simTime.current, _driftVec);
       const m = rb.mass();
-      rb.applyImpulse(
-        { x: d[0] * m * SIM_DT, y: d[1] * m * SIM_DT, z: d[2] * m * SIM_DT },
-        true,
-      );
+      rb.applyImpulse({ x: d[0] * m * SIM_DT, y: d[1] * m * SIM_DT, z: d[2] * m * SIM_DT }, true);
     }
 
     // ---- 4-Corner Physical Surface Support & Center of Mass Stability Calculation ----
@@ -421,7 +419,8 @@ export function Drone({ spec, spawn, bounds, outdoor = false, groundY }: DronePr
     } else if (supportedCount === 0) {
       if (
         lin.y < -0.4 &&
-        (lastContactState.current === 'UNSTABLE' || lastContactState.current === 'PARTIALLY_SUPPORTED')
+        (lastContactState.current === 'UNSTABLE' ||
+          lastContactState.current === 'PARTIALLY_SUPPORTED')
       ) {
         contactState = 'FALLING';
       } else {
@@ -710,10 +709,7 @@ export function Drone({ spec, spawn, bounds, outdoor = false, groundY }: DronePr
       }
     }
     if (push[0] || push[1] || push[2]) {
-      rb.applyImpulse(
-        { x: push[0] * SIM_DT, y: push[1] * SIM_DT, z: push[2] * SIM_DT },
-        true,
-      );
+      rb.applyImpulse({ x: push[0] * SIM_DT, y: push[1] * SIM_DT, z: push[2] * SIM_DT }, true);
     }
     // Hard surface rescue if a high-speed dive punched through the ground plane.
     // Gated on the map declaring one: on a terrain map this teleport fires every
@@ -828,8 +824,7 @@ export function Drone({ spec, spawn, bounds, outdoor = false, groundY }: DronePr
     // and skipped on the ground, where resting contact produces velocity spikes
     // that look like huge lateral G.
     const rawLateralG =
-      Math.hypot(lin.x - prevVel.current.x, lin.z - prevVel.current.z) /
-      (SIM_DT * GRAVITY);
+      Math.hypot(lin.x - prevVel.current.x, lin.z - prevVel.current.z) / (SIM_DT * GRAVITY);
     // Magis reads accSmooth, not the raw accelerometer — at 250 Hz an unfiltered
     // delta of 0.12 m/s already reads as 3 g, so a single contact tick would
     // trip it. Low-pass to match.
@@ -841,16 +836,17 @@ export function Drone({ spec, spawn, bounds, outdoor = false, groundY }: DronePr
     const flightNow = useFlightStore.getState();
     const isNearGround = pos.y < 0.25 || flightNow.onGround;
     // Suppress lateral G / tilt crash triggers near outer boundaries in outdoor maps
-    const isNearOutdoorBound = outdoor && (
-      pos.x < bounds.min[0] + 12 || pos.x > bounds.max[0] - 12 ||
-      pos.z < bounds.min[2] + 12 || pos.z > bounds.max[2] - 12 ||
-      pos.y > bounds.max[1] - 15
-    );
+    const isNearOutdoorBound =
+      outdoor &&
+      (pos.x < bounds.min[0] + 12 ||
+        pos.x > bounds.max[0] - 12 ||
+        pos.z < bounds.min[2] + 12 ||
+        pos.z > bounds.max[2] - 12 ||
+        pos.y > bounds.max[1] - 15);
     if (mode !== 'acro' && !flightNow.crashed && !isNearGround && !isNearOutdoorBound) {
       _q.set(rot.x, rot.y, rot.z, rot.w);
       _euler.setFromQuaternion(_q, 'YXZ');
-      const overTilt =
-        Math.abs(_euler.z) > CRASH_TILT_RAD || Math.abs(_euler.x) > CRASH_TILT_RAD;
+      const overTilt = Math.abs(_euler.z) > CRASH_TILT_RAD || Math.abs(_euler.x) > CRASH_TILT_RAD;
       const overG = smoothLateralG.current > CRASH_LATERAL_G;
 
       if (overTilt || overG) crashHold.current += SIM_DT;
@@ -957,9 +953,7 @@ export function Drone({ spec, spawn, bounds, outdoor = false, groundY }: DronePr
       verticalSpeed,
       throttle: out ? out.throttleFraction : 0,
       // Actual spun-up motor state, not the instantaneous command.
-      motors: out
-        ? ([...motorNorm.current] as [number, number, number, number])
-        : [0, 0, 0, 0],
+      motors: out ? ([...motorNorm.current] as [number, number, number, number]) : [0, 0, 0, 0],
       sticks: {
         roll: stick.roll,
         pitch: stick.pitch,
@@ -986,9 +980,7 @@ export function Drone({ spec, spawn, bounds, outdoor = false, groundY }: DronePr
     // Realistic on-surface detection: must be level and nearly stationary
     const isLevel = Math.abs(_euler.x) < 0.38 && Math.abs(_euler.z) < 0.38;
     const isStationary =
-      Math.abs(verticalSpeed) < 0.22 &&
-      groundSpeed < 0.3 &&
-      Math.hypot(av.x, av.y, av.z) < 0.8;
+      Math.abs(verticalSpeed) < 0.22 && groundSpeed < 0.3 && Math.hypot(av.x, av.y, av.z) < 0.8;
     const onGround =
       liveSupportInfo.current.isStable &&
       isLevel &&
@@ -1048,8 +1040,13 @@ export function Drone({ spec, spawn, bounds, outdoor = false, groundY }: DronePr
       if (flight.lowBattery) {
         // Flat pack: down and locked out until reset or recharge.
         flight.lockBattery();
-      } else {
+      } else if (flight.autoDisarmOnLand) {
         flight.disarm();
+      } else {
+        // Flight School owns the shutdown: the drone sits armed on the pad and
+        // waits for the pilot to press it, because that is the second half of
+        // the lesson. The sequence still ends here either way.
+        flight.setAuto('manual');
       }
     }
 
@@ -1071,7 +1068,7 @@ export function Drone({ spec, spawn, bounds, outdoor = false, groundY }: DronePr
       colliders={false}
       position={spawn.position}
       // Low linear drag for smooth gliding momentum; high angular damping for jitter-free rotational stability
-      linearDamping={0.30}
+      linearDamping={0.3}
       angularDamping={0.85}
       canSleep={false}
       // Without CCD a fast drone steps straight through thin colliders (walls,
@@ -1181,7 +1178,7 @@ export function Drone({ spec, spawn, bounds, outdoor = false, groundY }: DronePr
       {/* 4 discrete corner landing foot colliders */}
       {/* Front-Right Foot */}
       <CuboidCollider
-        args={[spec.armLength * 0.10, 0.012, spec.armLength * 0.10]}
+        args={[spec.armLength * 0.1, 0.012, spec.armLength * 0.1]}
         position={[armPerAxis, -0.012, -armPerAxis]}
         mass={spec.mass * 0.08}
         friction={0.8}
@@ -1189,7 +1186,7 @@ export function Drone({ spec, spawn, bounds, outdoor = false, groundY }: DronePr
       />
       {/* Front-Left Foot */}
       <CuboidCollider
-        args={[spec.armLength * 0.10, 0.012, spec.armLength * 0.10]}
+        args={[spec.armLength * 0.1, 0.012, spec.armLength * 0.1]}
         position={[-armPerAxis, -0.012, -armPerAxis]}
         mass={spec.mass * 0.08}
         friction={0.8}
@@ -1197,7 +1194,7 @@ export function Drone({ spec, spawn, bounds, outdoor = false, groundY }: DronePr
       />
       {/* Back-Right Foot */}
       <CuboidCollider
-        args={[spec.armLength * 0.10, 0.012, spec.armLength * 0.10]}
+        args={[spec.armLength * 0.1, 0.012, spec.armLength * 0.1]}
         position={[armPerAxis, -0.012, armPerAxis]}
         mass={spec.mass * 0.08}
         friction={0.8}
@@ -1205,7 +1202,7 @@ export function Drone({ spec, spawn, bounds, outdoor = false, groundY }: DronePr
       />
       {/* Back-Left Foot */}
       <CuboidCollider
-        args={[spec.armLength * 0.10, 0.012, spec.armLength * 0.10]}
+        args={[spec.armLength * 0.1, 0.012, spec.armLength * 0.1]}
         position={[-armPerAxis, -0.012, armPerAxis]}
         mass={spec.mass * 0.08}
         friction={0.8}
@@ -1249,7 +1246,7 @@ export function Drone({ spec, spawn, bounds, outdoor = false, groundY }: DronePr
       {/* 4 diagonal frame arm bridge colliders (prevents thin furniture legs from passing through arm gaps) */}
       {/* Front-Right Arm */}
       <CuboidCollider
-        args={[spec.armLength * 0.20, 0.006, spec.armLength * 0.20]}
+        args={[spec.armLength * 0.2, 0.006, spec.armLength * 0.2]}
         position={[armPerAxis * 0.5, 0.004, -armPerAxis * 0.5]}
         mass={spec.mass * 0.025}
         friction={0.3}
@@ -1257,7 +1254,7 @@ export function Drone({ spec, spawn, bounds, outdoor = false, groundY }: DronePr
       />
       {/* Front-Left Arm */}
       <CuboidCollider
-        args={[spec.armLength * 0.20, 0.006, spec.armLength * 0.20]}
+        args={[spec.armLength * 0.2, 0.006, spec.armLength * 0.2]}
         position={[-armPerAxis * 0.5, 0.004, -armPerAxis * 0.5]}
         mass={spec.mass * 0.025}
         friction={0.3}
@@ -1265,7 +1262,7 @@ export function Drone({ spec, spawn, bounds, outdoor = false, groundY }: DronePr
       />
       {/* Back-Right Arm */}
       <CuboidCollider
-        args={[spec.armLength * 0.20, 0.006, spec.armLength * 0.20]}
+        args={[spec.armLength * 0.2, 0.006, spec.armLength * 0.2]}
         position={[armPerAxis * 0.5, 0.004, armPerAxis * 0.5]}
         mass={spec.mass * 0.025}
         friction={0.3}
@@ -1273,7 +1270,7 @@ export function Drone({ spec, spawn, bounds, outdoor = false, groundY }: DronePr
       />
       {/* Back-Left Arm */}
       <CuboidCollider
-        args={[spec.armLength * 0.20, 0.006, spec.armLength * 0.20]}
+        args={[spec.armLength * 0.2, 0.006, spec.armLength * 0.2]}
         position={[-armPerAxis * 0.5, 0.004, armPerAxis * 0.5]}
         mass={spec.mass * 0.025}
         friction={0.3}
