@@ -1434,28 +1434,42 @@ button {
 .vstick {
   position: absolute;
   bottom: 92px;
-  opacity: 0.92;
+  opacity: 0.95;
+  filter: drop-shadow(0 10px 22px rgba(0, 0, 0, 0.55));
 }
 .vstick-left {
-  left: 26px;
+  left: 22px;
 }
 .vstick-right {
-  right: 26px;
+  right: 22px;
+}
+/* Outer bezel: a bright hairline is what makes the dish read as a physical
+   gimbal rather than a flat circle drawn on the sky. */
+.vstick-rim {
+  fill: none;
+  stroke: rgba(148, 197, 240, 0.34);
+  stroke-width: 3;
 }
 .vstick-base {
-  fill: rgba(9, 14, 23, 0.66);
-  stroke: rgba(56, 189, 248, 0.16);
+  stroke: rgba(56, 189, 248, 0.2);
   stroke-width: 2;
 }
 .vstick-inner {
-  fill: rgba(14, 22, 36, 0.5);
-  stroke: rgba(56, 189, 248, 0.1);
+  fill: none;
+  stroke: rgba(56, 189, 248, 0.16);
   stroke-width: 1.5;
+  stroke-dasharray: 5 9;
+}
+.vstick-cross path {
+  fill: none;
+  stroke: rgba(148, 197, 240, 0.3);
+  stroke-width: 2;
+  stroke-linecap: round;
 }
 .vstick-arrow path {
   fill: none;
-  stroke: #64748b;
-  stroke-width: 4;
+  stroke: #7f93ab;
+  stroke-width: 4.5;
   stroke-linecap: round;
   stroke-linejoin: round;
 }
@@ -1484,8 +1498,13 @@ button {
   }
 }
 .vstick-knob {
-  fill: #dceefc;
-  filter: drop-shadow(0 0 12px rgba(56, 189, 248, 0.9));
+  filter: drop-shadow(0 0 14px rgba(56, 189, 248, 0.85));
+}
+/* Drawn over the knob so the sphere keeps a crisp edge against the dark dish. */
+.vstick-knob-ring {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.7);
+  stroke-width: 2;
 }
 
 /* ---- Key legend strip ---- */
@@ -3356,6 +3375,35 @@ button {
 .tr-hud.min .tr-bar-meta i.on {
   color: var(--good);
 }
+/* The attempt clock. Bright and tabular so a glance reads it and the digits do
+   not shuffle sideways as they tick. */
+.tr-hud.min .tr-bar-clock {
+  font-weight: 800;
+  color: var(--text);
+  margin-right: 8px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* The lesson map: a plan of the exercise, tucked under the status bar on the
+   same side as it. Pointer-transparent — it is something to glance at, never
+   something to click. */
+.tr-map {
+  position: absolute;
+  /* Clear of the status bar. At 52px it sat on the bar's bottom edge and the
+     two overlapped. */
+  top: 68px;
+  right: 14px;
+  padding: 5px;
+  border-radius: 50%;
+  background: rgba(10, 14, 22, 0.72);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  pointer-events: none;
+  z-index: 3;
+}
+.tr-map canvas {
+  display: block;
+  border-radius: 50%;
+}
 .tr-hud.min .tr-bar-exit {
   width: 30px;
   height: 30px;
@@ -3664,22 +3712,25 @@ button {
    and that panel grew: it now carries the step row over the caption (demo) or
    over the progress bar (practice), which is about 100 px rather than 50. The
    keycaps and the sticks sit clear of it. */
+/* The gimbals sit ABOVE the keycap row, not beside it. At full width the row
+   reaches almost to both corners, so a stick parked at the same height was
+   touching the outermost caps — and the last module of the course shows eight
+   caps, which is the widest the row ever gets. Lifting it clear also lets it be
+   drawn big enough to read stick travel from across the room: these are the
+   primary readout of what the aircraft is being told to do, not decoration. */
 .tr-hud.min .vstick {
-  transform: scale(0.92);
-  transform-origin: bottom center;
-  opacity: 0.9;
-  bottom: 128px;
-}
-.tr-hud.min .vstick-left {
-  transform-origin: bottom left;
-}
-.tr-hud.min .vstick-right {
-  transform-origin: bottom right;
+  bottom: 262px;
+  opacity: 0.97;
 }
 .tr-hud.min .tr-keys {
-  bottom: 148px;
+  bottom: 150px;
   gap: 12px;
   opacity: 1;
+  /* Wrap rather than run under the gimbals. Two short rows of caps read fine;
+     one row sliding beneath a joystick does not. */
+  flex-wrap: wrap;
+  justify-content: center;
+  max-width: min(64vw, 900px);
 }
 .tr-hud.min .tr-key {
   padding: 8px 13px 6px;
@@ -3724,6 +3775,17 @@ button {
 }
 .tr-hud.min .tr-xp {
   font-size: 16px;
+}
+/* How long the go took, under the heading and above the stars. It is the
+   number the three-star rule is usually written against, so it belongs on the
+   result rather than only in the rubric. */
+.tr-time {
+  display: block;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+  margin: 2px 0 10px;
 }
 
 @media (max-width: 680px) {

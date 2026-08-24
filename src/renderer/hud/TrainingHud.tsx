@@ -8,6 +8,7 @@ import type { Lesson } from '../training/lessons';
 import { StickIndicator } from './StickIndicator';
 import { KeyHints } from './KeyHints';
 import { playClick, playSuccess, playStar, playRankUp } from '../audio/sfx';
+import { LessonMap } from './LessonMap';
 
 // Deterministic-ish confetti pieces (module scope so they don't reshuffle on
 // every render — only the reward mount matters visually).
@@ -101,7 +102,10 @@ export function TrainingHud() {
   const cue = useTrainingStore((s) => s.cue);
   const hint = useTrainingStore((s) => s.hint);
   const validation = useTrainingStore((s) => s.validation);
+  const elapsed = useTrainingStore((s) => s.elapsed);
+  const routeTarget = useTrainingStore((s) => s.routeTarget);
   const lastStars = useTrainingStore((s) => s.lastStars);
+  const lastTimeSec = useTrainingStore((s) => s.lastTimeSec);
   const lastXp = useTrainingStore((s) => s.lastXp);
   const lastRankUp = useTrainingStore((s) => s.lastRankUp);
   const start = useTrainingStore((s) => s.start);
@@ -156,10 +160,7 @@ export function TrainingHud() {
   const route = lesson.route;
   const steps: { label: string; cap?: string }[] = lesson.stages
     ? lesson.stages.map((s) => ({ label: s.label, cap: s.cap }))
-    : [
-        ...(route?.map((c) => ({ label: c.label })) ?? []),
-        ...(lesson.landing ? [{ label: 'Land', cap: 'S' }] : []),
-      ];
+    : (route?.map((c) => ({ label: c.label })) ?? []);
   // Allowed to run one PAST the last step: that is the "all done" state, where
   // every chip carries its tick instead of the last one still sitting live.
   const stepIndex = Math.min(routeIndex, steps.length);
@@ -191,6 +192,10 @@ export function TrainingHud() {
           {flying && (
             <span className="tr-bar-meta">
               <i className={armed ? 'on' : ''}>{armed ? 'ARMED' : 'IDLE'}</i>
+              {/* The attempt clock, on every lesson. It is the one number that
+                  says how a go is going while it is still going, and the one the
+                  result panel reports afterwards. */}
+              {phase === 'practice' && <b className="tr-bar-clock">{elapsed.toFixed(1)}s</b>}
               ALT {altitude.toFixed(1)} · THR {Math.round(throttle * 100)}%
             </span>
           )}
@@ -199,6 +204,12 @@ export function TrainingHud() {
           </button>
         </div>
       </div>
+
+      {/* The plan view, under the status bar. Up for the demonstration as well as
+          the attempt — the demo is where the shape is learned, and from above is
+          the only place a shape is a shape. It just does not mark progress
+          there, because there is none to mark. */}
+      {flying && <LessonMap lesson={lesson} target={routeTarget} tracking={phase === 'practice'} />}
 
       {/* Step 1 — Introduction (clean card) */}
       {phase === 'intro' && (
@@ -351,6 +362,7 @@ export function TrainingHud() {
             </div>
             <span className="tr-check">✓</span>
             <h2>Lesson Complete</h2>
+            <span className="tr-time">Flown in {lastTimeSec.toFixed(1)}s</span>
             <Stars value={lastStars} />
             {lastXp > 0 && <span className="tr-xp">+{lastXp} XP</span>}
 
