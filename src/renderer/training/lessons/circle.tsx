@@ -3,38 +3,44 @@ import { planCircle } from './demoFlight';
 import { HOVER } from './arena';
 import { ACADEMY_PAD } from '../../plugins/environments/droneAcademy';
 
-// Module 10 — Circle. The square and the triangle are straight lines joined by
+// Module 11 — Circle. The square and the triangle are straight lines joined by
 // stops. A circle never stops: both sticks stay in and their ratio changes
 // continuously all the way round. Scored on swept angle and how even the radius
 // stayed, so cutting a corner cannot pass.
 const ALT = HOVER;
-/** The helipad's own ring of white markers — the circle is already painted on
- *  the field, so the lesson does not draw one. */
+/** The helipad's own ring of white markers. The lap line is painted along it,
+ *  so the sixteen dots and the red stripe are the same circle. */
 const RADIUS = ACADEMY_PAD.lightRadius;
-/** Scaled to the bigger ring: the old 1.5 m band was set for a 4 m circle. */
+/** How far off the line still counts as being ON the ring — outside this the
+ *  lap stops accumulating. Scaled to the bigger ring: the old 1.5 m band was set
+ *  for a 4 m circle. */
 const BAND = 1.8;
+/** The lane the lap is meant to be held in, and what three stars asks for. Drawn
+ *  on the map, quoted in the rubric, and the point at which the hint starts
+ *  saying which way to nudge — one number, so the three cannot disagree. */
+const LANE = 1.2;
 /** Full turn, minus a little, so the finish does not depend on a perfect close. */
 const TARGET_SWEEP = Math.PI * 2 * 0.95;
 
 export const circleLesson: Lesson = {
   id: 'circle',
-  order: 10,
+  order: 11,
   title: 'Full Circle',
   subtitle: 'One smooth lap, never stopping',
 
   explain: {
     title: 'Flying a Circle',
     body: [
-      'Fly one full lap around the helipad, following the ring drawn on the field.',
+      'Fly one full lap around the helipad, following the red ring painted on the deck.',
       'A circle has no corners to rest at. Both sticks stay in the whole way round.',
       'Keep the same distance from the middle. Cutting in close will not count.',
     ],
   },
 
-  // The ring is the task, so the guide draws the whole circle rather than a
-  // handful of points on it. Chopping it into checkpoints would turn the one
-  // shape with no corners into a rounded polygon.
-  guideRing: { radius: RADIUS, height: ALT },
+  // The ring is the task, so the guide PAINTS the whole circle on the deck
+  // rather than marking a handful of points on it. Chopping it into checkpoints
+  // would turn the one shape with no corners into a rounded polygon.
+  guideRing: { radius: RADIUS, band: LANE },
 
   // Opens at a hover: the drone is placed there rather than flying up to it,
   // so the lesson starts on its own drill instead of on a take-off.
@@ -74,6 +80,7 @@ export const circleLesson: Lesson = {
 
   tips: [
     'Fly out to the ring and settle before you start turning.',
+    'The line on screen says how far in or out you are, in metres. Correct it a little at a time.',
     'Think of it as slowly rotating the direction you are pushing, not as four arcs.',
   ],
   commonMistakes: [
@@ -123,6 +130,16 @@ export const circleLesson: Lesson = {
 
     const swept = mem.sweep ?? 0;
     const pct = Math.round((swept / (Math.PI * 2)) * 100);
+
+    // Which way to nudge, said in metres and shown on the sticks.
+    //
+    // On the ring the module used to say nothing but the percentage, so a pilot
+    // slowly winding inwards got no word about it until they fell out of the
+    // band altogether and the lap stopped counting. The correction is small and
+    // continuous — that is the whole skill — so the feedback has to be too.
+    const off = r - RADIUS;
+    const scale = RADIUS / Math.max(r, 1e-3);
+    const toRing = cueBetween(p.position, [p.position[0] * scale, ALT, p.position[2] * scale]);
     // Latched: sweep unwinds if the pilot drifts back the other way, and losing
     // a completed circle to a wobble on the last metre is not a lesson in
     // anything.
@@ -131,7 +148,14 @@ export const circleLesson: Lesson = {
     return {
       done: round,
       progress: round ? 1 : Math.min(1, swept / TARGET_SWEEP),
-      hint: round ? 'Circle complete' : `Keep the arc going. ${pct}% round`,
+      hint: round
+        ? 'Circle complete'
+        : Math.abs(off) <= LANE * 0.5
+          ? `On the line. ${pct}% round`
+          : off < 0
+            ? `${(-off).toFixed(1)} m inside — ease out. ${pct}% round`
+            : `${off.toFixed(1)} m wide — ease in. ${pct}% round`,
+      cue: Math.abs(off) <= LANE * 0.5 ? [] : toRing,
     };
   },
 
@@ -139,10 +163,11 @@ export const circleLesson: Lesson = {
   stars: [
     {
       stars: 3,
-      text: 'Radius within 1.2 m and height within 0.9 m, lap under 70 seconds',
-      test: ({ timeSec, collisions, smoothness, mem }) =>
+      text: `Radius within ${LANE} m and height within 0.9 m, lap under 70 seconds, nothing touched`,
+      test: ({ touches, timeSec, collisions, smoothness, mem }) =>
         collisions === 0 &&
-        (mem.radiusDev ?? 99) <= 1.2 &&
+        touches === 0 &&
+        (mem.radiusDev ?? 99) <= LANE &&
         (mem.altDev ?? 0) <= 0.9 &&
         smoothness >= 0.35 &&
         timeSec <= 70,
