@@ -7,6 +7,7 @@ import { useUiStore } from '../state/uiStore';
 import { useTrainingStore, isLessonUnlocked, type TrainingPhase } from '../state/trainingStore';
 import { getLesson, nextLesson } from './lessons';
 import { HOVER } from './lessons/arena';
+import { dronePose } from '../sim/drone/pose';
 import { starsFor } from './lessons/types';
 import type { Lesson, LessonMemory } from './lessons/types';
 import {
@@ -97,6 +98,8 @@ const YAW_DEADBAND = 0.026;
  *  finite, so a sequence that never completes stalls one demonstration rather
  *  than hanging Flight School. */
 const AUTO_WAIT = 9;
+/** Longest a demo step will wait for the drone to reach the spot it names. */
+const DEMO_WAIT_MAX = 25;
 
 /**
  * Which keycaps the demonstration is holding down, read off the scripted sticks.
@@ -134,7 +137,7 @@ function demoRepeats(lesson: Lesson, seen: boolean): number {
 function resetDrone(lesson: Lesson): void {
   // Ask for the spawn height BEFORE the reset: the drone's reset effect reads it
   // when it places the body.
-  useSimStore.getState().setSpawnLift(lesson.startAirborne ? HOVER : 0);
+  useSimStore.getState().setSpawnLift(lesson.startAirborne ? (lesson.hoverHeight ?? HOVER) : 0);
   useSimStore.getState().requestReset();
   const flight = useFlightStore.getState();
   flight.disarm();
@@ -164,6 +167,8 @@ export function Director() {
   /** Seconds the demo clock has spent waiting for an auto sequence to hand back,
    *  and which sequence it is waiting on. */
   const autoWait = useRef(0);
+  /** How long the current demo step has been waiting to arrive somewhere. */
+  const stepWait = useRef(0);
   const autoKind = useRef<string>('manual');
   /** The one-shot command cap (ARM / SPACE) and its remaining lit time. */
   const cmdKey = useRef<string | null>(null);
@@ -174,6 +179,10 @@ export function Director() {
   /** Same idea for the practice cue: validators return one every frame, and the
    *  set only changes a handful of times an attempt. */
   const lastCue = useRef('');
+  /** Last attempt clock reading published, in tenths. */
+  const lastElapsed = useRef(-1);
+  /** The sim's reset counter as this Director last left it. */
+  const lastResetToken = useRef(0);
 
   // Practice metrics / scratch
   const mem = useRef<LessonMemory>({});
@@ -181,6 +190,9 @@ export function Director() {
   const jerkAccum = useRef(0);
   const crashCount = useRef(0);
   const prevCrashed = useRef(false);
+  /** The store's lifetime touch count as this attempt began; the attempt's own
+   *  is the difference. */
+  const touchBase = useRef(0);
   const failCount = useRef(0);
   const prevStick = useRef({ roll: 0, pitch: 0, yaw: 0, throttle: 0.5 });
   /** Debounce so a single failure doesn't reset repeatedly across frames. */
@@ -231,6 +243,7 @@ export function Director() {
         training.setDemoRound(1, demoRepeats(lesson, demoSeen.current));
         training.setDemoKeys([]);
         training.setRouteIndex(0);
+        training.setRouteTarget(0);
         training.setDemoCaption(lesson.demo[0]?.caption ?? '');
         useUiStore.getState().setCameraMode('chase');
         playWhoosh();
@@ -238,6 +251,7 @@ export function Director() {
 
       case 'practice':
         resetDrone(lesson);
+        seedResetToken();
         yawTarget.current = null;
         setScripted(false);
         mem.current = {};
@@ -245,6 +259,7 @@ export function Director() {
         jerkAccum.current = 0;
         crashCount.current = 0;
         prevCrashed.current = false;
+        touchBase.current = useFlightStore.getState().touches;
         failCooldown.current = 0;
         doneTimer.current = 0;
         bestProgress.current = 0;
@@ -252,6 +267,7 @@ export function Director() {
         prevStick.current = { ...stick };
         training.setDemoKeys([]);
         training.setRouteIndex(0);
+        training.setRouteTarget(0);
         training.setCue([]);
         lastCue.current = '';
         lesson.setup?.();
@@ -305,6 +321,24 @@ export function Director() {
 
     while (demoIdx.current < steps.length && steps[demoIdx.current].at <= t) {
       const step = steps[demoIdx.current];
+
+      // A step that names a place waits for the aircraft to get there. Holding
+      // the clock is the same trick the auto sequences use above, and for the
+      // same reason: the caption, and the command under it, have to happen
+      // where they say they do.
+      if (step.waitNear) {
+        const near = Math.hypot(
+          dronePose.position.x - step.waitNear.x,
+          dronePose.position.z - step.waitNear.z,
+        );
+        if (near > step.waitNear.reach && stepWait.current < DEMO_WAIT_MAX) {
+          stepWait.current += delta;
+          phaseTime.current -= delta;
+          return;
+        }
+      }
+      stepWait.current = 0;
+
       if (step.cmd) runScriptedCommand(step.cmd);
       if (step.stick) setScriptedStick(step.stick);
       if (step.yawTo !== undefined) {
@@ -317,6 +351,13 @@ export function Director() {
       // the steps the pilot then watches being flown.
       if (step.stage !== undefined && step.stage !== training.routeIndex) {
         training.setRouteIndex(step.stage);
+      }
+      // And the route cursor, which is a different number on a staged lesson
+      // and moves at a different moment: this one says a checkpoint is BEHIND
+      // the aircraft, and it is what takes the letter off the gate as the demo
+      // flies out the far side.
+      if (step.rt !== undefined && step.rt !== training.routeTarget) {
+        training.setRouteTarget(step.rt);
       }
       // Only the one-shot commands need a flash; a held stick lights its own cap.
       if (step.key && step.cmd) {
@@ -366,6 +407,9 @@ export function Director() {
         training.setDemoRound(demoLoop.current + 1);
         training.setDemoKeys([]);
         training.setRouteIndex(0);
+        // Every letter goes back up for the replay; the field has to start the
+        // second pass looking the way it started the first.
+        training.setRouteTarget(0);
         training.setDemoCaption(steps[0]?.caption ?? '');
       } else {
         demoSeen.current = true;
@@ -374,16 +418,41 @@ export function Director() {
     }
   }
 
+  /** Remember where the sim's reset counter stands, so the Director's own
+   *  resets are not mistaken for the pilot pressing R. */
+  function seedResetToken(): void {
+    lastResetToken.current = useSimStore.getState().resetToken;
+  }
+
   function softResetPractice(lesson: Lesson): void {
     resetDrone(lesson);
+    seedResetToken();
     mem.current = {};
+    // A fresh go: whatever the last one hit belongs to the last one.
+    touchBase.current = useFlightStore.getState().touches;
     practiceTime.current = 0;
+    publishElapsed();
     jerkAccum.current = 0;
     doneTimer.current = 0;
     bestProgress.current = 0;
     stallTime.current = 0;
     prevStick.current = { ...stick };
     lesson.setup?.();
+  }
+
+  /**
+   * Push the attempt clock to the HUD — a tenth of a second at a time.
+   *
+   * The clock is what answers "how am I doing" while the flight is on, and what
+   * the result panel reports afterwards, so every lesson shows it. Published on
+   * the tenth rather than every frame: a number that changes 60 times a second
+   * is unreadable, and this is a machine with frames to spare for nothing.
+   */
+  function publishElapsed(): void {
+    const tenths = Math.round(practiceTime.current * 10) / 10;
+    if (tenths === lastElapsed.current) return;
+    lastElapsed.current = tenths;
+    useTrainingStore.getState().setElapsed(tenths);
   }
 
   /** Push the live control cue, only when it actually changes. */
@@ -395,7 +464,30 @@ export function Director() {
   }
 
   function tickPractice(lesson: Lesson, delta: number, lessonId: string): void {
+    // R puts the drone back on the pad — so it has to put the ATTEMPT back to
+    // the start too. Without this the aircraft respawned but the lesson's
+    // scratch pad did not: the square circuit still had Corner 1 ticked and was
+    // asking for Corner 2, from a drone sitting on the helipad that had flown
+    // nothing. The clock kept running as well, so a reset was a penalty rather
+    // than a fresh go.
+    const token = useSimStore.getState().resetToken;
+    if (token !== lastResetToken.current) {
+      softResetPractice(lesson);
+      // A deliberate restart, not a recovery from a fail: the crashes and the
+      // failed goes belong to the attempt that was thrown away.
+      crashCount.current = 0;
+      failCount.current = 0;
+      touchBase.current = useFlightStore.getState().touches;
+      useTrainingStore.getState().setRouteIndex(0);
+      useTrainingStore.getState().setRouteTarget(0);
+      useTrainingStore.getState().setHint(lesson.practice.hint);
+      useTrainingStore.getState().setValidation({ progress: 0, failed: false });
+      publishCue([]);
+      return;
+    }
+
     practiceTime.current += delta;
+    publishElapsed();
     if (failCooldown.current > 0) failCooldown.current -= delta;
 
     const sim = useSimStore.getState();
@@ -458,10 +550,11 @@ export function Director() {
         const stars = starsFor(lesson.stars, {
           timeSec,
           collisions: crashCount.current,
+          touches: useFlightStore.getState().touches - touchBase.current,
           smoothness,
           mem: mem.current,
         });
-        training.completeLesson(lessonId, stars, stars / 3);
+        training.completeLesson(lessonId, stars, stars / 3, timeSec);
       }
       return;
     }
@@ -477,6 +570,26 @@ export function Director() {
     if (steps > 0) {
       const reached = Math.min(mem.current.wp ?? 0, steps);
       if (reached !== training.routeIndex) training.setRouteIndex(reached);
+    }
+
+    // And which CHECKPOINT that is, for the map. `flyMission` walks the route on
+    // a cursor of its own because `mem.wp` is the step row's; every other
+    // validator has the two as the same number.
+    const legs = lesson.route?.length ?? 0;
+    if (legs > 0) {
+      // Where the route cursor lives depends on what `mem.wp` is counting. A
+      // lesson with STAGES numbers the steps of a flight in it — Arm is 0, Take
+      // off is 1 — and walks its route on `rt` instead (#35). Falling back from
+      // one to the other was wrong rather than merely approximate: arming
+      // Module 7 moved `wp` to 1, which the guide read as "checkpoint 0 is
+      // behind you" and took "A" off the gate before the drone had left the pad.
+      //
+      // Allowed to run one PAST the last checkpoint, and it has to be: that is
+      // the "all done" value, and it is what takes the last name off the field
+      // when the route is finished.
+      const cursor = lesson.stages ? (mem.current.rt ?? 0) : (mem.current.wp ?? 0);
+      const goal = Math.min(cursor, legs);
+      if (goal !== training.routeTarget) training.setRouteTarget(goal);
     }
 
     if (res.failed && failCooldown.current <= 0) {

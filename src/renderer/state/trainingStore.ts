@@ -44,8 +44,19 @@ interface TrainingState {
   /** Contextual guidance during practice (step 3/4). */
   hint: string;
   validation: Validation;
+  /** Seconds into the current attempt. Published at 10 Hz, not per frame. */
+  elapsed: number;
+  /** Which of the lesson's ROUTE checkpoints is being flown to.
+   *
+   *  Not the same number as `routeIndex`, which counts the steps on the row —
+   *  a whole flight's steps are Arm, Take off, then the flying, so the two
+   *  disagree by however many steps come before the route. The map needs the
+   *  checkpoint. */
+  routeTarget: number;
   /** Result shown on the reward panel (step 5). */
   lastStars: number;
+  /** Seconds the completed attempt took. */
+  lastTimeSec: number;
   lastXp: number;
   /** New rank name if this completion triggered a rank-up, else null. */
   lastRankUp: string | null;
@@ -59,8 +70,10 @@ interface TrainingState {
   setCue: (cue: readonly string[]) => void;
   setHint: (hint: string) => void;
   setValidation: (v: Validation) => void;
+  setElapsed: (seconds: number) => void;
+  setRouteTarget: (index: number) => void;
   /** Persist a completed lesson, award XP, and move to the reward phase. */
-  completeLesson: (lessonId: string, stars: number, score: number) => void;
+  completeLesson: (lessonId: string, stars: number, score: number, timeSec: number) => void;
   /** Leave the current lesson and return to the lesson list. */
   exitLesson: () => void;
 }
@@ -76,7 +89,10 @@ export const useTrainingStore = create<TrainingState>((set) => ({
   cue: [],
   hint: '',
   validation: { progress: 0, failed: false },
+  elapsed: 0,
+  routeTarget: 0,
   lastStars: 0,
+  lastTimeSec: 0,
   lastXp: 0,
   lastRankUp: null,
 
@@ -91,7 +107,10 @@ export const useTrainingStore = create<TrainingState>((set) => ({
       cue: [],
       hint: '',
       validation: { progress: 0, failed: false },
+      elapsed: 0,
+      routeTarget: 0,
       lastStars: 0,
+      lastTimeSec: 0,
       lastXp: 0,
       lastRankUp: null,
     }),
@@ -105,8 +124,10 @@ export const useTrainingStore = create<TrainingState>((set) => ({
   setCue: (cue) => set({ cue }),
   setHint: (hint) => set({ hint }),
   setValidation: (validation) => set({ validation }),
+  setElapsed: (elapsed) => set({ elapsed }),
+  setRouteTarget: (routeTarget) => set({ routeTarget }),
 
-  completeLesson: (lessonId, stars, score) => {
+  completeLesson: (lessonId, stars, score, timeSec) => {
     const settings = useSettingsStore.getState();
     const training = settings.settings.training;
     const prev = training.lessons[lessonId];
@@ -136,7 +157,13 @@ export const useTrainingStore = create<TrainingState>((set) => ({
     // Fire-and-forget persistence through the settings document.
     settings.set('training', nextTraining);
 
-    set({ phase: 'reward', lastStars: stars, lastXp: xpGained, lastRankUp: rankedUp });
+    set({
+      phase: 'reward',
+      lastStars: stars,
+      lastXp: xpGained,
+      lastRankUp: rankedUp,
+      lastTimeSec: timeSec,
+    });
   },
 
   exitLesson: () =>
