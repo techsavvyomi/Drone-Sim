@@ -17,11 +17,11 @@ import { navABLesson, navABCLesson, navABCDLesson } from './navRoutes';
 //
 // The syllabus runs as one progression:
 //   1-2    Arm & Take Off, Land & Disarm — the two ends of a flight
-//   3-5    one control at a time         — throttle, pitch, roll
-//   6-7    whole flights                 — arm, take off, fly a line, land
-//   8-10   Formation                     — closed shapes flown as one route
-//   11-13  Navigation                    — set routes through gates, in order
-//   14     Yaw                           — turning on the spot
+//   3-6    one control at a time         — throttle, yaw, pitch, roll
+//   7-8    whole flights                 — arm, take off, fly a line
+//          (7 goes out and stays out; 8 comes home and lands)
+//   9-11   Formation                     — closed shapes flown as one route
+//   12-14  Navigation                    — set routes through gates, in order
 //
 // Landing sits SECOND, not last. It used to close the course, on the reasoning
 // that you only need it once the flight is over; in practice a student who has
@@ -32,9 +32,15 @@ import { navABLesson, navABCLesson, navABCDLesson } from './navRoutes';
 // shows nothing (the motors stay stopped until the throttle moves) and a
 // landing is not finished until the motors are off.
 //
-// Pitch + Roll was retired here — Diagonal Run (7) teaches the same "both
+// Pitch + Roll was retired here — Diagonal Run (8) teaches the same "both
 // sticks together" idea over a longer run and with a landing at the end. It is
 // in git history if the syllabus ever wants it back.
+//
+// YAW sits fourth, with the other single-stick drills, rather than last. It was
+// at the end on the reasoning that turning is the fanciest of the four sticks;
+// in practice it is the one that decides which way every OTHER stick pushes, and
+// the navigation modules fly their routes nose-first — so a pilot who has not
+// met it yet has been crabbing sideways round a course for ten modules.
 export const LESSONS: Lesson[] = [
   armTakeoffLesson,
   landDisarmLesson,

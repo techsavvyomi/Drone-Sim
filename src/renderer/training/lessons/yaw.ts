@@ -2,7 +2,7 @@ import { CUE, angleDiffDeg, clamp01, latch, type Lesson } from './types';
 import { home } from './arena';
 import { yawTime } from './demoFlight';
 
-// Module 14 — Yaw. Rotate the drone about its vertical axis without
+// Module 4 — Yaw. Rotate the drone about its vertical axis without
 // changing position. Practice: turn ~90°, then rotate back to the start heading.
 const TURN = 90;
 const REACH_TOL = 12; // within this of the target counts
@@ -15,7 +15,7 @@ const TURN_SEC = yawTime(TURN, DEMO_YAW);
 
 export const yawLesson: Lesson = {
   id: 'yaw',
-  order: 14,
+  order: 4,
   title: 'Yaw Control',
   subtitle: 'Spin the nose, hold the spot',
 
@@ -110,9 +110,9 @@ export const yawLesson: Lesson = {
   stars: [
     {
       stars: 3,
-      text: 'Both turns landed within 8°, under 18 seconds',
-      test: ({ timeSec, collisions, mem }) =>
-        collisions === 0 && (mem.overshoot ?? 0) <= 8 && timeSec <= 18,
+      text: 'Both turns landed within 8°, under 18 seconds, nothing touched',
+      test: ({ touches, timeSec, collisions, mem }) =>
+        collisions === 0 && touches === 0 && (mem.overshoot ?? 0) <= 8 && timeSec <= 18,
     },
     {
       stars: 2,
