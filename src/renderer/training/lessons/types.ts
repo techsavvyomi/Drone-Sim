@@ -50,6 +50,34 @@ export interface DemoStep {
    *  `route`. The checkpoint row walks along with the demonstration, so what the
    *  intro card promised is what the pilot then watches being flown. */
   stage?: number;
+  /** The ROUTE cursor once this beat has happened: how many checkpoints are
+   *  behind the aircraft.
+   *
+   *  Separate from `stage` because they are not the same number on a lesson
+   *  with `stages` — there Arm is step 0 and the first gate is step 2 — and
+   *  because they move at different moments: `stage` lights the step the demo
+   *  is FLYING, this one records the checkpoint it has just gone THROUGH. It is
+   *  what takes a gate's letter off the field mid-demonstration, the same way
+   *  the pilot's own route cursor does in practice.
+   *
+   *  Emitted by `routeLegs`/`planDemo` on the arrival beat of each leg; a
+   *  hand-written demo step leaves it out. */
+  rt?: number;
+  /** Hold the demonstration here until the drone is actually within `reach`
+   *  metres of this spot on the ground.
+   *
+   *  The timeline is open-loop, and over a long route the error adds up: every
+   *  leg under-shoots a little, every turn costs a little more than it was
+   *  budgeted, and by the end of a ninety-second circuit the aircraft can be a
+   *  gate behind the script. A beat that only has to look right can absorb that.
+   *  A LANDING cannot — fired on the clock it puts the drone down wherever it
+   *  happens to be, which on Module 14 was beside the last gate rather than on
+   *  the "H" the lesson had just told the pilot to come home to.
+   *
+   *  The Director holds the clock, exactly as it does while an auto sequence
+   *  owns the aircraft, and gives up after `DEMO_WAIT_MAX` so a demonstration
+   *  that has gone properly astray still ends. */
+  waitNear?: { x: number; z: number; reach: number };
   /** Turn to this heading, in radians, and HOLD it — `null` releases the yaw.
    *
    *  The only closed-loop channel in a demonstration, and it has to be. Every
@@ -108,12 +136,11 @@ export const CUE = {
   arm: ['Enter'] as const,
   throttleUp: ['KeyW'] as const,
   throttleDown: ['KeyS'] as const,
-  takeoff: ['KeyW'] as const,
-  /** Hands-off climb to the hover height. Module 1 teaches this one; the whole
-   *  flights from Module 6 on ask for the throttle itself. */
+  /** Hands-off climb to the hover height. Module 1 teaches it, and every whole
+   *  flight from Module 7 on reuses it: those modules are about a stick, not
+   *  about the throttle, so they show SPACE rather than W and S. */
   autoTakeoff: ['Space'] as const,
-  land: ['KeyS'] as const,
-  /** Hands-off descent onto the pad. Module 2 teaches this one. */
+  /** Hands-off descent onto the pad. Module 2 teaches it; same story. */
   autoLand: ['Space'] as const,
   forward: ['ArrowUp'] as const,
   backward: ['ArrowDown'] as const,
@@ -148,8 +175,17 @@ export type LessonMemory = Record<string, number>;
 export interface ScoreInput {
   /** Seconds taken to satisfy the lesson. */
   timeSec: number;
-  /** Collisions/crashes during the attempt. */
+  /** Crashes during the attempt. */
   collisions: number;
+  /**
+   * Everything the drone touched while airborne, crashes included.
+   *
+   * A clean flight is one that went round without brushing anything, and until
+   * this existed nothing said so: only crashes were counted, so a pilot could
+   * scrape a gate upright the whole way through the course and still take three
+   * stars. Every rubric's top rung asks for zero.
+   */
+  touches: number;
   /** Control smoothness 0..1 (1 = very smooth), from stick jerk. */
   smoothness: number;
   /** The same scratch pad the validator wrote to — for lesson-specific scoring. */
@@ -211,6 +247,17 @@ export interface Checkpoint {
   markSize?: number;
   /** Accent for the highlight; defaults to the object's own colour. */
   color?: string;
+  /** What to WRITE on the arena object, if anything.
+   *
+   *  Setting it is what puts a name on the field, so it is asked for one
+   *  checkpoint at a time rather than one lesson at a time: a route to the blue
+   *  gate and back to the "H" wants a letter on the gate and nothing on the
+   *  pad, which already has an "H" painted on it.
+   *
+   *  It is not the same text as `label`. The step row has room for "Corner B"
+   *  and needs it; the marker itself wants "B", because a phrase written across
+   *  the deck beside a 0.9 m sphere is a phrase covering the field. */
+  tag?: string;
   /** For a gate: the unit direction THROUGH its opening, in world space.
    *
    *  A gate is not a place to arrive at, it is a hole to pass through, and a
@@ -249,21 +296,34 @@ export interface Lesson {
    *  between them by writing `mem.wp`. */
   stages?: readonly LessonStage[];
 
-  /** A closed circular path to draw on the field, for a lesson whose route is
+  /** A closed circular path to PAINT on the deck, for a lesson whose route is
    *  not a list of points. Only Full Circle uses it: the ring is the task, and
    *  chopping it into checkpoints would turn the one shape with no corners into
-   *  a rounded polygon. Centred on the helipad. */
-  guideRing?: { radius: number; height: number };
+   *  a rounded polygon. Centred on the helipad, and flat on it — the height the
+   *  lap is flown at is the lesson's business, not the marking's. */
+  guideRing?: {
+    radius: number;
+    /** Half-width of the lane the lap is meant to be held in, in metres. Drawn
+     *  on the map as a band around the line, so "on the ring" is a place with a
+     *  width rather than a word. */
+    band?: number;
+  };
 
   /** This lesson BEGINS at a hover: the drone is placed in the air rather than
    *  flying up to it. A landing drill that opens by watching a take-off spends
    *  its first seconds on the previous lesson. */
   startAirborne?: boolean;
 
-  /** This lesson ends by landing back on the "H" (it is flown with
-   *  `flyMission`). The HUD adds a final "Land" step to the checkpoint row, so
-   *  the pilot can see the landing coming before the route runs out. */
-  landing?: boolean;
+  /** How high that hover is, in metres. Defaults to `HOVER`.
+   *
+   *  The circuits fly higher than the stick drills do, and for a reason that is
+   *  about SEEING rather than about flying: their corners are numbered on the
+   *  ground, and from the standard 1.8 m hover the far ones are read edge-on
+   *  across the pad. A metre and a half more turns the shape into something the
+   *  pilot is looking down at. The lesson's own checkpoints have to be lifted to
+   *  match — they are judged in 3-D — which is why this is a number the lesson
+   *  states once and passes to its markers. */
+  hoverHeight?: number;
 
   /** 💡 Pilot tips — best-practice pointers, shown on the intro card. */
   tips?: string[];
@@ -367,9 +427,16 @@ export function flyRoute(
   mem: LessonMemory,
   position: Vec3,
   route: readonly Checkpoint[],
-  opts: { strict?: boolean } = {},
+  opts: { strict?: boolean; key?: string } = {},
 ): RouteState {
-  const next = mem.wp ?? 0;
+  // Which scratch-pad field holds the cursor. It is `wp` by default, because
+  // that is also the field the Director reads for the live step on screen — for
+  // most lessons the checkpoint reached IS the step reached. `flyMission` is
+  // the exception: its rows are the stages of a flight, of which the route is
+  // only the middle, so it walks the route on a field of its own and writes the
+  // step number itself.
+  const key = opts.key ?? 'wp';
+  const next = mem[key] ?? 0;
   if (next >= route.length) {
     return { next: route.length, complete: true, outOfOrder: false, distance: 0, progress: 1 };
   }
@@ -377,7 +444,7 @@ export function flyRoute(
   const target = route[next];
   const distance = dist3(position, target.at);
   if (distance < target.reach) {
-    mem.wp = next + 1;
+    mem[key] = next + 1;
     const done = next + 1;
     return {
       next: done,
@@ -391,7 +458,7 @@ export function flyRoute(
   if (opts.strict) {
     // A later checkpoint only counts as CUT once the drone has actually been
     // clear of it. Without that guard a route which finishes where it starts —
-    // Module 13 ends back over the "H" it took off from — fails on its very
+    // Module 14 ends back over the "H" it took off from — fails on its very
     // first frame, before the pilot has moved.
     let left = mem.left ?? 0;
     for (let j = next + 1; j < route.length; j++) {
@@ -415,7 +482,7 @@ export function flyRoute(
   // Control opened at 19% before the pilot had touched anything, and a pilot who
   // has done nothing being told they are a fifth of the way there is the bar
   // saying something untrue about them.
-  const startKey = `leg${next}`;
+  const startKey = `${key}leg${next}`;
   if (mem[startKey] === undefined) mem[startKey] = Math.max(distance, target.reach + 0.01);
   const span = Math.max(mem[startKey] - target.reach, 0.01);
   const leg = Math.max(0, Math.min(1, (mem[startKey] - distance) / span));
