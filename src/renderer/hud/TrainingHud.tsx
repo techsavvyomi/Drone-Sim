@@ -243,8 +243,14 @@ export function TrainingHud() {
                 {steps.map((s, i) => (
                   // The arrow travels WITH the step it points at, so a flow that
                   // wraps never leaves an arrow dangling at the end of a line.
+                  // A long one drops them instead: eight steps wrap whatever the
+                  // card's width, and an arrow carried onto the front of the
+                  // second row reads as a stray mark pointing at the margin. The
+                  // numbers are the order there, which is what they are for.
                   <span className="tr-flow-item" key={`${s.label}-${i}`}>
-                    {i > 0 && <span className="tr-flow-arrow" aria-hidden="true" />}
+                    {i > 0 && steps.length <= 6 && (
+                      <span className="tr-flow-arrow" aria-hidden="true" />
+                    )}
                     <span className="tr-flow-step">
                       <span className="tr-flow-num">{i + 1}</span>
                       {s.cap && <kbd>{s.cap}</kbd>}
