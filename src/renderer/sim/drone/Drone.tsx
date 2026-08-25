@@ -21,6 +21,7 @@ import { GRAVITY, SIM_DT } from '../constants';
 import { clamp, DEG2RAD } from '../mathx';
 import {
   activeInputSource,
+  isScripted,
   isThrottleCommanded,
   stick,
   updateStick,
@@ -353,8 +354,23 @@ export function Drone({ spec, spawn, bounds, outdoor = false, groundY }: DronePr
       peakSpeed.current = speedNow;
     }
 
+    // A demonstration has no pilot in the loop. The Director writes stick
+    // positions solved offline from tilt, gravity and damping
+    // (`lessons/demoFlight.ts`) and never looks at where the aircraft actually
+    // got to, so any force the plan does not model is an error that integrates
+    // for the whole length of a leg. Ambient drift is 0.16 m/s^2 of wander:
+    // by the first gate of a navigation route that is two to three metres of
+    // cross-track, and the ring is 2.8 m across — so the demonstration flew
+    // PAST the gate it was showing the pilot how to fly through, by a different
+    // amount every viewing, because the drift is a function of a sim clock that
+    // keeps running between them.
+    //
+    // The pilot's own attempt keeps both forces. Correcting for moving air is
+    // the skill; a demonstration of a manoeuvre is not the place to teach it.
+    const scripted = isScripted();
+
     // ---- Wind acts whether or not the drone is armed ----
-    if (physics.wind.speed > 0) {
+    if (physics.wind.speed > 0 && !scripted) {
       const f = windForce(physics.wind, [lin.x, lin.y, lin.z], simTime.current, dragArea);
       rb.applyImpulse({ x: f[0] * SIM_DT, y: f[1] * SIM_DT, z: f[2] * SIM_DT }, true);
     }
@@ -364,7 +380,13 @@ export function Drone({ spec, spawn, bounds, outdoor = false, groundY }: DronePr
     // ---- Ambient outdoor air movement ----
     // Applied while airborne only: on the ground the drone is planted, and a
     // drifting force there just fights the contact solver.
-    if (outdoor && physics.ambientDriftEnabled && armed && !useFlightStore.getState().onGround) {
+    if (
+      outdoor &&
+      physics.ambientDriftEnabled &&
+      armed &&
+      !scripted &&
+      !useFlightStore.getState().onGround
+    ) {
       const d = ambientDrift(simTime.current, _driftVec);
       const m = rb.mass();
       rb.applyImpulse({ x: d[0] * m * SIM_DT, y: d[1] * m * SIM_DT, z: d[2] * m * SIM_DT }, true);
