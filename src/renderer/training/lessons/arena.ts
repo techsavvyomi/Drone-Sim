@@ -32,6 +32,10 @@ export const HOVER = 1.8;
  * a hole to pass, not a place to arrive — the navigation modules fly it
  * properly, and the demonstration lines up on its axis and carries on out the
  * far side instead of parking inside the frame.
+ *
+ * `through` also changes what SCORES it. A sphere big enough to be fair along
+ * the line of flight is wider than the frame, so beside the gate counted as
+ * through it; a through-gate is judged inside its opening instead (`hole`).
  */
 export function gate(
   id: string,
@@ -53,9 +57,15 @@ export function gate(
     // asks for a climb the pilot has not been taught and cannot see how to make.
     // The opening is tall enough that a level pass still goes through it.
     at: opts.height === undefined ? g.position : [g.position[0], opts.height, g.position[2]],
-    // Half the opening, kept inside the frame so a pass that clips an upright
-    // does not read as a clean one.
+    // Along the axis, how much of a frame either side of the gate's plane still
+    // counts — generous, because a pass a moment early or late is the same pass.
+    // Across it, `hole` is the test, and `ease` deliberately does NOT widen that.
     reach: g.size * 0.45 * (opts.ease ?? 1),
+    // Half the opening, kept inside the frame so a pass that clips an upright
+    // does not read as a clean one. Only a gate the lesson flies THROUGH gets
+    // one: a gate used as a destination (Module 5 stops on the blue one) is a
+    // place, and a place is a sphere.
+    hole: opts.through ? g.size * 0.45 : undefined,
     mark: 'gate',
     markSize: g.size,
     color: g.color,

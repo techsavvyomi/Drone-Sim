@@ -263,8 +263,20 @@ export interface Checkpoint {
    *  A gate is not a place to arrive at, it is a hole to pass through, and a
    *  demonstration that brakes on the centre point stops inside the frame. With
    *  an axis the planner can line the drone up in front of the gate and carry it
-   *  out the far side — the flight the lesson is actually asking for. */
+   *  out the far side — the flight the lesson is actually asking for.
+   *
+   *  It is also what makes the PASS a pass rather than a near miss: see `hole`. */
   axis?: readonly [number, number, number];
+  /** For a gate: half its opening, in metres — how far off the centre line a
+   *  pass may be and still be inside the frame.
+   *
+   *  Without it `reach` is a sphere, and a sphere around a gate sticks out
+   *  through the uprights: gate A's is 1.64 m and the ring itself is 1.4 m, so
+   *  flying BESIDE the gate, outside the frame entirely, scored the checkpoint.
+   *  With it the acceptance becomes a cylinder lying down the axis — loose along
+   *  the direction of travel, where a frame either side of the plane makes no
+   *  difference to anything, and tight across it, which is the whole test. */
+  hole?: number;
 }
 
 export interface Lesson {
@@ -423,6 +435,30 @@ export interface RouteState {
  * navigation lesson can end the attempt; without it an early corner is simply
  * not the corner that was asked for, and is ignored.
  */
+/**
+ * Has the drone taken this checkpoint?
+ *
+ * A plain point is a sphere: get within `reach` of it. A GATE is a hole, and a
+ * hole is not round in every direction — passing a metre to the left of a ring
+ * is not a pass at all, while passing a metre before or after its plane is the
+ * same pass a moment earlier or later. So a checkpoint that carries an axis and
+ * an opening is judged as a cylinder lying down that axis: `reach` along it,
+ * `hole` across it. Everything else keeps the sphere.
+ */
+export function reachedCheckpoint(c: Checkpoint, position: Vec3): boolean {
+  const dx = position[0] - c.at[0];
+  const dy = position[1] - c.at[1];
+  const dz = position[2] - c.at[2];
+  if (!c.axis || c.hole === undefined) return Math.hypot(dx, dy, dz) < c.reach;
+  const along = dx * c.axis[0] + dy * c.axis[1] + dz * c.axis[2];
+  if (Math.abs(along) > c.reach) return false;
+  // What is left after the along-axis part is taken out is the miss distance in
+  // the plane of the opening — sideways and vertical together, because the
+  // frame bounds both.
+  const off = Math.hypot(dx - along * c.axis[0], dy - along * c.axis[1], dz - along * c.axis[2]);
+  return off <= c.hole;
+}
+
 export function flyRoute(
   mem: LessonMemory,
   position: Vec3,
@@ -443,7 +479,7 @@ export function flyRoute(
 
   const target = route[next];
   const distance = dist3(position, target.at);
-  if (distance < target.reach) {
+  if (reachedCheckpoint(target, position)) {
     mem[key] = next + 1;
     const done = next + 1;
     return {
@@ -465,7 +501,11 @@ export function flyRoute(
       const bit = 1 << j;
       const away = dist3(position, route[j].at);
       if (away >= route[j].reach * 1.6) left |= bit;
-      else if (left & bit) {
+      // Cutting a gate means going THROUGH the later one, on the same test that
+      // would have scored it. Flying past the outside of its frame is not a
+      // shortcut, and ending the attempt for it would be punishing the pilot
+      // for a gate they missed.
+      else if (left & bit && reachedCheckpoint(route[j], position)) {
         mem.left = left;
         return { next, complete: false, outOfOrder: true, distance, progress: next / route.length };
       }
