@@ -2575,9 +2575,17 @@ button {
 }
 .tr-note b {
   display: block;
-  font-size: 11px;
-  letter-spacing: 0.04em;
-  margin-bottom: 6px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
+.tr-note.tips b {
+  color: var(--good);
+}
+.tr-note.mistakes b {
+  color: var(--warn);
 }
 .tr-note ul {
   margin: 0;
@@ -3431,7 +3439,7 @@ button {
 }
 
 /* Clean cards (intro / reward) */
-.tr-hud.min .tr-card {
+.tr-hud.min .tr-card:not(.reward) {
   /* Wide enough for a three-step flow to stay on one line. It used to wrap the
      last step onto a row of its own, which read as a second, unrelated list. */
   width: min(600px, 92%);
@@ -3441,32 +3449,55 @@ button {
   background: rgba(9, 13, 21, 0.94);
   box-shadow: 0 18px 50px rgba(0, 0, 0, 0.55);
   padding: 24px 26px;
+  /* The last module's card is a flow of eight steps, three paragraphs, two note
+     panels and a rubric. On a short window that used to run off the bottom of
+     the screen taking the two buttons with it, and a card whose "Watch
+     Demonstration" cannot be reached is not a card. */
+  max-height: calc(100vh - 40px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.16) transparent;
+}
+/* One rhythm down the card: every block sits the same distance from the one
+   above it, so the eye can tell a new section from a new paragraph. The reward
+   card is left out — a tick, a title, a time and three stars are one object,
+   not four sections. */
+.tr-hud.min .tr-card:not(.reward) > * + * {
+  margin-top: 18px;
 }
 .tr-hud.min .tr-card h2 {
   font-size: 22px;
   font-weight: 800;
-  margin: 4px 0 12px;
+  margin: 6px 0 0;
+  /* Long titles — "Navigation: A -> B -> C -> D -> H" — break into even lines
+     instead of leaving one word stranded underneath. */
+  text-wrap: balance;
+  line-height: 1.25;
 }
 .tr-hud.min .tr-card p {
   font-size: 13.5px;
 }
 .tr-hud.min .tr-body p {
-  margin: 0 0 7px;
-  line-height: 1.55;
+  margin: 0 0 9px;
+  line-height: 1.6;
 }
 .tr-hud.min .tr-body p:last-child {
   margin-bottom: 0;
 }
 .tr-hud.min .tr-notes {
-  margin-top: 18px;
   gap: 12px;
 }
 .tr-hud.min .tr-note {
-  padding: 11px 13px;
+  padding: 12px 14px;
 }
 .tr-hud.min .tr-note li {
   font-size: 12.5px;
-  line-height: 1.45;
+  line-height: 1.5;
+  margin-bottom: 5px;
+}
+.tr-hud.min .tr-note li:last-child {
+  margin-bottom: 0;
 }
 .tr-hud.min .tr-kicker {
   font-size: 10.5px;
@@ -3485,8 +3516,8 @@ button {
   flex-wrap: wrap;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  margin: 4px 0 18px;
+  gap: 6px 8px;
+  margin: 0;
 }
 .tr-flow-item {
   display: inline-flex;
@@ -3545,7 +3576,9 @@ button {
 /* Body copy reads as a paragraph, not as a stack of centred captions. */
 .tr-body {
   text-align: left;
-  max-width: 46ch;
+  /* A line long enough to read and short enough to come back from. Wider than
+     this and the eye loses the start of the next line on a 600 px card. */
+  max-width: 52ch;
   margin: 0 auto;
 }
 
@@ -3772,7 +3805,13 @@ button {
 
 /* Reward stays understated */
 .tr-hud.min .tr-card.reward {
-  border-top-color: var(--warn);
+  width: min(600px, 92%);
+  border: 1px solid var(--line);
+  border-top: 2px solid var(--warn);
+  border-radius: 12px;
+  background: rgba(9, 13, 21, 0.94);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.55);
+  padding: 24px 26px;
 }
 .tr-hud.min .tr-check {
   width: 46px;
