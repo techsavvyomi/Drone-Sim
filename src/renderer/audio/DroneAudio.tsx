@@ -7,6 +7,7 @@ import { dronePose } from '../sim/drone/pose';
 import { useFlightStore } from '../state/flightStore';
 import { useSettingsStore } from '../state/settingsStore';
 import { useSimStore } from '../state/simStore';
+import { useTrainingStore } from '../state/trainingStore';
 import { useUiStore } from '../state/uiStore';
 import { dopplerFactor, MotorAudio, motorAudioConfig } from './motorAudio';
 import { playArm, playBatteryBeep, playDisarm, playImpact } from './sfx';
@@ -63,6 +64,14 @@ export function DroneAudio({ spec }: { spec: DroneSpec }) {
     const sim = useSimStore.getState();
     const { engineVolume } = useSettingsStore.getState().settings;
     const fpv = useUiStore.getState().cameraMode === 'fpv';
+    // A briefing is not a flight. A lesson that starts in the air places the
+    // drone hovering — armed, motors turning — so the pilot opens on the
+    // situation the lesson is about; but that also had the engine buzzing away
+    // under the explain card of every one of those modules, while nobody was
+    // flying and there was nothing to listen to. Silent until the demonstration
+    // or the attempt actually begins.
+    const training = useTrainingStore.getState();
+    const briefing = training.activeLessonId !== null && training.phase === 'intro';
     const camera = state.camera;
 
     // ---- Flight-event one-shots ----
@@ -142,7 +151,7 @@ export function DroneAudio({ spec }: { spec: DroneSpec }) {
       distance: fpv ? 0 : range,
       pan: fpv ? 0 : pan,
       doppler: fpv ? 1 : doppler,
-      level: flight.paused ? 0 : clamp(engineVolume ?? 0.75, 0, 1),
+      level: flight.paused || briefing ? 0 : clamp(engineVolume ?? 0.75, 0, 1),
     });
   });
 
