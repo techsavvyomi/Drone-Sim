@@ -151,18 +151,44 @@ export function LessonMap({ lesson, target }: { lesson: Lesson; target: number }
       const px = sx(dx);
       const pz = sz(dz);
 
-      // The line to fly next. This is the whole point of the map: whatever the
-      // camera is showing, THIS is the way to the thing being asked for.
+      // The way to the next one, as an ARROW. This is the whole point of the
+      // map: whatever the camera is showing, THIS is the direction to push.
+      //
+      // It was a dashed line before, which says "these two things are related"
+      // and leaves which end is which to be worked out. An arrow says go THAT
+      // WAY. It is drawn clear of both ends so the drone and the dot stay
+      // readable underneath it.
       const goal = route[live];
       if (goal) {
-        ctx.strokeStyle = LIVE;
-        ctx.lineWidth = 1.5;
-        ctx.setLineDash([4, 3]);
-        ctx.beginPath();
-        ctx.moveTo(px, pz);
-        ctx.lineTo(sx(goal.at[0]), sz(goal.at[2]));
-        ctx.stroke();
-        ctx.setLineDash([]);
+        const gx = sx(goal.at[0]);
+        const gz = sz(goal.at[2]);
+        const ax = gx - px;
+        const az = gz - pz;
+        const len = Math.hypot(ax, az);
+        // Under about a drone's width apart there is no direction worth drawing,
+        // and an arrowhead at that range is just a blob over the target.
+        if (len > 22) {
+          const ux = ax / len;
+          const uz = az / len;
+          const x0 = px + ux * 9;
+          const z0 = pz + uz * 9;
+          const x1 = gx - ux * 11;
+          const z1 = gz - uz * 11;
+          ctx.strokeStyle = LIVE;
+          ctx.lineWidth = 2.5;
+          ctx.lineCap = 'round';
+          ctx.beginPath();
+          ctx.moveTo(x0, z0);
+          ctx.lineTo(x1, z1);
+          ctx.stroke();
+          ctx.fillStyle = LIVE;
+          ctx.beginPath();
+          ctx.moveTo(x1 + ux * 8, z1 + uz * 8);
+          ctx.lineTo(x1 - uz * 5, z1 + ux * 5);
+          ctx.lineTo(x1 + uz * 5, z1 - ux * 5);
+          ctx.closePath();
+          ctx.fill();
+        }
       }
 
       // The checkpoints. One dot per PLACE — a circuit closes on the corner it
