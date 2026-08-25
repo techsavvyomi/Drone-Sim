@@ -124,6 +124,17 @@ export function home(label = 'H', opts: { height?: number; reach?: number } = {}
 const LINE_UP = 3;
 /** How far past a gate it coasts before the next leg takes over, in metres. */
 const FLY_THROUGH = 4;
+/**
+ * How square-on an approach has to be for the line-up to be skipped, in degrees.
+ *
+ * A drone that is already pointing down a gate's axis has nothing to line up
+ * with: braking short of it only to set off again through the same hole is the
+ * run-up-halt-lean-backwards that #42 exists to get rid of. Within this cone the
+ * two legs become one pass. Wider than it, the drone really is arriving from the
+ * side and the stop is the manoeuvre — kill the speed, turn onto the axis, then
+ * run through.
+ */
+const ALIGNED_DEG = 15;
 
 type Leg = {
   to: readonly [number, number, number];
@@ -152,6 +163,15 @@ type Leg = {
  * two legs: stop short of it, lined up on its axis, and then run straight
  * through and out the far side. That is also the flight the lesson is asking
  * the pilot to copy — "line up, then fly through", not "creep up and stop".
+ *
+ * Unless it is ALREADY lined up. The first gate of every navigation route sits
+ * almost straight ahead of the helipad, so the drone was turning onto it, flying
+ * the whole way at it, braking to a dead stop three metres short — leaning
+ * backwards to do it — and only then flying through a hole it had been pointing
+ * at the entire time. Two hops, a stop and a lean backwards where the module
+ * teaches one continuous pass. Inside `ALIGNED_DEG` the line-up is dropped and
+ * the gate is flown as a single leg, aimed through the middle of the opening
+ * and out the far side.
  *
  * Which side it lines up on is whichever side the drone is already on, so a
  * route never doubles back through a gate to approach it from the front.
@@ -189,6 +209,53 @@ export function routeLegs(
     // side. Dead on the plane of the gate, take +axis and let the line-up leg
     // sort it out.
     const side = (px - gx) * ax + (pz - gz) * az >= 0 ? 1 : -1;
+
+    // Is the drone already square-on to the opening? Measured against the
+    // direction the pass itself is flown in, which is the axis pointing away
+    // from the side the drone is on.
+    const [tx, tz] = [gx - px, gz - pz];
+    const toGate = Math.hypot(tx, tz);
+    const aligned =
+      toGate > LINE_UP &&
+      ((tx / toGate) * -ax + (tz / toGate) * -az) * side >= Math.cos((ALIGNED_DEG * Math.PI) / 180);
+
+    if (aligned) {
+      // One leg, aimed along the line the drone is already on so it passes
+      // through the CENTRE of the opening rather than through the axis point
+      // three metres short of it, and coasting out the far side like any other
+      // pass. The gate is a few degrees off the line, which the opening
+      // swallows — that is what `ALIGNED_DEG` is measuring.
+      const through: readonly [number, number, number] = [
+        gx + (tx / toGate) * FLY_THROUGH,
+        gy,
+        gz + (tz / toGate) * FLY_THROUGH,
+      ];
+      legs.push({
+        to: through,
+        caption,
+        // The release, on a pass this long, is the technique worth naming: the
+        // sticks go to centre several seconds out and the drone sails the rest.
+        arrive: 'Ease off early — it carries on through',
+        coast: true,
+        stick,
+        face,
+        label: c.label,
+        stage: i,
+      });
+      // The arrival is its own beat, standing still at the end of the coast:
+      // the gate is behind the aircraft by then, which is the moment its letter
+      // comes off. Hanging it on the release instead would drop the letter while
+      // the drone was still most of the run short of the hole — a long pass lets
+      // go early and drifts the rest.
+      legs.push({
+        to: through,
+        caption: arrive ?? `Through ${c.label}`,
+        stage: i,
+        rt: i + 1,
+      });
+      [px, , pz] = through;
+      return;
+    }
 
     legs.push({
       to: [gx + ax * LINE_UP * side, gy, gz + az * LINE_UP * side],
