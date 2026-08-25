@@ -3573,6 +3573,155 @@ button {
   clip-path: polygon(0 38%, 62% 38%, 62% 0, 100% 50%, 62% 100%, 62% 62%, 0 62%);
 }
 
+/* --------------------------------------------------------------------------
+   The briefing card, finished.
+   The bones above are the layout; this is what makes it read as one designed
+   panel rather than six stacked boxes. Three ideas, and nothing else:
+     1. The top of the card belongs to the lesson — a wash of the phase accent
+        behind the kicker and the title, so the eye starts there.
+     2. One hairline, under the flow. Above it is what the lesson IS; below it
+        is what to do and how it is judged. More rules than that and the card
+        becomes a form.
+     3. The two buttons are the only things on the card that do anything, so
+        they are the only things that respond to a pointer.
+   -------------------------------------------------------------------------- */
+.tr-hud.min .tr-card:not(.reward) {
+  /* Fixed to the card's own box, not to the scrolled content, so the wash stays
+     behind the title however far down the rubric the pilot reads. */
+  background-image: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--tr-accent) 10%, transparent),
+    transparent 200px
+  );
+  animation: tr-card-in 0.22s ease-out both;
+}
+@keyframes tr-card-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tr-hud.min .tr-card:not(.reward) {
+    animation: none;
+  }
+}
+.tr-hud.min .tr-card:not(.reward)::-webkit-scrollbar {
+  width: 10px;
+}
+.tr-hud.min .tr-card:not(.reward)::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.14);
+  border: 3px solid transparent;
+  background-clip: content-box;
+  border-radius: 999px;
+}
+
+/* The hairline. It hangs on the flow rather than on a wrapper of its own, and
+   goes wide of the padding so it reads as a rule across the card. */
+.tr-hud.min .tr-card:not(.reward) .tr-flow {
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--line);
+  margin-left: -26px;
+  margin-right: -26px;
+  padding-left: 26px;
+  padding-right: 26px;
+}
+
+/* Prose: the one thing on the card that is read rather than scanned. */
+.tr-hud.min .tr-card:not(.reward) .tr-body p {
+  font-size: 14px;
+  line-height: 1.65;
+  color: var(--text-dim);
+}
+.tr-hud.min .tr-card:not(.reward) .tr-body p:first-child {
+  /* The opening line is the lesson in one sentence. Say it in the body colour
+     rather than the dim one, and the pilot who reads nothing else has read the
+     right thing. */
+  color: var(--text);
+}
+
+/* Note panels: a dot in the panel's own colour beats a browser disc, and the
+   two panels stand level whatever length their lists are. */
+.tr-hud.min .tr-notes {
+  align-items: stretch;
+}
+.tr-hud.min .tr-note {
+  background: rgba(255, 255, 255, 0.028);
+  border-radius: 10px;
+}
+.tr-hud.min .tr-note ul {
+  padding-left: 15px;
+}
+.tr-hud.min .tr-note li::marker {
+  font-size: 0.9em;
+}
+.tr-hud.min .tr-note.tips li::marker {
+  color: var(--good);
+}
+.tr-hud.min .tr-note.mistakes li::marker {
+  color: var(--warn);
+}
+
+/* The rubric reads as a table of three rungs, so it is ruled like one. */
+.tr-hud.min .tr-rubric {
+  gap: 0;
+  padding: 12px 14px 4px;
+}
+.tr-hud.min .tr-rubric-row {
+  padding: 8px 0;
+  gap: 12px;
+}
+.tr-hud.min .tr-rubric-row + .tr-rubric-row {
+  border-top: 1px solid color-mix(in srgb, var(--line) 60%, transparent);
+}
+.tr-hud.min .tr-rubric > b {
+  padding-bottom: 4px;
+}
+
+/* The two buttons. Weight follows consequence: the demonstration is what the
+   card is recommending, so it is the solid one. */
+.tr-hud.min .tr-actions {
+  gap: 12px;
+}
+.tr-hud.min .tr-btn {
+  padding: 11px 22px;
+  border-radius: 9px;
+  font-size: 13.5px;
+  transition:
+    background 0.14s ease,
+    border-color 0.14s ease,
+    transform 0.14s ease,
+    box-shadow 0.14s ease;
+}
+.tr-hud.min .tr-btn:hover {
+  transform: translateY(-1px);
+}
+.tr-hud.min .tr-btn:active {
+  transform: translateY(0);
+}
+.tr-hud.min .tr-btn.primary {
+  background: linear-gradient(180deg, var(--tr-accent), var(--tr-accent-2));
+  border-color: color-mix(in srgb, var(--tr-accent) 70%, transparent);
+  box-shadow: 0 6px 18px color-mix(in srgb, var(--tr-accent) 22%, transparent);
+}
+.tr-hud.min .tr-btn.primary:hover {
+  box-shadow: 0 10px 24px color-mix(in srgb, var(--tr-accent) 30%, transparent);
+}
+.tr-hud.min .tr-btn:focus-visible {
+  outline: 2px solid var(--tr-accent);
+  outline-offset: 2px;
+}
+/* On a narrow card two buttons side by side become two half-width buttons with
+   the words wrapping inside them; stacked, they stay legible. */
+@media (max-width: 440px) {
+  .tr-hud.min .tr-actions {
+    flex-direction: column;
+  }
+  .tr-hud.min .tr-btn {
+    width: 100%;
+  }
+}
+
 /* Body copy reads as a paragraph, not as a stack of centred captions. */
 .tr-body {
   text-align: left;
