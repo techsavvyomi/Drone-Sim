@@ -156,6 +156,66 @@ function simulateLeg(cmdAngle: number, tAccel: number): { distance: number; tBra
   return { distance: x, tBrake };
 }
 
+/** Speed at which a coasting leg hands over to the next one, m/s.
+ *
+ *  Not "stopped" — a walking pace. Damping bleeds speed exponentially, so
+ *  waiting for still costs seven seconds a gate and turns a route into a
+ *  crawl; handing over while the drone is still drifting is both quicker to
+ *  watch and closer to how the route is actually flown. The leftover speed
+ *  carries along the plan's own direction, so the next leg starts a little
+ *  further on than it thinks — which the gates' acceptance and the landing's
+ *  `waitNear` both absorb. */
+const COAST_END = 1.1;
+
+/**
+ * A leg flown THROUGH something: tilt out, then let go and carry on.
+ *
+ * The braked leg is right for a drill that stops on a marker. A gate is not a
+ * marker — it is a hole — and a route through four of them was being flown as
+ * eight separate hops, each ending in a counter-tilt and a full stop. On screen
+ * that is the drone running at the gate, stopping dead, LEANING BACKWARDS, and
+ * only then setting off again: it reads as a mistake being corrected rather
+ * than as a pass, which is the opposite of what the module is teaching.
+ *
+ * Letting go instead means the drone sails out of the far side while the next
+ * turn begins, and nothing ever pitches back. Damping alone never quite brings
+ * it to rest, so the leg is finished at `COAST_END` — slow enough that the next
+ * leg starts from roughly where the plan says it does.
+ */
+export function solveThrough(metres: number, stick: number): { tAccel: number; tCoast: number } {
+  const cmdAngle = stick * BEGINNER_CONFIG.maxTiltDeg * DEG2RAD;
+  const k = Math.min(1, DT / TILT_LAG);
+
+  const run = (tAccel: number): { distance: number; tCoast: number } => {
+    let v = 0;
+    let x = 0;
+    let angle = 0;
+    for (let t = 0; t < tAccel; t += DT) {
+      angle += (cmdAngle - angle) * k;
+      v += (G * Math.tan(angle) - LINEAR_DAMPING * v) * DT;
+      x += v * DT;
+    }
+    let tCoast = 0;
+    while (v > COAST_END && tCoast < 12) {
+      angle += (0 - angle) * k;
+      v += (G * Math.tan(angle) - LINEAR_DAMPING * v) * DT;
+      x += v * DT;
+      tCoast += DT;
+    }
+    return { distance: x, tCoast };
+  };
+
+  let lo = 0.05;
+  let hi = 12;
+  for (let i = 0; i < 44; i++) {
+    const mid = (lo + hi) / 2;
+    if (run(mid).distance < metres) lo = mid;
+    else hi = mid;
+  }
+  const tAccel = (lo + hi) / 2;
+  return { tAccel, tCoast: run(tAccel).tCoast };
+}
+
 /** How long to hold the tilt, and then the counter-tilt, to cover `metres`. */
 function solveLeg(metres: number, stick: number): { tAccel: number; tBrake: number } {
   const cmdAngle = stick * BEGINNER_CONFIG.maxTiltDeg * DEG2RAD;
@@ -182,6 +242,9 @@ export interface DemoLeg {
   caption: string;
   /** Caption while braking — this is the "arrived" beat. */
   arrive?: string;
+  /** Fly THROUGH the target rather than stopping on it: hold the tilt, then let
+   *  go and carry on. A gate is a hole, not a marker. */
+  coast?: boolean;
   /** Turn to POINT AT the target before flying the leg, rather than sliding
    *  there sideways on the stick mix.
    *
@@ -232,7 +295,13 @@ export function planDemo(
     const dz = leg.to[2] - z;
     const dist = Math.hypot(dx, dz);
     const stick = leg.stick ?? DEFAULT_STICK;
-    const { tAccel, tBrake } = dist < 0.01 ? { tAccel: 0, tBrake: 0 } : solveLeg(dist, stick);
+    const solved =
+      dist < 0.01
+        ? { tAccel: 0, tBrake: 0, tCoast: 0 }
+        : leg.coast
+          ? { ...solveThrough(dist, stick), tBrake: 0 }
+          : { ...solveLeg(dist, stick), tCoast: 0 };
+    const { tAccel, tBrake, tCoast } = solved;
 
     // Point at the target first, if the leg asks for it. Yaw is a rate command
     // with nothing to brake, so this is one hold and one release — and because
@@ -292,19 +361,23 @@ export function planDemo(
       steps.push({ at, stick: { roll, pitch }, caption: leg.caption, stage: leg.stage });
       steps.push({
         at: at + tAccel,
-        stick: { roll: -roll, pitch: -pitch },
+        // Let go, or lean back to stop. A pass through a gate does the former:
+        // nothing on screen pitches backwards on the way out of a hole.
+        stick: leg.coast ? { roll: 0, pitch: 0 } : { roll: -roll, pitch: -pitch },
         caption: leg.arrive,
         stage: leg.stage,
-        // The braking beat IS the arrival: past the gate, on the way out. That
-        // is the moment the letter comes off it.
+        // This beat IS the arrival: past the gate, on the way out. That is the
+        // moment the letter comes off it.
         rt: leg.rt,
       });
-      steps.push({ at: at + tAccel + tBrake, stick: { roll: 0, pitch: 0 } });
+      if (!leg.coast) {
+        steps.push({ at: at + tAccel + tBrake, stick: { roll: 0, pitch: 0 } });
+      }
     } else if (leg.caption) {
       steps.push({ at, caption: leg.caption, stage: leg.stage, rt: leg.rt });
     }
 
-    at += Math.max(tAccel + tBrake, tClimb) + gap;
+    at += Math.max(tAccel + tBrake + tCoast, tClimb) + gap;
     [x, y, z] = leg.to;
   }
   // Climb steps interleave with the tilt steps, and the Director walks the

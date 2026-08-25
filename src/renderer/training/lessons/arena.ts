@@ -115,9 +115,14 @@ export function home(label = 'H', opts: { height?: number; reach?: number } = {}
   };
 }
 
-/** How far in front of a gate the demonstration lines up, in metres. */
-const LINE_UP = 5;
-/** How far past a gate it flies before stopping, in metres. */
+/** How far in front of a gate the demonstration lines up, in metres.
+ *
+ *  Close enough that the line-up and the pass read as one movement. At 5 m the
+ *  drone was stopping a car's length short of every gate, leaning back to do it,
+ *  and only then setting off through — two hops where the module is teaching
+ *  one. */
+const LINE_UP = 3;
+/** How far past a gate it coasts before the next leg takes over, in metres. */
 const FLY_THROUGH = 4;
 
 type Leg = {
@@ -126,6 +131,8 @@ type Leg = {
   arrive?: string;
   stick?: number;
   face?: boolean;
+  /** Fly THROUGH the target rather than stopping on it. */
+  coast?: boolean;
   label?: string;
   /** Index of the checkpoint this leg flies to, for the on-screen step row. */
   stage?: number;
@@ -196,6 +203,10 @@ export function routeLegs(
       to: [gx - ax * FLY_THROUGH * side, gy, gz - az * FLY_THROUGH * side],
       caption: `Straight through ${c.label}`,
       arrive,
+      // A gate is a hole. The drone holds the tilt through it and lets go on the
+      // far side rather than braking to a stop past it, so the pass looks like a
+      // pass instead of a run-up, a halt and a lean backwards.
+      coast: true,
       stick,
       face,
       label: c.label,
