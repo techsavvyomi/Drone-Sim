@@ -22,8 +22,8 @@ import { ACADEMY_PAD } from '../plugins/environments/droneAcademy';
 // exists as a shape — a lap in particular is a thing you have to see from above
 // to see at all. It used to sit there inert then, on the reasoning that nothing
 // was being scored; but the demonstration publishes its own progress as it flies
-// (`DemoStep.rt`), so the map follows it exactly as it follows the pilot, and the
-// pilot watches the answer being given before being asked the question.
+// (`DemoStep.rt`), so the arrow, the pulse and the count all work, and the pilot
+// watches the answer being given before being asked the question.
 //
 // Drawn on a canvas from `dronePose` in an animation frame of its own — the
 // drone's position changes every frame, and routing that through React state
@@ -96,7 +96,7 @@ export function LessonMap({ lesson, target }: { lesson: Lesson; target: number }
     const sz = (z: number) => half + (z - view.cz) * k;
 
     let raf = 0;
-    const draw = () => {
+    const draw = (clock: number) => {
       raf = requestAnimationFrame(draw);
       ctx.clearRect(0, 0, SIZE, SIZE);
 
@@ -205,15 +205,31 @@ export function LessonMap({ lesson, target }: { lesson: Lesson; target: number }
         const x = sx(c.at[0]);
         const z = sz(c.at[2]);
 
+        // The live one pulses a ring outwards. Four identical dots and a letter
+        // each says where the corners ARE; it does not say which one is being
+        // asked for, and that is the question the pilot has mid-circuit.
+        if (isLive) {
+          const t = (clock % 1100) / 1100;
+          ctx.strokeStyle = LIVE;
+          ctx.globalAlpha = 0.85 * (1 - t);
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.arc(x, z, 5 + t * 10, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.globalAlpha = 1;
+        }
+
         ctx.fillStyle = state;
         ctx.beginPath();
-        ctx.arc(x, z, isLive ? 4.5 : 3, 0, Math.PI * 2);
+        ctx.arc(x, z, isLive ? 5 : 3, 0, Math.PI * 2);
         ctx.fill();
 
         const tag = c.tag;
         if (tag) {
           ctx.fillStyle = state;
-          ctx.font = '700 10px Inter, system-ui, sans-serif';
+          ctx.font = isLive
+            ? '800 11px Inter, system-ui, sans-serif'
+            : '700 10px Inter, system-ui, sans-serif';
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
           ctx.fillText(tag, x, z - 10);
@@ -236,6 +252,24 @@ export function LessonMap({ lesson, target }: { lesson: Lesson; target: number }
       ctx.lineTo(px + fz * 4.5 - fx * 4, pz - fx * 4.5 - fz * 4);
       ctx.closePath();
       ctx.fill();
+
+      // How far there is still to go, along the bottom of the dial. The arrow
+      // says which way; this says how much — and between them the pilot can
+      // decide whether to push or to start easing off, which is the actual
+      // question on a leg they cannot see the end of.
+      if (goal) {
+        const away = Math.hypot(
+          dronePose.position.x - goal.at[0],
+          dronePose.position.z - goal.at[2],
+        );
+        ctx.font = '700 10px Inter, system-ui, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'alphabetic';
+        ctx.fillStyle = 'rgba(6, 10, 17, 0.75)';
+        ctx.fillText(`${away.toFixed(1)} m`, half + 0.7, SIZE - 8 + 0.7);
+        ctx.fillStyle = LIVE;
+        ctx.fillText(`${away.toFixed(1)} m`, half, SIZE - 8);
+      }
 
       ctx.restore();
     };
