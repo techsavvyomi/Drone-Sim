@@ -55,18 +55,36 @@ function StepChips({ steps, index }: { steps: { label: string; cap?: string }[];
  * The same objects that score the attempt, so the promise and the marking can
  * never disagree. `earned` highlights the rung an attempt actually reached.
  */
+/** A rung of the rubric, as three stars with the unlit ones left in place.
+ *
+ *  Printing one, two and three stars literally made a ragged left edge and a
+ *  column of three different widths, and said nothing about what the top of the
+ *  scale was. The placeholders answer both: every row is the same shape, and
+ *  three is visibly the most there is. */
+function RubricStars({ stars }: { stars: number }) {
+  return (
+    <span className="tr-rubric-stars" aria-label={`${stars} of 3 stars`}>
+      {[1, 2, 3].map((i) => (
+        <span key={i} className={i <= stars ? 'on' : ''}>
+          ★
+        </span>
+      ))}
+    </span>
+  );
+}
+
 function Rubric({ rules, earned }: { rules: Lesson['stars']; earned?: number }) {
   return (
     <div className="tr-rubric">
       <b>How the stars are earned</b>
       {rules.map((r) => (
         <div key={r.stars} className={`tr-rubric-row ${earned === r.stars ? 'earned' : ''}`}>
-          <span className="tr-rubric-stars">{'★'.repeat(r.stars)}</span>
+          <RubricStars stars={r.stars} />
           <span>{r.text}</span>
         </div>
       ))}
       <div className={`tr-rubric-row ${earned === 1 ? 'earned' : ''}`}>
-        <span className="tr-rubric-stars">★</span>
+        <RubricStars stars={1} />
         <span>Finish the lesson. A crash caps the attempt here.</span>
       </div>
     </div>

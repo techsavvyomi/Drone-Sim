@@ -2625,16 +2625,25 @@ button {
 }
 .tr-rubric-stars {
   flex: none;
-  width: 34px;
+  display: inline-flex;
+  gap: 2px;
   color: var(--warn);
-  letter-spacing: 1px;
-  opacity: 0.55;
+  font-size: 12px;
+  line-height: 1;
+}
+/* The rungs this row does not earn stay in place, just barely lit: it is what
+   makes every row the same width and the top of the scale obvious. */
+.tr-rubric-stars span {
+  opacity: 0.16;
+}
+.tr-rubric-stars span.on {
+  opacity: 0.62;
 }
 .tr-rubric-row.earned {
   color: var(--text);
   font-weight: 700;
 }
-.tr-rubric-row.earned .tr-rubric-stars {
+.tr-rubric-row.earned .tr-rubric-stars span.on {
   opacity: 1;
 }
 
