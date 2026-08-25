@@ -206,10 +206,9 @@ export function TrainingHud() {
       </div>
 
       {/* The plan view, under the status bar. Up for the demonstration as well as
-          the attempt — the demo is where the shape is learned, and from above is
-          the only place a shape is a shape. It just does not mark progress
-          there, because there is none to mark. */}
-      {flying && <LessonMap lesson={lesson} target={routeTarget} tracking={phase === 'practice'} />}
+          the attempt, and behaving identically in both — the demo is where the
+          shape is learned, and from above is the only place a shape is a shape. */}
+      {flying && <LessonMap lesson={lesson} target={routeTarget} />}
 
       {/* Step 1 — Introduction (clean card) */}
       {phase === 'intro' && (

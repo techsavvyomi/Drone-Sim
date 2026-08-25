@@ -17,13 +17,13 @@ import { ACADEMY_PAD } from '../plugins/environments/droneAcademy';
 // place the whole shape is visible at once, which is what a circuit lesson is
 // actually asking the pilot to fly.
 //
-// It runs during the DEMONSTRATION too. Watching the demo is where the shape is
-// learned, and the plan view is the only place the shape exists as a shape — a
-// lap in particular is a thing you have to see from above to see at all. Nothing
-// is being scored then, so nothing is marked done and no line is drawn to a
-// "next" that the demonstration is not being asked to fly: the dial shows the
-// course and the aircraft moving over it, which is the whole of what a
-// demonstration has to say.
+// It runs during the DEMONSTRATION too, and it runs the SAME. Watching the demo
+// is where the shape is learned, and the plan view is the only place the shape
+// exists as a shape — a lap in particular is a thing you have to see from above
+// to see at all. It used to sit there inert then, on the reasoning that nothing
+// was being scored; but the demonstration publishes its own progress as it flies
+// (`DemoStep.rt`), so the map follows it exactly as it follows the pilot, and the
+// pilot watches the answer being given before being asked the question.
 //
 // Drawn on a canvas from `dronePose` in an animation frame of its own — the
 // drone's position changes every frame, and routing that through React state
@@ -48,22 +48,10 @@ const DECK = '#334155';
 /** The lap line, in the same red it is painted on the deck. */
 const RING = '#ff2b4d';
 
-export function LessonMap({
-  lesson,
-  target,
-  tracking,
-}: {
-  lesson: Lesson;
-  target: number;
-  /** Whether the pilot's own progress is being followed. False during the
-   *  demonstration, where nothing is done and nothing is next. */
-  tracking: boolean;
-}) {
+export function LessonMap({ lesson, target }: { lesson: Lesson; target: number }) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const targetRef = useRef(target);
   targetRef.current = target;
-  const trackRef = useRef(tracking);
-  trackRef.current = tracking;
 
   const route = useMemo(() => lesson.route ?? [], [lesson]);
   const ring = lesson.guideRing?.radius;
@@ -158,7 +146,6 @@ export function LessonMap({
         ctx.stroke();
       }
 
-      const follow = trackRef.current;
       const live = Math.min(targetRef.current, Math.max(route.length - 1, 0));
       const [dx, , dz] = [dronePose.position.x, 0, dronePose.position.z];
       const px = sx(dx);
@@ -166,7 +153,7 @@ export function LessonMap({
 
       // The line to fly next. This is the whole point of the map: whatever the
       // camera is showing, THIS is the way to the thing being asked for.
-      const goal = follow ? route[live] : undefined;
+      const goal = route[live];
       if (goal) {
         ctx.strokeStyle = LIVE;
         ctx.lineWidth = 1.5;
@@ -187,12 +174,14 @@ export function LessonMap({
           ) === i;
         if (!first) return;
 
-        const state = !follow ? LIVE : i < live ? DONE : i === live ? LIVE : LATER;
+        const isLive = i === live;
+        const state = i < live ? DONE : isLive ? LIVE : LATER;
         const x = sx(c.at[0]);
         const z = sz(c.at[2]);
+
         ctx.fillStyle = state;
         ctx.beginPath();
-        ctx.arc(x, z, follow && i === live ? 4.5 : 3, 0, Math.PI * 2);
+        ctx.arc(x, z, isLive ? 4.5 : 3, 0, Math.PI * 2);
         ctx.fill();
 
         const tag = c.tag;
