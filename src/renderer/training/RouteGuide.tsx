@@ -1,5 +1,6 @@
-import { useMemo } from 'react';
+import { useMemo, useRef } from 'react';
 import * as THREE from 'three';
+import { useFrame } from '@react-three/fiber';
 import { useTrainingStore } from '../state/trainingStore';
 import { getLesson } from './lessons';
 import type { Checkpoint } from './lessons/types';
@@ -51,6 +52,17 @@ const RING_W = 0.2;
 const LABEL = '#ff2b4d';
 /** How wide a number painted on the ground is, in metres. */
 const PAINT_M = 2.4;
+/** The beam standing on the checkpoint being flown to RIGHT NOW.
+ *
+ *  Yellow, and the only yellow on the field: the letters are red, the arena's
+ *  own paint is white and its furniture blue and green, so nothing else can be
+ *  mistaken for it. */
+const BEAM = '#ffd21f';
+/** How tall that beam stands, in metres, and how thick. Tall enough to clear the
+ *  gates and be seen over the far side of the pad; thin enough that flying
+ *  through it does not hide the corner underneath. */
+const BEAM_H = 7;
+const BEAM_R = 0.34;
 
 /**
  * A checkpoint's name, painted into a canvas.
@@ -216,6 +228,73 @@ function Ring({ radius }: { radius: number }) {
   );
 }
 
+/**
+ * A column of light standing on the checkpoint being flown to right now.
+ *
+ * The letters say what the shape IS. They do not say which corner is next, and
+ * once they stopped coming off the field as they were passed — they now stand
+ * for the whole lesson, because a pilot halfway round a triangle still needs to
+ * see the triangle — nothing did. Reading it off the step row means looking away
+ * from the arena at the moment the drone is moving.
+ *
+ * So the answer stands on the field itself, and it is the one thing here that
+ * MOVES: it marks a single corner, goes out the moment that corner is reached,
+ * and lights up on the next one. Arriving is the beam going out, which is a
+ * thing the pilot sees happen rather than a number they have to check.
+ *
+ * Drawn as two nested tubes, both additive and depth-tested: a soft wide one for
+ * the glow and a bright narrow core so it still reads against a pale sky. It
+ * breathes slowly, because a steady column at this size sits in the scene like
+ * scenery and this is not scenery.
+ */
+function TargetBeam({ point, live }: { point: Checkpoint; live: boolean }) {
+  const [x, , z] = point.at;
+  const glow = useRef<THREE.Material>(null);
+  const core = useRef<THREE.Material>(null);
+
+  useFrame(({ clock }) => {
+    // The corner being flown to breathes; the ones after it stand steady and
+    // dimmer. Every remaining corner is lit, so without that difference three
+    // identical columns say "somewhere over there" — which is the question the
+    // beam exists to answer. Same colour and same shape, so they still read as
+    // one set of three, just one of them awake.
+    const pulse = live ? 0.5 + 0.5 * Math.sin(clock.elapsedTime * 2.2) : 0;
+    if (glow.current) glow.current.opacity = (live ? 0.16 : 0.08) + 0.14 * pulse;
+    if (core.current) core.current.opacity = (live ? 0.5 : 0.24) + 0.3 * pulse;
+  });
+
+  const y = floorY(x, z) + BEAM_H / 2;
+
+  return (
+    <group position={[x, y, z]}>
+      <mesh>
+        <cylinderGeometry args={[BEAM_R, BEAM_R, BEAM_H, 20, 1, true]} />
+        <meshBasicMaterial
+          ref={glow}
+          color={BEAM}
+          transparent
+          opacity={0.22}
+          side={THREE.DoubleSide}
+          depthWrite={false}
+          blending={THREE.AdditiveBlending}
+        />
+      </mesh>
+      <mesh>
+        <cylinderGeometry args={[BEAM_R * 0.36, BEAM_R * 0.36, BEAM_H, 12, 1, true]} />
+        <meshBasicMaterial
+          ref={core}
+          color={BEAM}
+          transparent
+          opacity={0.7}
+          side={THREE.DoubleSide}
+          depthWrite={false}
+          blending={THREE.AdditiveBlending}
+        />
+      </mesh>
+    </group>
+  );
+}
+
 /** Two checkpoints are the same PLACE if they are the same spot on the field. */
 function samePlace(a: Checkpoint, b: Checkpoint): boolean {
   return Math.abs(a.at[0] - b.at[0]) < 0.2 && Math.abs(a.at[2] - b.at[2]) < 0.2;
@@ -231,45 +310,65 @@ export function RouteGuide() {
     [activeLessonId],
   );
 
-  // A name goes up once per PLACE, and comes DOWN once that place is behind the
-  // pilot. Flying to the gate and back is the whole of Module 5, and the letter
-  // going out is what says so: it is there while there is still something to do
-  // at it, and gone when there is not. A circuit's closing leg returns to the
-  // corner it started from, so a place is only finished when the LAST of its
-  // checkpoints is — otherwise Corner A would vanish on the way past and leave
-  // nothing to close the loop on.
+  // A name goes up once per PLACE, and STAYS UP for the whole lesson.
   //
-  // In the demonstration too, and for the same reason: the demo is the pilot's
-  // picture of the flight they are about to make, so a field that keeps every
-  // letter standing while the drone flies past them teaches the wrong shape.
-  // The timeline advances the same cursor the validator does (`rt`), so the
-  // letters come off in the demo exactly where they come off in practice.
-  // Outside those two phases nothing is being flown, so every name stands.
+  // It used to come down as the pilot passed it, on the reasoning that what is
+  // still on the field should be what is still to do. That reasoning was right
+  // when nothing else on the field said where to go next; it is wrong now that
+  // the beam does. A shape lesson is flown by looking at the SHAPE, and a
+  // triangle that loses a corner each time you round it stops being a triangle
+  // by the third leg — exactly when the pilot most needs to see where the
+  // closing side is going to run.
+  //
+  // So the letters are the shape and the beam is the cursor: one tells you what
+  // you are flying, the other tells you which bit of it is next.
   const named = useMemo(() => {
     const route = lesson?.route ?? [];
     return route
       .map((c, i) => ({
         point: c,
+        // A circuit closes on the corner it opened at, so the same place can
+        // appear twice in a route. It gets ONE letter and ONE beam.
         first: route.findIndex((d) => samePlace(d, c)) === i,
+        // The LAST time the route asks for this place. A triangle comes back to
+        // A to close the loop, so A is not finished the first time it is
+        // reached — its beam has to survive the pass and go out at the end.
         last: route.reduce((n, d, j) => (samePlace(d, c) ? j : n), i),
       }))
       .filter((e) => e.first && e.point.tag !== undefined);
   }, [lesson]);
 
   if (!lesson) return null;
+  // Only while something is actually being flown. Outside those phases there is
+  // no "next", so a beam would be pointing at a corner nobody is on the way to.
   const tracking = phase === 'practice' || phase === 'demo';
+  const live = tracking ? lesson.route?.[routeTarget] : undefined;
 
   return (
     <>
       {lesson.guideRing && <Ring radius={lesson.guideRing.radius} />}
+      {/* One beam per corner still to be taken, going out as each is reached.
+          Not on a gate: a gate already carries its letter in the opening, at the
+          height it is flown through, and a column of light standing in a hole
+          the pilot is aiming to fly through hides the hole. */}
       {named.map((e, i) => {
+        if (e.point.mark === 'gate') return null;
         if (tracking && routeTarget > e.last) return null;
-        return e.point.mark === 'gate' ? (
+        return (
+          <TargetBeam
+            key={`beam-${e.point.label}-${i}`}
+            point={e.point}
+            live={!!live && samePlace(live, e.point)}
+          />
+        );
+      })}
+      {named.map((e, i) =>
+        e.point.mark === 'gate' ? (
           <GateLabel key={`label-${e.point.label}-${i}`} point={e.point} />
         ) : (
           <GroundLabel key={`label-${e.point.label}-${i}`} point={e.point} />
-        );
-      })}
+        ),
+      )}
     </>
   );
 }
