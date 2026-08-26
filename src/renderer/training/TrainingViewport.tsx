@@ -1,8 +1,11 @@
-import { useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Canvas } from '@react-three/fiber';
 import * as THREE from 'three';
 import { FlightScene } from '../scene/FlightScene';
 import { SceneBoundary } from '../scene/Viewport';
+import { qualityFor } from '../scene/quality';
+import { SceneReady, SceneVeil } from '../scene/SceneReady';
+import { useSettingsStore } from '../state/settingsStore';
 import { useControls } from '../input/useControls';
 import { useFlightStore } from '../state/flightStore';
 import { Director } from './Director';
@@ -21,6 +24,14 @@ export function TrainingViewport() {
   // Keyboard/gamepad listeners for the Practice phase (the Director suppresses
   // them during demos via the scripted-input flag).
   useControls();
+
+  // The same preset the Fly view honours. This canvas used to hard-code shadows
+  // and MSAA on, so dropping to Low did nothing here — on the machines that need
+  // Low, the lesson view was the heaviest screen in the app.
+  const graphics = useSettingsStore((s) => s.settings.graphics);
+  const q = qualityFor(graphics);
+  const [ready, setReady] = useState(false);
+  const onReady = useCallback(() => setReady(true), []);
 
   // Flight School owns two pieces of flight behaviour for as long as it is open,
   // and hands both back on the way out.
@@ -48,9 +59,11 @@ export function TrainingViewport() {
     <div className="viewport">
       <SceneBoundary>
         <Canvas
-          shadows={{ type: THREE.PCFShadowMap }}
+          shadows={q.shadows ? { type: THREE.PCFShadowMap } : false}
+          dpr={q.dpr}
           gl={{
-            antialias: true,
+            antialias: q.msaa,
+            powerPreference: 'high-performance',
             outputColorSpace: THREE.SRGBColorSpace,
             toneMapping: THREE.ACESFilmicToneMapping,
             toneMappingExposure: 1.0,
@@ -60,9 +73,11 @@ export function TrainingViewport() {
           <FlightScene envIdOverride="drone-academy" />
           <RouteGuide />
           <Director />
+          <SceneReady onReady={onReady} />
         </Canvas>
       </SceneBoundary>
       <TrainingHud />
+      {!ready && <SceneVeil label="Getting the arena ready" />}
     </div>
   );
 }

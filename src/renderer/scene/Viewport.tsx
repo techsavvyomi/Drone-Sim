@@ -1,30 +1,12 @@
-import { Component, type ReactNode } from 'react';
+import { Component, useCallback, useState, type ReactNode } from 'react';
 import { Canvas } from '@react-three/fiber';
 import * as THREE from 'three';
 import { FlightScene } from './FlightScene';
 import { FlightHud } from '../hud/FlightHud';
 import { useControls } from '../input/useControls';
 import { useSettingsStore } from '../state/settingsStore';
-import type { GraphicsPreset } from '@shared/types';
-
-/**
- * What each graphics preset actually costs to draw.
- *
- * The preset used to gate only post-processing, so "Low" still rendered the full
- * city at native device pixel ratio with MSAA and shadows — which is why an
- * integrated GPU sat at single-digit framerates on Low and High alike. Pixel
- * count is the dominant term on integrated parts, so that is what the preset
- * moves first.
- */
-const QUALITY: Record<GraphicsPreset, { dpr: [number, number]; shadows: boolean; msaa: boolean }> = {
-  // Low renders at native resolution and buys its frames by dropping the shadow
-  // pass instead. Undersampling below 1.0 was tried and reads as a soft, smeared
-  // image — on a city full of thin geometry (railings, poles, leaf cutouts) it
-  // costs far more perceived quality per frame gained than turning shadows off.
-  low: { dpr: [1, 1], shadows: false, msaa: false },
-  medium: { dpr: [1, 1], shadows: true, msaa: false },
-  high: { dpr: [1, 1.5], shadows: true, msaa: true },
-};
+import { qualityFor } from './quality';
+import { SceneReady, SceneVeil } from './SceneReady';
 
 /**
  * Catches errors thrown inside the 3D scene.
@@ -65,7 +47,9 @@ export class SceneBoundary extends Component<{ children: ReactNode }, { error: E
 export function Viewport() {
   useControls();
   const graphics = useSettingsStore((s) => s.settings.graphics);
-  const q = QUALITY[graphics] ?? QUALITY.medium;
+  const q = qualityFor(graphics);
+  const [ready, setReady] = useState(false);
+  const onReady = useCallback(() => setReady(true), []);
 
   return (
     <div className="viewport">
@@ -91,9 +75,11 @@ export function Viewport() {
           camera={{ position: [8, 5, 9], fov: 60, near: 0.08, far: 700 }}
         >
           <FlightScene />
+          <SceneReady onReady={onReady} />
         </Canvas>
       </SceneBoundary>
       <FlightHud />
+      {!ready && <SceneVeil label="Getting the arena ready" />}
     </div>
   );
 }
