@@ -49,5 +49,8 @@
     "three": "^0.185.1",
     "uplot": "^1.6.32",
     "zustand": "^5.0.14"
+  },
+  "overrides": {
+    "extract-zip": "npm:@electron-internal/extract-zip@^1.0.5"
   }
 }
