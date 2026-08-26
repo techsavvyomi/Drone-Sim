@@ -22,8 +22,8 @@ export const armTakeoffLesson: Lesson = {
   explain: {
     title: 'Arm, then Take Off',
     body: [
-      'Arming switches the motors on. Nothing turns before you do it.',
-      'Then press SPACE and the drone lifts itself to a steady hover.',
+      'Arming turns the motors on. Nothing spins before that.',
+      'Then press SPACE and the drone lifts up and holds there.',
     ],
     durationHint: '15 seconds',
   },
@@ -69,14 +69,8 @@ export const armTakeoffLesson: Lesson = {
     { code: 'Space', label: 'SPACE', hint: 'Take Off' },
   ],
 
-  tips: [
-    'Check the area is clear before you arm.',
-    'Arm first, then take off. It does not work the other way round.',
-  ],
-  commonMistakes: [
-    'Pressing SPACE before arming, so nothing happens.',
-    'Trying to arm with the throttle already up. The drone will refuse.',
-  ],
+  tips: ['Check the area is clear first.', 'Arm first, then take off.'],
+  commonMistakes: ['Pressing SPACE before arming.', 'Trying to arm with the throttle up.'],
 
   validate: (p, mem) => {
     if (p.crashed) return { done: false, failed: true, hint: 'Crashed. Try again', cue: [] };
@@ -131,14 +125,14 @@ export const armTakeoffLesson: Lesson = {
   stars: [
     {
       stars: 3,
-      text: 'Hovering within 16 seconds, smoothly, nothing touched',
+      text: 'Hovering in 16s, smoothly, nothing touched',
       // A blocked arming (throttle up) is capped at two, however quick the rest was.
       test: ({ touches, timeSec, collisions, smoothness, mem }) =>
         collisions === 0 && touches === 0 && !mem.blocked && smoothness >= 0.5 && timeSec <= 16,
     },
     {
       stars: 2,
-      text: 'Hovering within 30 seconds',
+      text: 'Hovering in 30s',
       test: ({ timeSec, collisions, smoothness, mem }) =>
         collisions === 0 && (!!mem.blocked || (smoothness >= 0.25 && timeSec <= 30)),
     },

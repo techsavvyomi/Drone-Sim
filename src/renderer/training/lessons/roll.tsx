@@ -30,9 +30,8 @@ export const rollLesson: Lesson = {
   explain: {
     title: 'Roll: Left and Right',
     body: [
-      'Roll moves the drone sideways, left and right. Nothing else.',
-      'Roll left to reach the left marker, then roll right across to the right one.',
-      'The nose keeps pointing straight ahead the whole time.',
+      'Roll moves the drone sideways. Nothing else.',
+      'Go left to the left marker, then right across to the other one.',
     ],
   },
 
@@ -67,10 +66,10 @@ export const rollLesson: Lesson = {
     { code: 'ArrowRight', label: '→', hint: 'Roll Right' },
   ],
 
-  tips: ['Hold your height while you slide sideways.', 'Small movements stay controllable.'],
+  tips: ['Hold your height while you move sideways.', 'Small moves are easier to control.'],
   commonMistakes: [
-    'Rolling too hard and overshooting the marker.',
-    'Letting the nose swing round. That is yaw, not roll.',
+    'Rolling too hard and going too far.',
+    'Letting the nose turn. That is yaw, not roll.',
   ],
 
   validate: (p, mem) => {
@@ -86,7 +85,7 @@ export const rollLesson: Lesson = {
   stars: [
     {
       stars: 3,
-      text: 'Both markers in 24 seconds, drifting under 2 m forward or back, nothing touched',
+      text: 'Both markers in 24s, under 2 m off line, nothing touched',
       test: ({ touches, timeSec, collisions, smoothness, mem }) =>
         collisions === 0 &&
         touches === 0 &&
@@ -96,7 +95,7 @@ export const rollLesson: Lesson = {
     },
     {
       stars: 2,
-      text: 'Both markers in 40 seconds, drifting under 4 m',
+      text: 'Both markers in 40s, under 4 m off line',
       test: ({ timeSec, collisions, mem }) =>
         collisions === 0 && (mem.wander ?? 0) <= 4 && timeSec <= 40,
     },

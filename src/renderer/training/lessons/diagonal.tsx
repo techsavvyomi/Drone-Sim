@@ -62,9 +62,8 @@ export const diagonalLesson: Lesson = {
   explain: {
     title: 'Flying a Diagonal',
     body: [
-      'A diagonal is one move with both sticks held together, not two moves.',
-      'ENTER to arm, SPACE to take off, both sticks out to the green gate and back, SPACE to land.',
-      'Hold the same balance between the sticks and the path stays straight.',
+      'A diagonal is one move with both sticks together, not two.',
+      'Push both the same amount and the path stays straight.',
     ],
   },
 
@@ -132,12 +131,12 @@ export const diagonalLesson: Lesson = {
   ],
 
   tips: [
-    'Set both sticks together, then leave them alone.',
-    'Reverse both together too. One at a time bends the line back.',
+    'Move both sticks together, then leave them alone.',
+    'Bring both back together. One at a time bends the line.',
   ],
   commonMistakes: [
-    'Letting one stick lead, so the line bends into an L.',
-    'Easing off one stick before the other on the way back.',
+    'Moving one stick first, which bends the line into an L.',
+    'Letting go of one stick before the other.',
   ],
 
   validate: (p, mem) => {
@@ -153,13 +152,13 @@ export const diagonalLesson: Lesson = {
   stars: [
     {
       stars: 3,
-      text: 'Hold the diagonal within 3 m, whole flight under 75 seconds, nothing touched',
+      text: 'Within 3 m of the line, under 75s, nothing touched',
       test: ({ touches, timeSec, collisions, mem }) =>
         collisions === 0 && touches === 0 && (mem.drift ?? 99) <= 3 && timeSec <= 75,
     },
     {
       stars: 2,
-      text: 'Hold the diagonal within 6 m',
+      text: 'Within 6 m of the line',
       test: ({ collisions, mem }) => collisions === 0 && (mem.drift ?? 99) <= 6,
     },
   ],

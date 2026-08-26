@@ -85,9 +85,8 @@ export const straightLineLesson: Lesson = {
   explain: {
     title: 'Flying a Straight Line',
     body: [
-      'Three steps, one flight: ENTER to arm, SPACE to take off, then pitch forward and take the drone through gate A.',
-      'A is the blue square straight off the nose. Keep it centred in your view and you are on the line; the count on screen says how far you have come and how far is left.',
-      'The flight is done the moment you are through it. You are scored on how far you drifted sideways, not on how fast you got there.',
+      'Arm, take off, then push forward through gate A.',
+      'A is the blue square ahead of you. Keep it in the middle of your view.',
     ],
   },
 
@@ -146,12 +145,12 @@ export const straightLineLesson: Lesson = {
   ],
 
   tips: [
-    'Keep A centred in your view. If it slides off to one side, so have you.',
-    'Ease off the stick early — it carries on coasting, and it only has to fly through.',
+    'If A moves to one side, you have moved too.',
+    'Let go early. It keeps gliding, and only has to pass through.',
   ],
   commonMistakes: [
-    'Letting a small drift build over the whole run.',
-    'Chasing a drift with a big correction, which swaps one swerve for two.',
+    'Letting a small drift grow over the whole run.',
+    'Fixing a small drift with one big push.',
   ],
 
   validate: (p, mem) => {
@@ -169,13 +168,13 @@ export const straightLineLesson: Lesson = {
   stars: [
     {
       stars: 3,
-      text: 'Never more than 1.5 m off the line, whole flight under 40 seconds, nothing touched',
+      text: 'Within 1.5 m of the line, under 40s, nothing touched',
       test: ({ touches, timeSec, collisions, mem }) =>
         collisions === 0 && touches === 0 && (mem.drift ?? 99) <= 1.5 && timeSec <= 40,
     },
     {
       stars: 2,
-      text: 'Never more than 3 m off the line',
+      text: 'Within 3 m of the line',
       test: ({ collisions, mem }) => collisions === 0 && (mem.drift ?? 99) <= 3,
     },
   ],

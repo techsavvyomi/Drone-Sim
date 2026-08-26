@@ -85,7 +85,7 @@ function Rubric({ rules, earned }: { rules: Lesson['stars']; earned?: number }) 
       ))}
       <div className={`tr-rubric-row ${earned === 1 ? 'earned' : ''}`}>
         <RubricStars stars={1} />
-        <span>Finish the lesson. A crash caps the attempt here.</span>
+        <span>Finish the lesson. A crash keeps you here.</span>
       </div>
     </div>
   );

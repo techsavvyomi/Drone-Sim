@@ -29,9 +29,8 @@ export const pitchLesson: Lesson = {
   explain: {
     title: 'Pitch: Forward and Backward',
     body: [
-      'Pitch moves the drone forward and backward. Nothing else.',
-      'Pitch forward to fly out to the blue gate, pitch backward to come back.',
-      'The harder you push, the faster it goes. Ease off to slow down.',
+      'Pitch moves the drone forward and back. Nothing else.',
+      'Forward to the blue gate, back to come home.',
     ],
   },
 
@@ -68,7 +67,7 @@ export const pitchLesson: Lesson = {
 
   tips: [
     'Keep the nose pointing straight ahead.',
-    'Pitch backward to stop. Drag alone will not do it.',
+    'Pull back to stop. It will not stop on its own.',
   ],
   commonMistakes: ['Pushing too hard and flying past the gate.'],
 
@@ -90,7 +89,7 @@ export const pitchLesson: Lesson = {
   stars: [
     {
       stars: 3,
-      text: 'Out and back in 32 seconds, drifting under 2.5 m sideways, nothing touched',
+      text: 'Out and back in 32s, under 2.5 m sideways, nothing touched',
       test: ({ touches, timeSec, collisions, smoothness, mem }) =>
         collisions === 0 &&
         touches === 0 &&
@@ -100,7 +99,7 @@ export const pitchLesson: Lesson = {
     },
     {
       stars: 2,
-      text: 'Out and back in 55 seconds, drifting under 5 m',
+      text: 'Out and back in 55s, under 5 m sideways',
       test: ({ timeSec, collisions, mem }) =>
         collisions === 0 && (mem.wander ?? 0) <= 5 && timeSec <= 55,
     },

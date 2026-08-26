@@ -57,9 +57,8 @@ export const squareLesson: Lesson = {
   explain: {
     title: 'Flying a Square',
     body: [
-      'Fly the four corners in order, along the sides. Do not cut across the middle.',
-      'Each side is one stick only: forward, left, back, right.',
-      'Stop at every corner before you start the next side.',
+      'Fly the four corners in order. Do not cut across the middle.',
+      'Each side uses one stick: forward, left, back, right.',
     ],
   },
 
@@ -101,13 +100,10 @@ export const squareLesson: Lesson = {
   ],
 
   tips: [
-    'Come to a stop at each corner before starting the next side.',
-    'A side needs one stick. If you are using both, you have drifted off it.',
+    'Stop at each corner before the next side.',
+    'A side needs one stick. Two means you have drifted off.',
   ],
-  commonMistakes: [
-    'Cutting across the middle instead of flying the side.',
-    'Rounding the corners into a circle.',
-  ],
+  commonMistakes: ['Cutting across the middle.', 'Making the corners round.'],
 
   validate: (p, mem) => {
     if (p.crashed) return { done: false, failed: true, hint: 'Crashed. Try again', cue: [] };
@@ -138,7 +134,7 @@ export const squareLesson: Lesson = {
   stars: [
     {
       stars: 3,
-      text: 'Sides held within 2.2 m, circuit under 60 seconds, nothing touched',
+      text: 'Sides within 2.2 m, lap under 60s, nothing touched',
       test: ({ touches, timeSec, collisions, smoothness, mem }) =>
         collisions === 0 &&
         touches === 0 &&
@@ -148,7 +144,7 @@ export const squareLesson: Lesson = {
     },
     {
       stars: 2,
-      text: `Never more than ${SIDE_TOL} m off a side, circuit under 95 seconds`,
+      text: `Sides within ${SIDE_TOL} m, lap under 95s`,
       test: ({ timeSec, collisions, mem }) =>
         collisions === 0 && (mem.cut ?? 0) <= SIDE_TOL && timeSec <= 95,
     },

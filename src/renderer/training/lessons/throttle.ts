@@ -27,8 +27,7 @@ export const throttleLesson: Lesson = {
     title: 'Throttle Control',
     body: [
       'The throttle is the only control that changes height.',
-      'The drone is already armed and hovering. Push down to come down, up to climb.',
-      'Come down to about a metre, hold it steady there, then climb back up.',
+      'You are already in the air. Go down to about a metre, hold, then come back up.',
     ],
     durationHint: '20 seconds',
   },
@@ -71,10 +70,10 @@ export const throttleLesson: Lesson = {
     { code: 'KeyW', label: 'W', hint: 'Throttle Up' },
   ],
 
-  tips: ['Move the stick a little at a time.', 'Centre the stick to stop where you are.'],
+  tips: ['Move the stick a little at a time.', 'Put the stick back in the middle to hold height.'],
   commonMistakes: [
-    'Dropping the throttle all the way and landing instead of holding.',
-    'Never centring the stick, so the height never settles.',
+    'Pushing the throttle all the way down and landing.',
+    'Never centring the stick, so the height keeps moving.',
   ],
 
   validate: (p, mem) => {
@@ -133,13 +132,13 @@ export const throttleLesson: Lesson = {
   stars: [
     {
       stars: 3,
-      text: 'Down, held and back up within 22 seconds, smoothly, nothing touched',
+      text: 'Down, held and back up in 22s, smoothly, nothing touched',
       test: ({ touches, timeSec, collisions, smoothness }) =>
         collisions === 0 && touches === 0 && smoothness >= 0.5 && timeSec <= 22,
     },
     {
       stars: 2,
-      text: 'Down, held and back up within 40 seconds',
+      text: 'Down, held and back up in 40s',
       test: ({ timeSec, collisions, smoothness }) =>
         collisions === 0 && smoothness >= 0.25 && timeSec <= 40,
     },

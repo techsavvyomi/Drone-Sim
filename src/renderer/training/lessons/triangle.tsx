@@ -58,9 +58,8 @@ export const triangleLesson: Lesson = {
   explain: {
     title: 'Flying a Triangle',
     body: [
-      'The three corners are marked A, B and C on the field. Fly them in order along the sides, then close the loop back at A.',
-      'No side lines up with one stick here, so every side is a mix of two.',
-      'Stop at each corner, aim at the next one, then go.',
+      'Fly to A, then B, then C, and back to A.',
+      'No side uses just one stick. Every side needs both.',
     ],
   },
 
@@ -102,11 +101,11 @@ export const triangleLesson: Lesson = {
 
   tips: [
     'Aim at the next corner before you start moving.',
-    'Set the stick mix for the side, then hold it.',
+    'Set both sticks for the side, then hold them.',
   ],
   commonMistakes: [
-    'Flying the sides as L-shapes.',
-    'Drifting past a corner instead of stopping on it.',
+    'Flying the sides as L shapes.',
+    'Floating past a corner instead of stopping on it.',
   ],
 
   validate: (p, mem) => {
@@ -136,7 +135,7 @@ export const triangleLesson: Lesson = {
   stars: [
     {
       stars: 3,
-      text: 'Sides held within 2.5 m, circuit under 55 seconds, nothing touched',
+      text: 'Sides within 2.5 m, lap under 55s, nothing touched',
       test: ({ touches, timeSec, collisions, smoothness, mem }) =>
         collisions === 0 &&
         touches === 0 &&
@@ -146,7 +145,7 @@ export const triangleLesson: Lesson = {
     },
     {
       stars: 2,
-      text: `Never more than ${SIDE_TOL} m off a side, circuit under 90 seconds`,
+      text: `Sides within ${SIDE_TOL} m, lap under 90s`,
       test: ({ timeSec, collisions, mem }) =>
         collisions === 0 && (mem.cut ?? 0) <= SIDE_TOL && timeSec <= 90,
     },

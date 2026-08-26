@@ -198,16 +198,14 @@ function navLesson(cfg: {
     ],
 
     tips: [
-      'Look ahead to the next gate before you reach the current one.',
-      'The gates stand a few metres up — climb early, not at the last moment.',
-      ...(cfg.wholeFlight
-        ? ['Turn to face a gate first, then fly at it. Do not crab sideways.']
-        : []),
+      'Look at the next gate before you reach this one.',
+      'The gates are a few metres up. Climb early.',
+      ...(cfg.wholeFlight ? ['Point at the gate first, then fly to it.'] : []),
     ],
     commonMistakes: [
-      'Taking the gates in the wrong order — that ends the attempt.',
-      'Passing beside a gate instead of through its opening.',
-      ...(cfg.wholeFlight ? ['Forgetting the landing — the flight is not over at the "H".'] : []),
+      'Taking the gates in the wrong order.',
+      'Going past the side of a gate instead of through it.',
+      ...(cfg.wholeFlight ? ['Forgetting to land on the "H".'] : []),
     ],
 
     validate: (p, mem) => {
@@ -251,7 +249,7 @@ function navLesson(cfg: {
     stars: [
       {
         stars: 3,
-        text: `Whole route in ${cfg.threeStarSec} seconds, height held within 1.2 m, nothing touched`,
+        text: `Route in ${cfg.threeStarSec}s, height within 1.2 m, nothing touched`,
         test: ({ touches, timeSec, collisions, smoothness, mem }) =>
           collisions === 0 &&
           touches === 0 &&
@@ -261,7 +259,7 @@ function navLesson(cfg: {
       },
       {
         stars: 2,
-        text: `Whole route in ${Math.round(cfg.threeStarSec * 1.8)} seconds, height within 2.2 m`,
+        text: `Route in ${Math.round(cfg.threeStarSec * 1.8)}s, height within 2.2 m`,
         test: ({ timeSec, collisions, mem }) =>
           collisions === 0 && (mem.altDev ?? 0) <= 2.2 && timeSec <= cfg.threeStarSec * 1.8,
       },
@@ -278,9 +276,8 @@ export const navABLesson = navLesson({
   subtitle: 'Two gates, your first set route',
   gates: 2,
   intro: [
-    'A set route this time: fly through gate A, then across to gate B.',
-    'The gate you want next is named in the step row. Take them in that order.',
-    'Take them out of order and the attempt ends.',
+    'A fixed route: through gate A, then over to gate B.',
+    'Take them out of order and you start again.',
   ],
   timeout: 60,
   threeStarSec: 42,
@@ -293,9 +290,8 @@ export const navABCLesson = navLesson({
   subtitle: 'Three gates, taken in order',
   gates: 3,
   intro: [
-    'Three gates now: A, then B, then the green one beyond them, C.',
-    'Fly through each opening. Passing beside a gate does not count.',
-    'Skipping ahead to a later gate ends the attempt.',
+    'Three gates now: A, then B, then C, the green one.',
+    'Fly through each gate. Skip one and you start again.',
   ],
   timeout: 65,
   threeStarSec: 55,
@@ -313,9 +309,8 @@ export const navABCDLesson = navLesson({
   returnHome: true,
   wholeFlight: true,
   intro: [
-    'The whole course in one flight: arm, take off, A, B, C, D, back over the "H", and land.',
-    'Turn to face each gate before you fly at it, and climb to it early — D is the highest on the field.',
-    'Order is checked at every step, so no shortcuts.',
+    'The whole course in one flight: arm, take off, A, B, C, D, home, land.',
+    'Turn to face each gate before you fly to it. Climb early, D is the highest.',
   ],
   // Longer than the others: this one pays for a take-off and a landing as well
   // as the route.

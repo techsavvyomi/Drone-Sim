@@ -31,9 +31,8 @@ export const circleLesson: Lesson = {
   explain: {
     title: 'Flying a Circle',
     body: [
-      'Fly one full lap around the helipad, following the red ring painted on the deck.',
-      'A circle has no corners to rest at. Both sticks stay in the whole way round.',
-      'Keep the same distance from the middle. Cutting in close will not count.',
+      'Fly one lap around the helipad, on the red ring.',
+      'There are no corners to stop at. Stay the same distance from the middle.',
     ],
   },
 
@@ -79,13 +78,12 @@ export const circleLesson: Lesson = {
   ],
 
   tips: [
-    'Fly out to the ring and settle before you start turning.',
-    'The line on screen says how far in or out you are, in metres. Correct it a little at a time.',
-    'Think of it as slowly rotating the direction you are pushing, not as four arcs.',
+    'Get on the ring and steady before you start turning.',
+    'Slowly turn the direction you push. Do not fly four curves.',
   ],
   commonMistakes: [
-    'Cutting inside the ring on the far half.',
-    'Turning it into a rounded square by pausing at four points.',
+    'Cutting inside the ring on the far side.',
+    'Stopping at four points, which makes it a square.',
   ],
 
   validate: (p, mem) => {
@@ -163,7 +161,7 @@ export const circleLesson: Lesson = {
   stars: [
     {
       stars: 3,
-      text: `Radius within ${LANE} m and height within 0.9 m, lap under 70 seconds, nothing touched`,
+      text: `Within ${LANE} m of the ring, height within 0.9 m, lap under 70s`,
       test: ({ touches, timeSec, collisions, smoothness, mem }) =>
         collisions === 0 &&
         touches === 0 &&
@@ -174,7 +172,7 @@ export const circleLesson: Lesson = {
     },
     {
       stars: 2,
-      text: 'Radius within 1.8 m and height within 1.8 m',
+      text: 'Within 1.8 m of the ring, height within 1.8 m',
       test: ({ collisions, mem }) =>
         collisions === 0 && (mem.radiusDev ?? 99) <= 1.8 && (mem.altDev ?? 0) <= 1.8,
     },

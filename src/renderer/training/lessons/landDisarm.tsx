@@ -40,8 +40,8 @@ export const landDisarmLesson: Lesson = {
   explain: {
     title: 'Landing and Disarming',
     body: [
-      'Press SPACE and the drone comes down onto the pad by itself.',
-      'Once it is down, press ENTER to stop the motors. Never stop them in the air.',
+      'Press SPACE and the drone comes down on the pad by itself.',
+      'Once it is down, press ENTER to stop the motors. Never in the air.',
     ],
     durationHint: '20 seconds',
   },
@@ -86,12 +86,9 @@ export const landDisarmLesson: Lesson = {
     { code: 'Enter', label: 'ENTER', hint: 'Disarm' },
   ],
 
-  tips: [
-    'Wait for it to settle on the pad before you disarm.',
-    'Disarm as soon as you are down. It is also the fastest emergency stop.',
-  ],
+  tips: ['Let it sit still on the pad first.', 'Stop the motors as soon as you land.'],
   commonMistakes: [
-    'Cutting the motors while still in the air.',
+    'Stopping the motors while still in the air.',
     'Walking away with the drone still armed.',
   ],
 
@@ -177,7 +174,7 @@ export const landDisarmLesson: Lesson = {
   stars: [
     {
       stars: 3,
-      text: 'Soft touchdown, motors off within 2 seconds, nothing touched',
+      text: 'Soft landing, motors off in 2s, nothing touched',
       test: ({ touches, collisions, smoothness, mem }) =>
         collisions === 0 &&
         touches === 0 &&
@@ -187,7 +184,7 @@ export const landDisarmLesson: Lesson = {
     },
     {
       stars: 2,
-      text: 'Gentle touchdown, motors off within 5 seconds',
+      text: 'Gentle landing, motors off in 5s',
       test: ({ collisions, mem }) =>
         collisions === 0 && (mem.touchVs ?? 1) <= 0.9 && (mem.shutdown ?? 99) <= 5.0,
     },

@@ -22,9 +22,8 @@ export const yawLesson: Lesson = {
   explain: {
     title: 'Yaw Control',
     body: [
-      'Yaw turns the drone on the spot. It does not move anywhere.',
-      'It only changes which way the nose is pointing.',
-      'Turn about 90 degrees, then turn back to where you started.',
+      'Yaw spins the drone in place. Only the nose moves.',
+      'Turn about 90 degrees, then turn back.',
     ],
   },
 
@@ -68,11 +67,8 @@ export const yawLesson: Lesson = {
     { code: 'KeyD', label: 'D', hint: 'Yaw Right' },
   ],
 
-  tips: ['Use short taps. Yaw builds up quickly.', 'Watch the compass heading as you turn.'],
-  commonMistakes: [
-    'Over-rotating past the target.',
-    'Confusing yaw (spin) with roll (slide sideways).',
-  ],
+  tips: ['Use short taps. Yaw speeds up fast.', 'Watch the heading as you turn.'],
+  commonMistakes: ['Turning too far past the target.', 'Mixing up yaw with roll.'],
 
   validate: (p, mem) => {
     if (p.crashed) return { done: false, failed: true, hint: 'Crashed. Try again', cue: [] };
@@ -110,13 +106,13 @@ export const yawLesson: Lesson = {
   stars: [
     {
       stars: 3,
-      text: 'Both turns landed within 8°, under 18 seconds, nothing touched',
+      text: 'Both turns within 8°, under 18s, nothing touched',
       test: ({ touches, timeSec, collisions, mem }) =>
         collisions === 0 && touches === 0 && (mem.overshoot ?? 0) <= 8 && timeSec <= 18,
     },
     {
       stars: 2,
-      text: 'Both turns landed within 25°, under 35 seconds',
+      text: 'Both turns within 25°, under 35s',
       test: ({ timeSec, collisions, mem }) =>
         collisions === 0 && (mem.overshoot ?? 0) <= 25 && timeSec <= 35,
     },
