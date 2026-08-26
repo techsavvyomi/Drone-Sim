@@ -3,10 +3,16 @@ import { planDemo } from './demoFlight';
 import { marker, routeLegs } from './arena';
 import { ACADEMY_PAD } from '../../plugins/environments/droneAcademy';
 
-// Module 10 — Triangle Circuit, on three of the helipad's white markers: one
-// straight behind the "H" and two out in front, symmetrical either side. Unlike
-// the square, not one of these legs lines up with an axis, so every side needs
-// both sticks held in a different ratio and every corner is a real turn.
+// Module 10 — Triangle Circuit, on three of the helipad's white markers: an
+// apex straight out IN FRONT of the "H" and two behind it, symmetrical either
+// side. The two long sides are diagonals, so each needs both sticks held in a
+// different ratio; only the short side joining the two rear corners is a single
+// stick.
+//
+// The apex points away from the pilot on purpose. With it behind the pad the
+// shape opened by sending the drone backwards, over the pilot's own shoulder,
+// which is the one direction a beginner cannot read — and the first leg of a
+// shape is where they are still working out which stick does what.
 //
 // The corners are three markers already standing in the ring, and the guide
 // paints A, B and C on the deck at them. Without that the row's "Corner B"
@@ -30,9 +36,9 @@ import { ACADEMY_PAD } from '../../plugins/environments/droneAcademy';
 const FLY_AT = 3.3;
 
 const CORNERS = [
-  marker(4, 'Corner A', { tag: 'A', height: FLY_AT }), //  behind the pad
-  marker(9, 'Corner B', { tag: 'B', height: FLY_AT }), //  front-left
-  marker(15, 'Corner C', { tag: 'C', height: FLY_AT }), // front-right
+  marker(12, 'Corner A', { tag: 'A', height: FLY_AT }), // the apex, straight ahead
+  marker(6, 'Corner B', { tag: 'B', height: FLY_AT }), //  back-left
+  marker(2, 'Corner C', { tag: 'C', height: FLY_AT }), //  back-right
 ] as const;
 /** The loop closes where it began. Named as a RETURN, not as another corner:
  *  the intro card lays the route out as a numbered flow, and "Corner A again"
@@ -58,8 +64,8 @@ export const triangleLesson: Lesson = {
   explain: {
     title: 'Flying a Triangle',
     body: [
-      'Fly to A, then B, then C, and back to A.',
-      'No side uses just one stick. Every side needs both.',
+      'A is straight ahead. B and C are behind you, one on each side.',
+      'Fly A, then B, then C, then back to A. The slanted sides need both sticks.',
     ],
   },
 
@@ -75,10 +81,10 @@ export const triangleLesson: Lesson = {
       routeLegs(
         ROUTE,
         [
-          { caption: 'Out to A, behind the pad', arrive: 'Stop on it' },
-          { caption: 'Side 2 — a different mix of both sticks', arrive: 'Stop on B' },
-          { caption: 'Side 3 — across the front', arrive: 'Stop on C' },
-          { caption: 'Close the loop, back to A', arrive: 'Triangle complete' },
+          { caption: 'Straight ahead to A', arrive: 'Stop on A' },
+          { caption: 'A to B — both sticks, back and to the left', arrive: 'Stop on B' },
+          { caption: 'B to C — straight across, one stick', arrive: 'Stop on C' },
+          { caption: 'C back up to A, and the loop is closed', arrive: 'Triangle complete' },
         ],
         undefined,
         { from: START },
@@ -89,7 +95,7 @@ export const triangleLesson: Lesson = {
 
   practice: {
     prompt: 'Fly A, B and C in order along the sides, then back to A',
-    hint: 'Fly the side to Corner A',
+    hint: 'Fly straight ahead to Corner A',
   },
 
   keys: [
