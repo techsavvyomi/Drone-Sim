@@ -2879,10 +2879,23 @@ button {
   left: 50%;
   transform: translateX(-50%);
   display: flex;
+  /* Bottom-aligned so ENTER and SPACE sit on the arrow cluster's LOWER row,
+     which is the line they share on a real keyboard. Stretched, they grew to
+     the height of the cluster instead. */
+  align-items: flex-end;
   gap: 12px;
   /* The HUD is click-through; the caps are not. They are buttons that press the
      key they show, so the mouse works wherever the keyboard does. */
   pointer-events: auto;
+}
+/* The arrow caps, in the shape they have under the hand: up over
+   left/down/right. Columns are placed from JS, because a lesson that uses only
+   one axis gets only the columns it needs — see padSlots in KeyHints.tsx. */
+.tr-keypad {
+  display: grid;
+  gap: 12px;
+  align-items: end;
+  justify-items: center;
 }
 .tr-key {
   display: flex;
