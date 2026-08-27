@@ -79,6 +79,28 @@ export const throttleLesson: Lesson = {
   validate: (p, mem) => {
     if (p.crashed) return { done: false, failed: true, hint: 'Crashed. Try again', cue: [] };
 
+    // Landing ends the attempt. This is the one drill where the throttle is the
+    // whole lesson, and its own listed mistake is "pushing the throttle all the
+    // way down and landing" — so putting the drone on the deck has to cost
+    // something. It used to cost nothing: the drone sat there being told to ease
+    // up, and eventually the stall timer lifted it back to the hover on its own,
+    // which reads as the sim undoing the mistake for the pilot.
+    //
+    // `wrecked` raises a real crash, so this ends the way any other write-off
+    // does — the crash card, one star, and R to go again.
+    if (p.onGround && mem.airborne === 1) {
+      return {
+        done: false,
+        failed: true,
+        wrecked: true,
+        hint: 'You put it down. Throttle down is not a landing',
+        cue: [],
+      };
+    }
+    // Handed over at a hover, so "has been flying" is true from the first frame
+    // it is off the deck — this only guards the moment before the drone settles.
+    if (!p.onGround) mem.airborne = 1;
+
     // Steps 1 and 2 — down into the low band, and hold it there.
     const low = p.altitude >= LOW_MIN && p.altitude <= LOW_MAX;
     const steadyLow = low && Math.abs(p.verticalSpeed) < 0.4;

@@ -118,6 +118,18 @@ export interface ValidationResult {
   done: boolean;
   /** A hard failure (crash, out of bounds) — surface "Try Again". */
   failed?: boolean;
+  /**
+   * This failure wrecked the aircraft — the Director raises a real crash for it.
+   *
+   * A plain `failed` restarts the attempt on its own, because the drone is still
+   * fit to fly: flown out of the box, landed off the pad. Some failures are not
+   * like that. A hover drill that ends with the drone on the deck is over, and
+   * quietly lifting it back up teaches that putting it down costs nothing —
+   * which is exactly the mistake Module 3 lists as its own. Raising the crash
+   * gets the card, the star cap and "press R to try again" from the machinery
+   * that already handles a real one, instead of a second, parallel way to fail.
+   */
+  wrecked?: boolean;
   /** 0..1 completion for the on-screen progress bar. */
   progress?: number;
   /** Contextual guidance to show right now (e.g. "Hold this altitude"). */

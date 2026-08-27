@@ -7,6 +7,7 @@ import { getLesson, lessonIndex, nextLesson, LESSONS } from '../training/lessons
 import type { Lesson } from '../training/lessons';
 import { StickIndicator } from './StickIndicator';
 import { KeyHints } from './KeyHints';
+import { CrashOverlay } from './CrashOverlay';
 import { playClick, playSuccess, playStar, playRankUp } from '../audio/sfx';
 import { LessonMap } from './LessonMap';
 
@@ -365,6 +366,13 @@ export function TrainingHud() {
           </div>
         </div>
       )}
+
+      {/* Wrecked, waiting on R. The same card the free-flight HUD shows, because
+          a crash in a lesson is the same event as a crash anywhere else — the
+          hint line alone was too quiet for the one thing that ends an attempt.
+          Practice only: the demonstration resets itself, and a card thrown over
+          it would be covering the very thing the pilot is meant to be watching. */}
+      {phase === 'practice' && <CrashOverlay />}
 
       {/* Step 5 — Reward (celebration) */}
       {phase === 'reward' && (

@@ -212,6 +212,17 @@ export function Director() {
   const prevStick = useRef({ roll: 0, pitch: 0, yaw: 0, throttle: 0.5 });
   /** Debounce so a single failure doesn't reset repeatedly across frames. */
   const failCooldown = useRef(0);
+  /**
+   * An attempt that ended in a crash, waiting on the pilot's R.
+   *
+   * A crash used to restart the practice on the spot, which put a flying drone
+   * back at the hover within a frame of the impact. In Module 3 — where the
+   * whole drill is the throttle, and dropping it to the stop IS the mistake the
+   * lesson lists — that read as the drone floating back up on its own, with
+   * nothing on screen to say it had been wrecked. The wreck stays put now, and
+   * the clock stops, until R puts it back on the pad.
+   */
+  const awaitingRestart = useRef(false);
   /** Seconds the success condition has held, before advancing to the reward. */
   const doneTimer = useRef(0);
   /** Best progress reached this attempt, and how long since it last improved.
@@ -276,6 +287,7 @@ export function Director() {
         prevCrashed.current = false;
         touchBase.current = useFlightStore.getState().touches;
         failCooldown.current = 0;
+        awaitingRestart.current = false;
         doneTimer.current = 0;
         bestProgress.current = 0;
         stallTime.current = 0;
@@ -448,6 +460,7 @@ export function Director() {
     mem.current = {};
     // A fresh go: whatever the last one hit belongs to the last one.
     touchBase.current = useFlightStore.getState().touches;
+    awaitingRestart.current = false;
     practiceTime.current = 0;
     publishElapsed();
     jerkAccum.current = 0;
@@ -490,6 +503,18 @@ export function Director() {
     // than a fresh go.
     const token = useSimStore.getState().resetToken;
     if (token !== lastResetToken.current) {
+      // A crash that has been sitting here waiting for this key was already
+      // counted as a failed go. If it was one too many, R buys the
+      // demonstration rather than another attempt at the same mistake — the
+      // escalation the non-crash path takes immediately, deferred to the point
+      // where the pilot asked to carry on.
+      if (awaitingRestart.current && failCount.current >= REPLAY_AFTER_FAILS) {
+        failCount.current = 0;
+        awaitingRestart.current = false;
+        seedResetToken();
+        useTrainingStore.getState().setPhase('demo');
+        return;
+      }
       softResetPractice(lesson);
       // A deliberate restart, not a recovery from a fail: the crashes and the
       // failed goes belong to the attempt that was thrown away.
@@ -501,6 +526,15 @@ export function Director() {
       useTrainingStore.getState().setHint(lesson.practice.hint);
       useTrainingStore.getState().setValidation({ progress: 0, failed: false });
       publishCue([]);
+      return;
+    }
+
+    // Wrecked and waiting on R: no clock, no validation, no rescue timer. The
+    // attempt is over and the pilot is looking at the result of it. The fail
+    // debounce still runs down, so the next go starts with a live one rather
+    // than a second of immunity carried over from this crash.
+    if (awaitingRestart.current) {
+      if (failCooldown.current > 0) failCooldown.current -= delta;
       return;
     }
 
@@ -614,6 +648,27 @@ export function Director() {
       failCount.current += 1;
       failCooldown.current = 1.0;
       playFail();
+      // A validator can declare that the failure wrecked the aircraft. Raise the
+      // real crash for it rather than inventing a second way to fail: the crash
+      // card, the star cap and the wait for R all follow from `flight.crashed`,
+      // and the count below has already ticked past this frame's reading of it.
+      if (res.wrecked && !flight.crashed) {
+        useFlightStore.getState().crash(Math.abs(sim.verticalSpeed));
+        crashCount.current += 1;
+        prevCrashed.current = true;
+      }
+      // A crash is the pilot's to clear. Anything else — flown out of the box,
+      // landed off the pad — leaves a drone that is still fit to fly, so those
+      // keep restarting on their own.
+      if (flight.crashed || res.wrecked) {
+        awaitingRestart.current = true;
+        // The hint stays as the lesson wrote it ("Crashed. Try again"). Asking
+        // for R is the crash card's job — TrainingHud renders the same one the
+        // free-flight HUD does — and saying it twice, in two different words,
+        // is noise on the one screen that has to read at a glance.
+        publishCue([]);
+        return;
+      }
       if (failCount.current >= REPLAY_AFTER_FAILS) {
         failCount.current = 0;
         training.setPhase('demo');

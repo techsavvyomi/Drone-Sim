@@ -72,6 +72,20 @@ export const yawLesson: Lesson = {
 
   validate: (p, mem) => {
     if (p.crashed) return { done: false, failed: true, hint: 'Crashed. Try again', cue: [] };
+
+    // Same rule as Module 3: this is a drill flown at a hover, and it has no
+    // landing in it. Without this the turns could be finished sitting on the
+    // deck, which is not the skill the lesson is marking.
+    if (p.onGround && mem.airborne === 1) {
+      return {
+        done: false,
+        failed: true,
+        wrecked: true,
+        hint: 'You put it down. Hold the hover while you turn',
+        cue: [],
+      };
+    }
+    if (!p.onGround) mem.airborne = 1;
     if (mem.startSet !== 1) {
       mem.startYaw = p.yaw;
       mem.startSet = 1;
