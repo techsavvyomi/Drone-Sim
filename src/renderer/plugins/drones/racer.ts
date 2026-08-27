@@ -63,8 +63,38 @@ export const racingDrone: DroneSpec = {
     nominalV: 3.7,
     internalResistance: 0.012,
   },
-  maxSpeed: 25,
+  // Descriptive: nothing reads this yet. Solved the same way as the other two —
+  // 9.81 * tan(45 deg) = 0.3 v + (0.5 * 1.225 * 0.020 / 0.72) v^2 -> ~17 m/s.
+  // The old 25 was a wish: on the shared 22-degree envelope this airframe
+  // topped out at 7 m/s, SLOWER than both trainers, because the drag stand-in
+  // scales with the square of the wheelbase and this is the widest frame here.
+  maxSpeed: 17,
   maxAltitude: 40,
+  /**
+   * The one airframe here that should feel quick. 45 degrees is a freestyle
+   * lean rather than a race lean (a real build runs past 60), and it is what
+   * finally puts this drone ahead of the trainers instead of behind them.
+   * Yaw, climb and the rate ceiling come up with it so the whole machine moves
+   * at one pace — a quad that banks hard and turns like a trainer reads as
+   * broken, not fast.
+   *
+   * Chosen by judgement, not measured. `angleP` (8) x 45 degrees asks for
+   * 6.3 rad/s, comfortably inside `maxRateSetpoint`, and 45 is well under the
+   * 70-degree attitude failsafe.
+   */
+  handling: {
+    maxTiltDeg: 45,
+    maxClimbRate: 3.5,
+    maxYawRate: 4.0,
+    maxRateSetpoint: 9,
+  },
+  /**
+   * Measured off the airframe rather than taken from the armLength stand-in.
+   * The default is armLength^2 * 1.8 = 0.043 m^2 — nearly twice the Guru's,
+   * purely because this frame is wide — and a 5" racer does not present a
+   * 0.043 m^2 wall to the air. A ~0.05 m^2 silhouette at Cd ~0.4 is 0.02.
+   */
+  dragArea: 0.02,
   // Pulled back and tilted like a race build's cam — enough tilt that level
   // flight is fast flight.
   cameraMount: { position: [0, 0.022, 0.075], tiltDeg: 25 },
