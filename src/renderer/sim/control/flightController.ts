@@ -86,6 +86,29 @@ export const BEGINNER_CONFIG: ControllerConfig = {
  */
 export const ALT_MANAGED: FlightMode[] = ['altitude-hold'];
 
+/**
+ * The envelope this airframe actually flies in: the shared trainer config with
+ * the drone's own `handling` overrides laid over it.
+ *
+ * Exported because the flight controller is not the only thing that has to
+ * agree on these numbers — Flight School's demonstrations are planned against
+ * the trainer envelope and rescaled into this one at playback.
+ */
+export function configFor(
+  spec: DroneSpec,
+  base: ControllerConfig = BEGINNER_CONFIG,
+): ControllerConfig {
+  const over = spec.handling;
+  if (!over) return base;
+  return {
+    ...base,
+    ...(over.maxTiltDeg !== undefined && { maxTiltDeg: over.maxTiltDeg }),
+    ...(over.maxYawRate !== undefined && { maxYawRate: over.maxYawRate }),
+    ...(over.maxRateSetpoint !== undefined && { maxRateSetpoint: over.maxRateSetpoint }),
+    ...(over.maxClimbRate !== undefined && { maxClimbRate: over.maxClimbRate }),
+  };
+}
+
 const _q = new THREE.Quaternion();
 const _qInv = new THREE.Quaternion();
 const _qDes = new THREE.Quaternion();
@@ -113,10 +136,16 @@ export class FlightController {
   private readonly kQ: number;
   private readonly armPerAxis: number;
 
+  private readonly config: ControllerConfig;
+
   constructor(
     private spec: DroneSpec,
-    private config: ControllerConfig = BEGINNER_CONFIG,
+    base: ControllerConfig = BEGINNER_CONFIG,
   ) {
+    // The airframe gets the last word on its own limits: a race quad banks
+    // further and climbs faster than the trainer envelope allows.
+    const config = configFor(spec, base);
+    this.config = config;
     // Term limits mirror the Magis V2 firmware's pidLuxFloat, which bounds the
     // I contribution to 250 and the D contribution to 300 of a +/-1000 output
     // range — i.e. 25% and 30% of full authority.

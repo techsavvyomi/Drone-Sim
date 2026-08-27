@@ -34,9 +34,26 @@ export const guruDrone: DroneSpec = {
     nominalV: 14.8,
     internalResistance: 0.025,
   },
-  maxSpeed: 18,
+  // Descriptive: nothing reads this yet. It is the figure the numbers below
+  // actually produce, solved from tilt against damping and drag —
+  // 9.81 * tan(32 deg) = 0.3 v + (0.5 * 1.225 * 0.0238 / 1.5) v^2 -> 14 m/s.
+  maxSpeed: 14,
   /** Hard ceiling enforced by the flight controller (soft-limited from 2 m below). */
   maxAltitude: 30,
+  /**
+   * A trainer, but no longer a trainer pinned to the beginner envelope. At 22
+   * degrees of tilt this 1.5 kg airframe cruised at about 10 m/s and felt like
+   * it was wading; 32 degrees is still a long way from a freestyle lean and
+   * takes it to roughly 14. The climb comes up with it, so the same stick that
+   * banks harder also gets it off the deck without waiting.
+   *
+   * Chosen by judgement, not measured against hardware — these want flying.
+   */
+  handling: {
+    maxTiltDeg: 32,
+    maxClimbRate: 2.6,
+    maxYawRate: 3.0,
+  },
   // Mirrors the PlutoX mount, scaled by the ratio of the two arm lengths so FPV
   // frames the airframe the same way on both.
   cameraMount: { position: [0, 0.015, 0.07], tiltDeg: 15 },

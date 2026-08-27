@@ -233,7 +233,9 @@ export function Drone({ spec, spawn, bounds, outdoor = false, groundY }: DronePr
   const armPerAxis = useMemo(() => spec.armLength / Math.SQRT2, [spec]);
   const propRadius = useMemo(() => spec.armLength * 0.45, [spec]);
   // Effective drag area (Cd * frontal area) for wind loading.
-  const dragArea = useMemo(() => spec.armLength * spec.armLength * 1.8, [spec]);
+  // Frontal area x Cd. The armLength^2 fallback is a stand-in for a boxy
+  // trainer; an airframe that knows its own number says so (DroneSpec.dragArea).
+  const dragArea = useMemo(() => spec.dragArea ?? spec.armLength * spec.armLength * 1.8, [spec]);
 
   // Rotor attachment points in body frame, matching the mixer's FR/FL/BR/BL order.
   const rotorPoints = useMemo<Vec3[]>(

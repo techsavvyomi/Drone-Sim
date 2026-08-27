@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { clamp } from '../sim/mathx';
 import { useSimStore } from '../state/simStore';
@@ -7,6 +7,10 @@ import { useUiStore } from '../state/uiStore';
 import { useTrainingStore, isLessonUnlocked, type TrainingPhase } from '../state/trainingStore';
 import { getLesson, nextLesson } from './lessons';
 import { HOVER } from './lessons/arena';
+import { scaleScriptedStick } from './lessons/demoFlight';
+import { BEGINNER_CONFIG, configFor } from '../sim/control/flightController';
+import { useSettingsStore } from '../state/settingsStore';
+import { getDrone } from '../plugins/registry';
 import { dronePose } from '../sim/drone/pose';
 import { starsFor } from './lessons/types';
 import type { Lesson, LessonMemory } from './lessons/types';
@@ -151,6 +155,17 @@ function centerSticks(): void {
 }
 
 export function Director() {
+  // The envelope the aircraft on the pad actually flies in. A demonstration is
+  // planned against the trainer envelope at module load, so every scripted
+  // stick is rescaled into this one before it reaches the controller — see
+  // `scaleScriptedStick`. Training does not change the drone mid-lesson, so
+  // reading it here is enough.
+  const droneId = useSettingsStore((st) => st.settings.selectedDroneId);
+  const flightCfg = useMemo(() => {
+    const spec = getDrone(droneId);
+    return spec ? configFor(spec) : BEGINNER_CONFIG;
+  }, [droneId]);
+
   const phaseTime = useRef(0);
   const phaseRef = useRef<TrainingPhase | null>(null);
   const lessonRef = useRef<string | null>(null);
@@ -340,7 +355,7 @@ export function Director() {
       stepWait.current = 0;
 
       if (step.cmd) runScriptedCommand(step.cmd);
-      if (step.stick) setScriptedStick(step.stick);
+      if (step.stick) setScriptedStick(scaleScriptedStick(step.stick, flightCfg));
       if (step.yawTo !== undefined) {
         yawTarget.current = step.yawTo;
         if (step.yawTo === null) setScriptedStick({ yaw: 0 });
@@ -376,9 +391,12 @@ export function Director() {
       while (err < -Math.PI) err += 2 * Math.PI;
       // The controller negates the yaw stick, so turning LEFT — the direction of
       // increasing heading — is a negative stick, which is the left key.
-      setScriptedStick({
-        yaw: Math.abs(err) < YAW_DEADBAND ? 0 : clamp(-err / YAW_TAPER, -YAW_MAX, YAW_MAX),
-      });
+      setScriptedStick(
+        scaleScriptedStick(
+          { yaw: Math.abs(err) < YAW_DEADBAND ? 0 : clamp(-err / YAW_TAPER, -YAW_MAX, YAW_MAX) },
+          flightCfg,
+        ),
+      );
     }
 
     const keys = keysForStick();

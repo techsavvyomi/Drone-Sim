@@ -526,6 +526,41 @@ export interface DroneSpec {
   battery: BatterySpec;
   maxSpeed: number; // m/s
   maxAltitude: number; // m
+  /**
+   * Per-airframe overrides on the flight controller's limits. Anything left out
+   * keeps the shared trainer envelope in `BEGINNER_CONFIG`.
+   *
+   * Without this every drone here flew at the same speed whatever its spec sheet
+   * claimed: one 22-degree tilt limit for all of them, so a race quad accelerated
+   * exactly as hard as a 50 g nano and topped out lower than the trainer, because
+   * its bigger frame carried more drag. Tilt is what sets cruise — in Altitude
+   * Hold the controller holds `mg / cos θ`, so horizontal acceleration is
+   * `g · tan θ` and the mass cancels.
+   *
+   * Flight School's demonstrations are solved against the trainer envelope at
+   * module load, long before a drone is chosen. They stay correct because the
+   * Director rescales every scripted stick into the active airframe's envelope —
+   * see `scaleScriptedStick` — so a plan that asks for 8 degrees of bank still
+   * gets 8 degrees of bank whatever the drone's limit is.
+   */
+  handling?: {
+    /** Bank/pitch angle at full stick, degrees. */
+    maxTiltDeg?: number;
+    /** Yaw rate at full stick, rad/s. */
+    maxYawRate?: number;
+    /** Ceiling on the rate setpoint the angle loop may ask for, rad/s. */
+    maxRateSetpoint?: number;
+    /** Climb/descent rate at full throttle stick in Altitude Hold, m/s. */
+    maxClimbRate?: number;
+  };
+  /**
+   * Effective frontal area × drag coefficient, m². Defaults to
+   * `armLength² · 1.8`, which is a reasonable stand-in for a boxy trainer and
+   * badly wrong for a clean racing frame: it scales with the SQUARE of the
+   * wheelbase, so the 311 mm racer was handed nearly twice the trainer's drag
+   * and could not out-run it.
+   */
+  dragArea?: number;
   cameraMount: { position: Vec3; tiltDeg: number };
   /** Optional .glb visual asset; falls back to the procedural mesh when absent. */
   model?: string;

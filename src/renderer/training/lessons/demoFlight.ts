@@ -1,4 +1,5 @@
-import { BEGINNER_CONFIG } from '../../sim/control/flightController';
+import { BEGINNER_CONFIG, type ControllerConfig } from '../../sim/control/flightController';
+import type { StickInput } from '@shared/types';
 import type { DemoStep } from './types';
 
 // ----------------------------------------------------------------------------
@@ -25,6 +26,18 @@ import type { DemoStep } from './types';
 
 export const G = 9.81;
 const DEG2RAD = Math.PI / 180;
+/**
+ * The flight envelope every demonstration is SOLVED against.
+ *
+ * Plans are built at module load — a lesson's `demo` array is a module-scope
+ * constant — which is long before a drone has been chosen, so they cannot be
+ * solved for the airframe that will fly them. They are solved for the trainer
+ * envelope instead, and `scaleScriptedStick` converts a planned stick into
+ * whatever stick asks the ACTIVE airframe for the same angle, rate or climb.
+ * Without that, giving the racer 45 degrees of tilt would send every demo
+ * sailing past its own markers at twice the planned acceleration.
+ */
+const PLAN_ENVELOPE = BEGINNER_CONFIG;
 /** Mirrors the rigid body's `linearDamping` in `sim/drone/Drone.tsx`. */
 export const LINEAR_DAMPING = 0.3;
 /** First-order lag between commanding a tilt and holding it, seconds. */
@@ -53,7 +66,7 @@ const YAW_SETTLE = 0.6;
  * them.
  */
 export function accelFor(stick: number): number {
-  return G * Math.tan(stick * BEGINNER_CONFIG.maxTiltDeg * DEG2RAD);
+  return G * Math.tan(stick * PLAN_ENVELOPE.maxTiltDeg * DEG2RAD);
 }
 
 /**
@@ -77,7 +90,7 @@ export function solveCoast(
   stick: number,
   arriveAt = 0.35,
 ): { tPush: number; tArrive: number } {
-  const cmdAngle = stick * BEGINNER_CONFIG.maxTiltDeg * DEG2RAD;
+  const cmdAngle = stick * PLAN_ENVELOPE.maxTiltDeg * DEG2RAD;
   const k = Math.min(1, DT / TILT_LAG);
 
   /** Fly it: push for `tPush`, release, and report the crossing. */
@@ -183,7 +196,7 @@ const COAST_END = 1.1;
  * leg starts from roughly where the plan says it does.
  */
 export function solveThrough(metres: number, stick: number): { tAccel: number; tCoast: number } {
-  const cmdAngle = stick * BEGINNER_CONFIG.maxTiltDeg * DEG2RAD;
+  const cmdAngle = stick * PLAN_ENVELOPE.maxTiltDeg * DEG2RAD;
   const k = Math.min(1, DT / TILT_LAG);
 
   const run = (tAccel: number): { distance: number; tCoast: number } => {
@@ -218,7 +231,7 @@ export function solveThrough(metres: number, stick: number): { tAccel: number; t
 
 /** How long to hold the tilt, and then the counter-tilt, to cover `metres`. */
 function solveLeg(metres: number, stick: number): { tAccel: number; tBrake: number } {
-  const cmdAngle = stick * BEGINNER_CONFIG.maxTiltDeg * DEG2RAD;
+  const cmdAngle = stick * PLAN_ENVELOPE.maxTiltDeg * DEG2RAD;
   let lo = 0.05;
   let hi = 12;
   for (let i = 0; i < 48; i++) {
@@ -340,7 +353,7 @@ export function planDemo(
     const climb = Math.abs(dy) > 0.15 ? Math.sign(dy) * CLIMB_STICK : 0;
     let tClimb = 0;
     if (climb !== 0) {
-      tClimb = Math.abs(dy) / (CLIMB_STICK * 2 * BEGINNER_CONFIG.maxClimbRate) + 0.3;
+      tClimb = Math.abs(dy) / (CLIMB_STICK * 2 * PLAN_ENVELOPE.maxClimbRate) + 0.3;
       steps.push({ at, stick: { throttle: 0.5 + climb } });
       steps.push({ at: at + tClimb, stick: { throttle: 0.5 } });
     }
@@ -393,7 +406,7 @@ export function planDemo(
  * ramp-up has to be paid for.
  */
 export function yawTime(degrees: number, stick: number): number {
-  const rate = stick * BEGINNER_CONFIG.maxYawRate;
+  const rate = stick * PLAN_ENVELOPE.maxYawRate;
   // No allowance for the rate controller's ramp: what a turn loses spinning up
   // it gives back spinning down. Paying for it made the demo turn 109 degrees
   // while the lesson asks for 90 and the caption says "about 90".
@@ -445,7 +458,7 @@ export function planCircle(opts: {
   let angle = 0;
   let along = 0;
   let tRunUp = 0;
-  const cmdAngle = runUpStick * BEGINNER_CONFIG.maxTiltDeg * DEG2RAD;
+  const cmdAngle = runUpStick * PLAN_ENVELOPE.maxTiltDeg * DEG2RAD;
   const k = Math.min(1, DT / TILT_LAG);
   while (vNow < v && tRunUp < 8) {
     angle += (cmdAngle - angle) * k;
@@ -465,7 +478,7 @@ export function planCircle(opts: {
   const aIn = (v * v) / r;
   const aFwd = LINEAR_DAMPING * v;
   const bank = Math.atan(Math.hypot(aIn, aFwd) / G) / DEG2RAD;
-  const mag = bank / BEGINNER_CONFIG.maxTiltDeg;
+  const mag = bank / PLAN_ENVELOPE.maxTiltDeg;
   // The drag term, expressed as a rotation away from "straight at the centre".
   const lead = Math.atan2(aFwd, aIn);
   const lap = (2 * Math.PI * r) / v;
@@ -488,4 +501,35 @@ export function planCircle(opts: {
   steps.push({ at: end, stick: { roll: 0, pitch: runUpStick * 0.6 }, caption: c[6] });
   steps.push({ at: end + 1.2, stick: { roll: 0, pitch: 0 } });
   return steps;
+}
+
+/**
+ * A planned stick hold, converted into the same command on the active airframe.
+ *
+ * The planner works in stick units against `PLAN_ENVELOPE`; a drone with its own
+ * `handling` reads that same stick as a bigger angle, a faster turn or a quicker
+ * climb. Rescaling by the ratio of the limits keeps the PHYSICAL command — the
+ * bank angle, the yaw rate, the climb rate — exactly what the plan solved for,
+ * so a demonstration still stops on its markers whatever is flying it.
+ *
+ * Throttle is the odd channel: it is centred at 0.5 in Altitude Hold, so it is
+ * the OFFSET from centre that scales, not the value.
+ */
+export function scaleScriptedStick(
+  s: Partial<StickInput>,
+  cfg: ControllerConfig,
+): Partial<StickInput> {
+  if (cfg === PLAN_ENVELOPE) return s;
+  const tilt = PLAN_ENVELOPE.maxTiltDeg / cfg.maxTiltDeg;
+  const yaw = PLAN_ENVELOPE.maxYawRate / cfg.maxYawRate;
+  const climb = PLAN_ENVELOPE.maxClimbRate / cfg.maxClimbRate;
+  const clamp1 = (v: number) => Math.max(-1, Math.min(1, v));
+  return {
+    ...(s.roll !== undefined && { roll: clamp1(s.roll * tilt) }),
+    ...(s.pitch !== undefined && { pitch: clamp1(s.pitch * tilt) }),
+    ...(s.yaw !== undefined && { yaw: clamp1(s.yaw * yaw) }),
+    ...(s.throttle !== undefined && {
+      throttle: Math.max(0, Math.min(1, 0.5 + (s.throttle - 0.5) * climb)),
+    }),
+  };
 }
