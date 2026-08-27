@@ -2,7 +2,7 @@ import { useUiStore, type Section } from '../state/uiStore';
 import { getDrone } from '../plugins/registry';
 import { usePilotStore } from '../state/pilotStore';
 import { ArenaShowcase } from '../scene/ArenaShowcase';
-import { IconChevron, IconDrone, IconMedal, IconSignal, IconTarget, IconCap } from './icons';
+import { IconChevron, IconDrone, IconMedal, IconSignal, IconCap } from './icons';
 
 /** Compact pilot/progression badge shown in the menu's bottom-left corner. */
 function PilotBadge() {
@@ -36,6 +36,10 @@ interface ModeCard {
   accent: string;
 }
 
+// Three cards, not four. Practice is reachable from the sidebar like every
+// other section; on the front page it sat between Free Flight and Training
+// saying much the same thing as both, so the row now names three clearly
+// different things to do. `.mode-row` holds the column count.
 const CARDS: ModeCard[] = [
   {
     id: 'free-flight',
@@ -45,15 +49,6 @@ const CARDS: ModeCard[] = [
     icon: <IconDrone size={34} />,
     target: 'fly',
     accent: '#3b82f6',
-  },
-  {
-    id: 'practice',
-    title: 'Practice',
-    lines: ['Master your skills with', 'guided drills.'],
-    cta: 'Start Practice',
-    icon: <IconTarget size={34} />,
-    target: 'practice',
-    accent: '#22c55e',
   },
   {
     id: 'training',

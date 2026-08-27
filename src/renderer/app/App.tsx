@@ -24,14 +24,6 @@ function MainArea() {
       return <Viewport />;
     case 'settings':
       return <SettingsPanel />;
-    case 'practice':
-      return (
-        <Placeholder
-          title="Practice"
-          phase="Phase 4"
-          blurb="Free-form drills: hover, square, circle and figure-8 patterns with instant feedback."
-        />
-      );
     case 'training':
       return <TrainingScreen />;
     case 'missions':

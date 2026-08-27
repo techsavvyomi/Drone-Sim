@@ -942,8 +942,8 @@ button {
 /* ---- Mode cards ---- */
 .mode-row {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 16px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 24px;
   max-width: 1140px;
 }
 .mcard {
@@ -1095,8 +1095,11 @@ button {
 
 /* ---- Home refinements: wider cards, corner accent, pilot badge ---- */
 .mode-row {
+  /* No cap: the three cards take the full frame, the way the four used to.
+     Every fixed cap tried here read as "marooned in the middle" on a wide
+     display — 1040 and 1500 both left more empty frame than card. */
   max-width: none;
-  gap: 20px;
+  gap: 32px;
   /* Collect the slack above the cards so they sit low in the frame rather
      than floating in the middle, then hold a gap before the bottom bar. */
   margin-top: auto;
@@ -1105,7 +1108,8 @@ button {
 .mcard {
   position: relative;
   overflow: hidden;
-  padding: 28px 20px 20px;
+  /* Roomier than the four-card row, which had to stay narrow to fit. */
+  padding: 38px 30px 30px;
 }
 /* Checkered corner flash, echoing race-flag styling. */
 .mcard::after {

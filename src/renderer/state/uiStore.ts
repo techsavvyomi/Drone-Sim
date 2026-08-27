@@ -2,10 +2,11 @@ import { create } from 'zustand';
 
 // Which dashboard section is active. Phase 0 ships the shell; most sections are
 // placeholders that later phases fill in (Training, Missions, Studio, STEM).
+// Practice is gone: it promised free-form drills that Flight School now covers,
+// and a nav entry that opens a placeholder is a dead end wearing a label.
 export type Section =
   | 'home'
   | 'fly'
-  | 'practice'
   | 'training'
   | 'missions'
   | 'studio'

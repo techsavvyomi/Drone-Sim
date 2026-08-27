@@ -7,14 +7,12 @@ import {
   IconGear,
   IconHome,
   IconMedal,
-  IconTarget,
   IconTools,
 } from './icons';
 
 const NAV: { id: Section; label: string; icon: React.ReactNode }[] = [
   { id: 'home', label: 'Home', icon: <IconHome /> },
   { id: 'fly', label: 'Free Flight', icon: <IconDrone /> },
-  { id: 'practice', label: 'Practice', icon: <IconTarget /> },
   { id: 'training', label: 'Training', icon: <IconCap /> },
   { id: 'missions', label: 'Missions', icon: <IconMedal /> },
   { id: 'studio', label: 'Studio', icon: <IconTools /> },
