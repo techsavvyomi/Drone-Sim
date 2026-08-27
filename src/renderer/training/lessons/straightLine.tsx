@@ -1,6 +1,7 @@
 import { CUE, lineDeviation, type Lesson } from './types';
 import { flyMission } from './mission';
 import { solveCoast } from './demoFlight';
+import { KEYS_THROTTLE } from './preflight';
 import { HOVER, gate, home } from './arena';
 
 // Module 7 — Straight Flight. The first module flown as a whole FLIGHT: arm it,
@@ -24,11 +25,12 @@ import { HOVER, gate, home } from './arena';
 // painted on the gate itself and "the blue one" stops being enough the moment
 // there is a second blue one on the field.
 //
-// Judged at hover height, not at the gate's own 2.6 m: this module shows no
-// throttle, so it is flown level at whatever auto take-off left it at, and a
-// checkpoint at the middle of the opening would ask for a climb the pilot has
-// not been taught. The opening runs from 0.9 m to 4.3 m, so a level pass goes
-// through it.
+// Judged at hover height, not at the gate's own 2.6 m. The DRILL is one stick
+// held straight, so the checkpoint has to sit where a level pass finds it; a
+// checkpoint at the middle of the opening would turn the module into a climb.
+// The opening runs from 0.9 m to 4.3 m, so a level pass goes through it. The
+// throttle is on the row — it has been since Module 3 — but as the answer to a
+// drift, not as a fourth thing to fly.
 const START = home('H');
 const TARGET = gate('blue-near', 'A', { ease: 1.3, height: HOVER, tag: 'A' });
 const ROUTE = [TARGET] as const;
@@ -39,11 +41,11 @@ const OUT_M = Math.hypot(TARGET.at[0] - START.at[0], TARGET.at[2] - START.at[2])
 
 const LEGS = [{ hint: 'Pitch forward — take it straight through A', cue: CUE.forward }];
 
-// ONE stick in the whole flight: pitch, and only forward. Getting up and
+// ONE stick in the DEMONSTRATION: pitch, and only forward. Getting up and
 // getting down are the SPACE take-off and landing already taught in Modules 1
-// and 2, so the module puts three controls on screen — arm, take off / land,
-// pitch forward — instead of re-teaching the throttle, and the demonstration
-// presses exactly those three and nothing else.
+// and 2, so the demo presses arm, take off and pitch forward and nothing else —
+// what the pilot is asked to copy is one straight run, not a three-channel
+// flight.
 //
 // With no pitch-back key there is no brake, so the run is flown the only way it
 // can be: push, let go early, and drift onto the mark. `solveCoast` sizes the
@@ -135,13 +137,15 @@ export const straightLineLesson: Lesson = {
     hint: 'Press ENTER to arm',
   },
 
-  // Three controls, one per thing the pilot has to do. The throttle caps used to
-  // sit here as well, which made a flight with one stick in it look like a
-  // flight with three.
+  // PITCH FORWARD is the whole drill — the module is one stick held straight —
+  // but the throttle stays on the row from Module 3. A pilot who drifts off
+  // height has the control to answer it; the row taking it away is what made a
+  // recoverable flight look unrecoverable.
   keys: [
     { code: 'Enter', label: 'ENTER', hint: 'Arm' },
     { code: 'Space', label: 'SPACE', hint: 'Take Off / Land' },
     { code: 'ArrowUp', label: '↑', hint: 'Pitch Forward' },
+    ...KEYS_THROTTLE,
   ],
 
   tips: [

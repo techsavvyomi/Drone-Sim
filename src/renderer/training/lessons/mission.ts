@@ -59,6 +59,8 @@ const ROUTE_KEY = 'rt';
  *  Arm and take-off's shares live in `preflight.ts`, which owns those stages. */
 const W_ROUTE = 0.6;
 const W_LAND = 0.2;
+/** A stick drill's share, for `withFlight`. Same budget as a route. */
+const W_DRILL = W_ROUTE;
 
 /** One leg of the route: what to say, and which control says it without words. */
 export interface MissionLeg {
@@ -152,14 +154,33 @@ export function flyMission(
   // Stage 4 — put it down. The route is flown; this is the part the pilot has
   // to be TOLD, because nothing on screen is asking for it any more.
   mem.wp = ROUTE_STEP + route.length;
-  const flown = W_ARM + W_TAKEOFF + W_ROUTE;
+  return landOn(p, mem, spot, W_ARM + W_TAKEOFF + W_ROUTE, W_LAND, 'Distance done');
+}
+
+/**
+ * Bring it down on `spot` — the last stage of any flight that ends on the deck.
+ *
+ * Shared because it is the same walk whether the flight was a route or a stick
+ * drill: line up, come down, sit still. `base` is where the bar already stands
+ * and `span` is what the landing is worth, so a caller can spend its own budget
+ * on it. `done` is what to call the part just finished, for the hint.
+ */
+export function landOn(
+  p: Probe,
+  mem: LessonMemory,
+  spot: LandingSpot,
+  base: number,
+  span: number,
+  done = 'Route complete',
+): ValidationResult {
+  const flown = base;
   const dist = horizontalDist(p.position, spot.at[0], spot.at[1]);
   const offSpot = dist > PAD_R;
   if (!p.onGround && offSpot) {
     return {
       done: false,
       progress: flown,
-      hint: `Route complete. Line up over ${spot.name}`,
+      hint: `${done}. Line up over ${spot.name}`,
       cue: [],
     };
   }
@@ -187,7 +208,12 @@ export function flyMission(
   if (settled >= 1) {
     // How far off centre it came down, for a lesson that scores the touchdown.
     mem.finalDist = dist;
-    return { done: true, progress: 1, hint: `Landed on ${spot.name}. Well flown`, cue: [] };
+    return {
+      done: true,
+      progress: base + span,
+      hint: `Landed on ${spot.name}. Well flown`,
+      cue: [],
+    };
   }
 
   // The descent runs for several seconds, so it moves the bar WHILE IT RUNS
@@ -203,8 +229,51 @@ export function flyMission(
 
   return {
     done: false,
-    progress: flown + W_LAND * (p.onGround ? 0.7 + 0.3 * settled : 0.7 * fall),
-    hint: p.onGround ? 'Hold it steady' : 'Distance done. Press SPACE to land',
+    progress: flown + span * (p.onGround ? 0.7 + 0.3 * settled : 0.7 * fall),
+    hint: p.onGround ? 'Hold it steady' : `${done}. Press SPACE to land`,
     cue: CUE.autoLand,
   };
+}
+
+/**
+ * A stick drill flown as a whole flight: arm, take off, the drill, land.
+ *
+ * `flyMission` is this for a lesson whose middle is a ROUTE. This is the same
+ * frame around a drill that is not — the throttle band, a quarter turn, a run
+ * out to a marker — so Modules 3 to 6 are complete flights rather than exercises
+ * suspended in mid-air. Every module already began on the pad; this is what puts
+ * it back on one.
+ *
+ * The drill's own `done` is a LATCH, not the lesson's: once it fires the drill
+ * stops being asked and the landing takes over. That is also what keeps a
+ * module which treats an early touchdown as a write-off (Module 3) from failing
+ * the pilot for the landing it has just been told to make.
+ *
+ * `drillSteps` is how many step chips the drill contributes, so the Land chip
+ * can be numbered without every lesson counting its own row twice.
+ */
+export function withFlight(
+  p: Probe,
+  mem: LessonMemory,
+  drill: (p: Probe, mem: LessonMemory) => ValidationResult,
+  drillSteps: number,
+  spot: LandingSpot = HOME,
+): ValidationResult {
+  if (p.crashed) return { done: false, failed: true, hint: 'Crashed. Try again', cue: [] };
+
+  const pre = preflight(p, mem);
+  if (pre) return pre;
+
+  if (!mem.drillDone) {
+    const r = drill(p, mem);
+    if (typeof mem.wp === 'number') mem.wp += PREFLIGHT_STEPS;
+    if (!r.done) {
+      if (r.progress === undefined) return r;
+      return { ...r, progress: W_ARM + W_TAKEOFF + W_DRILL * clamp01(r.progress) };
+    }
+    mem.drillDone = 1;
+  }
+
+  mem.wp = PREFLIGHT_STEPS + drillSteps;
+  return landOn(p, mem, spot, W_ARM + W_TAKEOFF + W_DRILL, W_LAND, 'Drill done');
 }

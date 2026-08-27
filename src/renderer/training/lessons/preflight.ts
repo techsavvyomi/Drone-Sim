@@ -44,15 +44,55 @@ export const PREFLIGHT_STAGES: readonly LessonStage[] = [
 ];
 
 /**
- * The two caps every lesson's keycap row opens with.
+ * The two caps a lesson's keycap row opens with when the flight does not land.
  *
- * SPACE reads "Take Off" rather than "Take Off / Land" on a module that does not
- * land: naming a step the lesson never asks for is how a pilot ends up looking
- * for it. The whole-flight modules write their own pair.
+ * SPACE reads "Take Off" rather than "Take Off / Land" there: naming a step the
+ * lesson never asks for is how a pilot ends up looking for it.
  */
 export const PREFLIGHT_KEYS: readonly KeyHint[] = [
   { code: 'Enter', label: 'ENTER', hint: 'Arm' },
   { code: 'Space', label: 'SPACE', hint: 'Take Off' },
+];
+
+/** ...and when it does. The same two keys, doing both halves of their job. */
+export const FLIGHT_KEYS: readonly KeyHint[] = [
+  { code: 'Enter', label: 'ENTER', hint: 'Arm' },
+  { code: 'Space', label: 'SPACE', hint: 'Take Off / Land' },
+];
+
+/** The chip that closes a flight that comes back down. */
+export const LAND_STAGE: LessonStage = { label: 'Land', cap: 'SPACE' };
+
+// ----------------------------------------------------------------------------
+// The four control pairs, named once.
+//
+// A module keeps every control the modules before it taught: Module 4 flies yaw
+// AND still has the throttle, Module 6 has all four pairs. A pilot who has been
+// shown a control does not un-learn it at the next lesson, and a row that takes
+// keys away reads as the aircraft having lost them.
+//
+// Each lesson lists its OWN pair first and the inherited ones behind, so the row
+// answers "what is today about" before it answers "what else can I do".
+// ----------------------------------------------------------------------------
+
+export const KEYS_THROTTLE: readonly KeyHint[] = [
+  { code: 'KeyS', label: 'S', hint: 'Throttle Down' },
+  { code: 'KeyW', label: 'W', hint: 'Throttle Up' },
+];
+
+export const KEYS_YAW: readonly KeyHint[] = [
+  { code: 'KeyA', label: 'A', hint: 'Yaw Left' },
+  { code: 'KeyD', label: 'D', hint: 'Yaw Right' },
+];
+
+export const KEYS_PITCH: readonly KeyHint[] = [
+  { code: 'ArrowUp', label: '↑', hint: 'Pitch Forward' },
+  { code: 'ArrowDown', label: '↓', hint: 'Pitch Backward' },
+];
+
+export const KEYS_ROLL: readonly KeyHint[] = [
+  { code: 'ArrowLeft', label: '←', hint: 'Roll Left' },
+  { code: 'ArrowRight', label: '→', hint: 'Roll Right' },
 ];
 
 /**
