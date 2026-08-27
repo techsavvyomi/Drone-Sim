@@ -58,7 +58,15 @@ export const guruDrone: DroneSpec = {
   // The export is not origin-centred — it sits ~126 mm off in X. This recentres
   // it on the prop centroid and drops the visual so its lowest point rests on
   // the collider floor (Drone.tsx uses a fixed 0.024 m half-height).
-  modelOffset: [-0.1263, -0.0398, -0.0454],
+  //
+  // Y is MEASURED, not chosen, and the old -0.0398 was 36 mm too low: the
+  // export's lowest geometry sits at +0.01436 authored units (the model is
+  // entirely ABOVE its own origin), so
+  //   (-0.024 - 0.01436 * 1.1013 * 2.5) / 2.5 = -0.02541
+  // puts the landing legs on the collider's underside. At -0.0398 they sank
+  // through the deck in every arena, which is what made the trainer look like
+  // it was parked in the concrete rather than on it.
+  modelOffset: [-0.1263, -0.02541, -0.0454],
   // The CAD export ships three white props and one black, which reads as an
   // asymmetry rather than an orientation cue. Both pairs are set explicitly so
   // the result is a clean black nose / white tail whatever the .glb bakes in.

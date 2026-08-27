@@ -45,7 +45,11 @@ export const plutoDrone: DroneSpec = {
   // The CAD model is authored facing +Z; the sim's convention is forward = -Z,
   // so the visual needs a half turn to match the physics heading.
   modelYawDeg: 180,
-  modelOffset: [0, 0.01, 0],
+  // Same rule as the other two: the lowest drawn geometry lands on the collider
+  // floor at -0.024 m. The model's own minimum is -0.03467, drawn at 1.5x, so
+  //   (-0.024 - (-0.03467 * 1.5)) / 1.5 = 0.01867
+  // The old flat 0.01 buried the prop guards 13 mm into the ground.
+  modelOffset: [0, 0.01867, 0],
   // Rate-loop gains output angular acceleration (rad/s^2) per rad/s of error
   // (see FlightController's inertia-normalized torque). p ~ loop bandwidth.
   pidDefaults: {
