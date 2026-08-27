@@ -1,7 +1,8 @@
-import { clamp01, cueBetween, flyRoute, type Checkpoint, type Lesson } from './types';
+import { cueBetween, type Checkpoint, type Lesson } from './types';
 import { flyMission, type MissionLeg } from './mission';
 import { planDemo } from './demoFlight';
 import { HOVER, gate, home, routeLegs } from './arena';
+import { PREFLIGHT_STAGES, PREFLIGHT_STEPS } from './preflight';
 import { ACADEMY_PAD } from '../../plugins/environments/droneAcademy';
 
 // Modules 12-14 — Navigation. Three routes of growing length flown through the
@@ -90,49 +91,50 @@ function navLesson(cfg: {
       0.48,
       { face: true },
     ),
-    { gap: 0.45, startAt: cfg.wholeFlight ? TAKEOFF_AT + 1.6 : 3.0 },
+    { gap: 0.45, startAt: TAKEOFF_AT + 1.6 },
   );
   const LANDS_AT = (routeDemo[routeDemo.length - 1]?.at ?? 0) + 1.4;
 
-  const flightDemo = cfg.wholeFlight
-    ? [
-        { at: 0.0, caption: 'On the pad, motors off' },
-        {
-          at: ARM_AT,
-          stage: 0,
-          cmd: 'arm' as const,
-          key: 'Enter',
-          caption: 'ENTER — armed and live',
-        },
-        {
-          at: TAKEOFF_AT,
-          stage: 1,
-          cmd: 'takeoffLand' as const,
-          key: 'Space',
-          caption: 'SPACE — it climbs to a hover on its own',
-        },
-        // The route legs sit two steps into the row: Arm, Take off, then the
-        // gates.
-        ...routeDemo.map((step) => ({
-          ...step,
-          stage: step.stage === undefined ? undefined : step.stage + 2,
-        })),
-        {
-          at: LANDS_AT,
-          stage: 2 + route.length,
-          // Waits for the aircraft to actually be over the "H". The route is a
-          // ninety-second open-loop flight through four gates and five turns,
-          // and the error adds up: fired on the clock, the landing put the drone
-          // down beside gate D, which is the one place the lesson has just
-          // finished telling the pilot NOT to leave it.
-          waitNear: { x: ACADEMY_PAD.center[0], z: ACADEMY_PAD.center[1], reach: 3 },
-          cmd: 'takeoffLand' as const,
-          key: 'Space',
-          caption: 'Back over the "H". SPACE puts it down',
-        },
-        { at: LANDS_AT + 3.0, cmd: 'disarm' as const, key: 'Enter', caption: 'Motors off' },
-      ]
-    : routeDemo;
+  const flightDemo = [
+    { at: 0.0, caption: 'On the pad, motors off' },
+    {
+      at: ARM_AT,
+      stage: 0,
+      cmd: 'arm' as const,
+      key: 'Enter',
+      caption: 'ENTER — armed and live',
+    },
+    {
+      at: TAKEOFF_AT,
+      stage: 1,
+      cmd: 'takeoffLand' as const,
+      key: 'Space',
+      caption: 'SPACE — it climbs to a hover on its own',
+    },
+    // The route legs sit two steps into the row: Arm, Take off, then the gates.
+    ...routeDemo.map((step) => ({
+      ...step,
+      stage: step.stage === undefined ? undefined : step.stage + PREFLIGHT_STEPS,
+    })),
+    ...(cfg.wholeFlight
+      ? [
+          {
+            at: LANDS_AT,
+            stage: PREFLIGHT_STEPS + route.length,
+            // Waits for the aircraft to actually be over the "H". The route is a
+            // ninety-second open-loop flight through four gates and five turns,
+            // and the error adds up: fired on the clock, the landing put the drone
+            // down beside gate D, which is the one place the lesson has just
+            // finished telling the pilot NOT to leave it.
+            waitNear: { x: ACADEMY_PAD.center[0], z: ACADEMY_PAD.center[1], reach: 3 },
+            cmd: 'takeoffLand' as const,
+            key: 'Space',
+            caption: 'Back over the "H". SPACE puts it down',
+          },
+          { at: LANDS_AT + 3.0, cmd: 'disarm' as const, key: 'Enter', caption: 'Motors off' },
+        ]
+      : []),
+  ];
 
   return {
     id: cfg.id,
@@ -147,21 +149,16 @@ function navLesson(cfg: {
 
     route,
 
-    // The two shorter routes open at a hover, like every drill that is not
-    // itself about getting off the ground. The full circuit does not: it is
-    // flown from the pad and back onto it.
-    startAirborne: !cfg.wholeFlight,
+    // Every module is flown from the pad now. The full circuit also comes back
+    // down onto it; the two shorter routes end when the last gate is taken.
 
-    // A whole flight's row lists what the PILOT does, in order — the gates are
-    // the middle of it, not the whole of it (#35).
-    stages: cfg.wholeFlight
-      ? [
-          { label: 'Arm', cap: 'ENTER' },
-          { label: 'Take off', cap: 'SPACE' },
-          ...route.map((c) => ({ label: c.label })),
-          { label: 'Land', cap: 'SPACE' },
-        ]
-      : undefined,
+    // The row lists what the PILOT does, in order — the gates are the middle of
+    // it, not the whole of it (#35).
+    stages: [
+      ...PREFLIGHT_STAGES,
+      ...route.map((c) => ({ label: c.label })),
+      ...(cfg.wholeFlight ? [{ label: 'Land', cap: 'SPACE' }] : []),
+    ],
 
     // Flown from the route itself, so the demonstration takes the same pads in
     // the same order the attempt is graded on — it cannot drift out of step
@@ -171,8 +168,8 @@ function navLesson(cfg: {
     practice: {
       prompt: cfg.wholeFlight
         ? `Arm, take off, fly ${labels} in order, then land on the "H"`
-        : `Fly the route ${labels}, in order`,
-      hint: cfg.wholeFlight ? 'Press ENTER to arm' : `Fly to ${route[0].label}`,
+        : `Arm, take off, then fly the route ${labels}, in order`,
+      hint: 'Press ENTER to arm',
     },
 
     // The throttle belongs on this row. These gates stand between 2.4 m and 5 m
@@ -181,12 +178,11 @@ function navLesson(cfg: {
     // the route needs is here too, because navigation is the module where they
     // are finally used together.
     keys: [
-      ...(cfg.wholeFlight
-        ? [
-            { code: 'Enter', label: 'ENTER', hint: 'Arm' },
-            { code: 'Space', label: 'SPACE', hint: 'Take Off / Land' },
-          ]
-        : []),
+      // A module that lands says so on the cap; the shorter routes end in the
+      // air, and naming a step the lesson never asks for is how a pilot ends up
+      // looking for it.
+      { code: 'Enter', label: 'ENTER', hint: 'Arm' },
+      { code: 'Space', label: 'SPACE', hint: cfg.wholeFlight ? 'Take Off / Land' : 'Take Off' },
       { code: 'ArrowUp', label: '↑', hint: 'Pitch Forward' },
       { code: 'ArrowDown', label: '↓', hint: 'Pitch Backward' },
       { code: 'ArrowLeft', label: '←', hint: 'Roll Left' },
@@ -210,16 +206,15 @@ function navLesson(cfg: {
 
     validate: (p, mem) => {
       if (p.crashed) return { done: false, failed: true, hint: 'Crashed. Try again', cue: [] };
-      // Height is only a technique score once the drone is up. On the full
-      // circuit it starts on the deck, and grading the take-off against the
-      // first gate's altitude would spend the star before the flight began.
-      if (!cfg.wholeFlight || mem.airborne) {
+      // Height is only a technique score once the drone is up. Every module
+      // starts on the deck now, and grading the take-off against the first
+      // gate's altitude would spend the star before the flight began.
+      if (mem.airborne) {
         mem.altDev = Math.max(mem.altDev ?? 0, Math.abs(p.altitude - route[0].at[1]));
       }
 
-      // The full circuit is a FLIGHT: arm, take off, the route, land on the
-      // "H". Everything before and after the gates is the same walk every whole
-      // flight makes, so it is the same code.
+      // The full circuit is a FLIGHT that also LANDS: arm, take off, the route,
+      // down on the "H". `flyMission` walks all of it, preflight included.
       if (cfg.wholeFlight) {
         return flyMission(p, mem, route, legs, {
           strict: true,
@@ -227,23 +222,13 @@ function navLesson(cfg: {
         });
       }
 
-      const r = flyRoute(mem, p.position, route, { strict: true });
-      if (r.outOfOrder) {
-        return {
-          done: false,
-          failed: true,
-          hint: `Wrong one. The route is ${labels}. Start again`,
-          cue: [],
-        };
-      }
-      if (r.complete) return { done: true, progress: 1, hint: 'Route complete', cue: [] };
-      const from = r.next === 0 ? start : route[r.next - 1].at;
-      return {
-        done: false,
-        progress: clamp01(r.progress),
-        hint: `Fly to ${route[r.next].label}`,
-        cue: cueBetween(from, route[r.next].at),
-      };
+      // The shorter routes are the same flight minus the landing: `spot: null`
+      // finishes them the moment the last gate is taken.
+      return flyMission(p, mem, route, legs, {
+        spot: null,
+        strict: true,
+        wrongHint: `Wrong one. The route is ${labels}. Start again`,
+      });
     },
 
     stars: [
@@ -279,8 +264,8 @@ export const navABLesson = navLesson({
     'A fixed route: through gate A, then over to gate B.',
     'Take them out of order and you start again.',
   ],
-  timeout: 60,
-  threeStarSec: 42,
+  timeout: 70,
+  threeStarSec: 50,
 });
 
 export const navABCLesson = navLesson({
@@ -293,8 +278,8 @@ export const navABCLesson = navLesson({
     'Three gates now: A, then B, then C, the green one.',
     'Fly through each gate. Skip one and you start again.',
   ],
-  timeout: 65,
-  threeStarSec: 55,
+  timeout: 75,
+  threeStarSec: 63,
 });
 
 // The last module of the course, and the only one that asks for everything at

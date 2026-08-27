@@ -2,6 +2,13 @@ import { clamp01, cueBetween, flyRoute, lineDeviation, type Lesson } from './typ
 import { planDemo } from './demoFlight';
 import { marker, routeLegs } from './arena';
 import { ACADEMY_PAD } from '../../plugins/environments/droneAcademy';
+import {
+  PREFLIGHT_KEYS,
+  PREFLIGHT_STAGES,
+  afterPreflightDemo,
+  preflightDemo,
+  withPreflight,
+} from './preflight';
 
 // Module 10 — Triangle Circuit, on three of the helipad's white markers: an
 // apex straight out IN FRONT of the "H" and two behind it, symmetrical either
@@ -71,34 +78,43 @@ export const triangleLesson: Lesson = {
 
   route: ROUTE,
 
-  // Opens at a hover: the drone is placed there rather than flying up to it,
-  // so the lesson starts on its own drill instead of on a take-off.
-  startAirborne: true,
   hoverHeight: FLY_AT,
 
+  stages: [
+    ...PREFLIGHT_STAGES,
+    { label: 'Out to A' },
+    { label: 'Side to B' },
+    { label: 'Side to C' },
+    { label: 'Close at A' },
+  ],
+
   demo: [
-    ...planDemo(
-      routeLegs(
-        ROUTE,
-        [
-          { caption: 'Straight ahead to A', arrive: 'Stop on A' },
-          { caption: 'A to B — both sticks, back and to the left', arrive: 'Stop on B' },
-          { caption: 'B to C — straight across, one stick', arrive: 'Stop on C' },
-          { caption: 'C back up to A, and the loop is closed', arrive: 'Triangle complete' },
-        ],
-        undefined,
+    ...preflightDemo('SPACE — it climbs to the circuit height on its own'),
+    ...afterPreflightDemo(
+      planDemo(
+        routeLegs(
+          ROUTE,
+          [
+            { caption: 'Straight ahead to A', arrive: 'Stop on A' },
+            { caption: 'A to B — both sticks, back and to the left', arrive: 'Stop on B' },
+            { caption: 'B to C — straight across, one stick', arrive: 'Stop on C' },
+            { caption: 'C back up to A, and the loop is closed', arrive: 'Triangle complete' },
+          ],
+          undefined,
+          { from: START },
+        ),
         { from: START },
       ),
-      { from: START },
     ),
   ],
 
   practice: {
-    prompt: 'Fly A, B and C in order along the sides, then back to A',
-    hint: 'Fly straight ahead to Corner A',
+    prompt: 'Arm, take off, then fly A, B and C in order along the sides, and back to A',
+    hint: 'Press ENTER to arm',
   },
 
   keys: [
+    ...PREFLIGHT_KEYS,
     { code: 'ArrowUp', label: '↑', hint: 'Pitch Forward' },
     { code: 'ArrowDown', label: '↓', hint: 'Pitch Backward' },
     { code: 'ArrowLeft', label: '←', hint: 'Roll Left' },
@@ -114,48 +130,47 @@ export const triangleLesson: Lesson = {
     'Floating past a corner instead of stopping on it.',
   ],
 
-  validate: (p, mem) => {
-    if (p.crashed) return { done: false, failed: true, hint: 'Crashed. Try again', cue: [] };
+  validate: (p, mem) =>
+    withPreflight(p, mem, (p, mem) => {
+      const r = flyRoute(mem, p.position, ROUTE);
+      if (r.complete) return { done: true, progress: 1, hint: 'Triangle complete', cue: [] };
 
-    const r = flyRoute(mem, p.position, ROUTE);
-    if (r.complete) return { done: true, progress: 1, hint: 'Triangle complete', cue: [] };
+      const target = ROUTE[r.next];
+      const from = r.next === 0 ? START : ROUTE[r.next - 1].at;
+      const off = lineDeviation(p.position, from[0], from[2], target.at[0], target.at[2]);
+      if (r.next > 0) mem.cut = Math.max(mem.cut ?? 0, off);
 
-    const target = ROUTE[r.next];
-    const from = r.next === 0 ? START : ROUTE[r.next - 1].at;
-    const off = lineDeviation(p.position, from[0], from[2], target.at[0], target.at[2]);
-    if (r.next > 0) mem.cut = Math.max(mem.cut ?? 0, off);
-
-    const wandered = r.next > 0 && off > SIDE_TOL;
-    return {
-      done: false,
-      progress: clamp01(r.progress),
-      hint: wandered
-        ? 'Off the side. Get back on the line to the next corner'
-        : r.next === ROUTE.length - 1
-          ? 'Last side — close the triangle back at Corner A'
-          : `Fly the side to ${target.label}`,
-      cue: cueBetween(from, target.at),
-    };
-  },
+      const wandered = r.next > 0 && off > SIDE_TOL;
+      return {
+        done: false,
+        progress: clamp01(r.progress),
+        hint: wandered
+          ? 'Off the side. Get back on the line to the next corner'
+          : r.next === ROUTE.length - 1
+            ? 'Last side — close the triangle back at Corner A'
+            : `Fly the side to ${target.label}`,
+        cue: cueBetween(from, target.at),
+      };
+    }),
 
   stars: [
     {
       stars: 3,
-      text: 'Sides within 2.5 m, lap under 55s, nothing touched',
+      text: 'Off the pad, sides within 2.5 m, lap under 65s, nothing touched',
       test: ({ touches, timeSec, collisions, smoothness, mem }) =>
         collisions === 0 &&
         touches === 0 &&
         (mem.cut ?? 0) <= 2.5 &&
-        timeSec <= 55 &&
+        timeSec <= 65 &&
         smoothness >= 0.3,
     },
     {
       stars: 2,
-      text: `Sides within ${SIDE_TOL} m, lap under 90s`,
+      text: `Off the pad, sides within ${SIDE_TOL} m, lap under 100s`,
       test: ({ timeSec, collisions, mem }) =>
-        collisions === 0 && (mem.cut ?? 0) <= SIDE_TOL && timeSec <= 90,
+        collisions === 0 && (mem.cut ?? 0) <= SIDE_TOL && timeSec <= 100,
     },
   ],
 
-  practiceTimeout: 60,
+  practiceTimeout: 70,
 };

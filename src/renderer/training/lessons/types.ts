@@ -333,11 +333,6 @@ export interface Lesson {
     band?: number;
   };
 
-  /** This lesson BEGINS at a hover: the drone is placed in the air rather than
-   *  flying up to it. A landing drill that opens by watching a take-off spends
-   *  its first seconds on the previous lesson. */
-  startAirborne?: boolean;
-
   /** How high that hover is, in metres. Defaults to `HOVER`.
    *
    *  The circuits fly higher than the stick drills do, and for a reason that is

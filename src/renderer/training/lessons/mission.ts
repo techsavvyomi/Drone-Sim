@@ -10,6 +10,7 @@ import {
   type Probe,
   type ValidationResult,
 } from './types';
+import { preflight, PREFLIGHT_STEPS, W_ARM, W_TAKEOFF } from './preflight';
 
 // ----------------------------------------------------------------------------
 // A whole flight, as one validator.
@@ -46,22 +47,16 @@ import {
 /** How close to the landing spot the touchdown has to be, in metres. */
 const PAD_R = 1.6;
 /** Landing's share of the bar, redistributed when a module does not land. */
-/** Above this the drone counts as airborne and the route begins. */
-const AIRBORNE_ALT = 1.2;
 /** Seconds the drone must sit still on the pad before the landing counts. */
 const SETTLE_SEC = 0.8;
-/** Arming is refused above this throttle, so say so rather than let the pilot
- *  press ENTER at a controller that is ignoring it. */
-const ARM_THROTTLE_MAX = 0.62;
 
 /** Where the route sits in the step row: after Arm and Take off. */
-const ROUTE_STEP = 2;
+const ROUTE_STEP = PREFLIGHT_STEPS;
 /** The route walks on its own cursor, because `mem.wp` is the STEP row's. */
 const ROUTE_KEY = 'rt';
 
-/** Share of the bar each stage of the flight is worth. They sum to 1. */
-const W_ARM = 0.08;
-const W_TAKEOFF = 0.12;
+/** Share of the bar each stage of the flight is worth. They sum to 1.
+ *  Arm and take-off's shares live in `preflight.ts`, which owns those stages. */
 const W_ROUTE = 0.6;
 const W_LAND = 0.2;
 
@@ -122,35 +117,10 @@ export function flyMission(
   const scale = spot ? 1 : 1 / (W_ARM + W_TAKEOFF + W_ROUTE);
   if (p.crashed) return { done: false, failed: true, hint: 'Crashed. Try again', cue: [] };
 
-  // Stage 1 — arm.
-  if (!p.armed && !mem.wasArmed) {
-    mem.wp = 0;
-    if (p.throttle > ARM_THROTTLE_MAX) {
-      mem.blocked = 1;
-      return {
-        done: false,
-        progress: 0,
-        hint: 'Throttle is up. Centre it first, then arm',
-        cue: CUE.throttleDown,
-      };
-    }
-    return { done: false, progress: 0, hint: 'Press ENTER to arm', cue: CUE.arm };
-  }
-  if (p.armed) mem.wasArmed = 1;
-
-  // Stage 2 — take off.
-  if (!mem.airborne) {
-    if (p.altitude >= AIRBORNE_ALT) mem.airborne = 1;
-    else {
-      mem.wp = 1;
-      return {
-        done: false,
-        progress: scale * (W_ARM + W_TAKEOFF * clamp01(p.altitude / AIRBORNE_ALT)),
-        hint: 'Press SPACE to take off',
-        cue: CUE.autoTakeoff,
-      };
-    }
-  }
+  // Stages 1 and 2 — arm, then take off. Shared with every other module now
+  // that they all begin on the pad; see `preflight.ts`.
+  const pre = preflight(p, mem, scale);
+  if (pre) return pre;
 
   // Stage 3 — the route.
   const r = flyRoute(mem, p.position, route, { key: ROUTE_KEY, strict: opts.strict });

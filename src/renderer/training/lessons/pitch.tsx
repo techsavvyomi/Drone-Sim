@@ -1,6 +1,13 @@
 import { CUE, clamp01, flyRoute, type Lesson } from './types';
 import { planDemo } from './demoFlight';
 import { HOVER, gate, home, routeLegs } from './arena';
+import {
+  PREFLIGHT_KEYS,
+  PREFLIGHT_STAGES,
+  afterPreflightDemo,
+  preflightDemo,
+  withPreflight,
+} from './preflight';
 
 // Module 5 — Pitch Control. Forward and back on one stick, flown to the blue
 // square gate standing 16 m straight off the nose. It is the first thing a
@@ -36,31 +43,37 @@ export const pitchLesson: Lesson = {
 
   route: ROUTE,
 
-  // Opens at a hover: the drone is placed there rather than flying up to it,
-  // so the lesson starts on its own drill instead of on a take-off.
-  startAirborne: true,
+  stages: [
+    ...PREFLIGHT_STAGES,
+    { label: 'Out to the gate', cap: '↑' },
+    { label: 'Back to the start', cap: '↓' },
+  ],
 
   demo: [
-    ...planDemo(
-      routeLegs(ROUTE, [
-        {
-          caption: 'PITCH FORWARD — straight out to the blue gate',
-          arrive: 'PITCH BACKWARD to stop on it. Levelling off only coasts',
-        },
-        {
-          caption: 'PITCH BACKWARD — all the way back to the start',
-          arrive: 'PITCH FORWARD again to stop on the spot',
-        },
-      ]),
+    ...preflightDemo(),
+    ...afterPreflightDemo(
+      planDemo(
+        routeLegs(ROUTE, [
+          {
+            caption: 'PITCH FORWARD — straight out to the blue gate',
+            arrive: 'PITCH BACKWARD to stop on it. Levelling off only coasts',
+          },
+          {
+            caption: 'PITCH BACKWARD — all the way back to the start',
+            arrive: 'PITCH FORWARD again to stop on the spot',
+          },
+        ]),
+      ),
     ),
   ],
 
   practice: {
-    prompt: 'Pitch forward to the blue gate, then pitch backward to the start',
-    hint: 'Pitch forward to the blue gate',
+    prompt: 'Arm, take off, pitch forward to the blue gate, then back to the start',
+    hint: 'Press ENTER to arm',
   },
 
   keys: [
+    ...PREFLIGHT_KEYS,
     { code: 'ArrowUp', label: '↑', hint: 'Pitch Forward' },
     { code: 'ArrowDown', label: '↓', hint: 'Pitch Backward' },
   ],
@@ -71,39 +84,39 @@ export const pitchLesson: Lesson = {
   ],
   commonMistakes: ['Pushing too hard and flying past the gate.'],
 
-  validate: (p, mem) => {
-    if (p.crashed) return { done: false, failed: true, hint: 'Crashed. Try again', cue: [] };
-    mem.wander = Math.max(mem.wander ?? 0, Math.abs(p.position[0]));
+  validate: (p, mem) =>
+    withPreflight(p, mem, (p, mem) => {
+      mem.wander = Math.max(mem.wander ?? 0, Math.abs(p.position[0]));
 
-    const r = flyRoute(mem, p.position, ROUTE);
-    if (r.complete)
-      return { done: true, progress: 1, hint: 'Back at the start. Nicely flown', cue: [] };
-    return {
-      done: false,
-      progress: clamp01(r.progress),
-      hint: r.next === 0 ? 'Pitch forward to the blue gate' : 'Pitch backward, back to the start',
-      cue: r.next === 0 ? CUE.forward : CUE.backward,
-    };
-  },
+      const r = flyRoute(mem, p.position, ROUTE);
+      if (r.complete)
+        return { done: true, progress: 1, hint: 'Back at the start. Nicely flown', cue: [] };
+      return {
+        done: false,
+        progress: clamp01(r.progress),
+        hint: r.next === 0 ? 'Pitch forward to the blue gate' : 'Pitch backward, back to the start',
+        cue: r.next === 0 ? CUE.forward : CUE.backward,
+      };
+    }),
 
   stars: [
     {
       stars: 3,
-      text: 'Out and back in 32s, under 2.5 m sideways, nothing touched',
+      text: 'Off the pad, out and back in 40s, under 2.5 m sideways, nothing touched',
       test: ({ touches, timeSec, collisions, smoothness, mem }) =>
         collisions === 0 &&
         touches === 0 &&
         (mem.wander ?? 0) <= 2.5 &&
-        timeSec <= 32 &&
+        timeSec <= 40 &&
         smoothness >= 0.3,
     },
     {
       stars: 2,
-      text: 'Out and back in 55s, under 5 m sideways',
+      text: 'Off the pad, out and back in 65s, under 5 m sideways',
       test: ({ timeSec, collisions, mem }) =>
-        collisions === 0 && (mem.wander ?? 0) <= 5 && timeSec <= 55,
+        collisions === 0 && (mem.wander ?? 0) <= 5 && timeSec <= 65,
     },
   ],
 
-  practiceTimeout: 45,
+  practiceTimeout: 55,
 };

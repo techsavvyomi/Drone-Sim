@@ -146,7 +146,6 @@ const ACC_SMOOTH_HZ = 12;
 const CRASH_HOLD = 0.12;
 
 const GROUND_ALT = 0.4;
-const TAKEOFF_ALT = 1.8;
 const MAX_ANGVEL = 40;
 
 /**
@@ -181,9 +180,10 @@ function autoThrust(
   verticalSpeed: number,
   mass: number,
   hoverThrust: number,
+  takeoffAlt: number,
 ): number {
   // Landing descent is deliberately gentle (~0.4 m/s), per spec.
-  const climbRate = auto === 'takeoff' ? clamp(0.9 * (TAKEOFF_ALT - altitude), -0.8, 1.2) : -0.4;
+  const climbRate = auto === 'takeoff' ? clamp(0.9 * (takeoffAlt - altitude), -0.8, 1.2) : -0.4;
   return hoverThrust + mass * 4.0 * (climbRate - verticalSpeed);
 }
 
@@ -599,7 +599,14 @@ export function Drone({ spec, spawn, bounds, outdoor = false, groundY }: DronePr
 
     let thrustOverride: number | undefined;
     if (auto !== 'manual') {
-      thrustOverride = autoThrust(auto, pos.y, lin.y, rb.mass(), hoverThrust);
+      thrustOverride = autoThrust(
+        auto,
+        pos.y,
+        lin.y,
+        rb.mass(),
+        hoverThrust,
+        useSimStore.getState().takeoffAlt,
+      );
     }
 
     const out = controller.update(
@@ -1075,7 +1082,8 @@ export function Drone({ spec, spawn, bounds, outdoor = false, groundY }: DronePr
 
     if (
       flight.auto === 'takeoff' &&
-      (pilotOverride || (altitude >= TAKEOFF_ALT - 0.05 && Math.abs(verticalSpeed) < 0.3))
+      (pilotOverride ||
+        (altitude >= useSimStore.getState().takeoffAlt - 0.05 && Math.abs(verticalSpeed) < 0.3))
     ) {
       // Auto-takeoff bypasses the altitude controller, so its previous target
       // is still the launch height. Capture the reached hover altitude before

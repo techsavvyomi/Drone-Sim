@@ -2,6 +2,13 @@ import { clamp01, cueBetween, flyRoute, lineDeviation, type Lesson } from './typ
 import { planDemo } from './demoFlight';
 import { marker, routeLegs } from './arena';
 import { ACADEMY_PAD } from '../../plugins/environments/droneAcademy';
+import {
+  PREFLIGHT_KEYS,
+  PREFLIGHT_STAGES,
+  afterPreflightDemo,
+  preflightDemo,
+  withPreflight,
+} from './preflight';
 
 // Module 9 — Square Circuit, flown on four of the white markers ringing the
 // helipad. They sit at the four diagonals of the ring, which puts them at the
@@ -65,34 +72,45 @@ export const squareLesson: Lesson = {
   route: ROUTE,
   hoverHeight: FLY_AT,
 
-  // Opens at a hover: the drone is placed there rather than flying up to it,
-  // so the lesson starts on its own drill instead of on a take-off.
-  startAirborne: true,
+  // The row lists what the pilot does, in order — the two that get the drone
+  // up, then the corners.
+  stages: [
+    ...PREFLIGHT_STAGES,
+    { label: 'Out to A' },
+    { label: 'Side to B' },
+    { label: 'Side to C' },
+    { label: 'Side to D' },
+    { label: 'Close at A' },
+  ],
 
   demo: [
-    ...planDemo(
-      routeLegs(
-        ROUTE,
-        [
-          { caption: 'Out to A', arrive: 'Stop square on it' },
-          { caption: 'Side 1 — one stick only', arrive: 'Stop on B' },
-          { caption: 'Side 2 — one stick only', arrive: 'Stop on C' },
-          { caption: 'Side 3 — one stick only', arrive: 'Stop on D' },
-          { caption: 'Side 4 — back to A, the loop is closed', arrive: 'One clean square' },
-        ],
-        undefined,
+    ...preflightDemo('SPACE — it climbs to the circuit height on its own'),
+    ...afterPreflightDemo(
+      planDemo(
+        routeLegs(
+          ROUTE,
+          [
+            { caption: 'Out to A', arrive: 'Stop square on it' },
+            { caption: 'Side 1 — one stick only', arrive: 'Stop on B' },
+            { caption: 'Side 2 — one stick only', arrive: 'Stop on C' },
+            { caption: 'Side 3 — one stick only', arrive: 'Stop on D' },
+            { caption: 'Side 4 — back to A, the loop is closed', arrive: 'One clean square' },
+          ],
+          undefined,
+          { from: START },
+        ),
         { from: START },
       ),
-      { from: START },
     ),
   ],
 
   practice: {
-    prompt: 'Fly A, B, C and D in order along the sides, then back to A',
-    hint: 'Fly the side to Corner A',
+    prompt: 'Arm, take off, then fly A, B, C and D in order along the sides, and back to A',
+    hint: 'Press ENTER to arm',
   },
 
   keys: [
+    ...PREFLIGHT_KEYS,
     { code: 'ArrowUp', label: '↑', hint: 'Pitch Forward' },
     { code: 'ArrowDown', label: '↓', hint: 'Pitch Backward' },
     { code: 'ArrowLeft', label: '←', hint: 'Roll Left' },
@@ -105,50 +123,49 @@ export const squareLesson: Lesson = {
   ],
   commonMistakes: ['Cutting across the middle.', 'Making the corners round.'],
 
-  validate: (p, mem) => {
-    if (p.crashed) return { done: false, failed: true, hint: 'Crashed. Try again', cue: [] };
+  validate: (p, mem) =>
+    withPreflight(p, mem, (p, mem) => {
+      const r = flyRoute(mem, p.position, ROUTE);
+      if (r.complete) return { done: true, progress: 1, hint: 'Square complete', cue: [] };
 
-    const r = flyRoute(mem, p.position, ROUTE);
-    if (r.complete) return { done: true, progress: 1, hint: 'Square complete', cue: [] };
+      // How far off the side being flown. The first leg runs from the pad out to
+      // Corner A and is not part of the square, so it is not judged.
+      const target = ROUTE[r.next];
+      const from = r.next === 0 ? START : ROUTE[r.next - 1].at;
+      const off = lineDeviation(p.position, from[0], from[2], target.at[0], target.at[2]);
+      if (r.next > 0) mem.cut = Math.max(mem.cut ?? 0, off);
 
-    // How far off the side being flown. The first leg runs from the pad out to
-    // Corner A and is not part of the square, so it is not judged.
-    const target = ROUTE[r.next];
-    const from = r.next === 0 ? START : ROUTE[r.next - 1].at;
-    const off = lineDeviation(p.position, from[0], from[2], target.at[0], target.at[2]);
-    if (r.next > 0) mem.cut = Math.max(mem.cut ?? 0, off);
-
-    const wandered = r.next > 0 && off > SIDE_TOL;
-    return {
-      done: false,
-      progress: clamp01(r.progress),
-      hint: wandered
-        ? 'Off the side. Get back on the line, do not cross the middle'
-        : r.next === ROUTE.length - 1
-          ? 'Last side — close the square back at Corner A'
-          : `Fly the side to ${target.label}`,
-      cue: cueBetween(from, target.at),
-    };
-  },
+      const wandered = r.next > 0 && off > SIDE_TOL;
+      return {
+        done: false,
+        progress: clamp01(r.progress),
+        hint: wandered
+          ? 'Off the side. Get back on the line, do not cross the middle'
+          : r.next === ROUTE.length - 1
+            ? 'Last side — close the square back at Corner A'
+            : `Fly the side to ${target.label}`,
+        cue: cueBetween(from, target.at),
+      };
+    }),
 
   stars: [
     {
       stars: 3,
-      text: 'Sides within 2.2 m, lap under 60s, nothing touched',
+      text: 'Off the pad, sides within 2.2 m, lap under 70s, nothing touched',
       test: ({ touches, timeSec, collisions, smoothness, mem }) =>
         collisions === 0 &&
         touches === 0 &&
         (mem.cut ?? 0) <= 2.2 &&
-        timeSec <= 60 &&
+        timeSec <= 70 &&
         smoothness >= 0.3,
     },
     {
       stars: 2,
-      text: `Sides within ${SIDE_TOL} m, lap under 95s`,
+      text: `Off the pad, sides within ${SIDE_TOL} m, lap under 105s`,
       test: ({ timeSec, collisions, mem }) =>
-        collisions === 0 && (mem.cut ?? 0) <= SIDE_TOL && timeSec <= 95,
+        collisions === 0 && (mem.cut ?? 0) <= SIDE_TOL && timeSec <= 105,
     },
   ],
 
-  practiceTimeout: 60,
+  practiceTimeout: 70,
 };

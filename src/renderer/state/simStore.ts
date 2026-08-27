@@ -40,6 +40,8 @@ interface SimState extends TelemetrySample {
   resetToken: number;
   /** See `setSpawnLift`. Read by the drone's reset effect. */
   spawnLift: number;
+  /** See `setTakeoffAlt`. Read by the drone's auto-takeoff. */
+  takeoffAlt: number;
 
   setTelemetry: (sample: TelemetrySample) => void;
   setClock: (tick: number, simTime: number) => void;
@@ -51,8 +53,20 @@ interface SimState extends TelemetrySample {
    *  BEGIN in the air: Module 2 is a landing drill, and watching the drone climb
    *  first is thirty seconds of the previous lesson before this one starts. */
   setSpawnLift: (metres: number) => void;
+  /** Height the SPACE auto-takeoff climbs to, in metres.
+   *
+   *  1.8 m everywhere else — the standard hover. Flight School raises it for the
+   *  shape circuits, which are flown at 3.3 m so the lettered corners can be
+   *  read looking down rather than edge-on across the pad. Those modules show
+   *  the four arrows and no throttle, so a take-off that stopped at the standard
+   *  hover would leave the pilot 1.5 m below a route they have no control to
+   *  climb to. */
+  setTakeoffAlt: (metres: number) => void;
   reset: () => void;
 }
+
+/** The standard hover an auto-takeoff climbs to, in metres. */
+export const DEFAULT_TAKEOFF_ALT = 1.8;
 
 const initialTelemetry: TelemetrySample = {
   position: [0, 0, 0],
@@ -89,11 +103,13 @@ export const useSimStore = create<SimState>((set) => ({
   fps: 0,
   resetToken: 0,
   spawnLift: 0,
+  takeoffAlt: DEFAULT_TAKEOFF_ALT,
 
   setTelemetry: (sample) => set(sample),
   setClock: (tick, simTime) => set({ tick, simTime }),
   setFps: (fps) => set({ fps }),
   requestReset: () => set((s) => ({ resetToken: s.resetToken + 1, tick: 0, simTime: 0 })),
   setSpawnLift: (spawnLift) => set({ spawnLift }),
+  setTakeoffAlt: (takeoffAlt) => set({ takeoffAlt }),
   reset: () => set({ ...initialTelemetry, tick: 0, simTime: 0 }),
 }));

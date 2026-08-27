@@ -1,6 +1,13 @@
 import { CUE, clamp01, flyRoute, type Lesson } from './types';
 import { planDemo } from './demoFlight';
 import { marker, routeLegs } from './arena';
+import {
+  PREFLIGHT_KEYS,
+  PREFLIGHT_STAGES,
+  afterPreflightDemo,
+  preflightDemo,
+  withPreflight,
+} from './preflight';
 
 // Module 6 — Roll Control. Pure sideways movement, flown between the white
 // markers ringing the helipad. They are level with the pad, symmetrical either
@@ -37,31 +44,37 @@ export const rollLesson: Lesson = {
 
   route: ROUTE,
 
-  // Opens at a hover: the drone is placed there rather than flying up to it,
-  // so the lesson starts on its own drill instead of on a take-off.
-  startAirborne: true,
+  stages: [
+    ...PREFLIGHT_STAGES,
+    { label: 'Out to the left marker', cap: '←' },
+    { label: 'Across to the right', cap: '→' },
+  ],
 
   demo: [
-    ...planDemo(
-      routeLegs(ROUTE, [
-        {
-          caption: 'ROLL LEFT — slide out to the left marker',
-          arrive: 'ROLL RIGHT to stop on it. Levelling off only coasts',
-        },
-        {
-          caption: 'ROLL RIGHT — straight across to the right marker',
-          arrive: 'ROLL LEFT again to stop on it. Both markers cleared',
-        },
-      ]),
+    ...preflightDemo(),
+    ...afterPreflightDemo(
+      planDemo(
+        routeLegs(ROUTE, [
+          {
+            caption: 'ROLL LEFT — slide out to the left marker',
+            arrive: 'ROLL RIGHT to stop on it. Levelling off only coasts',
+          },
+          {
+            caption: 'ROLL RIGHT — straight across to the right marker',
+            arrive: 'ROLL LEFT again to stop on it. Both markers cleared',
+          },
+        ]),
+      ),
     ),
   ],
 
   practice: {
-    prompt: 'Roll left to the left marker, then roll right to the right one',
-    hint: 'Roll left to the left marker',
+    prompt: 'Arm, take off, roll left to the left marker, then right to the other',
+    hint: 'Press ENTER to arm',
   },
 
   keys: [
+    ...PREFLIGHT_KEYS,
     { code: 'ArrowLeft', label: '←', hint: 'Roll Left' },
     { code: 'ArrowRight', label: '→', hint: 'Roll Right' },
   ],
@@ -72,34 +85,34 @@ export const rollLesson: Lesson = {
     'Letting the nose turn. That is yaw, not roll.',
   ],
 
-  validate: (p, mem) => {
-    if (p.crashed) return { done: false, failed: true, hint: 'Crashed. Try again', cue: [] };
-    mem.wander = Math.max(mem.wander ?? 0, Math.abs(p.position[2]));
+  validate: (p, mem) =>
+    withPreflight(p, mem, (p, mem) => {
+      mem.wander = Math.max(mem.wander ?? 0, Math.abs(p.position[2]));
 
-    const r = flyRoute(mem, p.position, ROUTE);
-    if (r.complete) return { done: true, progress: 1, hint: 'Both markers cleared', cue: [] };
-    const leg = LEGS[r.next];
-    return { done: false, progress: clamp01(r.progress), hint: leg.hint, cue: leg.cue };
-  },
+      const r = flyRoute(mem, p.position, ROUTE);
+      if (r.complete) return { done: true, progress: 1, hint: 'Both markers cleared', cue: [] };
+      const leg = LEGS[r.next];
+      return { done: false, progress: clamp01(r.progress), hint: leg.hint, cue: leg.cue };
+    }),
 
   stars: [
     {
       stars: 3,
-      text: 'Both markers in 24s, under 2 m off line, nothing touched',
+      text: 'Off the pad, both markers in 32s, under 2 m off line, nothing touched',
       test: ({ touches, timeSec, collisions, smoothness, mem }) =>
         collisions === 0 &&
         touches === 0 &&
         (mem.wander ?? 0) <= 2 &&
-        timeSec <= 24 &&
+        timeSec <= 32 &&
         smoothness >= 0.3,
     },
     {
       stars: 2,
-      text: 'Both markers in 40s, under 4 m off line',
+      text: 'Off the pad, both markers in 50s, under 4 m off line',
       test: ({ timeSec, collisions, mem }) =>
-        collisions === 0 && (mem.wander ?? 0) <= 4 && timeSec <= 40,
+        collisions === 0 && (mem.wander ?? 0) <= 4 && timeSec <= 50,
     },
   ],
 
-  practiceTimeout: 45,
+  practiceTimeout: 55,
 };

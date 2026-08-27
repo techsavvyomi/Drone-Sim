@@ -140,8 +140,16 @@ function demoRepeats(lesson: Lesson, seen: boolean): number {
 
 function resetDrone(lesson: Lesson): void {
   // Ask for the spawn height BEFORE the reset: the drone's reset effect reads it
-  // when it places the body.
-  useSimStore.getState().setSpawnLift(lesson.startAirborne ? (lesson.hoverHeight ?? HOVER) : 0);
+  // when it places the body. Every module is flown from the pad now, so this
+  // clears any lift a previous caller left on the store rather than choosing
+  // one — a lesson that opened at a hover is what let a pilot reach Module 11
+  // having pressed ENTER once, in Module 1.
+  useSimStore.getState().setSpawnLift(0);
+  // And how high SPACE should carry it. Every module begins on the pad now, so
+  // the take-off has to finish at the height the lesson is actually flown at —
+  // the shape circuits run at 3.3 m and hand the pilot no throttle to climb the
+  // difference with.
+  useSimStore.getState().setTakeoffAlt(lesson.hoverHeight ?? HOVER);
   useSimStore.getState().requestReset();
   const flight = useFlightStore.getState();
   flight.disarm();
