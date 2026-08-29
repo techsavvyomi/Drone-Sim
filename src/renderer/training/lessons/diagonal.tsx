@@ -18,7 +18,26 @@ import { ACADEMY_PAD } from '../../plugins/environments/droneAcademy';
 // time is a different exercise. It is flown level in altitude hold now, judged
 // at hover height the way Module 5 judges its gate, and it takes off and lands
 // on the SPACE sequences from Modules 1 and 2 like Module 7 does.
-const TARGET = gate('green-right', 'Green gate', { ease: 1.4, height: HOVER, tag: 'A' });
+// A BALL of light on the checkpoint instead of a letter beside it, the way
+// Module 7 marks its gate. The exercise here is the PASS, not the name — there
+// is one target and then the way home — so a letter answers a question nobody is
+// asking, while the ball answers "where exactly, and did I get it".
+//
+// It matters more here than it does on Module 7, because this checkpoint is NOT
+// in the gate. The green rectangle stands 5 m up and the run is flown level in
+// altitude hold, so the point being judged sits at hover height well below the
+// opening. A letter hanging there said nothing about that; the ball IS the
+// acceptance volume, so what the pilot flies at and what the validator scores
+// are the same thing.
+//
+// `tag` stays: the letter is gone from the arena, but the minimap still names
+// the checkpoint with it.
+const TARGET = gate('green-right', 'Green gate', {
+  ease: 1.4,
+  height: HOVER,
+  tag: 'A',
+  orb: true,
+});
 const ROUTE = [TARGET, home('H')] as const;
 
 const LEGS = [
