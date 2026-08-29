@@ -40,7 +40,7 @@ export const HOVER = 1.8;
 export function gate(
   id: string,
   label: string,
-  opts: { ease?: number; through?: boolean; height?: number; tag?: string } = {},
+  opts: { ease?: number; through?: boolean; height?: number; tag?: string; orb?: boolean } = {},
 ): Checkpoint {
   const g = academyGate(id);
   // Every gate is modelled facing local +Z — the torus hole and the square
@@ -51,6 +51,10 @@ export function gate(
   return {
     label,
     tag: opts.tag,
+    // A ball of light in the opening instead of a letter on it — see
+    // `Checkpoint.orb`. Sized off `markSize` by the guide, so a gate asks for
+    // one without also having to say how big it should be.
+    orb: opts.orb,
     // `height` moves the point the lesson is judged on to the height the pilot
     // will actually be at. A module that shows no throttle keys is flown level
     // in altitude hold, and a checkpoint sitting at the gate's own centre then
@@ -99,12 +103,21 @@ export function pad(label: string, opts: { height?: number; tag?: string } = {})
 export function marker(
   index: number,
   label: string,
-  opts: { height?: number; tag?: string } = {},
+  opts: { height?: number; tag?: string; pillar?: boolean; orb?: boolean } = {},
 ): Checkpoint {
   const [x, z] = academyMarker(index);
   return {
     label,
     tag: opts.tag,
+    // A column of pink light standing on the marker instead of the thin yellow
+    // beam — see `Checkpoint.pillar`. Sized off `reach` by the guide, so a
+    // corner asks for one without also having to say how wide it should be.
+    pillar: opts.pillar,
+    // Or a BALL on it instead of a column. Sized off `reach` by the guide, like
+    // the pillar is, so a corner asks for one without saying how big it should
+    // be — which on a ground checkpoint means the ball IS the acceptance sphere
+    // rather than a token floating near it.
+    orb: opts.orb,
     at: [x, opts.height ?? HOVER, z],
     reach: 1.8,
     mark: 'marker',
