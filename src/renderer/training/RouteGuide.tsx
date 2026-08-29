@@ -5,6 +5,7 @@ import { useTrainingStore } from '../state/trainingStore';
 import { getLesson } from './lessons';
 import type { Checkpoint } from './lessons/types';
 import { ACADEMY_PAD } from '../plugins/environments/droneAcademy';
+import { CheckpointSphere, ORB_EDGE } from '../scene/CheckpointSphere';
 
 // The route guide.
 //
@@ -20,8 +21,8 @@ import { ACADEMY_PAD } from '../plugins/environments/droneAcademy';
 // lines hanging in the air and became a yellow stripe painted flat across the
 // arena floor.
 //
-// Two things are left, and both are opt-in, so a lesson gets neither by simply
-// naming two points.
+// Four things are left, and each is opt-in, so a lesson gets none of them by
+// simply naming two points.
 //
 //   - A NAME on the target, for a lesson that calls its checkpoint something
 //     the field does not say by itself. Module 7 sends the pilot through the
@@ -32,6 +33,19 @@ import { ACADEMY_PAD } from '../plugins/environments/droneAcademy';
 //   - Module 11's RING, the one shape that is not an arena object at all: there
 //     is nothing standing on the field to fly around, so without it the lesson
 //     is "fly a circle of some radius somewhere near the pad".
+//
+//   - An ORB, for a checkpoint that is a hole to be flown through rather than a
+//     thing to be named: a ball of pink light hanging in the middle of the
+//     opening, which goes out as the drone passes through it. Module 7 flies it
+//     instead of a letter. Same rule as the letter — asked for one checkpoint
+//     at a time, never handed out for simply having a route.
+//
+//   - A PILLAR, the orb's answer for a checkpoint that is a place on the GROUND:
+//     a column of the same pink light standing on the spot, as wide as the
+//     checkpoint's own acceptance radius, which the drone flies INTO and which
+//     goes out behind it. The shape circuits fly them — a corner is a patch of
+//     air over one of sixteen identical white markers, and that is exactly what
+//     a ball hanging at flying height cannot point at.
 /** The circle lesson's painted lap line. Red, so it cannot be taken for one of
  *  the pad's own white markings — it is the one thing on that deck the pilot is
  *  being asked to fly. */
@@ -63,6 +77,114 @@ const BEAM = '#ffd21f';
  *  through it does not hide the corner underneath. */
 const BEAM_H = 7;
 const BEAM_R = 0.34;
+/** How much of a gate's opening the ball fills, as a fraction of the opening.
+ *
+ *  Big. It is the thing the pilot flies AT from sixteen metres, and a modest
+ *  ball at that range is a dot. It is deliberately not "as much as fits": the
+ *  orb sits on the CHECKPOINT, which on a module flown level in altitude hold is
+ *  at hover height rather than at the middle of the frame, so a ball wide enough
+ *  to touch the uprights would also be buried in the bottom bar. The corona
+ *  spills well past this — it is additive and allowed to lie over the frame —
+ *  so the ball itself stays comfortably inside the hole. */
+const ORB_FILL = 0.33;
+/** Seconds a light on this field takes to go out once its checkpoint is behind
+ *  the drone. The orb keeps its own copy of this timing; the pillar reads it
+ *  from here so the two go out together. */
+const ORB_FADE = 0.4;
+/** How far ABOVE its checkpoint a gate's ball is drawn, in metres.
+ *
+ *  The checkpoint sits at hover height, because that is the height the module is
+ *  judged at and a module flown level in altitude hold cannot be asked to climb
+ *  to a mark it has not been taught to reach. The gate's OPENING is higher than
+ *  that — the blue near gate is centred at 2.6 m and hover is 1.8 — so a ball
+ *  drawn honestly on the checkpoint hangs in the bottom of the hole and buries
+ *  its lower half in the bottom bar.
+ *
+ *  So the light goes up and the checkpoint stays put. `CheckpointSphere` clamps
+ *  this to `reach - radius`, which for that gate is 1.99 - 1.12 = 0.87 m, so the
+ *  whole visible ball is still inside the volume that scores however far this is
+ *  turned up. Raise it toward the ceiling to centre the ball in the opening;
+ *  this sits under it, because a ball that fills the middle of the hole also
+ *  hides the hole. */
+const ORB_LIFT = 0.6;
+/** How far above the checkpoint the pillar's column ends, in metres.
+ *
+ *  Enough headroom that a corner taken a little high still enters the light —
+ *  a column stopping dead at the flown height is a disc seen from the cockpit,
+ *  and clearing it by half a metre would miss a checkpoint the pilot was
+ *  visibly on. Not more than that: at 1.6 m the columns stood nearly a third
+ *  taller than they were wide and read as chimneys standing round the pad
+ *  rather than as marks on it.
+ *
+ *  This is ALL the height there is to give back, and it is worth being plain
+ *  about why. The column runs from the DECK up past the checkpoint, because a
+ *  mark on the ground is the whole reason it exists — so on the shape circuits
+ *  its height is `FLY_AT` (3.3 m) plus this, and `FLY_AT` is a curriculum
+ *  number, not a drawing one. Everything above the checkpoint is the only part
+ *  anybody gets to choose, and at 0.25 there is just enough for a corner taken
+ *  a little high to still be inside the light and no more.
+ *
+ *  What that buys: 3.41 m tall against 3.6 m across, so the column is now wider
+ *  than it is tall. Widening it to make it look shorter is NOT an option — the
+ *  radius is the checkpoint's own `reach`, and the pink has to keep meaning
+ *  "inside here scores". */
+const PILLAR_TOP = 0.25;
+/** How much of the column's brightness survives to its top edge, 0..1, and how
+ *  much is left half way up.
+ *
+ *  It fades upward rather than ending in a hard rim. A ruled circle hanging in
+ *  the air reads as a hoop to be flown through, which is the wrong instruction —
+ *  the pilot is being asked to fly INTO this, at any height inside it.
+ *
+ *  Both were far lower, and between them they were most of why the columns came
+ *  out as pale dust rather than as pink light. The fade MULTIPLIES the wall's
+ *  opacity, so at 0.5 half way up it was quietly halving an alpha that was
+ *  already low — and half way up is exactly where the circuit is flown and where
+ *  the pilot is looking. Raising the floor of the fade lifts the whole column
+ *  without touching the shape of it. */
+const PILLAR_FADE_TOP = 0.05;
+const PILLAR_FADE_MID = 0.8;
+/** Where the top taper ends, as a fraction of the column's height measured DOWN
+ *  from its top, and what the column is worth once it is past it.
+ *
+ *  This is the shape that stops a column reading as a tall slab. Spread the fade
+ *  evenly from top to bottom and every part of it is half-lit, which looks like
+ *  a curtain hanging the full height of the thing; put the whole fade in the top
+ *  tenth instead and the column has a soft END, with everything below it at full
+ *  strength. Shorter to look at and brighter where it is flown, from the same
+ *  geometry.
+ *
+ *  It has to be a small fraction for a second reason: the circuit is flown near
+ *  the TOP of this column — 3.3 m of a 3.6 m column — so a taper that starts any
+ *  lower is dimming the band the pilot is actually inside. */
+const PILLAR_TAPER = 0.1;
+const PILLAR_FADE_SHOULDER = 0.55;
+/** The wall's opacity, and how much the live one's pulse adds on top.
+ *
+ *  Alpha-blended, so this is literally how much of the magenta survives against
+ *  the background: at 0.26 over pale concrete the wall came back as a dusty
+ *  mauve with the colour washed out of it. */
+const PILLAR_WALL = 0.4;
+const PILLAR_WALL_PULSE = 0.12;
+/** The light the column throws on the deck: its colour, its opacity, and its
+ *  pulse.
+ *
+ *  The colour is SATURATED, which is the whole point of changing it. The disc is
+ *  additive, so what it adds is what you get — and it used to add the orb's
+ *  near-white pale pink, which brightens all three channels almost equally and
+ *  therefore bleaches the concrete rather than colouring it. A saturated magenta
+ *  adds almost nothing to green, so the deck goes PINK instead of pale. */
+const PILLAR_POOL = '#ff5ce0';
+const PILLAR_DISC = 0.45;
+const PILLAR_DISC_PULSE = 0.2;
+/** How much of full brightness a corner that is NOT the one being flown to right
+ *  now keeps.
+ *
+ *  It was 0.4, which on top of everything else left the corners still to come
+ *  almost invisible — and on a shape circuit every remaining corner is part of
+ *  the shape the pilot is trying to see. Enough of a gap that the live one still
+ *  reads as the live one, and no more. */
+const PILLAR_DIM = 0.62;
 
 /**
  * A checkpoint's name, painted into a canvas.
@@ -141,13 +263,29 @@ function GroundLabel({ point }: { point: Checkpoint }) {
   // 6.8 m out on a 7 m slab, so a 2.4 m disc centred on one would hang most of
   // its far half over the grass — and the slab is 0.12 m proud, so that half
   // would be floating.
+  //
+  // NOT under a pillar, though. The pull-in moves the letter a full metre in
+  // from the checkpoint, and a pillar is drawn at the checkpoint's own reach —
+  // so a letter that has been slid a metre sideways inside a 1.8 m pool sits
+  // visibly off to one side of the light standing on it, and the two read as two
+  // different marks rather than as one. The light is the half that cannot move:
+  // it IS the acceptance volume, and sliding it to meet the paint would put the
+  // pink somewhere the validator does not score. So the paint moves back onto
+  // the checkpoint instead and is allowed to overhang.
+  //
+  // Which costs less than it sounds. The pillar's own pool is 1.8 m across at
+  // that same centre and already spills 1.6 m onto the grass, so the letter's
+  // 0.9 m is not a new kind of thing on the field — and it lands INSIDE that
+  // pool, where a bright additive light over the edge of the slab is doing most
+  // of the work of hiding where the concrete stops.
   const [x, z] = useMemo(() => {
+    if (point.pillar) return [px, pz];
     const [cx, cz] = ACADEMY_PAD.center;
     const r = Math.hypot(px - cx, pz - cz);
     const max = ACADEMY_PAD.radius - PAINT_M / 2;
     if (r <= max || r < 1e-6) return [px, pz];
     return [cx + ((px - cx) / r) * max, cz + ((pz - cz) / r) * max];
-  }, [px, pz]);
+  }, [px, pz, point.pillar]);
 
   return (
     <mesh rotation={[-Math.PI / 2, 0, 0]} position={[x, floorY(x, z), z]}>
@@ -188,6 +326,202 @@ function GateLabel({ point }: { point: Checkpoint }) {
         depthWrite={false}
       />
     </sprite>
+  );
+}
+
+/**
+ * A gate's checkpoint, marked with a ball of light instead of a letter.
+ *
+ * All of the light is `CheckpointSphere`'s; what is here is the part that is
+ * about the ARENA. `GateLabel` writes the checkpoint's name in the hole, which
+ * answers "which gate"; this answers "where exactly, and did I get it". On a
+ * module whose whole exercise is one straight line the second is the useful
+ * question: the pilot lines up on the light, holds it in the middle of the view,
+ * and flies through it.
+ *
+ * The LESSON stays the authority on whether the pass counted — `out` is its
+ * route cursor — but the sphere's own trigger is left armed underneath it, so
+ * the light also goes out the moment the drone is visibly inside it. The two
+ * agree by construction: the trigger is handed the checkpoint's own `reach`,
+ * which is the radius the validator scores on.
+ */
+function CheckpointOrb({ point, out }: { point: Checkpoint; out: boolean }) {
+  return (
+    <CheckpointSphere
+      position={point.at}
+      // A GATE's ball is sized off the opening it hangs in; anything else is
+      // sized off the checkpoint's own `reach`, which for a plain point is
+      // literally the sphere the validator tests. So on a ground corner the ball
+      // does not merely mark the checkpoint, it IS it — inside the light is
+      // scored and outside it is not, the same promise the pillar makes.
+      //
+      // `markSize` is no use off a gate: on a ring marker it is the size of the
+      // little white sphere itself, 0.9 m, and a third of that is a 30 cm token
+      // being aimed at from across the pad.
+      radius={point.mark === 'gate' ? (point.markSize ?? 3) * ORB_FILL : point.reach}
+      // `hole` first, and only `reach` when there is none.
+      //
+      // On a gate the lesson flies THROUGH, the two are different measurements:
+      // `reach` is how much slack there is ALONG the axis — generous, because a
+      // pass a moment early or late is the same pass — while `hole` is the half
+      // opening, and it is the one the validator tests across the axis. The
+      // sphere here has only one radius for every direction, so handing it
+      // `reach` would let the light go out for a drone that flew a couple of
+      // metres wide of the frame and never went through anything. `hole` is the
+      // conservative half of the pair: inside it is inside the pass on both
+      // axes, so the light can never claim a gate the lesson has not.
+      triggerRadius={point.hole ?? point.reach}
+      collected={out}
+      lift={ORB_LIFT}
+    />
+  );
+}
+
+/**
+ * The vertical falloff painted down a pillar's wall, as a one-pixel-wide texture.
+ *
+ * The column is brightest where it meets the deck — that is the corner, the
+ * thing being pointed at — and thins as it rises, so it never becomes a wall
+ * standing between the pilot and the rest of the shape. Drawn rather than
+ * fetched, like the halo and the letters: nothing on this project may come off
+ * the network. One column of pixels, stretched round the tube.
+ *
+ * Three.js flips textures vertically, so the canvas's TOP row is the cylinder's
+ * top — the faint end is written first.
+ */
+let pillarFalloff: THREE.CanvasTexture | undefined;
+
+function pillarTexture(): THREE.CanvasTexture {
+  if (pillarFalloff) return pillarFalloff;
+
+  const canvas = document.createElement('canvas');
+  canvas.width = 1;
+  canvas.height = 128;
+  const ctx = canvas.getContext('2d');
+  if (ctx) {
+    const g = ctx.createLinearGradient(0, 0, 0, 128);
+    g.addColorStop(0, `rgba(255, 255, 255, ${PILLAR_FADE_TOP})`);
+    g.addColorStop(PILLAR_TAPER, `rgba(255, 255, 255, ${PILLAR_FADE_SHOULDER})`);
+    g.addColorStop(0.55, `rgba(255, 255, 255, ${PILLAR_FADE_MID})`);
+    g.addColorStop(1, 'rgba(255, 255, 255, 1)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, 1, 128);
+  }
+  pillarFalloff = new THREE.CanvasTexture(canvas);
+  pillarFalloff.colorSpace = THREE.SRGBColorSpace;
+  return pillarFalloff;
+}
+
+/**
+ * A column of pink light STANDING ON a checkpoint, which the drone flies INTO.
+ *
+ * The ground answer to `CheckpointOrb`. A gate is a hole, and a ball hanging in
+ * it says "here, exactly". A corner of a circuit is a place on the DECK, and a
+ * ball over it says almost nothing: at flying height it is read against the sky
+ * from the far side of the pad, with no way to tell which of sixteen identical
+ * white markers is underneath it. A column has a foot. The pilot sees the spot
+ * on the ground and the space above it as one object, and the corner is taken by
+ * putting the aircraft inside the light rather than by watching a number.
+ *
+ * It is drawn at the checkpoint's own `reach`, which makes the pink volume the
+ * ACCEPTANCE volume: inside the light is scored, and outside it is not. That is
+ * the whole reason to prefer it to the yellow beam here — the beam is a 0.34 m
+ * pointer standing on a checkpoint judged at 1.8 m, so a corner could be flown
+ * visibly clear of the light and still count, or flown straight at the light and
+ * still come up short, and neither told the pilot anything they could act on.
+ *
+ * Alpha-blended rather than additive, for the same reason the orb's body is:
+ * additive over the academy's pale sky sums to white and the colour is gone at
+ * exactly the range the corner has to be picked out from. The disc on the DECK
+ * is additive, because it is lying on concrete — there additive reads as light
+ * thrown on the ground, and it brightens the painted letter under it instead of
+ * covering it up. Both depth-tested and neither writing depth: the drone inside
+ * the column is never hidden by it.
+ *
+ * `live` is this being the corner to fly to right now; the ones after it stand
+ * dimmer and still, so four columns still read as one shape with one of them
+ * awake. `out` is it being behind the aircraft: the column widens as it dims, so
+ * taking a corner is something the arena does in answer to the flight rather
+ * than a mesh being unmounted.
+ */
+function CheckpointPillar({
+  point,
+  live,
+  out,
+}: {
+  point: Checkpoint;
+  live: boolean;
+  out: boolean;
+}) {
+  const [x, y, z] = point.at;
+  const base = floorY(x, z);
+  const height = Math.max(y + PILLAR_TOP - base, 1);
+  const r = point.reach;
+
+  const group = useRef<THREE.Group>(null);
+  const wall = useRef<THREE.Material>(null);
+  const disc = useRef<THREE.Material>(null);
+  /** How lit it is, 0..1. Driven both ways, so a retried attempt lights the
+   *  corners back up instead of leaving dark stumps standing round the pad. */
+  const lit = useRef(1);
+
+  useFrame(({ clock }, dt) => {
+    // Clamped, like the orb: a frame lost to a shader compile or a window drag
+    // must not put the whole fade through in one step.
+    const step = Math.min(dt, 0.1) / ORB_FADE;
+    const t = (lit.current = out
+      ? Math.max(0, lit.current - step)
+      : Math.min(1, lit.current + step));
+
+    if (group.current) {
+      group.current.visible = t > 0.002;
+      // Wider, not taller. A column that grew upward as it went out would read
+      // as something being launched rather than as something being passed.
+      const s = 1 + 0.3 * (1 - t);
+      group.current.scale.set(s, 1, s);
+    }
+
+    // Shallow, and only on the live one — the same rule the beam follows. This
+    // is a landmark being aimed at, and something that visibly throbs is harder
+    // to hold a line on.
+    const pulse = live ? 0.5 + 0.5 * Math.sin(clock.elapsedTime * 1.7) : 0;
+    const k = t * (live ? 1 : PILLAR_DIM);
+    if (wall.current) wall.current.opacity = k * (PILLAR_WALL + PILLAR_WALL_PULSE * pulse);
+    if (disc.current) disc.current.opacity = k * (PILLAR_DISC + PILLAR_DISC_PULSE * pulse);
+  });
+
+  return (
+    <group ref={group} position={[x, base, z]}>
+      <mesh position={[0, height / 2, 0]}>
+        <cylinderGeometry args={[r, r, height, 40, 1, true]} />
+        <meshBasicMaterial
+          ref={wall}
+          map={pillarTexture()}
+          color={ORB_EDGE}
+          transparent
+          opacity={0.3}
+          side={THREE.DoubleSide}
+          depthWrite={false}
+        />
+      </mesh>
+      {/* The light it throws on the deck. Offset out of the concrete and
+          polygon-offset on top of it, the way every other marking here is, so it
+          never fights the pad's own paint for the same depth. */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 0]}>
+        <circleGeometry args={[r, 40]} />
+        <meshBasicMaterial
+          ref={disc}
+          color={PILLAR_POOL}
+          transparent
+          opacity={0.4}
+          depthWrite={false}
+          blending={THREE.AdditiveBlending}
+          polygonOffset
+          polygonOffsetFactor={-6}
+          polygonOffsetUnits={-6}
+        />
+      </mesh>
+    </group>
   );
 }
 
@@ -320,8 +654,9 @@ export function RouteGuide() {
   // by the third leg — exactly when the pilot most needs to see where the
   // closing side is going to run.
   //
-  // So the letters are the shape and the beam is the cursor: one tells you what
-  // you are flying, the other tells you which bit of it is next.
+  // So the letters are the shape and the beam — or, on the shape circuits, the
+  // pillar — is the cursor: one tells you what you are flying, the other tells
+  // you which bit of it is next.
   const named = useMemo(() => {
     const route = lesson?.route ?? [];
     return route
@@ -335,7 +670,7 @@ export function RouteGuide() {
         // reached — its beam has to survive the pass and go out at the end.
         last: route.reduce((n, d, j) => (samePlace(d, c) ? j : n), i),
       }))
-      .filter((e) => e.first && e.point.tag !== undefined);
+      .filter((e) => e.first && (e.point.tag !== undefined || e.point.orb || e.point.pillar));
   }, [lesson]);
 
   if (!lesson) return null;
@@ -353,6 +688,13 @@ export function RouteGuide() {
           the pilot is aiming to fly through hides the hole. */}
       {named.map((e, i) => {
         if (e.point.mark === 'gate') return null;
+        // A pillar already stands on this spot, and it is the wider, better-aimed
+        // column of the two. Two lit columns in one place read as two corners.
+        if (e.point.pillar) return null;
+        // Same rule for a ball. It is drawn at the checkpoint's own reach, so it
+        // is the better-aimed mark of the two — and a 7 m beam standing through
+        // the middle of it is a second, taller mark in the same place.
+        if (e.point.orb) return null;
         if (tracking && routeTarget > e.last) return null;
         return (
           <TargetBeam
@@ -362,13 +704,45 @@ export function RouteGuide() {
           />
         );
       })}
+      {/* The pillars, drawn before the letters so a lit column never paints over
+          the letter at its own foot: both are transparent and neither writes
+          depth, so what is drawn last wins.
+
+          `out` is not gated on `tracking`, for the same reason the orb's is not:
+          the flight ends the moment the last corner is scored, and a column that
+          lit back up over the result card would be undoing the pass the pilot
+          had just watched it acknowledge. */}
       {named.map((e, i) =>
-        e.point.mark === 'gate' ? (
+        e.point.pillar ? (
+          <CheckpointPillar
+            key={`pillar-${e.point.label}-${i}`}
+            point={e.point}
+            live={!!live && samePlace(live, e.point)}
+            out={routeTarget > e.last}
+          />
+        ) : null,
+      )}
+      {named.map((e, i) => {
+        // The orb is the one mark here that has a STATE, so it is the one that
+        // is told when its checkpoint has been taken. Not gated on `tracking`:
+        // the flight ends the moment the last checkpoint is scored, and a light
+        // that came back on over the result card would be undoing the pass the
+        // pilot had just watched it acknowledge.
+        if (e.point.orb) {
+          return (
+            <CheckpointOrb
+              key={`orb-${e.point.label}-${i}`}
+              point={e.point}
+              out={routeTarget > e.last}
+            />
+          );
+        }
+        return e.point.mark === 'gate' ? (
           <GateLabel key={`label-${e.point.label}-${i}`} point={e.point} />
         ) : (
           <GroundLabel key={`label-${e.point.label}-${i}`} point={e.point} />
-        ),
-      )}
+        );
+      })}
     </>
   );
 }
