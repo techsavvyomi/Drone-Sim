@@ -5,6 +5,7 @@ import { ACADEMY_PAD } from '../../plugins/environments/droneAcademy';
 import {
   PREFLIGHT_KEYS,
   PREFLIGHT_STAGES,
+  ROUTE_CURSOR,
   afterPreflightDemo,
   preflightDemo,
   withPreflight,
@@ -23,6 +24,15 @@ import {
 // says so in the hint and costs stars.
 // Lettered on the deck by the guide: four of sixteen identical white spheres is
 // not something a chip reading "Corner C" can point at on its own.
+//
+// Each corner also stands a PILLAR — a column of pink light as wide as the
+// checkpoint's own acceptance radius, rising from the deck through the height
+// the circuit is flown at. The letters say what the shape is; the pillar says
+// where the corner ENDS. It replaces the thin yellow beam that used to stand
+// here, which was a 0.34 m pointer marking a 1.8 m target: a corner could be
+// flown a metre clear of the light and score, or flown straight at the light and
+// come up short, and neither told the pilot anything they could act on. Inside
+// the pink is inside the checkpoint.
 /** How high the circuit is flown, in metres.
  *
  *  Higher than the standard 1.8 m hover, and it is a question of SEEING rather
@@ -34,10 +44,10 @@ import {
 const FLY_AT = 3.3;
 
 const CORNERS = [
-  marker(14, 'Corner A', { tag: 'A', height: FLY_AT }), // front-right
-  marker(2, 'Corner B', { tag: 'B', height: FLY_AT }), //  back-right
-  marker(6, 'Corner C', { tag: 'C', height: FLY_AT }), //  back-left
-  marker(10, 'Corner D', { tag: 'D', height: FLY_AT }), // front-left
+  marker(14, 'Corner A', { tag: 'A', height: FLY_AT, pillar: true }), // front-right
+  marker(2, 'Corner B', { tag: 'B', height: FLY_AT, pillar: true }), //  back-right
+  marker(6, 'Corner C', { tag: 'C', height: FLY_AT, pillar: true }), //  back-left
+  marker(10, 'Corner D', { tag: 'D', height: FLY_AT, pillar: true }), // front-left
 ] as const;
 /** The loop closes where it began. Named as a RETURN, not as another corner:
  *  the intro card lays the route out as a numbered flow, and "Corner A again"
@@ -125,7 +135,12 @@ export const squareLesson: Lesson = {
 
   validate: (p, mem) =>
     withPreflight(p, mem, (p, mem) => {
-      const r = flyRoute(mem, p.position, ROUTE);
+      // The circuit walks on its OWN cursor, and the step row is written from
+      // it — see `ROUTE_CURSOR`. Walked on `mem.wp` instead, the preflight
+      // wrapper walks it too, and the square scored itself complete three
+      // frames after lift-off with the drone still over the "H".
+      const r = flyRoute(mem, p.position, ROUTE, { key: ROUTE_CURSOR });
+      mem.wp = r.next;
       if (r.complete) return { done: true, progress: 1, hint: 'Square complete', cue: [] };
 
       // How far off the side being flown. The first leg runs from the pad out to
