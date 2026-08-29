@@ -10,7 +10,7 @@ import {
   type Probe,
   type ValidationResult,
 } from './types';
-import { preflight, PREFLIGHT_STEPS, W_ARM, W_TAKEOFF } from './preflight';
+import { preflight, PREFLIGHT_STEPS, ROUTE_CURSOR, W_ARM, W_TAKEOFF } from './preflight';
 
 // ----------------------------------------------------------------------------
 // A whole flight, as one validator.
@@ -53,7 +53,7 @@ const SETTLE_SEC = 0.8;
 /** Where the route sits in the step row: after Arm and Take off. */
 const ROUTE_STEP = PREFLIGHT_STEPS;
 /** The route walks on its own cursor, because `mem.wp` is the STEP row's. */
-const ROUTE_KEY = 'rt';
+const ROUTE_KEY = ROUTE_CURSOR;
 
 /** Share of the bar each stage of the flight is worth. They sum to 1.
  *  Arm and take-off's shares live in `preflight.ts`, which owns those stages. */

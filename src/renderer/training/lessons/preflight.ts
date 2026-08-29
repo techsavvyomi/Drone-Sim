@@ -31,6 +31,24 @@ export const ARM_THROTTLE_MAX = 0.62;
 /** How many step chips the preflight puts before a lesson's own: Arm, Take off. */
 export const PREFLIGHT_STEPS = 2;
 
+/**
+ * Where a lesson that runs behind the preflight keeps its ROUTE cursor.
+ *
+ * Not `mem.wp`. That field is the STEP ROW's, and behind the preflight it has
+ * two owners already: `preflight` writes 0 and 1 into it for Arm and Take off,
+ * and `withPreflight`/`withFlight` shift whatever the drill leaves there past
+ * those two steps. A route walked on the same field is therefore walked by the
+ * wrapper as well — it opens at 1, because the take-off put it there, and gains
+ * PREFLIGHT_STEPS more every frame — so the cursor runs off the end of the route
+ * within a few frames of lift-off and the lesson scores itself complete with the
+ * drone still over the "H". Modules 5, 6, 9 and 10 all did exactly that.
+ *
+ * The Director already reads THIS field for the route cursor on any lesson with
+ * `stages`, which behind the preflight is every lesson, so it is also what walks
+ * the guide's beams and lights along the route.
+ */
+export const ROUTE_CURSOR = 'rt';
+
 /** Share of the progress bar each preflight stage is worth. */
 export const W_ARM = 0.08;
 export const W_TAKEOFF = 0.12;
