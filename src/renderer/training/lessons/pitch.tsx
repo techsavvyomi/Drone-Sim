@@ -9,6 +9,7 @@ import {
   KEYS_YAW,
   LAND_STAGE,
   PREFLIGHT_STAGES,
+  ROUTE_CURSOR,
   afterPreflightDemo,
   preflightDemo,
 } from './preflight';
@@ -27,8 +28,20 @@ import { withFlight } from './mission';
 // climbing on the way out and sinking on the way back, which is a throttle
 // lesson the pilot has not had yet. The blue square's opening runs from 0.9 m to
 // 4.3 m, so a level pass still goes through it.
+//
+// A BALL of light on the checkpoint instead of a letter beside it, the way
+// Modules 7 and 8 mark theirs. There is one target on this route and the way
+// home, so nobody has to tell one gate from another — the question the pilot is
+// actually asking is "am I on it yet", and a letter cannot answer that. The ball
+// is drawn at the checkpoint's own reach, so the light IS the volume that
+// scores: stop inside the pink and the leg is done.
+//
+// It matters here because this module is where a pilot first has to STOP on
+// something rather than just reach it. A letter gives no depth cue at 16 m, so
+// the natural mistake is to level off short or coast through; a ball you are
+// visibly inside of does.
 const ROUTE = [
-  gate('blue-near', 'Blue gate', { ease: 1.3, height: HOVER, tag: 'A' }),
+  gate('blue-near', 'Blue gate', { ease: 1.3, height: HOVER, tag: 'A', orb: true }),
   home('Back to start'),
 ] as const;
 
@@ -109,7 +122,11 @@ export const pitchLesson: Lesson = {
       (p, mem) => {
         mem.wander = Math.max(mem.wander ?? 0, Math.abs(p.position[0]));
 
-        const r = flyRoute(mem, p.position, ROUTE);
+        // Its own cursor, not `mem.wp` — see `ROUTE_CURSOR`. `withFlight`
+        // owns `mem.wp`, so a route walked there is walked twice over and the
+        // out-and-back scored itself finished the frame after lift-off.
+        const r = flyRoute(mem, p.position, ROUTE, { key: ROUTE_CURSOR });
+        mem.wp = r.next;
         if (r.complete)
           return { done: true, progress: 1, hint: 'Back at the start. Nicely flown', cue: [] };
         return {
