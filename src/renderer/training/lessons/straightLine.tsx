@@ -21,9 +21,15 @@ import { HOVER, gate, home } from './arena';
 // a hole you either went through or did not is a clearer test of a straight
 // line than a circle you stopped somewhere near.
 //
-// The lesson calls it "A" and the guide writes that on it, because nothing is
-// painted on the gate itself and "the blue one" stops being enough the moment
-// there is a second blue one on the field.
+// The lesson calls it "A", and what stands in the opening is a lit pink sphere
+// rather than the letter. Nothing is painted on the gate itself and "the blue
+// one" stops being enough the moment there is a second blue one on the field,
+// so the gate has to be marked either way — but a letter is a name, and this
+// module does not need the gate NAMED, it needs the hole aimed at. The ball
+// hangs on the checkpoint, at the height the pass is judged at, so lining up on
+// the light and flying through it IS the exercise. It goes out as the drone
+// goes through, which is the pilot being told the run counted by the arena
+// rather than by the HUD.
 //
 // Judged at hover height, not at the gate's own 2.6 m. The DRILL is one stick
 // held straight, so the checkpoint has to sit where a level pass finds it; a
@@ -32,7 +38,7 @@ import { HOVER, gate, home } from './arena';
 // throttle is on the row — it has been since Module 3 — but as the answer to a
 // drift, not as a fourth thing to fly.
 const START = home('H');
-const TARGET = gate('blue-near', 'A', { ease: 1.3, height: HOVER, tag: 'A' });
+const TARGET = gate('blue-near', 'A', { ease: 1.3, height: HOVER, tag: 'A', orb: true });
 const ROUTE = [TARGET] as const;
 
 /** How far out A is, measured rather than written down — the demonstration
@@ -128,7 +134,10 @@ export const straightLineLesson: Lesson = {
       stick: { pitch: 0 },
       caption: 'Let go early. It keeps going, and the count keeps running down',
     },
-    { at: ARRIVES_AT, stage: 3, caption: 'Straight through A. That is the flight' },
+    // `rt` says the checkpoint is BEHIND the aircraft, and it is what puts the
+  // light out mid-demonstration. Without it the demo flew through a sphere that
+  // stayed lit and the pilot was shown a pass that did not register.
+  { at: ARRIVES_AT, stage: 3, rt: 1, caption: 'Straight through A. That is the flight' },
     { at: ARRIVES_AT + 2.4, caption: 'Out the far side, still on the line' },
   ],
 
