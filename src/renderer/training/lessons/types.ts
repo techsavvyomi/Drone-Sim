@@ -270,6 +270,36 @@ export interface Checkpoint {
    *  and needs it; the marker itself wants "B", because a phrase written across
    *  the deck beside a 0.9 m sphere is a phrase covering the field. */
   tag?: string;
+  /** Draw a lit sphere hanging in the middle of this checkpoint, which goes out
+   *  as the drone passes through it.
+   *
+   *  The alternative to writing a NAME on the thing (`tag`). A letter says which
+   *  gate this is; a ball of light says where the hole is and, by going out,
+   *  says the pass has been scored — the arrival becomes something the pilot
+   *  sees happen in the arena instead of a chip changing on the HUD.
+   *
+   *  Opt-in one checkpoint at a time, the same way `tag` is: on a route of four
+   *  gates every orb would be lit at once and the field would read as four
+   *  targets rather than one next one. */
+  orb?: boolean;
+  /** Draw a standing COLUMN of pink light on this checkpoint, from the deck up
+   *  past the height it is flown at, which goes out as the drone enters it.
+   *
+   *  The orb's answer for a checkpoint that is a place on the GROUND rather than
+   *  a hole in the air. A ball hanging at flying height over a white marker says
+   *  nothing about which marker it belongs to — it is read against the sky from
+   *  half the pad — and the corner circuits are flown by looking DOWN at the
+   *  shape. A column joins the two: its foot is the corner, its body is the
+   *  space the drone has to be in, and entering it puts the aircraft inside the
+   *  light rather than beside it.
+   *
+   *  It is drawn at the checkpoint's own `reach`, so the pink volume IS the
+   *  acceptance volume: "inside the light" and "scored" are the same thing, and
+   *  the pilot is never told they missed a corner they appeared to be on.
+   *
+   *  It replaces the yellow target beam on the checkpoints that ask for it — two
+   *  columns standing in the same spot is one column too many. */
+  pillar?: boolean;
   /** For a gate: the unit direction THROUGH its opening, in world space.
    *
    *  A gate is not a place to arrive at, it is a hole to pass through, and a
