@@ -5,6 +5,7 @@ import { ACADEMY_PAD } from '../../plugins/environments/droneAcademy';
 import {
   PREFLIGHT_KEYS,
   PREFLIGHT_STAGES,
+  ROUTE_CURSOR,
   afterPreflightDemo,
   preflightDemo,
   withPreflight,
@@ -21,12 +22,26 @@ import {
 // which is the one direction a beginner cannot read — and the first leg of a
 // shape is where they are still working out which stick does what.
 //
-// The corners are three markers already standing in the ring, and the guide
-// paints A, B and C on the deck at them. Without that the row's "Corner B"
-// names one of sixteen identical white spheres and the pilot has no way to tell
-// which — the same complaint that retired 'Pad E'. The letter goes on the field,
-// not the whole phrase: "Corner B" is right for a chip and far too much for a
-// patch of deck beside a 0.9 m sphere.
+// The corners are three markers already standing in the ring, and each carries a
+// BALL of light drawn at the checkpoint's own acceptance radius — so the pink is
+// not a token near the corner, it IS the corner: inside the light is scored and
+// outside it is not, and the turn is made by flying INTO it rather than by
+// judging a distance to a 0.9 m sphere from three metres above it.
+//
+// The ball replaces two things that stood here. A painted LETTER on the deck,
+// which answered "which of sixteen identical white spheres" but said nothing
+// about how close was close enough; and, before that, a PILLAR — the same volume
+// drawn as a column standing on the deck. The column is the better answer to
+// "which marker", because it has a foot; the ball is the better answer to "am I
+// there", because it is the shape the checkpoint actually is. This module wants
+// the second question answered.
+//
+// What that costs, and it is worth knowing: the balls go OUT as they are taken,
+// so the triangle comes apart as it is flown. The letters used to stay up for
+// the whole lesson for exactly that reason. What is left to hold the shape
+// together is the step row, the intro card's numbered flow, and the corner still
+// ahead — Corner A's light survives the first pass, because the loop closes on
+// it, so there is always a lit corner to be heading for.
 //
 // Nothing is drawn BETWEEN them. A line over the arena has to skip depth
 // testing to be seen at all, and it then lies flat on the ground instead of
@@ -43,9 +58,9 @@ import {
 const FLY_AT = 3.3;
 
 const CORNERS = [
-  marker(12, 'Corner A', { tag: 'A', height: FLY_AT }), // the apex, straight ahead
-  marker(6, 'Corner B', { tag: 'B', height: FLY_AT }), //  back-left
-  marker(2, 'Corner C', { tag: 'C', height: FLY_AT }), //  back-right
+  marker(12, 'Corner A', { height: FLY_AT, orb: true }), // the apex, straight ahead
+  marker(6, 'Corner B', { height: FLY_AT, orb: true }), //  back-left
+  marker(2, 'Corner C', { height: FLY_AT, orb: true }), //  back-right
 ] as const;
 /** The loop closes where it began. Named as a RETURN, not as another corner:
  *  the intro card lays the route out as a numbered flow, and "Corner A again"
@@ -132,7 +147,11 @@ export const triangleLesson: Lesson = {
 
   validate: (p, mem) =>
     withPreflight(p, mem, (p, mem) => {
-      const r = flyRoute(mem, p.position, ROUTE);
+      // Its own cursor, not `mem.wp` — see `ROUTE_CURSOR`. The step row is
+      // written from it below; the preflight wrapper then shifts that past Arm
+      // and Take off.
+      const r = flyRoute(mem, p.position, ROUTE, { key: ROUTE_CURSOR });
+      mem.wp = r.next;
       if (r.complete) return { done: true, progress: 1, hint: 'Triangle complete', cue: [] };
 
       const target = ROUTE[r.next];
