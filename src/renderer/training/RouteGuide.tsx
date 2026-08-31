@@ -99,22 +99,6 @@ const ORB_FILL = 0.33;
  *  the drone. The orb keeps its own copy of this timing; the pillar reads it
  *  from here so the two go out together. */
 const ORB_FADE = 0.4;
-/** How far ABOVE its checkpoint a gate's ball is drawn, in metres.
- *
- *  The checkpoint sits at hover height, because that is the height the module is
- *  judged at and a module flown level in altitude hold cannot be asked to climb
- *  to a mark it has not been taught to reach. The gate's OPENING is higher than
- *  that — the blue near gate is centred at 2.6 m and hover is 1.8 — so a ball
- *  drawn honestly on the checkpoint hangs in the bottom of the hole and buries
- *  its lower half in the bottom bar.
- *
- *  So the light goes up and the checkpoint stays put. `CheckpointSphere` clamps
- *  this to `reach - radius`, which for that gate is 1.99 - 1.12 = 0.87 m, so the
- *  whole visible ball is still inside the volume that scores however far this is
- *  turned up. Raise it toward the ceiling to centre the ball in the opening;
- *  this sits under it, because a ball that fills the middle of the hole also
- *  hides the hole. */
-const ORB_LIFT = 0.6;
 /** How far above the checkpoint the pillar's column ends, in metres.
  *
  *  Enough headroom that a corner taken a little high still enters the light —
@@ -438,7 +422,11 @@ function CheckpointOrb({ point, out }: { point: Checkpoint; out: boolean }) {
       // axes, so the light can never claim a gate the lesson has not.
       triggerRadius={point.hole ?? point.reach}
       collected={out}
-      lift={ORB_LIFT}
+      // How far the checkpoint sits under the gate's own centre — see
+      // `Checkpoint.lift`. It is the gate's measurement, not the guide's: a
+      // constant here was picked to centre the ball in ONE opening and pushed it
+      // above centre in every gate judged in its hole.
+      lift={point.lift ?? 0}
     />
   );
 }

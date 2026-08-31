@@ -321,6 +321,25 @@ export interface Checkpoint {
    *  Like `pillar`, it replaces the yellow target beam on the checkpoints that
    *  ask for it: two columns standing in one place is one column too many. */
   beacon?: boolean;
+  /** Metres to draw this checkpoint's ORB above the point itself, leaving what
+   *  scores exactly where it is.
+   *
+   *  A gate's checkpoint is often NOT in the middle of its opening: a module
+   *  flown level in altitude hold is judged at hover height, which on a gate
+   *  standing 2.6 m up is well under the hole, and a ball drawn honestly on that
+   *  point hangs in the bottom of the frame with half of it buried in the bar.
+   *  This is the offset that puts the light back in the middle of the opening.
+   *
+   *  DERIVED, not chosen: `gate()` sets it to the distance the checkpoint was
+   *  pulled down from the gate's own centre, so it is zero for a gate judged in
+   *  its opening and exactly right for one that is not. It used to be a single
+   *  constant in the guide, picked to look correct on one gate — which quietly
+   *  pushed the ball ABOVE centre on every gate that did not need lifting at all.
+   *
+   *  `CheckpointSphere` clamps it so the whole visible ball still fits inside the
+   *  volume that scores. That is the promise a ball makes by being a ball, and a
+   *  lift big enough to break it would put light where the validator does not. */
+  lift?: number;
   /** For a gate: the unit direction THROUGH its opening, in world space.
    *
    *  A gate is not a place to arrive at, it is a hole to pass through, and a

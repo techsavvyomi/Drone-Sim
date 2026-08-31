@@ -61,6 +61,11 @@ export function gate(
     // asks for a climb the pilot has not been taught and cannot see how to make.
     // The opening is tall enough that a level pass still goes through it.
     at: opts.height === undefined ? g.position : [g.position[0], opts.height, g.position[2]],
+    // How far the checkpoint was pulled DOWN off the gate's centre, which is
+    // exactly how far the ball has to be lifted to sit back in the middle of the
+    // opening — see `Checkpoint.lift`. Zero when the lesson is judged in the
+    // hole, which is the case that used to come out with the ball riding high.
+    lift: opts.height === undefined ? 0 : g.position[1] - opts.height,
     // Along the axis, how much of a frame either side of the gate's plane still
     // counts — generous, because a pass a moment early or late is the same pass.
     // Across it, `hole` is the test, and `ease` deliberately does NOT widen that.
