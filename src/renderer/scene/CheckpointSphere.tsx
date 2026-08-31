@@ -70,9 +70,21 @@ export const ORB_RIM = '#ff5ce8';
  *  harder to see. The shell is drawn double-sided, so both numbers land TWICE
  *  down the middle of the ball and the values below are half of what reaches the
  *  screen. */
-const BODY = 0.3;
+const BODY = 0.15;
 const BODY_RIM = 0.35;
 const RIM_POW = 2.0;
+
+// `BODY` is the one of these you can see THROUGH, and it was too high. At 0.3,
+// doubled by the double-sided shell, the middle of the ball added 0.6 before
+// bloom — enough to bury whatever was behind it, so a gate marked this way came
+// out as a solid pink disc with the arena painted out inside its outline. Halved,
+// the world reads straight through the middle and the ball is plainly a volume
+// of light rather than a lid.
+//
+// `BODY_RIM` deliberately did NOT come down with it. The silhouette is what
+// makes the marker legible against a building or against the deck, and lowering
+// both together does not make the ball more transparent, it makes it fainter —
+// a different and worse thing. The gap between the two is the shape.
 
 /** The stripes: how many run round the ball, how deep they cut, and how fast
  *  the whole set turns, in radians of phase per second.
