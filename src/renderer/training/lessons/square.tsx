@@ -26,21 +26,33 @@ import {
 // which paints it flat on the ground rather than hanging where the drone flies.
 // Instead each side names the single stick that flies it, and straying off one
 // says so in the hint and costs stars.
-// Lettered on the deck by the guide: four of sixteen identical white spheres is
-// not something a chip reading "Corner C" can point at on its own.
 //
-// Each corner also stands a PILLAR — a column of pink light as wide as the
-// checkpoint's own acceptance radius, rising from the deck through the height
-// the circuit is flown at. The letters say what the shape is; the pillar says
-// where the corner ENDS. It replaces the thin yellow beam that used to stand
-// here, which was a 0.34 m pointer marking a 1.8 m target: a corner could be
-// flown a metre clear of the light and score, or flown straight at the light and
-// come up short, and neither told the pilot anything they could act on. Inside
-// the pink is inside the checkpoint.
+// Each corner stands a BEACON: a hollow cylinder of light as wide as the
+// checkpoint's own acceptance radius, solid where it meets the deck and faded
+// out to nothing overhead, with a glowing ring on the ground at its foot.
+// Sitting over the ring is what takes the corner, and it goes out behind the
+// aircraft.
+//
+// It replaces the PILLAR that stood here: the same acceptance volume drawn as a
+// solid column of pink light, which answered the question by filling the space
+// the drone was being flown into, so the pilot read the mark from inside it at
+// the very height they were trying to hold. Hollow, and fading out above the
+// circuit, the mark is the FOOT and the column is only what makes the foot
+// visible from the far side of the pad. The ring's middle is cut out for the
+// last mile of the same reasoning: the drone hovers over the centre of its own
+// mark, so the centre is the part hidden under the airframe.
+//
+// The painted LETTERS stay, and the beacon does not replace them — the two
+// answer different questions and the module needs both. A letter says WHICH of
+// sixteen identical white spheres this is, which is what the step row and the
+// hint mean when they say "Corner C"; the light says how close is close enough,
+// which no letter can. They were taken off once, on the reasoning that a corner
+// carrying a light does not need a name as well. It does: without them the row
+// names a corner the field does not, and the pilot is left counting markers.
 /** How high the circuit is flown, in metres.
  *
  *  Higher than the standard 1.8 m hover, and it is a question of SEEING rather
- *  than of flying: the corners are lettered on the deck, and from 1.8 m the far
+ *  than of flying: the corners are marked on the deck, and from 1.8 m the far
  *  ones are read edge-on across the pad. From here the pilot is looking down at
  *  the shape. The checkpoints move up with it — they are judged in 3-D — and so
  *  does the point the demonstration flies from.
@@ -48,10 +60,10 @@ import {
 const FLY_AT = 3.3;
 
 const CORNERS = [
-  marker(14, 'Corner A', { tag: 'A', height: FLY_AT, pillar: true }), // front-right
-  marker(2, 'Corner B', { tag: 'B', height: FLY_AT, pillar: true }), //  back-right
-  marker(6, 'Corner C', { tag: 'C', height: FLY_AT, pillar: true }), //  back-left
-  marker(10, 'Corner D', { tag: 'D', height: FLY_AT, pillar: true }), // front-left
+  marker(14, 'Corner A', { tag: 'A', height: FLY_AT, beacon: true }), // front-right
+  marker(2, 'Corner B', { tag: 'B', height: FLY_AT, beacon: true }), //  back-right
+  marker(6, 'Corner C', { tag: 'C', height: FLY_AT, beacon: true }), //  back-left
+  marker(10, 'Corner D', { tag: 'D', height: FLY_AT, beacon: true }), // front-left
 ] as const;
 /** The loop closes where it began. Named as a RETURN, not as another corner:
  *  the intro card lays the route out as a numbered flow, and "Corner A again"
