@@ -167,9 +167,12 @@ function SyntheticBlades({ spec }: { spec: DroneSpec }) {
         return;
       }
 
-      // Visible spin (same feel as procedural Pluto / DroneMesh).
+      // Visible spin (same feel as procedural Pluto / DroneMesh). Driven by
+      // the motor output alone: the old `8 + max(m, 0.18)` floor turned these
+      // blades the moment the aircraft was armed, while the motors were still
+      // stopped — the same bug already fixed in DroneModel's rotor spin.
       const m = motors[i] ?? 0;
-      pivot.rotation.y += dir * (8 + Math.max(m, 0.18) * 220) * dt;
+      pivot.rotation.y += dir * m * 220 * dt;
     });
   });
 

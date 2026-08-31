@@ -45,12 +45,15 @@ export function DroneMesh({ spec }: { spec: DroneSpec }) {
   ];
 
   // Spin the props at a rate proportional to motor output (visual only).
+  // Strictly proportional: the old constant 6 rad/s term meant these props
+  // never stopped, so a disarmed drone sat on the pad turning about one
+  // revolution a second.
   useFrame((_s, delta) => {
     for (let i = 0; i < 4; i++) {
       const g = propRefs.current[i];
       if (!g) continue;
       const dir = PROP_SPIN_Y[i]; // FR/RL clockwise, FL/RR counter-clockwise
-      g.rotation.y += dir * (6 + motors[i] * 260) * delta;
+      g.rotation.y += dir * motors[i] * 260 * delta;
     }
   });
 

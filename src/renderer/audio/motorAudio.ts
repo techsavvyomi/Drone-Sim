@@ -32,7 +32,13 @@ const SOUND_SPEED = 343;
  */
 const PROP_LOAD = 0.72;
 
-/** ESC idle floor as a fraction of max RPM — armed rotors never fully stop. */
+/**
+ * ESC idle floor as a fraction of max RPM — rotors that are TURNING never drop
+ * below it. It is not a floor for being armed: this simulator deliberately
+ * leaves the props stopped on the pad (see `altitudeThrust`), so an idle floor
+ * keyed on `armed` alone had the aircraft humming away with four motionless
+ * propellers the instant the pilot armed it.
+ */
 const IDLE_RPM_FRACTION = 0.1;
 
 /**
@@ -367,13 +373,20 @@ export class MotorAudio {
     const step = clamp(dt, 0, 0.1);
     const idle = this.maxRpm * IDLE_RPM_FRACTION;
 
+    // Silence unless the mixer is actually asking for something. Judged on the
+    // collective rather than per motor, so a hover that trims one rotor to
+    // nothing does not switch that voice off underneath the other three.
+    const collective =
+      (f.motors[0] ?? 0) + (f.motors[1] ?? 0) + (f.motors[2] ?? 0) + (f.motors[3] ?? 0);
+    const spinning = f.armed && collective > 0.002;
+
     let sum = 0;
     for (let i = 0; i < 4; i++) {
       // Thrust goes as the SQUARE of rotor speed, so audible pitch tracks the
       // square root of the mixer's output. This is why a real quad's tone moves
       // a lot in the bottom half of the stick and hardly at all in the top.
       const load = clamp(f.motors[i] ?? 0, 0, 1);
-      const target = f.armed ? Math.max(idle, this.maxRpm * Math.sqrt(load)) : 0;
+      const target = spinning ? Math.max(idle, this.maxRpm * Math.sqrt(load)) : 0;
       const tau = target > this.rpm[i] ? SPOOL_UP : SPOOL_DOWN;
       this.rpm[i] += (target - this.rpm[i]) * (1 - Math.exp(-step / tau));
       sum += this.rpm[i];
