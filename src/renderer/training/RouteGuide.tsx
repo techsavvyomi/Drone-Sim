@@ -6,6 +6,7 @@ import { getLesson } from './lessons';
 import type { Checkpoint } from './lessons/types';
 import { ACADEMY_PAD } from '../plugins/environments/droneAcademy';
 import { CheckpointSphere, ORB_EDGE } from '../scene/CheckpointSphere';
+import { TargetRing } from './TargetRing';
 
 // The route guide.
 //
@@ -681,6 +682,10 @@ export function RouteGuide() {
 
   return (
     <>
+      {/* The compass that flies with the aircraft. Fed the same checkpoint the
+          beam and the pillar are lit from, so the arrow on the ring and the
+          light on the field can never point at two different things. */}
+      <TargetRing point={live} />
       {lesson.guideRing && <Ring radius={lesson.guideRing.radius} />}
       {/* One beam per corner still to be taken, going out as each is reached.
           Not on a gate: a gate already carries its letter in the opening, at the
