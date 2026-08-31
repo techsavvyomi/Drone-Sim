@@ -3,6 +3,10 @@ import { planCircle } from './demoFlight';
 import { HOVER } from './arena';
 import { ACADEMY_PAD } from '../../plugins/environments/droneAcademy';
 import {
+  KEYS_PITCH,
+  KEYS_ROLL,
+  KEYS_THROTTLE,
+  KEYS_YAW,
   PREFLIGHT_KEYS,
   PREFLIGHT_STAGES,
   afterPreflightDemo,
@@ -77,13 +81,13 @@ export const circleLesson: Lesson = {
     hint: 'Press ENTER to arm',
   },
 
-  keys: [
-    ...PREFLIGHT_KEYS,
-    { code: 'ArrowUp', label: '↑', hint: 'Pitch Forward' },
-    { code: 'ArrowDown', label: '↓', hint: 'Pitch Backward' },
-    { code: 'ArrowLeft', label: '←', hint: 'Roll Left' },
-    { code: 'ArrowRight', label: '→', hint: 'Roll Right' },
-  ],
+  // The circuit is flown on pitch and roll, so those go first — but the left
+  // gimbal is not empty just because today's drill does not name it. A module
+  // keeps every control the modules before it taught, and without the throttle
+  // and yaw pairs the caps under the left stick vanish from Module 7 onward: the
+  // pilot is shown a stick they were taught to use and then told nothing about
+  // it, on the very lessons where they are holding height through a whole lap.
+  keys: [...PREFLIGHT_KEYS, ...KEYS_PITCH, ...KEYS_ROLL, ...KEYS_THROTTLE, ...KEYS_YAW],
 
   tips: [
     'Get on the ring and steady before you start turning.',

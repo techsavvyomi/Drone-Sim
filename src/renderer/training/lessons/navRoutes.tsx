@@ -2,7 +2,14 @@ import { cueBetween, type Checkpoint, type Lesson } from './types';
 import { flyMission, type MissionLeg } from './mission';
 import { planDemo } from './demoFlight';
 import { HOVER, gate, home, routeLegs } from './arena';
-import { PREFLIGHT_STAGES, PREFLIGHT_STEPS } from './preflight';
+import {
+  KEYS_PITCH,
+  KEYS_ROLL,
+  KEYS_THROTTLE,
+  KEYS_YAW,
+  PREFLIGHT_STAGES,
+  PREFLIGHT_STEPS,
+} from './preflight';
 import { ACADEMY_PAD } from '../../plugins/environments/droneAcademy';
 
 // Modules 12-14 — Navigation. Three routes of growing length flown through the
@@ -183,14 +190,10 @@ function navLesson(cfg: {
       // looking for it.
       { code: 'Enter', label: 'ENTER', hint: 'Arm' },
       { code: 'Space', label: 'SPACE', hint: cfg.wholeFlight ? 'Take Off / Land' : 'Take Off' },
-      { code: 'ArrowUp', label: '↑', hint: 'Pitch Forward' },
-      { code: 'ArrowDown', label: '↓', hint: 'Pitch Backward' },
-      { code: 'ArrowLeft', label: '←', hint: 'Roll Left' },
-      { code: 'ArrowRight', label: '→', hint: 'Roll Right' },
-      { code: 'KeyW', label: 'W', hint: 'Throttle Up' },
-      { code: 'KeyS', label: 'S', hint: 'Throttle Down' },
-      { code: 'KeyA', label: 'A', hint: 'Yaw Left' },
-      { code: 'KeyD', label: 'D', hint: 'Yaw Right' },
+      ...KEYS_PITCH,
+      ...KEYS_ROLL,
+      ...KEYS_THROTTLE,
+      ...KEYS_YAW,
     ],
 
     tips: [

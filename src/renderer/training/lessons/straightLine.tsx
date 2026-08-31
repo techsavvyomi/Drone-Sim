@@ -1,7 +1,7 @@
 import { CUE, lineDeviation, type Lesson } from './types';
 import { flyMission } from './mission';
 import { solveCoast } from './demoFlight';
-import { KEYS_THROTTLE } from './preflight';
+import { KEYS_THROTTLE, KEYS_YAW } from './preflight';
 import { HOVER, gate, home } from './arena';
 
 // Module 7 — Straight Flight. The first module flown as a whole FLIGHT: arm it,
@@ -135,9 +135,9 @@ export const straightLineLesson: Lesson = {
       caption: 'Let go early. It keeps going, and the count keeps running down',
     },
     // `rt` says the checkpoint is BEHIND the aircraft, and it is what puts the
-  // light out mid-demonstration. Without it the demo flew through a sphere that
-  // stayed lit and the pilot was shown a pass that did not register.
-  { at: ARRIVES_AT, stage: 3, rt: 1, caption: 'Straight through A. That is the flight' },
+    // light out mid-demonstration. Without it the demo flew through a sphere that
+    // stayed lit and the pilot was shown a pass that did not register.
+    { at: ARRIVES_AT, stage: 3, rt: 1, caption: 'Straight through A. That is the flight' },
     { at: ARRIVES_AT + 2.4, caption: 'Out the far side, still on the line' },
   ],
 
@@ -147,14 +147,17 @@ export const straightLineLesson: Lesson = {
   },
 
   // PITCH FORWARD is the whole drill — the module is one stick held straight —
-  // but the throttle stays on the row from Module 3. A pilot who drifts off
-  // height has the control to answer it; the row taking it away is what made a
-  // recoverable flight look unrecoverable.
+  // but the throttle and yaw pairs stay on the row from Modules 3 and 4. A pilot
+  // who drifts off height or off heading has the control to answer it; the row
+  // taking it away is what made a recoverable flight look unrecoverable. It is
+  // also the whole of the left gimbal, and a stick with nothing under it reads
+  // as a stick that has been taken away.
   keys: [
     { code: 'Enter', label: 'ENTER', hint: 'Arm' },
     { code: 'Space', label: 'SPACE', hint: 'Take Off / Land' },
     { code: 'ArrowUp', label: '↑', hint: 'Pitch Forward' },
     ...KEYS_THROTTLE,
+    ...KEYS_YAW,
   ],
 
   tips: [
