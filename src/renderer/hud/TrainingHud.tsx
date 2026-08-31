@@ -6,7 +6,7 @@ import { useTrainingStore, isLessonUnlocked, type TrainingPhase } from '../state
 import { getLesson, lessonIndex, nextLesson, LESSONS } from '../training/lessons';
 import type { Lesson } from '../training/lessons';
 import { StickIndicator } from './StickIndicator';
-import { KeyHints } from './KeyHints';
+import { KeyActions, KeyHints } from './KeyHints';
 import { CrashOverlay } from './CrashOverlay';
 import { playClick, playSuccess, playStar, playRankUp } from '../audio/sfx';
 import { LessonMap } from './LessonMap';
@@ -305,7 +305,9 @@ export function TrainingHud() {
         </div>
       )}
 
-      {/* Live joysticks + keycaps (subtle) */}
+      {/* Live joysticks, and this lesson's stick keys under the gimbal each one
+          belongs to. Arm and Take Off are not axes, so they are not here — they
+          stand with the status line in `tr-bottom` below. */}
       {flying && (
         <>
           <div className={phase === 'demo' ? 'tr-demo-sticks' : undefined}>
@@ -317,8 +319,20 @@ export function TrainingHud() {
         </>
       )}
 
-      {/* Step 2 — Demonstration: the same step row the pilot will fly, walking
-          along with the demo, over the caption for the leg being shown. */}
+      {/* The middle column, bottom-up: the command buttons, then the status
+          line.
+          They are STACKED in one flow rather than each pinned to its own offset
+          from the bottom. The status line changes height with the phase — the
+          practice one carries a step row and a progress bar the demo one does
+          not — so a button placed at a fixed distance from the bottom would
+          either overlap it or float above it depending on the module. */}
+      <div className="tr-bottom">
+        {flying && liveKeys.length > 0 && (
+          <KeyActions keys={liveKeys} demoKeys={demoKeys} cue={phase === 'practice' ? cue : []} />
+        )}
+
+        {/* Step 2 — Demonstration: the same step row the pilot will fly, walking
+          along with the caption for the leg being shown. */}
       {phase === 'demo' && (
         <div className="tr-line demo">
           {steps.length > 1 && <StepChips steps={steps} index={stepIndex} />}
@@ -366,6 +380,7 @@ export function TrainingHud() {
           </div>
         </div>
       )}
+      </div>
 
       {/* Wrecked, waiting on R. The same card the free-flight HUD shows, because
           a crash in a lesson is the same event as a crash anywhere else — the

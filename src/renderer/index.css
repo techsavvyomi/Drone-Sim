@@ -1473,6 +1473,8 @@ button {
 }
 
 /* ---- Virtual sticks (corner gimbals) ---- */
+/* Shared with the FREE-FLIGHT hud, which has no keycaps under it — Flight
+   School raises its own copy in `.tr-hud.min .vstick` instead. */
 .vstick {
   position: absolute;
   bottom: 92px;
@@ -2872,30 +2874,69 @@ button {
   font-size: 16px;
 }
 
-/* Keycap row (pinned to the very bottom, clear of the banners above) */
-.tr-keys {
-  position: absolute;
-  bottom: 24px;
-  left: 50%;
-  transform: translateX(-50%);
-  display: flex;
-  /* Bottom-aligned so ENTER and SPACE sit on the arrow cluster's LOWER row,
-     which is the line they share on a real keyboard. Stretched, they grew to
-     the height of the cluster instead. */
-  align-items: flex-end;
-  gap: 12px;
-  /* The HUD is click-through; the caps are not. They are buttons that press the
-     key they show, so the mouse works wherever the keyboard does. */
-  pointer-events: auto;
-}
-/* The arrow caps, in the shape they have under the hand: up over
+/* The stick keys, in the shape they have under the hand: up over
    left/down/right. Columns are placed from JS, because a lesson that uses only
-   one axis gets only the columns it needs — see padSlots in KeyHints.tsx. */
+   one axis gets only the columns it needs — see padSlots in KeyHints.tsx.
+
+   Each cluster stands UNDER ITS OWN GIMBAL, on the same 22 px margin the sticks
+   use, so the caps and the stick they fly read as one control. They were one
+   row across the middle of the screen, which put every cap the same distance
+   from both sticks and said nothing about which hand a control belonged to —
+   and it sat in the same band as the status line.
+
+   `bottom` is what the gimbals are raised to clear: the tallest cluster is two
+   rows of caps, and `.vstick` is lifted above the space that needs. */
 .tr-keypad {
+  position: absolute;
+  bottom: 26px;
   display: grid;
   gap: 12px;
   align-items: end;
   justify-items: center;
+  /* The HUD is click-through; the caps are not. They are buttons that press the
+     key they show, so the mouse works wherever the keyboard does. */
+  pointer-events: auto;
+}
+/* On the same margin as the gimbal above, growing INWARD.
+   Centring each cluster on its stick would read better and cannot be done: a
+   full pitch-and-roll set is three columns of caps, half again as wide as the
+   210 px stick, so a centred one hangs off the side of the screen. Anchored to
+   the margin the cluster and the stick share an edge, which is enough to say
+   they belong together, and nothing can ever be clipped. */
+.tr-keypad-left {
+  left: 22px;
+}
+.tr-keypad-right {
+  right: 22px;
+}
+/* The middle column: the command buttons over the status line, stacked in one
+   flow. Each was pinned to its own offset from the bottom before, and the status
+   line changes height with the phase — the practice one carries a step row and a
+   progress bar the demo one does not — so a fixed offset either overlapped it or
+   floated above it depending on the module. */
+.tr-bottom {
+  position: absolute;
+  left: 50%;
+  bottom: 20px;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  /* Wide enough for the status line to keep its own width, and no wider — the
+     column must not become an invisible sheet over the middle of the view. The
+     percentage is what keeps it clear of the two clusters on a narrow window. */
+  width: min(620px, 48%);
+  pointer-events: none;
+  z-index: 4;
+}
+/* Arm and Take Off. Commands, not axes, so they are neither stick's business and
+   stand on their own over the line that tells the pilot what to do next. */
+.tr-keys-actions {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  pointer-events: auto;
 }
 .tr-key {
   display: flex;
@@ -3352,10 +3393,6 @@ button {
   }
 }
 
-/* Keep the objective/demo clear of the very-bottom keycap row */
-.tr-keys {
-  bottom: 22px;
-}
 
 @media (max-width: 720px) {
   .tr-stepper .tr-stepper-label {
@@ -3788,11 +3825,8 @@ button {
 
 /* One-line bottom guidance (demo + practice) */
 .tr-hud.min .tr-line {
-  position: absolute;
-  left: 50%;
-  bottom: 24px;
-  transform: translateX(-50%);
-  width: min(640px, 90%);
+  /* In the flow of `.tr-bottom`, which owns the placement now. */
+  width: 100%;
   display: flex;
   align-items: center;
   gap: 14px;
@@ -3953,30 +3987,23 @@ button {
   background: var(--bad);
 }
 
-/* Sticks + keycaps: clearly visible (not shrunk into the corner). */
-/* Everything at the bottom of the flight view stacks above the guidance panel,
-   and that panel grew: it now carries the step row over the caption (demo) or
-   over the progress bar (practice), which is about 100 px rather than 50. The
-   keycaps and the sticks sit clear of it. */
-/* The gimbals sit ABOVE the keycap row, not beside it. At full width the row
-   reaches almost to both corners, so a stick parked at the same height was
-   touching the outermost caps — and the last module of the course shows eight
-   caps, which is the widest the row ever gets. Lifting it clear also lets it be
-   drawn big enough to read stick travel from across the room: these are the
-   primary readout of what the aircraft is being told to do, not decoration. */
+/* Sticks + keycaps: clearly visible (not shrunk into the corner).
+
+   The gimbals sit ABOVE their own keycaps. Each cluster is anchored to the same
+   screen margin as the stick that flies it, so a control and the stick it moves
+   share a corner and the pilot is never asked which hand a cap belongs to.
+
+   This replaces one centred row of every cap the lesson used, which floated in
+   the middle of the bottom band: it said nothing about which stick was which,
+   and at full width it reached almost to both corners, so the gimbals had to be
+   lifted right out of its way. Split in two, the caps take a corner each and the
+   sticks come back down to where they can be seen.
+
+   Big enough to read stick travel from across the room: these are the primary
+   readout of what the aircraft is being told to do, not decoration. */
 .tr-hud.min .vstick {
-  bottom: 262px;
+  bottom: 172px;
   opacity: 0.97;
-}
-.tr-hud.min .tr-keys {
-  bottom: 150px;
-  gap: 12px;
-  opacity: 1;
-  /* Wrap rather than run under the gimbals. Two short rows of caps read fine;
-     one row sliding beneath a joystick does not. */
-  flex-wrap: wrap;
-  justify-content: center;
-  max-width: min(64vw, 900px);
 }
 .tr-hud.min .tr-key {
   padding: 8px 13px 6px;
@@ -3989,6 +4016,58 @@ button {
 }
 .tr-hud.min .tr-key span {
   font-size: 10.5px;
+}
+/* A cluster's caps are smaller than the two command buttons, and the difference
+   is doing work: the buttons are what a pilot hunts for on the first module, the
+   stick caps are glanced at. Size is also the constraint — a full pitch-and-roll
+   set is three columns, and at command-button size three columns a side plus the
+   middle column is more than a 1280 px window has. */
+.tr-hud.min .tr-keypad .tr-key {
+  padding: 6px 9px 5px;
+  gap: 3px;
+}
+.tr-hud.min .tr-keypad .tr-key kbd {
+  font-size: 13px;
+  padding: 3px 9px;
+  border-bottom-width: 2px;
+}
+.tr-hud.min .tr-keypad .tr-key span {
+  font-size: 9px;
+  letter-spacing: 0.05em;
+}
+
+/* Arm and Take Off read as COMMANDS: the word on top in the HUD's own accent,
+   the key that performs it underneath. Every other cap is the other way round,
+   because every other cap is an axis the pilot holds — here the pilot is looking
+   for "the arm button", and ENTER is only how it is done. */
+.tr-hud.min .tr-key.action {
+  flex-direction: column-reverse;
+  padding: 7px 18px 9px;
+  border-radius: 10px;
+}
+.tr-hud.min .tr-key.action span {
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  color: var(--text);
+}
+.tr-hud.min .tr-key.action kbd {
+  font-size: 10px;
+  padding: 2px 8px;
+  border-bottom-width: 2px;
+}
+.tr-hud.min .tr-key.action.on span {
+  color: var(--accent);
+}
+
+/* Short windows: the gimbals are the first thing to give, because the caps and
+   the status line are read and a stick is only watched. */
+@media (max-height: 820px) {
+  .tr-hud.min .vstick {
+    bottom: 158px;
+    transform: scale(0.82);
+    transform-origin: bottom center;
+  }
 }
 
 /* NEXT target on the practice line. Route lessons count checkpoints instead of
