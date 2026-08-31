@@ -1,6 +1,12 @@
 import { useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { CuboidCollider, CylinderCollider, RigidBody } from '@react-three/rapier';
+import {
+  BallCollider,
+  ConeCollider,
+  CuboidCollider,
+  CylinderCollider,
+  RigidBody,
+} from '@react-three/rapier';
 import * as THREE from 'three';
 import { useWorldStore } from '../../state/worldStore';
 import { ACADEMY_PAD } from '../../plugins/environments/droneAcademy';
@@ -96,6 +102,9 @@ function TIME_NIGHT(t: string): boolean {
 
 export type GateKind = 'square' | 'circle' | 'rect';
 
+/** How many boxes stand in for a ring gate's torus. See `RaceGate`. */
+const RING_SEGMENTS = 24;
+
 export function RaceGate({
   position,
   rotation = [0, 0, 0],
@@ -127,7 +136,53 @@ export function RaceGate({
   const legH = position[1] - h / 2;
 
   return (
-    <group position={position} rotation={rotation}>
+    // The frame is SOLID and the opening is not — which is the whole of what a
+    // gate is, and it was the one part of it the physics did not know. Until
+    // this, an upright could be flown through as readily as the hole beside it,
+    // so the three navigation modules could be "flown" straight at the frame.
+    //
+    // Explicit colliders, never `colliders="cuboid"`: the automatic hull round
+    // a torus is a solid slab across the ring, and the hull round four bars is a
+    // solid pane over the opening. Either way the gate stops being a gate.
+    <RigidBody type="fixed" colliders={false} position={position} rotation={rotation}>
+      {kind === 'circle' ? (
+        // Rapier has no torus, so the ring is walled with a polygon of thin
+        // boxes, each one a chord of it. The COUNT is the thing to get right: a
+        // chord bows inside the true circle by R(1 - cos(pi/N)), and collider
+        // standing in front of a visible surface is the mistake that makes a
+        // map feel broken — a gentle approach sinks into nothing and is shoved
+        // back out. At 24 that bow is 1.5 cm on the widest ring here, well
+        // inside the drone's own body, and it stays clear of the volume the
+        // lesson scores (`arena.ts` judges a pass at 0.45 x size, against a rim
+        // at 0.451 x size).
+        Array.from({ length: RING_SEGMENTS }, (_, i) => {
+          const a = (i / RING_SEGMENTS) * Math.PI * 2;
+          const tube = t * 0.7;
+          return (
+            <CuboidCollider
+              key={i}
+              args={[Math.sin(Math.PI / RING_SEGMENTS) * (size / 2) + tube, tube, tube]}
+              position={[Math.cos(a) * (size / 2), Math.sin(a) * (size / 2), 0]}
+              rotation={[0, 0, a + Math.PI / 2]}
+            />
+          );
+        })
+      ) : (
+        // One box per bar, at the bar's own size and place. Fitting them to the
+        // FRAME's bounds instead would wall the hole shut.
+        <>
+          <CuboidCollider args={[w / 2, t / 2, t / 2]} position={[0, h / 2, 0]} />
+          <CuboidCollider args={[w / 2, t / 2, t / 2]} position={[0, -h / 2, 0]} />
+          <CuboidCollider args={[t / 2, h / 2, t / 2]} position={[-w / 2, 0, 0]} />
+          <CuboidCollider args={[t / 2, h / 2, t / 2]} position={[w / 2, 0, 0]} />
+        </>
+      )}
+      {/* The legs, on the same test the meshes below use: a gate hung low
+          enough to have none must not grow invisible ones. */}
+      {legH > 0.2 &&
+        [-w / 2, w / 2].map((x) => (
+          <CylinderCollider key={x} args={[legH / 2, 0.06]} position={[x, -h / 2 - legH / 2, 0]} />
+        ))}
       {kind === 'circle' ? (
         <mesh castShadow>
           <torusGeometry args={[size / 2, t * 0.7, 12, 40]} />
@@ -167,7 +222,7 @@ export function RaceGate({
           </mesh>
         </>
       )}
-    </group>
+    </RigidBody>
   );
 }
 
@@ -175,7 +230,12 @@ export function RaceGate({
 
 export function TrafficCone({ position }: { position: [number, number, number] }) {
   return (
-    <group position={position}>
+    // Solid. The slalom is nine cones to be flown AROUND — a cone the drone
+    // passes through is a mark painted on the grass, not an obstacle, and the
+    // yaw drill it exists for has nothing left to get wrong.
+    <RigidBody type="fixed" colliders={false} position={position}>
+      <ConeCollider args={[0.26, 0.17]} position={[0, 0.28, 0]} />
+      <CuboidCollider args={[0.21, 0.02, 0.21]} position={[0, 0.02, 0]} />
       <mesh position={[0, 0.02, 0]} receiveShadow>
         <boxGeometry args={[0.42, 0.04, 0.42]} />
         <meshStandardMaterial color="#25282c" roughness={0.9} />
@@ -188,7 +248,7 @@ export function TrafficCone({ position }: { position: [number, number, number] }
         <cylinderGeometry args={[0.125, 0.145, 0.09, 14]} />
         <meshStandardMaterial color={WHITE} roughness={0.6} />
       </mesh>
-    </group>
+    </RigidBody>
   );
 }
 
@@ -243,6 +303,15 @@ export function LandingTarget({
 
 /* ------------------------------------------------------------- Hover boxes */
 
+/**
+ * A wireframe cube hanging in the air, to hold a hover INSIDE.
+ *
+ * The one prop in the academy that is deliberately left with no collider. Every
+ * other solid thing here now stops the drone; this is a target volume, and the
+ * exercise is to sit in the middle of it. Give it a shell and the exercise
+ * becomes impossible rather than harder — which is the same reason a gate's
+ * opening is left clear while its frame is not.
+ */
 export function HoverBox({
   position,
   size = 2,
@@ -336,7 +405,11 @@ export function Windsock({ position }: { position: [number, number, number] }) {
   });
 
   return (
-    <group position={position}>
+    // The MAST only. The sock is cloth on a swivel that turns with the wind, and
+    // a hard shell round something that visibly swings would be a collider in a
+    // place the pilot watched it leave.
+    <RigidBody type="fixed" colliders={false} position={position}>
+      <CylinderCollider args={[2, 0.08]} position={[0, 2, 0]} />
       <mesh position={[0, 2, 0]} castShadow>
         <cylinderGeometry args={[0.06, 0.08, 4, 10]} />
         <meshStandardMaterial color="#9aa3ad" metalness={0.7} roughness={0.35} envMapIntensity={1.2} />
@@ -353,7 +426,7 @@ export function Windsock({ position }: { position: [number, number, number] }) {
           </mesh>
         ))}
       </group>
-    </group>
+    </RigidBody>
   );
 }
 
@@ -397,6 +470,25 @@ export function Tree({
 
   return (
     <group position={position} scale={scale} rotation={[lean, twist * Math.PI, lean * 0.6]}>
+      {/* Trunk and canopy, both solid, and INSIDE the scaled group so the
+          colliders take the tree's own scale with it — a body hung outside it
+          would collide at the size of the smallest tree in the line.
+
+          The treeline stands outside the fence, which is not the same as out of
+          reach: the fence is 2.4 m of a 30 m ceiling, so the drone flies over it
+          and the arena's bounds (60 m square) run past the trees at the corners.
+          One cone or one ball for the whole canopy rather than one per tier or
+          lobe — nobody threads the inside of a tree, and the difference is 34
+          bodies against 170. */}
+      <RigidBody type="fixed" colliders={false}>
+        <CylinderCollider args={[1.05, 0.2]} position={[0, 1.05, 0]} />
+        {conifer ? (
+          <ConeCollider args={[1.72, 1.32]} position={[0, 3.07, 0]} />
+        ) : (
+          <BallCollider args={[1.5]} position={[0, 2.95, 0]} />
+        )}
+      </RigidBody>
+
       {/* Tapered trunk */}
       <mesh position={[0, 1.05, 0]} castShadow>
         <cylinderGeometry args={[0.13, 0.26, 2.1, 7]} />
@@ -451,7 +543,13 @@ export function Floodlight({
 }) {
   const night = useWorldStore((s) => TIME_NIGHT(s.timeOfDay));
   return (
-    <group position={position} rotation={[0, rotationY, 0]}>
+    <RigidBody type="fixed" colliders={false} position={position} rotation={[0, rotationY, 0]}>
+      {/* An 8 m mast standing at the edge of the practice area, and the lamp
+          head on top of it — the one thing here the drone meets at height
+          rather than on the ground. Both boxed at the size they are drawn: the
+          head is two lamps side by side, taken as the one block they read as. */}
+      <CylinderCollider args={[4, 0.14]} position={[0, 4, 0]} />
+      <CuboidCollider args={[0.85, 0.32, 0.14]} position={[0, 8.1, 0.2]} rotation={[0.5, 0, 0]} />
       <mesh position={[0, 4, 0]} castShadow>
         <cylinderGeometry args={[0.1, 0.14, 8, 10]} />
         <meshStandardMaterial color="#767f89" metalness={0.75} roughness={0.34} envMapIntensity={1.2} />
@@ -468,7 +566,7 @@ export function Floodlight({
         </mesh>
       ))}
       {night && <pointLight position={[0, 7.6, 1]} intensity={90} distance={40} color="#ffeec2" />}
-    </group>
+    </RigidBody>
   );
 }
 
@@ -572,7 +670,12 @@ export function ControlTower({ position }: { position: [number, number, number] 
 
 export function Bench({ position, rotationY = 0 }: { position: [number, number, number]; rotationY?: number }) {
   return (
-    <group position={position} rotation={[0, rotationY, 0]}>
+    <RigidBody type="fixed" colliders={false} position={position} rotation={[0, rotationY, 0]}>
+      {/* One box round seat, back and legs. The bench is 2 m of furniture
+          standing 11 m off the pad, which is exactly where a beginner's first
+          drift takes them. Fitted to what is drawn — the back leans 0.26 m
+          behind the seat, so the box is off-centre in z rather than square. */}
+      <CuboidCollider args={[1, 0.415, 0.37]} position={[0, 0.415, -0.09]} />
       <mesh position={[0, 0.45, 0]} castShadow>
         <boxGeometry args={[2, 0.09, 0.55]} />
         <meshStandardMaterial color="#8a6a44" roughness={0.9} />
@@ -587,7 +690,7 @@ export function Bench({ position, rotationY = 0 }: { position: [number, number, 
           <meshStandardMaterial color="#3c4249" roughness={0.7} metalness={0.3} />
         </mesh>
       ))}
-    </group>
+    </RigidBody>
   );
 }
 
@@ -608,7 +711,23 @@ export function FenceRun({
   const posts = Math.max(2, Math.round(len / 4));
 
   return (
-    <group position={[(from[0] + to[0]) / 2, 0, (from[1] + to[1]) / 2]} rotation={[0, angle, 0]}>
+    <RigidBody
+      type="fixed"
+      colliders={false}
+      position={[(from[0] + to[0]) / 2, 0, (from[1] + to[1]) / 2]}
+      rotation={[0, angle, 0]}
+    >
+      {/* The whole panel, not the posts. Chain-link is see-through, which is why
+          it is drawn at 0.18 opacity — it is not fly-through, and a fence the
+          drone crossed anywhere but over the top would be scenery. The run
+          points down local Z (the posts are laid out along it), so the wall is
+          thin in x and as long as the run in z.
+
+          It stops at 2.4 m ON PURPOSE, unlike Flight School's boundary walls,
+          which collide to the ceiling. Those walls ARE the edge of the world;
+          this is a fence round a field with 30 m of sky over it, and the arena's
+          own soft containment is what turns the drone back at the bounds. */}
+      <CuboidCollider args={[0.05, height / 2, len / 2]} position={[0, height / 2, 0]} />
       <mesh position={[0, height / 2, 0]}>
         <planeGeometry args={[0.02, height]} />
         <meshStandardMaterial visible={false} />
@@ -637,7 +756,7 @@ export function FenceRun({
         <cylinderGeometry args={[0.035, 0.035, len, 8]} />
         <meshStandardMaterial color="#6f7883" metalness={0.5} roughness={0.6} />
       </mesh>
-    </group>
+    </RigidBody>
   );
 }
 
@@ -719,7 +838,24 @@ export function Mountains() {
 
 export function MaintenanceTent({ position }: { position: [number, number, number] }) {
   return (
-    <group position={position}>
+    <RigidBody type="fixed" colliders={false} position={position}>
+      {/* The canopy is a four-sided cone — a pyramid whose corners point down
+          x and z — so the collider is a box turned 45 degrees to sit on its
+          EDGES: half a side is 4.2 / sqrt(2). Squared up to the axes instead it
+          would be a 8.4 m block with two metres of solid nothing at each corner.
+          It is boxed rather than tapered, so the very top overhangs the slope by
+          a little; a roof is a roof, and the alternative is four sloped hulls
+          for a prop nothing is flown through. */}
+      <CuboidCollider args={[2.97, 1.1, 2.97]} position={[0, 2.5, 0]} rotation={[0, Math.PI / 4, 0]} />
+      {[
+        [-2.6, -2.6],
+        [2.6, -2.6],
+        [-2.6, 2.6],
+        [2.6, 2.6],
+      ].map(([x, z]) => (
+        <CylinderCollider key={`${x},${z}`} args={[0.8, 0.06]} position={[x, 0.8, z]} />
+      ))}
+      <CuboidCollider args={[1.2, 0.04, 0.45]} position={[0, 0.8, -1.2]} />
       <mesh position={[0, 2.5, 0]} castShadow>
         <coneGeometry args={[4.2, 2.2, 4]} />
         <meshStandardMaterial color="#b8452f" roughness={0.85} />
@@ -740,7 +876,7 @@ export function MaintenanceTent({ position }: { position: [number, number, numbe
         <boxGeometry args={[2.4, 0.08, 0.9]} />
         <meshStandardMaterial color="#7d848c" metalness={0.4} roughness={0.6} />
       </mesh>
-    </group>
+    </RigidBody>
   );
 }
 
