@@ -123,6 +123,12 @@ const _axis = new THREE.Vector3();
 
 const STICK_DEADBAND = 0.06;
 
+/**
+ * Below this much commanded collective (N) the motors are treated as STOPPED.
+ * Not a tuning knob — see the cut in `update()`.
+ */
+const THRUST_CUTOFF = 1e-4;
+
 export class FlightController {
   private rollRate: PidController;
   private pitchRate: PidController;
@@ -320,6 +326,33 @@ export class FlightController {
     } else {
       const throttleRatio = clamp(thrust / Math.max(state.mass * GRAVITY, 1e-4), 0, 1);
       torqueScale = input.throttle <= 0.08 ? 0.05 : Math.max(0.1, throttleRatio);
+    }
+
+    // ---- Zero collective means the motors are OFF, not merely quiet ----
+    //
+    // The mixer hands every motor `thrust/4 ± torque`, so with a collective of
+    // zero the negative half is clamped away and the positive half survives:
+    // the aircraft makes real, asymmetric thrust out of an attitude correction
+    // it was never given any lift to spend. Armed on the pad in Altitude Hold
+    // that is exactly what happened — the throttle stick sits centred, so
+    // `altitudeThrust()` correctly returns 0, but `input.throttle` of 0.5 is
+    // above the idle test below and left the torque channel open at 0.1. The
+    // drone slowly pitched forward and crept off the pad with its props
+    // running, having been commanded nothing at all.
+    //
+    // A real quad behaves the same way: no throttle is no airflow and no
+    // authority. Cutting here rather than inside the mixer keeps the reported
+    // motor outputs honest, which is what the props and the audio are drawn
+    // and pitched from.
+    if (thrust <= THRUST_CUTOFF) {
+      return {
+        motorThrusts: [0, 0, 0, 0],
+        motors: [0, 0, 0, 0],
+        yawTorque: 0,
+        attitude: { roll: _euler.z, pitch: _euler.x, yaw: _euler.y },
+        saturated: false,
+        throttleFraction: 0,
+      };
     }
 
     // ---- Mix to motors (saturation is physically real from here on) ----

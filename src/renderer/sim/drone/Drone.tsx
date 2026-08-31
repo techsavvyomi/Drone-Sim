@@ -1058,7 +1058,20 @@ export function Drone({ spec, spawn, bounds, outdoor = false, groundY }: DronePr
       return;
     }
 
-    // Realistic on-surface detection: must be level and nearly stationary
+    // Realistic on-surface detection: must be level and nearly stationary.
+    //
+    // Height is measured to whatever is actually UNDERNEATH the aircraft — the
+    // corner rays cast above — and never to world zero. `altitude` is `pos.y`,
+    // so grading contact by it meant a drone standing on anything raised (a
+    // rooftop, the classroom table, a landing pad) was never "on the ground".
+    // Arming there flipped `onGround` false, Altitude Hold stopped taking its
+    // stopped-on-the-pad branch and instead held the height it was already at —
+    // which is hover thrust. The motors spooled up the moment the pilot armed,
+    // and the aircraft ground against its own contacts and pitched away across
+    // the roof. It only ever happened somewhere raised, which is what made it
+    // look intermittent.
+    const supportDist = liveSupportInfo.current.distances;
+    const agl = Math.min(supportDist[0], supportDist[1], supportDist[2], supportDist[3]);
     const isLevel = Math.abs(_euler.x) < 0.38 && Math.abs(_euler.z) < 0.38;
     const isStationary =
       Math.abs(verticalSpeed) < 0.22 && groundSpeed < 0.3 && Math.hypot(av.x, av.y, av.z) < 0.8;
@@ -1066,7 +1079,7 @@ export function Drone({ spec, spawn, bounds, outdoor = false, groundY }: DronePr
       liveSupportInfo.current.isStable &&
       isLevel &&
       isStationary &&
-      (altitude < GROUND_ALT || (!flight.armed && isStationary));
+      (agl < GROUND_ALT || (!flight.armed && isStationary));
     if (onGround !== flight.onGround) flight.setOnGround(onGround);
 
     // Re-baseline on a new auto sequence, and whenever the active input device
