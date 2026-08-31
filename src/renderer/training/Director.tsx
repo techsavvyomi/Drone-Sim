@@ -603,6 +603,17 @@ export function Director() {
       // did, and leaving the final one unticked reads as "not quite".
       const total = lesson.stages?.length ?? lesson.route?.length ?? 0;
       if (total > 0 && training.routeIndex !== total) training.setRouteIndex(total);
+      // And take the last checkpoint's mark off the field with it. The route
+      // cursor is written further down, which this return never reaches — so
+      // the checkpoint that ENDED the flight was the one checkpoint whose mark
+      // never went out. On a circuit that closes where it began it is glaring:
+      // Module 9 comes back to Corner A, the cursor stopped one short of the
+      // end, and the pink column stood lit on A through the result card — on
+      // the corner the pilot had just flown into, which is the moment the light
+      // exists to acknowledge. Set to the route's LENGTH, the "all done" value
+      // (#35), so every mark reads as taken.
+      const flown = lesson.route?.length ?? 0;
+      if (flown > 0 && training.routeTarget !== flown) training.setRouteTarget(flown);
       if (doneTimer.current >= DONE_HOLD) {
         const timeSec = practiceTime.current;
         const meanJerk = timeSec > 0 ? jerkAccum.current / timeSec : 0;
