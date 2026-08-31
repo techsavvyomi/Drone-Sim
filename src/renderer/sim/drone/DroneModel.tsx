@@ -26,6 +26,44 @@ interface PropRotor {
   blades: THREE.Material[];
 }
 
+/**
+ * Undo the CAD exporter's blanket metalness on dark parts.
+ *
+ * Every material in both drone exports carries metalness 1.0 and roughness
+ * 0.55 — exactly, on all 42 of the Guru's and all of the PlutoX's. Those are
+ * not authored PBR values, they are the exporter stamping a constant, and
+ * taking them literally is what made the Guru's motors disappear.
+ *
+ * A metal has no diffuse term at all: it is lit purely by what it reflects. So
+ * a fully metallic material with a near-black base colour is a black mirror,
+ * and against this sim's sky-and-ground lighting it returns almost nothing —
+ * no shading, no silhouette, no shape. The Guru's four motors are exactly
+ * that (base luminance 0.11 to 0.18), which is why they read as missing while
+ * sitting right where they belong in the model. The PlutoX gets away with it
+ * because the parts around ITS hubs are white and light grey, bright enough to
+ * reflect the sky and show their form.
+ *
+ * Bright metals are left alone — that blanket value is doing no harm where the
+ * part is light enough to reflect something, and the props and polished trim
+ * are meant to look metallic. What a dark CAD part means is anodised aluminium
+ * or moulded plastic, and both of those want a diffuse response.
+ *
+ * The mirror image of invariant #24: there, metalness lifted a dark road to
+ * pale grey; here it drops a dark motor to pure black. Same lesson, which is
+ * that metalness is not a brightness knob and must match what the surface is.
+ */
+const DARK_BASE = 0.35;
+function demetallise(m: THREE.Material): void {
+  const std = m as THREE.MeshStandardMaterial;
+  if (std.metalness === undefined || std.metalness < 0.9) return;
+  // A texture carries its own light and shade, so it reads even on a mirror.
+  if (std.map) return;
+  const c = std.color;
+  if (!c) return;
+  if (0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b >= DARK_BASE) return;
+  std.metalness = 0.15;
+}
+
 function Gltf({ spec, idleSpin = 0 }: { spec: DroneSpec; idleSpin?: number }) {
   const { scene } = useGLTF(spec.model!);
   const rotors = useRef<PropRotor[]>([]);
@@ -45,6 +83,7 @@ function Gltf({ spec, idleSpin = 0 }: { spec: DroneSpec; idleSpin?: number }) {
         const mat = mesh.material as THREE.Material | THREE.Material[];
         if (Array.isArray(mat)) mat.forEach((m) => (m.side = THREE.FrontSide));
         else if (mat) mat.side = THREE.FrontSide;
+        (Array.isArray(mat) ? mat : mat ? [mat] : []).forEach(demetallise);
       }
     });
 
