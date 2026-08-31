@@ -117,8 +117,6 @@ export function flyMission(
   // Everything the bar has to fit into. Without a landing that is the first
   // three stages, scaled back up to a full bar.
   const scale = spot ? 1 : 1 / (W_ARM + W_TAKEOFF + W_ROUTE);
-  if (p.crashed) return { done: false, failed: true, hint: 'Crashed. Try again', cue: [] };
-
   // Stages 1 and 2 — arm, then take off. Shared with every other module now
   // that they all begin on the pad; see `preflight.ts`.
   const pre = preflight(p, mem, scale);
@@ -259,8 +257,6 @@ export function withFlight(
   drillSteps: number,
   spot: LandingSpot = HOME,
 ): ValidationResult {
-  if (p.crashed) return { done: false, failed: true, hint: 'Crashed. Try again', cue: [] };
-
   const pre = preflight(p, mem);
   if (pre) return pre;
 

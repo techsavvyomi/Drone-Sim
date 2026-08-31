@@ -558,6 +558,42 @@ export function Director() {
     if (flight.crashed && !prevCrashed.current) crashCount.current += 1;
     prevCrashed.current = flight.crashed;
 
+    // A WRECK ENDS THE ATTEMPT, on every module, without the lesson having to
+    // say so.
+    //
+    // This used to be each lesson's own job — `if (p.crashed) return failed` at
+    // the top of its validator — and twelve of the fourteen remembered. Modules
+    // 7 and 8 did not, and on those the crash card came up over a lesson that
+    // was still running underneath it: the clock ticking, the hint still asking
+    // for a checkpoint, and the stall timer counting down to replay the
+    // demonstration for a drone lying on the concrete. The pilot was being
+    // marked on a flight that had already ended.
+    //
+    // A rule that has to be repeated in fourteen places is a rule that will be
+    // missed in one of them, and this one is not about any single exercise: what
+    // a crash means is the same in Module 1 as in Module 14, and the same as it
+    // is in the Fly view, which is the standard the academy is held to. So it is
+    // decided HERE, before the lesson is asked anything, and the per-lesson
+    // checks it replaces have been taken out.
+    //
+    // `awaitingRestart` latches, and the guard above returns on every later
+    // frame, so the failure is counted exactly once however long the wreck sits
+    // there. The hint stays as plain as the others — asking for R is the crash
+    // card's job, and saying it twice in two different words is noise on the one
+    // screen that has to read at a glance.
+    if (flight.crashed) {
+      training.setValidation({ progress: 0, failed: true });
+      training.setHint('Crashed. Try again');
+      publishCue([]);
+      failCount.current += 1;
+      // So the next go starts with a live debounce rather than a second of
+      // immunity carried over from this crash.
+      failCooldown.current = 1.0;
+      playFail();
+      awaitingRestart.current = true;
+      return;
+    }
+
     // Arm/disarm blips are played by DroneAudio now, so the Fly view gets them
     // too rather than only Flight School.
 
@@ -669,8 +705,13 @@ export function Director() {
       playFail();
       // A validator can declare that the failure wrecked the aircraft. Raise the
       // real crash for it rather than inventing a second way to fail: the crash
-      // card, the star cap and the wait for R all follow from `flight.crashed`,
-      // and the count below has already ticked past this frame's reading of it.
+      // card, the star cap and the wait for R all follow from `flight.crashed`.
+      //
+      // This is the ONLY way a crash reaches here now. A wreck the physics
+      // raised has already ended the attempt further up and never gets as far as
+      // the validator, so `flight.crashed` is false by the time this runs — the
+      // check on it is what stops a validator raising a second crash on top of
+      // one already standing.
       if (res.wrecked && !flight.crashed) {
         useFlightStore.getState().crash(Math.abs(sim.verticalSpeed));
         crashCount.current += 1;
@@ -679,7 +720,7 @@ export function Director() {
       // A crash is the pilot's to clear. Anything else — flown out of the box,
       // landed off the pad — leaves a drone that is still fit to fly, so those
       // keep restarting on their own.
-      if (flight.crashed || res.wrecked) {
+      if (res.wrecked) {
         awaitingRestart.current = true;
         // The hint stays as the lesson wrote it ("Crashed. Try again"). Asking
         // for R is the crash card's job — TrainingHud renders the same one the

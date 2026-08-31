@@ -205,7 +205,6 @@ function navLesson(cfg: {
     ],
 
     validate: (p, mem) => {
-      if (p.crashed) return { done: false, failed: true, hint: 'Crashed. Try again', cue: [] };
       // Height is only a technique score once the drone is up. Every module
       // starts on the deck now, and grading the take-off against the first
       // gate's altitude would spend the star before the flight began.

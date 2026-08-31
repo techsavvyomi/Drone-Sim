@@ -73,8 +73,6 @@ export const armTakeoffLesson: Lesson = {
   commonMistakes: ['Pressing SPACE before arming.', 'Trying to arm with the throttle up.'],
 
   validate: (p, mem) => {
-    if (p.crashed) return { done: false, failed: true, hint: 'Crashed. Try again', cue: [] };
-
     // Stage 1 — get it armed. The interlock refuses with the throttle raised,
     // so say why rather than leaving the pilot pressing a key that does nothing.
     if (!p.armed && !mem.wasArmed) {

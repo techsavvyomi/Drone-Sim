@@ -162,10 +162,15 @@ export function preflight(p: Probe, mem: LessonMemory, scale = 1): ValidationRes
 /**
  * Run a lesson's own drill behind the preflight.
  *
- * The crash check comes first, then arm and take off, then `drill` — whose
- * result is shifted into the band the preflight left: its step numbers move past
- * Arm and Take off, and its progress is squeezed into the top of the bar so
- * "half way" still means half the flight rather than half the drill.
+ * Arm and take off first, then `drill` — whose result is shifted into the band
+ * the preflight left: its step numbers move past Arm and Take off, and its
+ * progress is squeezed into the top of the bar so "half way" still means half
+ * the flight rather than half the drill.
+ *
+ * A CRASH is not checked here, and no validator checks it any more. A wreck ends
+ * the attempt on every module alike, so the Director decides it before a lesson
+ * is asked anything — see `tickPractice`. Fourteen copies of one rule is a rule
+ * that gets missed, and it was: Modules 7 and 8 never had theirs.
  *
  * A drill that reports no progress at all (an early-out failure) is left alone;
  * rescaling `undefined` would put the bar back at the take-off.
@@ -175,8 +180,6 @@ export function withPreflight(
   mem: LessonMemory,
   drill: (p: Probe, mem: LessonMemory) => ValidationResult,
 ): ValidationResult {
-  if (p.crashed) return { done: false, failed: true, hint: 'Crashed. Try again', cue: [] };
-
   const pre = preflight(p, mem);
   if (pre) return pre;
 
