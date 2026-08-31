@@ -21,7 +21,7 @@ import {
   setScriptedStick,
   runScriptedCommand,
 } from '../input/controls';
-import { playFail, playWhoosh } from '../audio/sfx';
+import { playCollect, playFail, playWhoosh } from '../audio/sfx';
 import type { Vec3 } from '@shared/types';
 
 // The Director runs a lesson through Explain -> Demonstrate -> Practice ->
@@ -156,6 +156,29 @@ function resetDrone(lesson: Lesson): void {
   flight.clearCrash();
   if (flight.paused) flight.togglePause();
   resetStick();
+}
+
+/**
+ * Move the route cursor, and chime if it moved FORWARD.
+ *
+ * The cursor advancing IS a checkpoint being taken — it is the same number the
+ * guide puts its lights out on and the map counts down to — so the sound belongs
+ * with the move rather than beside it. Written once because three places move
+ * it: the demonstration off its own beats, the attempt off the validator's
+ * cursor, and the completion frame, which sets it past the end.
+ *
+ * Only forward. The cursor is also sent back to zero on a restart, a replay and
+ * a retry, and a lesson resetting itself is not something the pilot achieved.
+ *
+ * `getState` rather than a captured store snapshot: the caller reads the store
+ * once at the top of a frame, and by here something else may already have moved
+ * the same number.
+ */
+function advanceRoute(next: number): void {
+  const training = useTrainingStore.getState();
+  if (next === training.routeTarget) return;
+  if (next > training.routeTarget) playCollect();
+  training.setRouteTarget(next);
 }
 
 function centerSticks(): void {
@@ -391,9 +414,7 @@ export function Director() {
       // and moves at a different moment: this one says a checkpoint is BEHIND
       // the aircraft, and it is what takes the letter off the gate as the demo
       // flies out the far side.
-      if (step.rt !== undefined && step.rt !== training.routeTarget) {
-        training.setRouteTarget(step.rt);
-      }
+      if (step.rt !== undefined) advanceRoute(step.rt);
       // Only the one-shot commands need a flash; a held stick lights its own cap.
       if (step.key && step.cmd) {
         cmdKey.current = step.key;
@@ -649,7 +670,7 @@ export function Director() {
       // exists to acknowledge. Set to the route's LENGTH, the "all done" value
       // (#35), so every mark reads as taken.
       const flown = lesson.route?.length ?? 0;
-      if (flown > 0 && training.routeTarget !== flown) training.setRouteTarget(flown);
+      if (flown > 0) advanceRoute(flown);
       if (doneTimer.current >= DONE_HOLD) {
         const timeSec = practiceTime.current;
         const meanJerk = timeSec > 0 ? jerkAccum.current / timeSec : 0;
@@ -696,7 +717,7 @@ export function Director() {
       // when the route is finished.
       const cursor = lesson.stages ? (mem.current.rt ?? 0) : (mem.current.wp ?? 0);
       const goal = Math.min(cursor, legs);
-      if (goal !== training.routeTarget) training.setRouteTarget(goal);
+      advanceRoute(goal);
     }
 
     if (res.failed && failCooldown.current <= 0) {

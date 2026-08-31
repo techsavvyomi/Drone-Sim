@@ -158,6 +158,31 @@ export function playBatteryBeep(critical = false): void {
   if (critical) tone({ freq, dur: 0.07, type: 'square', gain: 0.09, delay: 0.11 });
 }
 
+/**
+ * Checkpoint taken.
+ *
+ * The moment a corner or a gate is scored, and the only sound in a lesson that
+ * answers "did that count". Everything else the guide does about it is visual —
+ * the light goes out, the step row ticks, the dial moves on — and all three are
+ * off to the side of a pilot who is looking at where they are going next.
+ *
+ * Short and bright on purpose. It plays while the aircraft is still carrying its
+ * speed out the far side of the thing it just took, so anything with a tail on
+ * it would still be sounding over the next leg. Two notes a fifth apart, the
+ * second above the first: rising reads as "got it" where falling reads as a
+ * mistake, which is the job `playFail` already has.
+ *
+ * Deliberately NOT the success flourish. That one means the lesson is over, and
+ * a checkpoint is a step inside it — a pilot who hears the same sound at both
+ * cannot tell a corner from the finish.
+ */
+export function playCollect(): void {
+  tone({ freq: 1047, dur: 0.09, type: 'triangle', gain: 0.15 });
+  tone({ freq: 1568, dur: 0.14, type: 'triangle', gain: 0.12, delay: 0.05 });
+  // A touch of air over the top, so it reads as a chime rather than as a beep.
+  tone({ freq: 3136, dur: 0.09, type: 'sine', gain: 0.045, delay: 0.05 });
+}
+
 /** One star chime; pitch rises with the star index (0,1,2). */
 export function playStar(index: number): void {
   const freqs = [660, 830, 990];
