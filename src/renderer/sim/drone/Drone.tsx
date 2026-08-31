@@ -301,6 +301,20 @@ export function Drone({ spec, spawn, bounds, outdoor = false, groundY }: DronePr
     useFlightStore.getState().setOnGround(lift <= 0);
     useFlightStore.getState().clearCrash();
     useFlightStore.getState().recharge();
+    // And stop the rotors DEAD, not on the damped spool-down.
+    //
+    // A reset teleports the body back to the pad. The propellers were never
+    // told: disarming only sets their target to zero, and `DroneModel` damps
+    // `rpm` toward it, so the machine that arrived on the pad stood there with
+    // the previous flight's props still winding down for a second or two. It is
+    // the same lie the drone-swap effect below fixes, from the same cause — the
+    // aircraft under those rotors is not the one that was flying a frame ago.
+    //
+    // Safe to do here even though Flight School arms out of `lesson.setup()` in
+    // this same tick: this zeroes the DRAWN speed, not the motor demand, so a
+    // lesson that arms immediately simply spools up from a standstill, which is
+    // what a drone freshly placed on the pad does.
+    resetPropSpin();
     if (lift > 0) {
       controller.captureAltitude(y + lift);
       const flight = useFlightStore.getState();
