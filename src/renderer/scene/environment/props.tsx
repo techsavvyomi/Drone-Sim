@@ -570,14 +570,67 @@ export function Floodlight({
   );
 }
 
+/**
+ * The hangar's arched roof, as the collider has to see it.
+ *
+ * These describe the shell drawn inside `Hangar` and must not drift from it:
+ * `SEGMENTS` is that `cylinderGeometry`'s own radial-segment count, which is
+ * what lets each collider box land exactly on one drawn facet.
+ */
+const ROOF_R = 5.1;
+const ROOF_SEGMENTS = 20;
+const ROOF_HALF_LEN = 8;
+const ROOF_THICKNESS = 0.12;
+/** Height of the eaves — the arch's centre, and the top of the walls. */
+const ROOF_EAVE_Y = 6;
+
 export function Hangar({ position, rotationY = 0 }: { position: [number, number, number]; rotationY?: number }) {
   return (
     // Explicit collider only. With colliders="cuboid" the half-cylinder roof
     // generated a ~10x10x16 m invisible box around the building, and the flat
     // door plane produced a degenerate collider — both of which the drone hit
     // well away from any visible surface.
+    //
+    // Two shapes, because the building is two shapes. A single box across both
+    // was the whole hangar's collider for a while: it stopped at y = 8.4 while
+    // the arched roof reaches 11.1, so a drone coming in over the top passed
+    // straight through the roof skin and came to rest INSIDE the building, three
+    // metres below the ridge — the clearest possible version of an obstacle the
+    // pilot can see and fly through. The same box was also 2.4 m taller than the
+    // walls it was standing in for, and 0.5 m wider than the arch above them, so
+    // approaching the eaves from the side hit nothing at all.
     <RigidBody type="fixed" colliders={false} position={position} rotation={[0, rotationY, 0]}>
-      <CuboidCollider args={[8, 4.2, 5]} position={[0, 4.2, 0]} />
+      {/* Walls: exactly the box that is drawn. */}
+      <CuboidCollider args={[8, 3, 5]} position={[0, 3, 0]} />
+      {/* Roof: one box per facet of the arch, exactly as the ring gates wall
+          their torus.
+          A single cylinder collider is the obvious shape and cannot be made to
+          fit. Its radius has to come down to 5.0 to stay inside the walls —
+          anything wider bulges past them in the last metre under the eaves and
+          puts an invisible ledge down the side of the building — and at 5.0 it
+          sits 10 cm inside a 5.1 m roof, which is a third of a Pluto's width of
+          roof the drone sinks into before anything stops it.
+          The shell is drawn as a 20-sided fan, so 20 chords ARE the surface:
+          each box's outer face is placed on its facet's own plane, which is
+          neither proud of the roof nor behind it. Being boxes they also stop at
+          the eaves instead of continuing down past the walls. */}
+      {Array.from({ length: ROOF_SEGMENTS }, (_, i) => {
+        const step = Math.PI / ROOF_SEGMENTS;
+        // Facet centre, measured round the arch from the right-hand eave.
+        const a = (i + 0.5) * step;
+        // Half-chord, and the distance out to the facet's plane — less the
+        // box's own thickness, so its OUTER face is the one that lands there.
+        const chord = ROOF_R * Math.sin(step / 2);
+        const depth = ROOF_R * Math.cos(step / 2) - ROOF_THICKNESS;
+        return (
+          <CuboidCollider
+            key={i}
+            args={[ROOF_HALF_LEN, ROOF_THICKNESS, chord]}
+            position={[0, ROOF_EAVE_Y + depth * Math.sin(a), depth * Math.cos(a)]}
+            rotation={[Math.PI / 2 - a, 0, 0]}
+          />
+        );
+      })}
 
       <mesh position={[0, 3, 0]} castShadow receiveShadow>
         <boxGeometry args={[16, 6, 10]} />
@@ -615,7 +668,12 @@ export function ControlTower({ position }: { position: [number, number, number] 
     // Cylinder colliders: a cuboid hull around the mast and cab made the tower
     // noticeably wider to hit than it looks.
     <RigidBody type="fixed" colliders={false} position={position}>
-      <CylinderCollider args={[5, 2.1]} position={[0, 5, 0]} />
+      {/* The mast TAPERS, 2.1 m at the foot to 1.6 m under the cab, so one
+          cylinder at its base radius stands up to half a metre proud of the
+          shaft the pilot is looking at. Two stacked segments, each taken at the
+          radius of its own top edge, sit inside the cone the whole way up. */}
+      <CylinderCollider args={[2.5, 1.85]} position={[0, 2.5, 0]} />
+      <CylinderCollider args={[2.5, 1.6]} position={[0, 7.5, 0]} />
       <CylinderCollider args={[1.2, 3.2]} position={[0, 11.2, 0]} />
 
       <mesh position={[0, 5, 0]} castShadow receiveShadow>
