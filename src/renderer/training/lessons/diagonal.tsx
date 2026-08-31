@@ -1,44 +1,61 @@
 import { CUE, lineDeviation, type Lesson } from './types';
 import { flyMission } from './mission';
 import { planDemo } from './demoFlight';
-import { HOVER, gate, home, routeLegs } from './arena';
+import { gate, home, routeLegs } from './arena';
+import { KEYS_PITCH, KEYS_ROLL, KEYS_THROTTLE, KEYS_YAW } from './preflight';
 import { ACADEMY_PAD } from '../../plugins/environments/droneAcademy';
 
-// Module 8 — Diagonal Run. The long diagonal of the arena: the green rectangle
-// away to the right, 36 m out. Module 6 taught the roll stick alone; this holds
+// Module 8 — Diagonal Run. Out to the RED CIRCLE on the right, 25 m away and
+// off to one side, and back. Module 6 taught the roll stick alone; this holds
 // pitch and roll TOGETHER for a full run, and scores the line.
 //
 // Flown as a whole flight, like Module 7: arm, take off, out, back, land. The
 // checkpoint row carries the pilot through it, and the landing is the step the
 // screen has to ask for, because by then nothing else is.
 //
-// TWO sticks, and only those two. The throttle used to be a third — the gate
-// stands 5 m up and the module asked the pilot to climb to it — but the lesson
-// is the RATIO between pitch and roll, and a third channel moving at the same
-// time is a different exercise. It is flown level in altitude hold now, judged
-// at hover height the way Module 5 judges its gate, and it takes off and lands
-// on the SPACE sequences from Modules 1 and 2 like Module 7 does.
-// A BALL of light on the checkpoint instead of a letter beside it, the way
-// Module 7 marks its gate. The exercise here is the PASS, not the name — there
-// is one target and then the way home — so a letter answers a question nobody is
-// asking, while the ball answers "where exactly, and did I get it".
+// TWO sticks, and only those two. The throttle used to be a third — the target
+// stood well above the hover and the module asked the pilot to climb to it — but
+// the lesson is the RATIO between pitch and roll, and a third channel moving at
+// the same time is a different exercise.
 //
-// It matters more here than it does on Module 7, because this checkpoint is NOT
-// in the gate. The green rectangle stands 5 m up and the run is flown level in
-// altitude hold, so the point being judged sits at hover height well below the
-// opening. A letter hanging there said nothing about that; the ball IS the
-// acceptance volume, so what the pilot flies at and what the validator scores
-// are the same thing.
+// The circle is 3.2 m up, and the pilot still never touches the throttle: the
+// module takes off to the circle's OWN height (`hoverHeight`), so SPACE delivers
+// the aircraft at the height of the opening and the run out is flat. That is the
+// same trick the shape circuits use, and it is what lets the checkpoint sit in
+// the middle of the gate instead of somewhere under it.
+//
+// It is flown THROUGH, not stopped at. A circle is a hole, and the pass is the
+// exercise — so the checkpoint carries the gate's axis, the demonstration lines
+// up on it and carries out the far side rather than parking in the frame, and
+// what scores is being inside the OPENING rather than inside a sphere wide
+// enough to hang out past the ring.
+//
+// A BALL of light in the opening instead of a letter beside it, the way Module 7
+// marks its gate. The exercise here is the PASS, not the name — there is one
+// target and then the way home — so a letter answers a question nobody is
+// asking, while the ball answers "where exactly, and did I get it". Sitting on
+// the checkpoint, it now hangs in the middle of the circle, which is the thing
+// the pilot flies at.
 //
 // `tag` stays: the letter is gone from the arena, but the minimap still names
 // the checkpoint with it.
-const TARGET = gate('green-right', 'Green gate', {
+const TARGET = gate('red-right', 'Red circle', {
   ease: 1.4,
-  height: HOVER,
+  through: true,
   tag: 'A',
   orb: true,
 });
-const ROUTE = [TARGET, home('H')] as const;
+/** The height the run is flown at: the circle's own centre, so the pass goes
+ *  through the middle of the opening and the pilot holds one height throughout.
+ *  Read off the gate rather than typed, so moving the gate moves the lesson. */
+const FLY_AT = TARGET.at[1];
+const ROUTE = [TARGET, home('H', { height: FLY_AT })] as const;
+/** Where the run starts from: the hover over the "H", at the circuit height. */
+const START: readonly [number, number, number] = [
+  ACADEMY_PAD.center[0],
+  FLY_AT,
+  ACADEMY_PAD.center[1],
+];
 
 const LEGS = [
   {
@@ -62,11 +79,12 @@ const FLIGHT = planDemo(
     [
       {
         caption: 'Forward and right together — one long diagonal',
-        arrive: 'Both sticks back to stop at the gate',
+        arrive: 'Straight through the middle of the circle',
       },
       { caption: 'Reverse both — back down the same diagonal', arrive: 'Back over the "H"' },
     ],
     0.45,
+    { from: START },
   ).map((leg) => ({ ...leg, stage: (leg.stage ?? 0) + ROUTE_STEP })),
   { startAt: TAKEOFF_AT + 1.4 },
 );
@@ -87,12 +105,13 @@ export const diagonalLesson: Lesson = {
   },
 
   route: ROUTE,
+  hoverHeight: FLY_AT,
 
   // The steps of the flight, not its checkpoints — same as Module 7.
   stages: [
     { label: 'Arm', cap: 'ENTER' },
     { label: 'Take off', cap: 'SPACE' },
-    { label: 'Out to the gate', cap: '↑ →' },
+    { label: 'Out to the circle', cap: '↑ →' },
     { label: 'Back to the "H"', cap: '↓ ←' },
     { label: 'Land', cap: 'SPACE' },
   ],
@@ -111,7 +130,7 @@ export const diagonalLesson: Lesson = {
       stage: 1,
       cmd: 'takeoffLand',
       key: 'Space',
-      caption: 'SPACE — it climbs to a hover on its own',
+      caption: "SPACE — it climbs to the circle's height on its own",
     },
     ...FLIGHT,
     {
@@ -133,20 +152,26 @@ export const diagonalLesson: Lesson = {
   ],
 
   practice: {
-    prompt: 'Arm, take off, diagonal to the green gate and back, then land',
+    prompt: 'Arm, take off, diagonal through the red circle and back, then land',
     hint: 'Press ENTER to arm',
   },
 
   // The two sticks the lesson is about, plus the two keys that start and end
   // any flight. The throttle caps used to sit here as well, which made a lesson
   // about holding ONE ratio look like a lesson about three channels at once.
+  // The DRILL is two sticks and stays two sticks — see the header; a third
+  // channel moving through the run is a different exercise. The ROW is not the
+  // drill, though. It is what the pilot has, and the throttle and yaw pairs are
+  // both taught by now, so leaving them off emptied the left gimbal on a module
+  // flown level for 25 m — a pilot who drifts off height or off heading was
+  // being shown a stick with nothing under it and left to guess.
   keys: [
     { code: 'Enter', label: 'ENTER', hint: 'Arm' },
     { code: 'Space', label: 'SPACE', hint: 'Take Off / Land' },
-    { code: 'ArrowUp', label: '↑', hint: 'Pitch Forward' },
-    { code: 'ArrowDown', label: '↓', hint: 'Pitch Backward' },
-    { code: 'ArrowLeft', label: '←', hint: 'Roll Left' },
-    { code: 'ArrowRight', label: '→', hint: 'Roll Right' },
+    ...KEYS_PITCH,
+    ...KEYS_ROLL,
+    ...KEYS_THROTTLE,
+    ...KEYS_YAW,
   ],
 
   tips: [
