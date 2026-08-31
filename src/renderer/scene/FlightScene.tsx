@@ -1,5 +1,5 @@
 import { Physics } from '@react-three/rapier';
-import { Grid, OrbitControls, Sky, Stars } from '@react-three/drei';
+import { Grid, Sky, Stars } from '@react-three/drei';
 import { useSettingsStore } from '../state/settingsStore';
 import { useUiStore } from '../state/uiStore';
 import { useFlightStore } from '../state/flightStore';
@@ -7,7 +7,7 @@ import { useWorldStore, TIME_PRESETS } from '../state/worldStore';
 import { getDrone, getEnvironment } from '../plugins/registry';
 import { GRAVITY, SIM_DT } from '../sim/constants';
 import { Drone } from '../sim/drone/Drone';
-import { CameraRig } from './CameraRig';
+import { CameraRig, OrbitCamera } from './CameraRig';
 import { GroundMarker } from './GroundMarker';
 import { getEnvironmentComponent } from './environment';
 import { SkyClouds } from './SkyClouds';
@@ -175,9 +175,7 @@ export function FlightScene({ envIdOverride }: { envIdOverride?: string } = {}) 
           the engine reads the camera pose for distance, panning and Doppler.
           Mounted above, it would be a frame behind — audible on a fly-by. */}
       <DroneAudio spec={spec} />
-      {cameraMode === 'orbit' && (
-        <OrbitControls makeDefault target={[0, 1.5, 0]} maxPolarAngle={Math.PI / 2.05} />
-      )}
+      {cameraMode === 'orbit' && <OrbitCamera spec={spec} />}
 
       <PostFX />
     </>

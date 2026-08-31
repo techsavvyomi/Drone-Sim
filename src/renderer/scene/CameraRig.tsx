@@ -1,4 +1,6 @@
+import { useLayoutEffect, useRef, type ComponentRef } from 'react';
 import { useThree, useFrame } from '@react-three/fiber';
+import { OrbitControls } from '@react-three/drei';
 import * as THREE from 'three';
 import type { DroneSpec, EnvironmentSpec } from '@shared/types';
 import { useUiStore } from '../state/uiStore';
@@ -7,8 +9,8 @@ import { dronePose } from '../sim/drone/pose';
 import { DEG2RAD, damp } from '../sim/mathx';
 import { decayShake } from '../sim/effects';
 
-// Positions the R3F camera for chase and FPV modes. Orbit mode is left to
-// OrbitControls (this rig no-ops so it doesn't fight the user's drag).
+// Positions the R3F camera for chase and FPV modes. Orbit mode is handled by
+// OrbitCamera below (this rig no-ops so it doesn't fight the user's drag).
 
 const _yawQuat = new THREE.Quaternion();
 const _euler = new THREE.Euler();
@@ -19,6 +21,7 @@ const _currentLook = new THREE.Vector3();
 const _tilt = new THREE.Quaternion();
 const _mount = new THREE.Vector3();
 const _trail = new THREE.Vector3();
+const _pivotStep = new THREE.Vector3();
 const UP = new THREE.Vector3(0, 1, 0);
 
 // Chase distance scales with the airframe so a 20 cm whoop and a 450-class quad
@@ -141,4 +144,70 @@ export function CameraRig({ spec, env }: { spec: DroneSpec; env?: EnvironmentSpe
   });
 
   return null;
+}
+
+// Orbit mode. OrbitControls owns the angle and the zoom, but the point it
+// orbits has to be the drone: pinned to the spawn point, flying more than a few
+// metres away left the pilot orbiting empty air with the aircraft off screen.
+//
+// The pivot is moved and the camera is moved by exactly the same amount, so the
+// pilot's orbit angle and distance survive the follow untouched — the view pans
+// with the drone rather than being re-aimed behind its back.
+export function OrbitCamera({ spec }: { spec: DroneSpec }) {
+  const camera = useThree((s) => s.camera);
+  const controls = useRef<ComponentRef<typeof OrbitControls>>(null);
+  const pinned = useRef(false);
+
+  // Aim just above the airframe, as chase does, so the props are not dead
+  // centre of frame.
+  const lookTarget = (out: THREE.Vector3) =>
+    out.copy(dronePose.position).addScaledVector(UP, spec.armLength * 1.5);
+
+  // Snap the pivot onto the drone while keeping the camera exactly where the
+  // previous mode left it. Done before the first frame, otherwise OrbitControls
+  // aims at the world origin for one frame and the view visibly whips across.
+  const pin = () => {
+    const c = controls.current;
+    if (!c || !dronePose.present) return;
+    lookTarget(_look);
+    _offset.copy(camera.position).sub(c.target);
+    c.target.copy(_look);
+    camera.position.copy(_look).add(_offset);
+    c.update();
+    pinned.current = true;
+  };
+
+  useLayoutEffect(pin, []);
+
+  useFrame((_state, delta) => {
+    const c = controls.current;
+    if (!c || !dronePose.present) return;
+    // The drone may not have existed yet at mount (respawn, scene swap).
+    if (!pinned.current) {
+      pin();
+      return;
+    }
+
+    lookTarget(_look);
+
+    // Error-scaled follow rate, for the same reason chase uses one: a constant
+    // rate cannot keep up with a free fall and the drone leaves the frame.
+    const err = _look.distanceTo(c.target);
+    const lambda = 8 + Math.min(err, 25) * 1.4;
+    _target.set(
+      damp(c.target.x, _look.x, lambda, delta),
+      damp(c.target.y, _look.y, lambda, delta),
+      damp(c.target.z, _look.z, lambda, delta),
+    );
+
+    // Runs after OrbitControls' own update (drei schedules it at priority -1),
+    // so the camera is already aimed at the old pivot. Shifting both by the
+    // same step leaves that aim correct and simply carries the whole orbit
+    // along with the aircraft.
+    _pivotStep.copy(_target).sub(c.target);
+    c.target.copy(_target);
+    camera.position.add(_pivotStep);
+  });
+
+  return <OrbitControls ref={controls} makeDefault maxPolarAngle={Math.PI / 2.05} />;
 }
