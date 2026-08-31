@@ -1077,6 +1077,11 @@ export function RouteGuide() {
             />
           );
         }
+        // A checkpoint that asked for a light and not a name has nothing to
+        // write. Without this it fell through to `GroundLabel`, which painted
+        // its dark backing disc and red ring with no letter inside — a blank
+        // token lying on the deck under the very mark meant to replace it.
+        if (e.point.tag === undefined) return null;
         return e.point.mark === 'gate' ? (
           <GateLabel key={`label-${e.point.label}-${i}`} point={e.point} />
         ) : (
