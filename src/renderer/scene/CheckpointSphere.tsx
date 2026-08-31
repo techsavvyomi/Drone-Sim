@@ -435,7 +435,13 @@ export function CheckpointSphere({
           decided by a tie-break between two objects at the same distance. */}
       <mesh renderOrder={1}>
         <sphereGeometry args={[radius, 32, 24]} />
+        {/* Keyed on the shader SOURCE — see the note on the beacon's materials
+            in `training/RouteGuide.tsx`. Three.js compiles a program once and
+            never reads the strings again, so without this an edited shader is
+            swapped onto a material still running the program it was built with,
+            and the marker keeps its old look until the app is restarted. */}
         <shaderMaterial
+          key={ORB_FRAG}
           uniforms={uniforms}
           vertexShader={ORB_VERT}
           fragmentShader={ORB_FRAG}
