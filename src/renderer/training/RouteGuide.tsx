@@ -47,6 +47,13 @@ import { TargetRing } from './TargetRing';
 //     goes out behind it. The shape circuits fly them — a corner is a patch of
 //     air over one of sixteen identical white markers, and that is exactly what
 //     a ball hanging at flying height cannot point at.
+//
+//   - A BEACON, the same answer given hollow: an open cylinder of light standing
+//     on the corner at the checkpoint's own reach, solid at its foot, faded to
+//     nothing overhead, with a glowing ring on the deck underneath it. The
+//     pillar's body stood in the space the drone was trying to occupy; this
+//     leaves that space empty and puts the mark on the FLOOR, which is where a
+//     pilot looking down at a shape is already looking.
 /** The circle lesson's painted lap line. Red, so it cannot be taken for one of
  *  the pad's own white markings — it is the one thing on that deck the pilot is
  *  being asked to fly. */
@@ -186,7 +193,65 @@ const PILLAR_DISC_PULSE = 0.2;
  *  the shape the pilot is trying to see. Enough of a gap that the live one still
  *  reads as the live one, and no more. */
 const PILLAR_DIM = 0.62;
-
+/** The beacon: how far ABOVE its checkpoint the column of light reaches, in
+ *  metres.
+ *
+ *  Small, for the reason `PILLAR_TOP` is small — everything below the checkpoint
+ *  is fixed by the curriculum and this is the only part there is to choose. It
+ *  buys the headroom that stops the column reading as a ceiling: a corner taken
+ *  a little high is still inside the light, and the top of the light is faded
+ *  out to nothing anyway, so there is no rim up there to be flown over. */
+const BEACON_TOP = 0.25;
+/** How much of the column's height is held at FULL strength, measured up from
+ *  the deck, and how sharply what is left falls away.
+ *
+ *  The bottom half is the mark — that is the bit standing on the corner — and
+ *  above it the light thins out and stops. Fading the whole height evenly makes
+ *  a curtain, uniformly half-lit from top to bottom, which is the shape that
+ *  reads as a wall standing between the pilot and the rest of the circuit.
+ *  Squaring the fall-off is what turns a linear ramp (still visibly a hard-edged
+ *  band) into something that goes out like light does. */
+const BEACON_HOLD = 0.45;
+const BEACON_FADE_POW = 2.0;
+/** How much light the wall adds at its base, and how much more the live one's
+ *  pulse adds on top.
+ *
+ *  Read this as HALF of what reaches the screen. The cylinder is drawn
+ *  double-sided and blended additively, so at any point below the fade the eye
+ *  is looking through the near wall AND the far one, and both add — which puts
+ *  the base of the column at the 50-60% it is meant to sit at. */
+const BEACON_WALL = 0.3;
+const BEACON_WALL_PULSE = 0.06;
+/** How much brighter the wall goes where it turns away from the eye.
+ *
+ *  The silhouette of a hollow cylinder is where the line of sight runs down the
+ *  length of the surface rather than through it, so it is where a real volume of
+ *  light would be densest. Without this the column is a flat wash with no
+ *  outline; with it, it has two bright vertical edges and reads as round. */
+const BEACON_GRAZE = 1.6;
+/** The pool on the deck: how much it adds inside the ring, how much the ring
+ *  itself adds on top, and how much the live one's pulse adds again.
+ *
+ *  The ring is the strongest thing in the mark, because the ring is the promise:
+ *  it is drawn at the checkpoint's own `reach`, so it is the line where "close
+ *  enough" stops being close enough. */
+const BEACON_POOL = 0.32;
+const BEACON_RING = 0.85;
+const BEACON_POOL_PULSE = 0.18;
+/** Where the hollow middle gives way to the lit floor, and where the ring sits,
+ *  both as a fraction of the pool's radius.
+ *
+ *  The middle is CUT OUT. A filled disc is what a real spotlight makes and it is
+ *  the wrong picture here: the drone hovers over the centre of its own mark, so
+ *  the centre is the part hidden under the airframe and its shadow, and the
+ *  pilot ends up judging the corner against an edge they cannot see past their
+ *  own aircraft. */
+const BEACON_HOLE = 0.5;
+const BEACON_RING_AT = 0.9;
+/** How much of full brightness a corner that is not the live one keeps. Matched
+ *  to the pillar's: four lit corners are the SHAPE, and the gap only has to be
+ *  enough that one of them reads as awake. */
+const BEACON_DIM = 0.62;
 /**
  * A checkpoint's name, painted into a canvas.
  *
@@ -280,13 +345,13 @@ function GroundLabel({ point }: { point: Checkpoint }) {
   // pool, where a bright additive light over the edge of the slab is doing most
   // of the work of hiding where the concrete stops.
   const [x, z] = useMemo(() => {
-    if (point.pillar) return [px, pz];
+    if (point.pillar || point.beacon) return [px, pz];
     const [cx, cz] = ACADEMY_PAD.center;
     const r = Math.hypot(px - cx, pz - cz);
     const max = ACADEMY_PAD.radius - PAINT_M / 2;
     if (r <= max || r < 1e-6) return [px, pz];
     return [cx + ((px - cx) / r) * max, cz + ((pz - cz) / r) * max];
-  }, [px, pz, point.pillar]);
+  }, [px, pz, point.pillar, point.beacon]);
 
   return (
     <mesh rotation={[-Math.PI / 2, 0, 0]} position={[x, floorY(x, z), z]}>
@@ -526,6 +591,256 @@ function CheckpointPillar({
   );
 }
 
+// --- The beacon ------------------------------------------------------------
+//
+// One vertex shader for both halves of the mark, because both want the same
+// three things: where they are across the surface (`vUv`), which way the surface
+// faces, and where the eye is. The pool ignores the last two; a second program
+// to save two varyings on four quads is not a trade worth making.
+const BEACON_VERT = /* glsl */ `
+  varying vec2 vUv;
+  varying vec3 vNormalW;
+  varying vec3 vViewW;
+  void main() {
+    vUv = uv;
+    vec4 world = modelMatrix * vec4(position, 1.0);
+    vNormalW = normalize(mat3(modelMatrix) * normal);
+    vViewW = cameraPosition - world.xyz;
+    gl_Position = projectionMatrix * viewMatrix * world;
+  }
+`;
+
+// The WALL of the beacon: a hollow cylinder that is solid light at its foot and
+// nothing at all by the top rim.
+//
+// `vUv.y` runs 0 at the bottom of a `CylinderGeometry` and 1 at the top, so the
+// fade is read straight off it — no texture, no lookup, and the column can be
+// any height without anything having to be re-authored.
+//
+// Everything here is an INTENSITY, not an opacity. The blend is additive: the
+// number in the alpha channel is how much yellow is ADDED to whatever is already
+// on the screen, not how much of it is covered up. That is why a drone flying
+// inside the column is never hidden by it, and why the top of the column can go
+// to zero and simply stop existing rather than fading to a pale smear.
+//
+// `abs` on the facing term is load-bearing. The cylinder is double-sided and the
+// far wall's normal points away from the camera; without it the back half comes
+// out unlit and the column reads as half a pipe.
+//
+// The `discard` is not an optimisation, it is the top of the column. An additive
+// fragment worth 0.001 still costs a blend and still writes a tile the depth
+// sorter has to think about, and four beacons' worth of them stacked over the
+// pad is a visible haze with no edge to it.
+//
+// No tone-mapping include, deliberately. This is a light source, and letting the
+// filmic curve pull it back is what greys it off.
+const BEACON_WALL_FRAG = /* glsl */ `
+  uniform vec3 uColor;
+  uniform float uGain;
+  uniform float uHold;
+  uniform float uPow;
+  uniform float uGraze;
+  varying vec2 vUv;
+  varying vec3 vNormalW;
+  varying vec3 vViewW;
+
+  void main() {
+    float fade = 1.0 - smoothstep(uHold, 1.0, vUv.y);
+    fade = pow(fade, uPow);
+
+    vec3 n = normalize(vNormalW);
+    vec3 v = normalize(vViewW);
+    float graze = 1.0 - abs(dot(n, v));
+
+    float k = uGain * fade * (1.0 + uGraze * graze * graze);
+    if (k <= 0.002) discard;
+    gl_FragColor = vec4(uColor, k);
+  }
+`;
+
+// The POOL the beacon stands in: a glowing ring on the deck with its middle
+// faded out.
+//
+// Drawn on a quad rather than a disc, and the shader throws away everything
+// outside the circle. A ring built out of geometry has its edge tessellated —
+// forty segments is a visible polygon at three metres — and it also has to be
+// rebuilt to change where the ring sits. Here both edges are numbers.
+//
+// The ring is a band, not a line: a hard circle painted on the concrete reads as
+// one more of the arena's own markings, and this is meant to read as light
+// falling on it. `uRingAt` is where the band peaks, and it is the checkpoint's
+// own acceptance radius scaled into UV — inside the ring counts, outside it
+// does not, and the brightest thing on the deck is the line between the two.
+const BEACON_POOL_FRAG = /* glsl */ `
+  uniform vec3 uColor;
+  uniform float uGain;
+  uniform float uFill;
+  uniform float uRing;
+  uniform float uHole;
+  uniform float uRingAt;
+  varying vec2 vUv;
+
+  void main() {
+    float d = length(vUv - 0.5) * 2.0;
+    if (d > 1.0) discard;
+
+    // The floor inside the ring: nothing in the middle, coming up to the band.
+    float fill = uFill * smoothstep(0.0, uHole, d);
+    // The band itself, and the soft outside edge that stops it being paint.
+    float edge = 1.0 - smoothstep(uRingAt, 1.0, d);
+    float band = uRing * smoothstep(uHole, uRingAt, d) * edge;
+
+    float k = uGain * (fill * edge + band);
+    if (k <= 0.002) discard;
+    gl_FragColor = vec4(uColor, k);
+  }
+`;
+
+/**
+ * A BEACON standing on a checkpoint: a hollow column of light with a ring of it
+ * on the deck at its foot.
+ *
+ * The third of the ground marks, and the one that gives the flying space back.
+ * The pillar answered "which of sixteen identical white markers" by standing a
+ * solid-looking body of light on the right one — and then the drone had to be
+ * flown into that body, at the height the pilot was trying to hold, so the mark
+ * was read from inside itself. This is hollow and it fades out overhead: the
+ * FOOT is the mark, the column is only what makes the foot visible from the far
+ * side of the pad, and the air the aircraft occupies is left empty.
+ *
+ * It keeps the pillar's promise, and keeps it in the axis that is actually in
+ * doubt. The ring on the deck is drawn at the checkpoint's own `reach`, so
+ * sitting over the ring is what takes the corner; height is not being judged by
+ * eye at all, because these modules fly in altitude hold at a height the lesson
+ * sets.
+ *
+ * Yellow, not pink — the beam's colour, which on this field means "the mark you
+ * are being sent to". The pink is the orb's, and the orb is a thing hanging in
+ * the AIR to be flown through; a pilot who has met both should not have to work
+ * out which of two pink lights is the one they fly into and which is the one
+ * they fly at.
+ *
+ * `live`, `out` and the fade work exactly as the pillar's do, deliberately: a
+ * corner going out behind the aircraft is the arena answering the flight, and
+ * that answer should not change its manner because the mark did.
+ */
+function CheckpointBeacon({
+  point,
+  live,
+  out,
+}: {
+  point: Checkpoint;
+  live: boolean;
+  out: boolean;
+}) {
+  const [x, y, z] = point.at;
+  const base = floorY(x, z);
+  const height = Math.max(y + BEACON_TOP - base, 1);
+  const r = point.reach;
+
+  const group = useRef<THREE.Group>(null);
+  /** How lit it is, 0..1. Driven both ways, so a retried attempt lights the
+   *  corners back up instead of leaving dark patches round the pad. */
+  const lit = useRef(1);
+
+  // One uniform block per half. `uGain` is the only one the frame loop touches;
+  // everything else is set here and never changes, so the shapes of the fade and
+  // the ring are compiled-in constants as far as the draw is concerned.
+  const wall = useMemo(
+    () => ({
+      uColor: { value: new THREE.Color(BEAM) },
+      uGain: { value: BEACON_WALL },
+      uHold: { value: BEACON_HOLD },
+      uPow: { value: BEACON_FADE_POW },
+      uGraze: { value: BEACON_GRAZE },
+    }),
+    [],
+  );
+  const pool = useMemo(
+    () => ({
+      uColor: { value: new THREE.Color(BEAM) },
+      uGain: { value: 1 },
+      uFill: { value: BEACON_POOL },
+      uRing: { value: BEACON_RING },
+      uHole: { value: BEACON_HOLE },
+      uRingAt: { value: BEACON_RING_AT },
+    }),
+    [],
+  );
+
+  useFrame(({ clock }, dt) => {
+    // Clamped, like the pillar and the orb: a frame lost to a shader compile or
+    // a window drag must not put the whole fade through in one step.
+    const step = Math.min(dt, 0.1) / ORB_FADE;
+    const t = (lit.current = out
+      ? Math.max(0, lit.current - step)
+      : Math.min(1, lit.current + step));
+
+    if (group.current) {
+      group.current.visible = t > 0.002;
+      // Wider as it goes out, the way the column is — a light opening up and
+      // dimming reads as being switched off, which is what has happened.
+      const s = 1 + 0.3 * (1 - t);
+      group.current.scale.set(s, 1, s);
+    }
+
+    // Shallow, and only on the live one. This is a landmark being aimed at, and
+    // something that visibly throbs is harder to hold a line on.
+    const pulse = live ? 0.5 + 0.5 * Math.sin(clock.elapsedTime * 1.7) : 0;
+    const k = t * (live ? 1 : BEACON_DIM);
+    wall.uGain.value = k * (BEACON_WALL + BEACON_WALL_PULSE * pulse);
+    pool.uGain.value = k * (1 + BEACON_POOL_PULSE * pulse);
+  });
+
+  return (
+    <group ref={group} position={[x, base, z]}>
+      {/* The column. Open-ended, so there is no lid to be seen from above or
+          below, and double-sided so the far wall draws too — which is most of
+          what makes it read as a volume rather than as a curved sheet. */}
+      <mesh position={[0, height / 2, 0]}>
+        <cylinderGeometry args={[r, r, height, 48, 1, true]} />
+        {/* Keyed on the shader SOURCE. Three.js compiles a material's program
+            once and never looks at the strings again, so editing a shader and
+            saving swapped the text on a material that carried on running the
+            program it was built with — the beacon kept its first look through
+            every change until the whole app was restarted. A key that moves with
+            the source makes React build a new material, which compiles. */}
+        <shaderMaterial
+          key={BEACON_WALL_FRAG}
+          uniforms={wall}
+          vertexShader={BEACON_VERT}
+          fragmentShader={BEACON_WALL_FRAG}
+          transparent
+          depthWrite={false}
+          side={THREE.DoubleSide}
+          blending={THREE.AdditiveBlending}
+          toneMapped={false}
+        />
+      </mesh>
+      {/* The ring at its foot. Offset out of the slab and polygon-offset on top
+          of it, the way every other marking here is, so it never fights the
+          pad's own paint for the same depth. */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 0]}>
+        <planeGeometry args={[r * 2, r * 2]} />
+        <shaderMaterial
+          key={BEACON_POOL_FRAG}
+          uniforms={pool}
+          vertexShader={BEACON_VERT}
+          fragmentShader={BEACON_POOL_FRAG}
+          transparent
+          depthWrite={false}
+          side={THREE.DoubleSide}
+          blending={THREE.AdditiveBlending}
+          toneMapped={false}
+          polygonOffset
+          polygonOffsetFactor={-6}
+          polygonOffsetUnits={-6}
+        />
+      </mesh>
+    </group>
+  );
+}
+
 /**
  * The lap the circle lesson flies, PAINTED ON THE DECK.
  *
@@ -671,7 +986,10 @@ export function RouteGuide() {
         // reached — its beam has to survive the pass and go out at the end.
         last: route.reduce((n, d, j) => (samePlace(d, c) ? j : n), i),
       }))
-      .filter((e) => e.first && (e.point.tag !== undefined || e.point.orb || e.point.pillar));
+      .filter(
+        (e) =>
+          e.first && (e.point.tag !== undefined || e.point.orb || e.point.pillar || e.point.beacon),
+      );
   }, [lesson]);
 
   if (!lesson) return null;
@@ -700,6 +1018,10 @@ export function RouteGuide() {
         // is the better-aimed mark of the two — and a 7 m beam standing through
         // the middle of it is a second, taller mark in the same place.
         if (e.point.orb) return null;
+        // And for a beacon, which is a column at that same reach: a 7 m beam
+        // standing up the middle of it is a second, thinner column inside the
+        // first, marking the same corner less well.
+        if (e.point.beacon) return null;
         if (tracking && routeTarget > e.last) return null;
         return (
           <TargetBeam
@@ -721,6 +1043,19 @@ export function RouteGuide() {
         e.point.pillar ? (
           <CheckpointPillar
             key={`pillar-${e.point.label}-${i}`}
+            point={e.point}
+            live={!!live && samePlace(live, e.point)}
+            out={routeTarget > e.last}
+          />
+        ) : null,
+      )}
+      {/* The beacons, on the same terms as the pillars: drawn before the
+          letters, and not gated on `tracking`, so a corner that has been taken
+          stays taken over the result card. */}
+      {named.map((e, i) =>
+        e.point.beacon ? (
+          <CheckpointBeacon
+            key={`beacon-${e.point.label}-${i}`}
             point={e.point}
             live={!!live && samePlace(live, e.point)}
             out={routeTarget > e.last}

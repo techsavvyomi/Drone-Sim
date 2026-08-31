@@ -103,7 +103,7 @@ export function pad(label: string, opts: { height?: number; tag?: string } = {})
 export function marker(
   index: number,
   label: string,
-  opts: { height?: number; tag?: string; pillar?: boolean; orb?: boolean } = {},
+  opts: { height?: number; tag?: string; pillar?: boolean; orb?: boolean; beacon?: boolean } = {},
 ): Checkpoint {
   const [x, z] = academyMarker(index);
   return {
@@ -118,6 +118,10 @@ export function marker(
     // be — which on a ground checkpoint means the ball IS the acceptance sphere
     // rather than a token floating near it.
     orb: opts.orb,
+    // Or a hollow BEACON standing on it — see `Checkpoint.beacon`. Sized off
+    // `reach` like the other two, so the ring on the deck is the width the
+    // validator scores on and a corner still only has to ask for the mark.
+    beacon: opts.beacon,
     at: [x, opts.height ?? HOVER, z],
     reach: 1.8,
     mark: 'marker',

@@ -300,6 +300,27 @@ export interface Checkpoint {
    *  It replaces the yellow target beam on the checkpoints that ask for it — two
    *  columns standing in the same spot is one column too many. */
   pillar?: boolean;
+  /** Stand a hollow BEACON on this checkpoint: an open cylinder of light at the
+   *  checkpoint's own `reach`, solid where it meets the deck and faded to
+   *  nothing by its top rim, with a glowing ring on the ground at its foot.
+   *
+   *  The third answer for a checkpoint that is a place on the GROUND, after the
+   *  letter and the column. It says what the column said — the corner is here,
+   *  and this much of it counts — but it says it by lighting the FLOOR and the
+   *  air immediately over it, rather than by putting a body of light in the
+   *  space the aircraft is being flown into. A circuit flown at 3.3 m is flown
+   *  by looking DOWN at the shape, and this is a mark you look down at.
+   *
+   *  The ring's middle is CUT OUT. A filled disc is what a real spotlight makes
+   *  and it is the wrong picture here: the drone hovers over the centre of its
+   *  own mark, so the centre is the part hidden under the airframe and its
+   *  shadow, and the pilot ends up judging the corner against an edge they
+   *  cannot see. Lit as a ring, the brightest thing on the deck is exactly the
+   *  line where "close enough" stops being close enough.
+   *
+   *  Like `pillar`, it replaces the yellow target beam on the checkpoints that
+   *  ask for it: two columns standing in one place is one column too many. */
+  beacon?: boolean;
   /** For a gate: the unit direction THROUGH its opening, in world space.
    *
    *  A gate is not a place to arrive at, it is a hole to pass through, and a
