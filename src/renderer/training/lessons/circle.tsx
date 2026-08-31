@@ -173,7 +173,7 @@ export const circleLesson: Lesson = {
   stars: [
     {
       stars: 3,
-      text: `Off the pad, within ${LANE} m of the ring, height within 0.9 m, lap under 80s`,
+      text: `Off the pad, within ${LANE} m of the ring, height within 0.9 m, lap under 80s, nothing touched`,
       test: ({ touches, timeSec, collisions, smoothness, mem }) =>
         collisions === 0 &&
         touches === 0 &&

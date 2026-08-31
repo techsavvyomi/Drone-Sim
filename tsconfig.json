@@ -22,5 +22,5 @@
       "@renderer/*": ["src/renderer/*"]
     }
   },
-  "include": ["src"]
+  "include": ["src", "tests", "vitest.config.mts"]
 }
