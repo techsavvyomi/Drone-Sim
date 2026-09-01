@@ -23,6 +23,7 @@ import {
   activeInputSource,
   isScripted,
   isThrottleCommanded,
+  isThrottleDown,
   stick,
   updateStick,
   resetStick,
@@ -641,6 +642,7 @@ export function Drone({ spec, spawn, bounds, outdoor = false, groundY }: DronePr
       },
       SIM_DT,
       thrustOverride,
+      isThrottleDown(),
     );
     lastOutput.current = out;
 

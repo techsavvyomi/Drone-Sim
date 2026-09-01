@@ -90,6 +90,34 @@ export function activeInputSource(): Source {
   return activeSource;
 }
 
+/** Stick position that counts as the throttle's idle end, matching the flight
+ *  controller's own `<= 0.08` idle test. */
+const IDLE_STICK = 0.08;
+
+/**
+ * Whether the pilot is actively commanding idle — S held, or a gamepad throttle
+ * pushed to the bottom of its travel.
+ *
+ * The flight controller spins the motors at an ESC idle rather than cutting them
+ * dead on this signal, so it has to be a COMMAND and not a position: the
+ * keyboard's throttle rests at zero in the direct modes, and a position test
+ * would therefore spin the props up the instant the aircraft armed — precisely
+ * what `invariants.md` #15a says must never happen. A radio is the opposite
+ * case: its throttle stick physically rests at the bottom, so there the resting
+ * position IS the command, exactly as it is on the real aircraft.
+ *
+ * A scripted demonstration is excluded. It writes stick values rather than
+ * pressing keys, and the modules that sit armed on the pad at zero throttle are
+ * the ones teaching that arming does not spin the props.
+ */
+export function isThrottleDown(): boolean {
+  if (scripted) return false;
+  if (activeSource === 'gamepad' && gamepadConnected()) {
+    return gamepadStick.throttle <= IDLE_STICK;
+  }
+  return pressed.has(CODE.throttleDown);
+}
+
 // How fast throttle ramps while W/S held (full range per ~1.6s), and how snappy
 // the self-centering sticks are.
 // Slower ramp = finer resolution around the hover point (~50% stick).

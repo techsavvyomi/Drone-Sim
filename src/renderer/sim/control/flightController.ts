@@ -129,6 +129,16 @@ const STICK_DEADBAND = 0.06;
  */
 const THRUST_CUTOFF = 1e-4;
 
+/**
+ * ESC idle, as a fraction of full collective, held while the pilot commands the
+ * throttle down.
+ *
+ * Five per cent is a tenth of a hover on the Pluto airframes: enough that the
+ * props are visibly turning and the motors are audible, far too little to slow
+ * a descent into a hover. Chopping the throttle must still be how you come down.
+ */
+const IDLE_COLLECTIVE = 0.05;
+
 export class FlightController {
   private rollRate: PidController;
   private pitchRate: PidController;
@@ -218,6 +228,12 @@ export class FlightController {
     state: ControlState,
     dt: number,
     thrustOverride?: number,
+    /**
+     * Pilot is holding the throttle at idle (S, or a radio stick at the bottom).
+     * Motors idle rather than stopping — see `IDLE_COLLECTIVE`. Pilot INTENT,
+     * which is why it arrives as an argument and not as a field of `state`.
+     */
+    throttleDown = false,
   ): ControlOutput {
     _q.set(state.rotation[0], state.rotation[1], state.rotation[2], state.rotation[3]);
     _qInv.copy(_q).invert();
@@ -306,6 +322,20 @@ export class FlightController {
     } else {
       thrust = clamp(input.throttle, 0, 1) * this.maxThrust;
     }
+
+    // ---- ESC idle ----
+    // A real quad's rotors do not stop when the throttle is chopped; the ESCs
+    // hold them at an idle spin. That is what makes a descent a descent instead
+    // of a dead drop, and it is what the pilot sees on the props and hears in
+    // the motors while coming down.
+    //
+    // Gated on the pilot COMMANDING idle, never on the throttle merely sitting
+    // there. The keyboard's stick rests at zero in the direct modes, so a
+    // position test would spin the props the instant the aircraft armed (#15a),
+    // and in Altitude Hold the stick rests at centre while `altitudeThrust()`
+    // correctly returns nothing on the pad — the #15b creep, handed a floor.
+    if (throttleDown) thrust = Math.max(thrust, IDLE_COLLECTIVE * this.maxThrust);
+
     thrust = clamp(thrust * state.groundEffect, 0, tMaxNow);
     // Altitude ceiling applies in every mode, including manual throttle.
     thrust = this.applyCeiling(thrust, state, tiltCos);
