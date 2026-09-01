@@ -35,7 +35,7 @@ const TARGET_SWEEP = Math.PI * 2 * 0.95;
 
 export const circleLesson: Lesson = {
   id: 'circle',
-  order: 11,
+  order: 12,
   title: 'Full Circle',
   subtitle: 'One smooth lap, never stopping',
 

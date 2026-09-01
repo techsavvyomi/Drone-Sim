@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { LESSONS, getLesson } from '../src/renderer/training/lessons';
 import { clamp01, holdFor, latch, type LessonMemory } from '../src/renderer/training/lessons/types';
+import { SQUARE_CIRCUIT } from '../src/renderer/training/lessons/square';
 import { hovering, probe } from './helpers/probe';
 
 // Every module's per-frame validator, driven with synthetic frames.
@@ -15,7 +16,12 @@ import { hovering, probe } from './helpers/probe';
 // are gone). So these tests never hand a validator a crashed probe.
 
 /** Run a validator for `seconds` of frames on one steady probe. */
-function fly(lessonId: string, p: ReturnType<typeof probe>, seconds: number, mem: LessonMemory = {}) {
+function fly(
+  lessonId: string,
+  p: ReturnType<typeof probe>,
+  seconds: number,
+  mem: LessonMemory = {},
+) {
   const lesson = getLesson(lessonId)!;
   let last = lesson.validate(p, mem);
   const frames = Math.round(seconds * 60);
@@ -88,8 +94,16 @@ describe('every module', () => {
     // The keycap row and the on-screen sticks both look these up, so a typo
     // simply lights nothing and the pilot is told to press an invisible key.
     const KNOWN = new Set([
-      'Enter', 'Space', 'KeyW', 'KeyS', 'KeyA', 'KeyD',
-      'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight',
+      'Enter',
+      'Space',
+      'KeyW',
+      'KeyS',
+      'KeyA',
+      'KeyD',
+      'ArrowUp',
+      'ArrowDown',
+      'ArrowLeft',
+      'ArrowRight',
     ]);
     const frames = [probe(), probe({ armed: true }), hovering(1.8), hovering(3.3), hovering(8)];
 
@@ -138,8 +152,9 @@ describe('Module 1, Arm and Take Off', () => {
 
     expect(mem.blocked).toBe(1);
     // The three-star rung reads that same flag.
-    expect(lesson.stars[0].test({ timeSec: 5, collisions: 0, touches: 0, smoothness: 1, mem }))
-      .toBe(false);
+    expect(
+      lesson.stars[0].test({ timeSec: 5, collisions: 0, touches: 0, smoothness: 1, mem }),
+    ).toBe(false);
   });
 
   it('TC-164 asks for Space once the drone is armed and still down', () => {
@@ -215,5 +230,79 @@ describe('latching', () => {
     expect(clamp01(-3)).toBe(0);
     expect(clamp01(0.42)).toBeCloseTo(0.42);
     expect(clamp01(9)).toBe(1);
+  });
+});
+
+describe('Module 10, Square Circuit using Yaw', () => {
+  const lesson = getLesson('square-yaw')!;
+  const { route, start, height } = SQUARE_CIRCUIT;
+  /** Hovering on the circuit, at a spot and a heading. TC-218's whole fixture. */
+  const on = (at: readonly [number, number, number], yaw: number) =>
+    hovering(height, { position: [at[0], at[1], at[2]], yaw });
+
+  it('TC-218 asks for the turn before it asks for the side', () => {
+    // Over the "H" at the start heading, Corner A is 45° off the nose.
+    const r = lesson.validate(on(start, 0), {});
+
+    expect(r.hint?.toLowerCase()).toContain('turn the nose');
+    expect(r.hint).toContain('Corner A');
+    expect(r.cue).toEqual(['KeyD']);
+  });
+
+  it('TC-218 cues the way the nose actually has to go', () => {
+    // Corner A is off the front-RIGHT of the pad, so from a heading that has
+    // already overshot past it the turn back is to the LEFT. Turning left is the
+    // direction of increasing heading, which is the A key.
+    const past = lesson.validate(on(start, -Math.PI / 2), {});
+
+    expect(past.cue).toEqual(['KeyA']);
+  });
+
+  it('TC-218 wants one stick down the side once the nose is on the corner', () => {
+    const facing = Math.atan2(-(route[0].at[0] - start[0]), -(route[0].at[2] - start[2]));
+    const r = lesson.validate(on(start, facing), {});
+
+    expect(r.cue).toEqual(['ArrowUp']);
+    expect(r.hint).toContain('Push forward');
+    expect(r.done).toBe(false);
+  });
+
+  it('TC-218 keeps the side judged on the line, not on the heading', () => {
+    // Nose on Corner B but flown from the middle of the pad: the side from A to
+    // B runs up the right-hand edge, so this is a cut across the square.
+    const mem: LessonMemory = { rt: 1 };
+    const facing = Math.atan2(-(route[1].at[0] - 0), -(route[1].at[2] - 0));
+    const r = lesson.validate(on([0, height, 0], facing), mem);
+
+    expect(r.hint?.toLowerCase()).toContain('do not cross the middle');
+    expect(mem.cut).toBeGreaterThan(3);
+  });
+
+  it('TC-218 counts a leg as turned onto only when the nose was actually put on it', () => {
+    const facing = Math.atan2(-(route[0].at[0] - start[0]), -(route[0].at[2] - start[2]));
+    const crabbed: LessonMemory = {};
+    lesson.validate(on(start, 0), crabbed);
+    const turned: LessonMemory = {};
+    lesson.validate(on(start, facing), turned);
+
+    expect(crabbed.facedLegs ?? 0).toBe(0);
+    expect(turned.facedLegs).toBe(1);
+  });
+
+  it('TC-218 refuses three stars to a lap that was crabbed round', () => {
+    // Everything else perfect: clean, quick, dead on the lines — and the nose
+    // never put on a single corner. That is Module 9's lap, not this one's.
+    const crabbed = {
+      timeSec: 40,
+      collisions: 0,
+      touches: 0,
+      smoothness: 1,
+      mem: { cut: 0, crab: 0, facedLegs: 0 },
+    };
+
+    expect(lesson.stars[0].test(crabbed)).toBe(false);
+    expect(
+      lesson.stars[0].test({ ...crabbed, mem: { ...crabbed.mem, facedLegs: route.length } }),
+    ).toBe(true);
   });
 });

@@ -8,6 +8,7 @@ import { yawLesson } from './yaw';
 import { straightLineLesson } from './straightLine';
 import { diagonalLesson } from './diagonal';
 import { squareLesson } from './square';
+import { squareYawLesson } from './squareYaw';
 import { triangleLesson } from './triangle';
 import { circleLesson } from './circle';
 import { navABLesson, navABCLesson, navABCDLesson } from './navRoutes';
@@ -20,8 +21,8 @@ import { navABLesson, navABCLesson, navABCDLesson } from './navRoutes';
 //   3-6    one control at a time         — throttle, yaw, pitch, roll
 //   7-8    whole flights                 — arm, take off, fly a line
 //          (7 goes out and stays out; 8 comes home and lands)
-//   9-11   Formation                     — closed shapes flown as one route
-//   12-14  Navigation                    — set routes through gates, in order
+//   9-12   Formation                     — closed shapes flown as one route
+//   13-15  Navigation                    — set routes through gates, in order
 //
 // Landing sits SECOND, not last. It used to close the course, on the reasoning
 // that you only need it once the flight is over; in practice a student who has
@@ -35,6 +36,15 @@ import { navABLesson, navABCLesson, navABCDLesson } from './navRoutes';
 // Pitch + Roll was retired here — Diagonal Run (8) teaches the same "both
 // sticks together" idea over a longer run and with a landing at the end. It is
 // in git history if the syllabus ever wants it back.
+//
+// The square is flown TWICE, and the pair is the point. Module 9 flies it
+// crabbed — the shape is aligned with the pad, so each side is a single stick
+// and the nose never moves — which is the right way to meet a square and is not
+// how a circuit is flown. Module 10 is the identical shape turned nose-first:
+// same corners, same height, same tolerance, and the only new thing to learn is
+// the turn at each corner. Splitting them was deliberate. Folded into one
+// module, the pilot meets the shape and the technique together and a wobbly lap
+// says nothing about which of the two went wrong.
 //
 // YAW sits fourth, with the other single-stick drills, rather than last. It was
 // at the end on the reasoning that turning is the fanciest of the four sticks;
@@ -50,6 +60,7 @@ export const LESSONS: Lesson[] = [
   straightLineLesson,
   diagonalLesson,
   squareLesson,
+  squareYawLesson,
   triangleLesson,
   circleLesson,
   navABLesson,

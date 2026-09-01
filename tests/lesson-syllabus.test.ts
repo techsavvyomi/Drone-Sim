@@ -6,11 +6,11 @@ import { LESSONS, getLesson, lessonIndex, nextLesson } from '../src/renderer/tra
 // list is the one place the whole course is described.
 
 describe('the curriculum', () => {
-  it('TC-128 the course is fourteen modules', () => {
-    expect(LESSONS).toHaveLength(14);
+  it('TC-128 the course is fifteen modules', () => {
+    expect(LESSONS).toHaveLength(15);
   });
 
-  it('TC-128 order values are unique and run 1 to 14 with no gaps', () => {
+  it('TC-128 order values are unique and run 1 to 15 with no gaps', () => {
     // invariants #25: the array is SORTED on `order`, so moving a lesson is a
     // one-number edit in its own file. A duplicate would make the order
     // arbitrary and a gap would mean a lesson was lost from the import list.
@@ -18,7 +18,7 @@ describe('the curriculum', () => {
 
     expect(orders).toEqual([...orders].sort((a, b) => a - b));
     expect(new Set(orders).size).toBe(orders.length);
-    expect(orders).toEqual(Array.from({ length: 14 }, (_, i) => i + 1));
+    expect(orders).toEqual(Array.from({ length: 15 }, (_, i) => i + 1));
   });
 
   it('TC-128 every id is unique', () => {
@@ -84,6 +84,6 @@ describe('the curriculum', () => {
     expect(lessonIndex(LESSONS[3].id)).toBe(3);
     expect(nextLesson(LESSONS[0].id)).toBe(LESSONS[1]);
     // The last module has nothing after it.
-    expect(nextLesson(LESSONS[13].id)).toBeUndefined();
+    expect(nextLesson(LESSONS[14].id)).toBeUndefined();
   });
 });

@@ -258,7 +258,7 @@ function navLesson(cfg: {
 
 export const navABLesson = navLesson({
   id: 'nav-ab',
-  order: 12,
+  order: 13,
   title: 'Your First Route',
   subtitle: 'Two gates, your first set route',
   gates: 2,
@@ -272,7 +272,7 @@ export const navABLesson = navLesson({
 
 export const navABCLesson = navLesson({
   id: 'nav-abc',
-  order: 13,
+  order: 14,
   title: 'Three Gates in Order',
   subtitle: 'Three gates, taken in order',
   gates: 3,
@@ -289,7 +289,7 @@ export const navABCLesson = navLesson({
 // to it and the pitch stick to go through — then home and down.
 export const navABCDLesson = navLesson({
   id: 'nav-abcd',
-  order: 14,
+  order: 15,
   title: 'The Whole Flight',
   subtitle: 'The full circuit, pad to pad',
   gates: 4,

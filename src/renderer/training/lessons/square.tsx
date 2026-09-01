@@ -1,4 +1,11 @@
-import { clamp01, cueBetween, flyRoute, lineDeviation, type Lesson } from './types';
+import {
+  clamp01,
+  cueBetween,
+  flyRoute,
+  lineDeviation,
+  type Checkpoint,
+  type Lesson,
+} from './types';
 import { planDemo } from './demoFlight';
 import { marker, routeLegs } from './arena';
 import { ACADEMY_PAD } from '../../plugins/environments/droneAcademy';
@@ -15,11 +22,12 @@ import {
   withPreflight,
 } from './preflight';
 
-// Module 9 — Square Circuit, flown on four of the white markers ringing the
-// helipad. They sit at the four diagonals of the ring, which puts them at the
-// corners of a square about 9.6 m on a side — and, because that square is
-// aligned with the pad, every side is ONE stick. That is the drill: a side is a
-// straight line on one control, a corner is a full stop before the next one.
+// Module 9 — Square Circuit, flown on the four diagonals of the ring of white
+// markers around the helipad, with the near pair led out toward the pilot (see
+// `FRONT_LEAD`) so the circuit has some depth to read. That makes it 9.6 m
+// across by 11.6 m deep — and, because it is aligned with the pad, every side is
+// ONE stick. That is the drill: a side is a straight line on one control, a
+// corner is a full stop before the next one.
 //
 // A square that can be crossed down the middle is not a square. The sides are
 // not drawn — a guide line over the arena has to skip depth testing to be seen,
@@ -59,11 +67,33 @@ import {
  */
 const FLY_AT = 3.3;
 
+/**
+ * How far the two FRONT corners are pulled toward the pilot, in metres.
+ *
+ * The four corners are ring markers, and the ring is small: from behind the pad
+ * the near pair sat close enough that the first side was over almost before it
+ * had started. Leading them out gives the circuit some depth to read.
+ *
+ * Two things follow, and both are deliberate. A and D no longer stand on their
+ * white markers — the mark that matters is the beacon, which is drawn at the
+ * checkpoint and moves with it. And the shape is a RECTANGLE, 9.6 m across by
+ * 11.6 m deep, not a square. Nothing about the drill changes: the sides are
+ * still axis-aligned, so Module 9 still flies one stick per side and Module 10's
+ * corners are still square right-angle turns.
+ */
+const FRONT_LEAD = 2;
+
+/** A corner, pulled `FRONT_LEAD` toward the pilot. */
+function frontCorner(index: number, label: string, tag: string): Checkpoint {
+  const c = marker(index, label, { tag, height: FLY_AT, beacon: true });
+  return { ...c, at: [c.at[0], c.at[1], c.at[2] - FRONT_LEAD] };
+}
+
 const CORNERS = [
-  marker(14, 'Corner A', { tag: 'A', height: FLY_AT, beacon: true }), // front-right
+  frontCorner(14, 'Corner A', 'A'), //                                  front-right
   marker(2, 'Corner B', { tag: 'B', height: FLY_AT, beacon: true }), //  back-right
   marker(6, 'Corner C', { tag: 'C', height: FLY_AT, beacon: true }), //  back-left
-  marker(10, 'Corner D', { tag: 'D', height: FLY_AT, beacon: true }), // front-left
+  frontCorner(10, 'Corner D', 'D'), //                                  front-left
 ] as const;
 /** The loop closes where it began. Named as a RETURN, not as another corner:
  *  the intro card lays the route out as a numbered flow, and "Corner A again"
@@ -80,6 +110,22 @@ const START: readonly [number, number, number] = [
 
 /** How far off a side counts as cutting the corner, in metres. */
 const SIDE_TOL = 3;
+
+/**
+ * The circuit itself, for the module that flies it a second way.
+ *
+ * Module 10 is the SAME square turned nose-first — same corners, same height,
+ * same tolerance — so it shares the geometry rather than restating it. Two
+ * copies would drift apart the first time a marker moved, and then the two
+ * modules would be teaching two different shapes under one name.
+ */
+export const SQUARE_CIRCUIT = {
+  corners: CORNERS,
+  route: ROUTE,
+  start: START,
+  height: FLY_AT,
+  sideTol: SIDE_TOL,
+} as const;
 
 export const squareLesson: Lesson = {
   id: 'square',

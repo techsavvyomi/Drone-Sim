@@ -83,7 +83,7 @@ const SIDE_TOL = 3.5;
 
 export const triangleLesson: Lesson = {
   id: 'triangle',
-  order: 10,
+  order: 11,
   title: 'Triangle Circuit',
   subtitle: 'Three sides, three sharp turns',
 

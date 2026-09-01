@@ -637,6 +637,20 @@ export function lineDeviation(
   return Math.abs((position[0] - ax) * dz - (position[2] - az) * dx) / len;
 }
 
+/**
+ * The heading that points from one place at another, in radians.
+ *
+ * Zero faces -Z, the same convention as the sim's yaw and `DemoLeg.face`: the
+ * drone's nose is `(-sin yaw, 0, -cos yaw)`. Returns 0 for a target underfoot,
+ * where no heading points at it.
+ */
+export function bearingTo(from: Vec3, to: readonly [number, number, number]): number {
+  const dx = to[0] - from[0];
+  const dz = to[2] - from[2];
+  if (Math.hypot(dx, dz) < 1e-6) return 0;
+  return Math.atan2(-dx, -dz);
+}
+
 /** Smallest signed difference a-b between two angles (radians), in degrees. */
 export function angleDiffDeg(a: number, b: number): number {
   let d = ((a - b) * 180) / Math.PI;
