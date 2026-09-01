@@ -40,7 +40,11 @@ describe('the pilot stands back from their own pad', () => {
   });
 
   it('stands behind the spawn heading, not behind the world axis', () => {
-    const out = pilotAnchor(pluto, env({ spawn: { position: [0, 0.2, 0], heading: 90 } }), new THREE.Vector3());
+    const out = pilotAnchor(
+      pluto,
+      env({ spawn: { position: [0, 0.2, 0], heading: 90 } }),
+      new THREE.Vector3(),
+    );
     expect(out.x).toBeCloseTo(pilotStandoff(pluto), 5);
     expect(out.z).toBeCloseTo(0, 5);
   });

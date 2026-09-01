@@ -30,7 +30,11 @@ export function pilotStandoff(spec: DroneSpec): number {
  * end wall and the Forest clearing has no walls at all, so a standoff applied
  * blindly would put the camera inside the plaster on the one map that has any.
  */
-export function pilotAnchor(spec: DroneSpec, env: EnvironmentSpec, out: THREE.Vector3): THREE.Vector3 {
+export function pilotAnchor(
+  spec: DroneSpec,
+  env: EnvironmentSpec,
+  out: THREE.Vector3,
+): THREE.Vector3 {
   const standoff = pilotStandoff(spec);
   const h = env.spawn.heading * DEG2RAD;
   out.set(

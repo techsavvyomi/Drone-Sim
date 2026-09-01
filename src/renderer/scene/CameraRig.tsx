@@ -57,9 +57,21 @@ export function CameraRig({ spec, env }: { spec: DroneSpec; env?: EnvironmentSpe
       // into wall interiors (grey faces / "invisible" Pluto) when pitching back.
       if (env && env.kind === 'indoor') {
         const padding = 0.55;
-        _target.x = THREE.MathUtils.clamp(_target.x, env.bounds.min[0] + padding, env.bounds.max[0] - padding);
-        _target.z = THREE.MathUtils.clamp(_target.z, env.bounds.min[2] + padding, env.bounds.max[2] - padding);
-        _target.y = THREE.MathUtils.clamp(_target.y, Math.max(env.bounds.min[1] + 0.85, 0.85), env.bounds.max[1] - 0.25);
+        _target.x = THREE.MathUtils.clamp(
+          _target.x,
+          env.bounds.min[0] + padding,
+          env.bounds.max[0] - padding,
+        );
+        _target.z = THREE.MathUtils.clamp(
+          _target.z,
+          env.bounds.min[2] + padding,
+          env.bounds.max[2] - padding,
+        );
+        _target.y = THREE.MathUtils.clamp(
+          _target.y,
+          Math.max(env.bounds.min[1] + 0.85, 0.85),
+          env.bounds.max[1] - 0.25,
+        );
       }
 
       // Follow rate rises with how far behind the camera has fallen.
@@ -101,19 +113,23 @@ export function CameraRig({ spec, env }: { spec: DroneSpec; env?: EnvironmentSpe
       const trailLen = _trail.length();
       if (trailLen > maxTrail) {
         _trail.multiplyScalar(maxTrail / trailLen);
-        camera.position.set(
-          _target.x + _trail.x,
-          _target.y + _trail.y,
-          _target.z + _trail.z,
-        );
+        camera.position.set(_target.x + _trail.x, _target.y + _trail.y, _target.z + _trail.z);
       }
 
       // Aim just above the airframe, scaled to its size.
       _look.copy(dronePose.position).addScaledVector(UP, spec.armLength * 1.5);
       if (env && env.kind === 'indoor') {
         const lookPad = 0.35;
-        _look.x = THREE.MathUtils.clamp(_look.x, env.bounds.min[0] + lookPad, env.bounds.max[0] - lookPad);
-        _look.z = THREE.MathUtils.clamp(_look.z, env.bounds.min[2] + lookPad, env.bounds.max[2] - lookPad);
+        _look.x = THREE.MathUtils.clamp(
+          _look.x,
+          env.bounds.min[0] + lookPad,
+          env.bounds.max[0] - lookPad,
+        );
+        _look.z = THREE.MathUtils.clamp(
+          _look.z,
+          env.bounds.min[2] + lookPad,
+          env.bounds.max[2] - lookPad,
+        );
         _look.y = THREE.MathUtils.clamp(_look.y, 0.3, env.bounds.max[1] - 0.2);
       }
       // Where the camera LOOKS tracks the drone far more tightly than where it
@@ -212,7 +228,11 @@ export function OrbitCamera({ spec, env }: { spec: DroneSpec; env: EnvironmentSp
     if (!cam.isPerspectiveCamera) return;
     const el = gl.domElement;
     const onWheel = (e: WheelEvent) => {
-      cam.fov = THREE.MathUtils.clamp(cam.fov * Math.exp(e.deltaY * 0.0015), MIN_FOV, baseFov.current);
+      cam.fov = THREE.MathUtils.clamp(
+        cam.fov * Math.exp(e.deltaY * 0.0015),
+        MIN_FOV,
+        baseFov.current,
+      );
       cam.updateProjectionMatrix();
     };
     el.addEventListener('wheel', onWheel, { passive: true });
