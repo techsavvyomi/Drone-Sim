@@ -4427,3 +4427,614 @@ button {
     left: 28px;
   }
 }
+
+/* ==========================================================================
+   MISSIONS — Precision Delivery
+   The mission list, then the in-flight overlay: one strip along the bottom and
+   nothing else standing between the pilot and the city. Transient layers (the
+   banner, the radio line, the "+1") are mounted and unmounted by the runtime off
+   the mission clock, so every animation here is a one-shot entry — there is
+   nothing to turn off, and nothing left running when an attempt is thrown away.
+   ========================================================================== */
+
+.mcards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-top: 22px;
+}
+.mcard {
+  width: min(420px, 100%);
+  text-align: left;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--accent);
+  border-radius: 12px;
+  padding: 20px 22px;
+  transition:
+    transform 0.16s ease,
+    border-color 0.16s ease,
+    box-shadow 0.16s ease;
+}
+.mcard:hover {
+  transform: translateY(-2px);
+  border-color: var(--accent);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
+}
+.mcard-tag {
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+.mcard h2 {
+  margin: 8px 0 8px;
+  font-size: 22px;
+  font-weight: 800;
+}
+.mcard p {
+  margin: 0;
+  color: var(--text-dim);
+  font-size: 14px;
+  line-height: 1.6;
+}
+.mcard-facts {
+  display: flex;
+  gap: 18px;
+  margin: 16px 0 14px;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+.mcard-facts b {
+  color: var(--text);
+  font-size: 15px;
+  margin-right: 4px;
+}
+.mcard-go {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--accent);
+}
+
+/* ---- The overlay --------------------------------------------------------- */
+
+.ms-hud {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  font-variant-numeric: tabular-nums;
+  z-index: 5;
+}
+.ms-hud button {
+  pointer-events: auto;
+}
+
+.ms-top {
+  position: absolute;
+  top: 14px;
+  left: 14px;
+  right: 14px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+.ms-badge {
+  display: flex;
+  flex-direction: column;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-left: 2px solid var(--accent);
+  border-radius: 4px;
+  padding: 6px 12px;
+  backdrop-filter: blur(6px);
+}
+.ms-badge-tag {
+  font-size: 9px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+.ms-badge b {
+  font-size: 15px;
+  font-weight: 800;
+}
+.ms-exit {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 7px 12px;
+  font-size: 12px;
+  color: var(--text-dim);
+  backdrop-filter: blur(6px);
+}
+.ms-exit:hover {
+  color: var(--text);
+  border-color: var(--bad);
+}
+
+/* ---- The strip ----------------------------------------------------------- */
+
+.ms-strip {
+  position: absolute;
+  left: 50%;
+  bottom: 18px;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: stretch;
+  gap: 1px;
+  background: var(--line);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+  backdrop-filter: blur(8px);
+  box-shadow: 0 10px 34px rgba(0, 0, 0, 0.5);
+  max-width: min(980px, 94%);
+}
+.ms-obj,
+.ms-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 8px 14px;
+  background: var(--panel);
+}
+.ms-obj {
+  /* The objective is the answer to "what do I do next", so it gets the room and
+     the accent, and it is first in the reading order. */
+  border-left: 2px solid var(--accent);
+  min-width: 210px;
+  max-width: 320px;
+}
+.ms-obj span,
+.ms-cell span {
+  font-size: 9px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+.ms-obj b {
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+.ms-cell b {
+  font-size: 16px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+.ms-cell b i {
+  font-style: normal;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+.ms-cell.payload.attached b {
+  color: var(--warn);
+}
+.ms-cell.payload.delivered b {
+  color: var(--good);
+}
+.ms-cell.warn b {
+  color: var(--bad);
+  animation: blink 1s steps(2) infinite;
+}
+
+/* The direction arrow rides in the DISTANCE cell: which way to turn, and how
+   far, as one reading. It turns red-ish when the marker is behind you. */
+.ms-arrow {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.ms-arrow svg {
+  width: 17px;
+  height: 17px;
+  fill: var(--accent);
+  transition: transform 0.12s linear;
+}
+.ms-arrow.off svg {
+  fill: var(--warn);
+}
+.ms-arrow b {
+  font-size: 16px;
+  font-weight: 800;
+}
+
+/* ---- Transients ---------------------------------------------------------- */
+
+.ms-banner {
+  position: absolute;
+  left: 50%;
+  top: 20%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 12px 30px;
+  background: rgba(9, 14, 22, 0.82);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  backdrop-filter: blur(8px);
+  text-align: center;
+  animation: ms-banner-in 0.32s cubic-bezier(0.22, 1.2, 0.36, 1) both;
+}
+.ms-banner b {
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+}
+.ms-banner span {
+  font-size: 12px;
+  color: var(--text-dim);
+}
+.ms-banner.good {
+  border-color: rgba(55, 224, 138, 0.55);
+  box-shadow: 0 0 34px rgba(55, 224, 138, 0.18);
+}
+.ms-banner.good b {
+  color: var(--good);
+}
+.ms-banner.info {
+  border-color: rgba(56, 189, 248, 0.55);
+  box-shadow: 0 0 34px rgba(56, 189, 248, 0.16);
+}
+.ms-banner.info b {
+  color: var(--accent);
+}
+.ms-banner.warn {
+  border-color: rgba(255, 207, 77, 0.55);
+}
+.ms-banner.warn b {
+  color: var(--warn);
+}
+@keyframes ms-banner-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 10px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1);
+  }
+}
+
+/* "+1 POINT", floating up out of the strip's score cell. It never waits for a
+   timer: the element is keyed on the pop, so a new point restarts the run and
+   the animation's own fill leaves it invisible. */
+.ms-pop {
+  position: absolute;
+  left: 50%;
+  /* Above the Mission Control line, which sits at 86px and is the taller of the
+     two. A "+1" landing on top of a radio call makes both unreadable, and both
+     can fire in the same second — a checkpoint taken on the run in to the drop
+     zone does exactly that. */
+  bottom: 146px;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: var(--good);
+  text-shadow: 0 0 18px rgba(55, 224, 138, 0.55);
+  animation: ms-pop 1.1s ease-out both;
+}
+.ms-pop i {
+  font-style: normal;
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  color: var(--text-dim);
+}
+@keyframes ms-pop {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, 8px) scale(0.9);
+  }
+  18% {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -34px) scale(1);
+  }
+}
+
+.ms-radio {
+  position: absolute;
+  left: 50%;
+  bottom: 86px;
+  transform: translateX(-50%);
+  width: min(560px, 88%);
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 8px 14px;
+  background: rgba(9, 14, 22, 0.76);
+  border: 1px solid var(--line);
+  border-left: 2px solid var(--accent);
+  border-radius: 6px;
+  backdrop-filter: blur(6px);
+  animation: ms-banner-in 0.3s ease both;
+}
+.ms-radio-tag {
+  flex: none;
+  font-size: 9px;
+  letter-spacing: 0.16em;
+  color: var(--accent);
+}
+.ms-radio p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--text);
+}
+
+/* The release checklist. Only up while the drone is inside the delivery zone,
+   which is the one moment the pilot needs to know exactly which of the three
+   conditions is still missing. */
+.ms-checks {
+  position: absolute;
+  right: 18px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 16px;
+  background: rgba(9, 14, 22, 0.8);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  backdrop-filter: blur(6px);
+  font-size: 12px;
+  color: var(--text-dim);
+  min-width: 150px;
+}
+.ms-checks-head {
+  font-size: 9px;
+  letter-spacing: 0.18em;
+  color: var(--warn);
+}
+.ms-checks span.ok {
+  color: var(--good);
+  font-weight: 700;
+}
+.ms-checks-bar {
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+.ms-checks-bar i {
+  display: block;
+  height: 100%;
+  background: var(--good);
+  transition: width 0.12s linear;
+}
+
+/* ---- Cards --------------------------------------------------------------- */
+
+.ms-center {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+}
+.ms-card {
+  pointer-events: auto;
+  width: min(560px, 94%);
+  max-height: 92%;
+  overflow-y: auto;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 26px 30px;
+  text-align: center;
+  backdrop-filter: blur(10px);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.55);
+  animation: ms-card-in 0.3s ease both;
+}
+@keyframes ms-card-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.ms-card-tag {
+  font-size: 10px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+.ms-card.result .ms-card-tag {
+  color: var(--good);
+}
+.ms-card.failed .ms-card-tag {
+  color: var(--bad);
+}
+.ms-card h2 {
+  margin: 8px 0 16px;
+  font-size: 25px;
+  font-weight: 800;
+}
+.ms-brief p {
+  margin: 0 0 10px;
+  font-size: 14px;
+  line-height: 1.65;
+  color: var(--text-dim);
+  text-align: left;
+}
+.ms-brief-facts {
+  display: flex;
+  justify-content: center;
+  gap: 26px;
+  margin: 18px 0 4px;
+}
+.ms-brief-facts div {
+  display: flex;
+  flex-direction: column;
+}
+.ms-brief-facts b {
+  font-size: 21px;
+  font-weight: 800;
+}
+.ms-brief-facts span {
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+.ms-signoff {
+  margin: 0 0 18px;
+  font-size: 13.5px;
+  font-style: italic;
+  line-height: 1.6;
+  color: var(--text-dim);
+}
+.ms-fail-line {
+  margin: 0 0 16px;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--text-dim);
+}
+
+.ms-rubric {
+  margin: 18px 0 20px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.02);
+}
+.ms-rubric > b {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+.ms-rubric-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 3px 0;
+  font-size: 12.5px;
+  color: var(--text-dim);
+  text-align: left;
+}
+.ms-rubric-stars span {
+  color: #2c3a52;
+}
+.ms-rubric-stars span.on {
+  color: var(--warn);
+}
+
+/* The result sheet. Rows settle in one after another — the delay is set per row
+   in the markup, so the order reads as a tally rather than as a flash. */
+.ms-sheet {
+  margin: 6px 0 20px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.ms-sheet-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 14px;
+  font-size: 13px;
+  color: var(--text-dim);
+  border-bottom: 1px solid var(--line);
+  animation: ms-row-in 0.34s ease both;
+}
+.ms-sheet-row:last-child {
+  border-bottom: none;
+}
+.ms-sheet-row b {
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--text);
+}
+.ms-sheet-row.good b {
+  color: var(--good);
+}
+@keyframes ms-row-in {
+  from {
+    opacity: 0;
+    transform: translateX(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.ms-stars {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin: 4px 0 18px;
+  font-size: 40px;
+  line-height: 1;
+}
+.ms-stars span {
+  color: #2c3a52;
+  transform: scale(0.6);
+  opacity: 0;
+}
+.ms-stars span.in {
+  animation: ms-star-in 0.42s cubic-bezier(0.22, 1.35, 0.36, 1) both;
+}
+.ms-stars span.on {
+  color: var(--warn);
+  text-shadow: 0 0 26px rgba(255, 207, 77, 0.6);
+}
+@keyframes ms-star-in {
+  from {
+    opacity: 0;
+    transform: scale(0.5) rotate(-18deg);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) rotate(0);
+  }
+}
+
+.ms-actions {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+}
+.ms-btn {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px 18px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-dim);
+  transition:
+    color 0.15s ease,
+    border-color 0.15s ease,
+    background 0.15s ease;
+}
+.ms-btn:hover {
+  color: var(--text);
+  border-color: var(--accent);
+}
+.ms-btn.primary {
+  background: var(--accent-2);
+  border-color: var(--accent);
+  color: #041018;
+}
+.ms-btn.primary:hover {
+  background: var(--accent);
+  color: #041018;
+}

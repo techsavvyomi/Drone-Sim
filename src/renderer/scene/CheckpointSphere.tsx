@@ -293,6 +293,55 @@ function orbHalo(): THREE.CanvasTexture {
   return haloTexture;
 }
 
+const tagTextures = new Map<string, THREE.CanvasTexture>();
+
+export function orbTagTexture(text: string): THREE.CanvasTexture {
+  const cached = tagTextures.get(text);
+  if (cached) return cached;
+
+  const size = 512;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  if (ctx) {
+    const cx = size / 2;
+    const cy = size / 2;
+    const r = size * 0.42;
+
+    // Dark glowing circular backing disc
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(15, 10, 24, 0.85)';
+    ctx.fill();
+
+    // Vibrant neon pink rim ring around the badge
+    ctx.lineWidth = size * 0.045;
+    ctx.strokeStyle = '#ff3db8';
+    ctx.stroke();
+
+    // Inner bright neon rim accent
+    ctx.beginPath();
+    ctx.arc(cx, cy, r * 0.94, 0, Math.PI * 2);
+    ctx.lineWidth = size * 0.015;
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.7)';
+    ctx.stroke();
+
+    // Bold clean white letter
+    ctx.fillStyle = '#ffffff';
+    ctx.font = `900 ${text.length > 1 ? 210 : 260}px Inter, system-ui, -apple-system, sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(text, cx, cy + 8);
+  }
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.anisotropy = 8;
+  texture.needsUpdate = true;
+  tagTextures.set(text, texture);
+  return texture;
+}
+
 export interface CheckpointSphereProps {
   /** Centre of the marker, in world metres. The bob rides on top of this; the
    *  trigger is measured from it. */
@@ -330,6 +379,8 @@ export interface CheckpointSphereProps {
    *  enough to break it would put light outside the volume that scores, which is
    *  the "I flew through it and it did not count" this file exists to avoid. */
   lift?: number;
+  /** Optional letter label (e.g. 'A', 'B', 'C') displayed in the middle of the ball. */
+  tag?: string;
 }
 
 /** Scratch, so the frame loop never allocates. */
@@ -362,9 +413,11 @@ export function CheckpointSphere({
   onCollect,
   bob = true,
   lift = 0,
+  tag,
 }: CheckpointSphereProps) {
   const group = useRef<THREE.Group>(null);
   const halo = useRef<THREE.Material>(null);
+  const tagMat = useRef<THREE.Material>(null);
   /** How lit it is, 0..1. Driven both ways, so a marker that is put back lights
    *  up again instead of leaving a dark ball hanging in the air. */
   const lit = useRef(1);
@@ -438,6 +491,7 @@ export function CheckpointSphere({
     uniforms.uLit.value = glow;
     uniforms.uTime.value = time;
     if (halo.current) halo.current.opacity = glow;
+    if (tagMat.current) tagMat.current.opacity = t;
   });
 
   return (
@@ -474,6 +528,19 @@ export function CheckpointSphere({
           toneMapped={false}
         />
       </sprite>
+      {tag && (
+        <sprite renderOrder={10} scale={[Math.max(1.8, radius * 1.3), Math.max(1.8, radius * 1.3), 1]}>
+          <spriteMaterial
+            ref={tagMat}
+            map={orbTagTexture(tag)}
+            transparent
+            opacity={1}
+            depthTest={false}
+            depthWrite={false}
+            toneMapped={false}
+          />
+        </sprite>
+      )}
     </group>
   );
 }

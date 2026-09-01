@@ -148,11 +148,11 @@ export const squareLesson: Lesson = {
   // up, then the corners.
   stages: [
     ...PREFLIGHT_STAGES,
-    { label: 'Out to A' },
-    { label: 'Side to B' },
-    { label: 'Side to C' },
-    { label: 'Side to D' },
-    { label: 'Close at A' },
+    { label: 'Out to A', cap: '↑ →' },
+    { label: 'Side to B', cap: '↓' },
+    { label: 'Side to C', cap: '←' },
+    { label: 'Side to D', cap: '↑' },
+    { label: 'Close at A', cap: '→' },
   ],
 
   demo: [

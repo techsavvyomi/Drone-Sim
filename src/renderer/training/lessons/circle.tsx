@@ -1,7 +1,6 @@
 import { cueBetween, latch, type Lesson } from './types';
 import { planCircle } from './demoFlight';
 import { HOVER } from './arena';
-import { ACADEMY_PAD } from '../../plugins/environments/droneAcademy';
 import {
   KEYS_PITCH,
   KEYS_ROLL,
@@ -19,17 +18,15 @@ import {
 // continuously all the way round. Scored on swept angle and how even the radius
 // stayed, so cutting a corner cannot pass.
 const ALT = HOVER;
-/** The helipad's own ring of white markers. The lap line is painted along it,
- *  so the sixteen dots and the red stripe are the same circle. */
-const RADIUS = ACADEMY_PAD.lightRadius;
+/** The helipad's lap circle. Dark yellow. */
+const RADIUS = 10.0;
 /** How far off the line still counts as being ON the ring — outside this the
- *  lap stops accumulating. Scaled to the bigger ring: the old 1.5 m band was set
- *  for a 4 m circle. */
-const BAND = 1.8;
+ *  lap stops accumulating. */
+const BAND = 2.4;
 /** The lane the lap is meant to be held in, and what three stars asks for. Drawn
  *  on the map, quoted in the rubric, and the point at which the hint starts
  *  saying which way to nudge — one number, so the three cannot disagree. */
-const LANE = 1.2;
+const LANE = 1.5;
 /** Full turn, minus a little, so the finish does not depend on a perfect close. */
 const TARGET_SWEEP = Math.PI * 2 * 0.95;
 
@@ -42,7 +39,7 @@ export const circleLesson: Lesson = {
   explain: {
     title: 'Flying a Circle',
     body: [
-      'Fly one lap around the helipad, on the red ring.',
+      'Fly one lap around the helipad, on the dark yellow circle.',
       'There are no corners to stop at. Stay the same distance from the middle.',
     ],
   },
@@ -64,7 +61,7 @@ export const circleLesson: Lesson = {
         radius: RADIUS,
         height: ALT,
         captions: [
-          'Out to the ring of white markers',
+          'Out to the dark yellow circle',
           'Build some speed ALONG the ring, not across it',
           'Now lean INTO the middle — and keep leaning',
           'The lean points at the centre the whole way round',
@@ -77,7 +74,7 @@ export const circleLesson: Lesson = {
   ],
 
   practice: {
-    prompt: 'Arm, take off, then one full lap around the helipad, on the ring',
+    prompt: 'Arm, take off, then one full lap around the helipad, on the dark yellow circle',
     hint: 'Press ENTER to arm',
   },
 

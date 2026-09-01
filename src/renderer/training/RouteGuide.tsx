@@ -54,10 +54,8 @@ import { TargetRing } from './TargetRing';
 //     pillar's body stood in the space the drone was trying to occupy; this
 //     leaves that space empty and puts the mark on the FLOOR, which is where a
 //     pilot looking down at a shape is already looking.
-/** The circle lesson's painted lap line. Red, so it cannot be taken for one of
- *  the pad's own white markings — it is the one thing on that deck the pilot is
- *  being asked to fly. */
-const RING = '#ff2b4d';
+/** The circle lesson's painted lap line. Dark yellow. */
+const RING = '#eab308';
 /** Half the width of that painted stripe, in metres. */
 const RING_W = 0.2;
 /** One colour for every name on the field, and one brightness.
@@ -379,6 +377,78 @@ function GateLabel({ point }: { point: Checkpoint }) {
   );
 }
 
+function orbBadgeTexture(text: string): THREE.CanvasTexture {
+  const key = `orb:${text}`;
+  const cached = labelTextures.get(key);
+  if (cached) return cached;
+
+  const size = 512;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  if (ctx) {
+    const cx = size / 2;
+    const cy = size / 2;
+    const r = size * 0.44;
+
+    // Dark solid backing disc
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(15, 12, 28, 0.9)';
+    ctx.fill();
+
+    // Vibrant neon pink border ring
+    ctx.lineWidth = size * 0.05;
+    ctx.strokeStyle = '#ff2b4d';
+    ctx.stroke();
+
+    // Inner subtle glow rim
+    ctx.beginPath();
+    ctx.arc(cx, cy, r * 0.92, 0, Math.PI * 2);
+    ctx.lineWidth = size * 0.018;
+    ctx.strokeStyle = '#ffffff';
+    ctx.stroke();
+
+    // Bold clean white letter
+    ctx.fillStyle = '#ffffff';
+    ctx.font = `900 ${text.length > 1 ? 210 : 270}px Inter, system-ui, -apple-system, sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(text, cx, cy + 8);
+  }
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.anisotropy = 8;
+  texture.needsUpdate = true;
+  labelTextures.set(key, texture);
+  return texture;
+}
+
+/**
+ * A checkpoint's name centered inside a ball of light (e.g. Triangle A, B, C).
+ */
+function OrbLabel({ point, out }: { point: Checkpoint; out: boolean }) {
+  if (!point.tag) return null;
+  const [x, y, z] = point.at;
+  return (
+    <sprite
+      position={[x, y, z]}
+      scale={[2.4, 2.4, 2.4]}
+      renderOrder={10}
+      visible={!out}
+    >
+      <spriteMaterial
+        map={orbBadgeTexture(point.tag)}
+        transparent
+        opacity={1}
+        depthTest={false}
+        depthWrite={false}
+      />
+    </sprite>
+  );
+}
+
 /**
  * A gate's checkpoint, marked with a ball of light instead of a letter.
  *
@@ -427,6 +497,7 @@ function CheckpointOrb({ point, out }: { point: Checkpoint; out: boolean }) {
       // constant here was picked to centre the ball in ONE opening and pushed it
       // above centre in every gate judged in its hole.
       lift={point.lift ?? 0}
+      tag={point.tag}
     />
   );
 }
@@ -848,7 +919,7 @@ function CheckpointBeacon({
  */
 function Ring({ radius }: { radius: number }) {
   const [cx, cz] = ACADEMY_PAD.center;
-  const outer = Math.min(radius + RING_W, ACADEMY_PAD.radius);
+  const outer = radius + RING_W;
   return (
     <mesh rotation={[-Math.PI / 2, 0, 0]} position={[cx, floorY(cx + radius, cz), cz]}>
       <ringGeometry args={[Math.max(outer - RING_W * 2, 0.1), outer, 96]} />
@@ -1058,11 +1129,15 @@ export function RouteGuide() {
         // pilot had just watched it acknowledge.
         if (e.point.orb) {
           return (
-            <CheckpointOrb
-              key={`orb-${e.point.label}-${i}`}
-              point={e.point}
-              out={routeTarget > e.last}
-            />
+            <group key={`orb-wrap-${e.point.label}-${i}`}>
+              <CheckpointOrb
+                point={e.point}
+                out={routeTarget > e.last}
+              />
+              {e.point.tag && (
+                <OrbLabel point={e.point} out={routeTarget > e.last} />
+              )}
+            </group>
           );
         }
         // A checkpoint that asked for a light and not a name has nothing to

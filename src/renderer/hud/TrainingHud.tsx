@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useSimStore } from '../state/simStore';
 import { useFlightStore } from '../state/flightStore';
 import { usePilotStore } from '../state/pilotStore';
@@ -35,11 +35,32 @@ const STEPS: { key: TrainingPhase; label: string }[] = [
  * watches, and then the same row is what they work through themselves.
  */
 function StepChips({ steps, index }: { steps: { label: string; cap?: string }[]; index: number }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const activeRef = useRef<HTMLSpanElement>(null);
+
+  useEffect(() => {
+    if (!containerRef.current || !activeRef.current) return;
+    const container = containerRef.current;
+    const active = activeRef.current;
+
+    const containerRect = container.getBoundingClientRect();
+    const activeRect = active.getBoundingClientRect();
+    const offset = activeRect.left - containerRect.left;
+
+    // Scroll so completed chips move to the left and active/upcoming chips stay visible
+    const targetScroll = container.scrollLeft + offset - (container.clientWidth / 2 - active.clientWidth / 2);
+    container.scrollTo({
+      left: Math.max(0, targetScroll),
+      behavior: 'smooth',
+    });
+  }, [index]);
+
   return (
-    <div className="tr-chips">
+    <div className="tr-chips" ref={containerRef}>
       {steps.map((s, i) => (
         <span
           key={`${s.label}-${i}`}
+          ref={i === Math.min(index, steps.length - 1) ? activeRef : undefined}
           className={`tr-chip ${i < index ? 'done' : i === index ? 'now' : 'todo'}`}
         >
           {i < index ? '✓ ' : ''}

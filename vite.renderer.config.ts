@@ -10,6 +10,11 @@ export default defineConfig({
   plugins: [react()],
   // .glb models are copied out as files rather than inlined.
   assetsInclude: ['**/*.glb'],
+  server: {
+    hmr: {
+      overlay: false,
+    },
+  },
   resolve: {
     alias: {
       '@shared': resolve(process.cwd(), 'src/shared'),

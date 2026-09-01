@@ -45,8 +45,8 @@ const LIVE = '#ffcf4d';
 const LATER = '#64748b';
 const DRONE = '#e2e8f0';
 const DECK = '#334155';
-/** The lap line, in the same red it is painted on the deck. */
-const RING = '#ff2b4d';
+/** The lap line, in the same dark yellow it is painted on the deck. */
+const RING = '#eab308';
 
 export function LessonMap({ lesson, target }: { lesson: Lesson; target: number }) {
   const canvas = useRef<HTMLCanvasElement>(null);

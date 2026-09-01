@@ -45,17 +45,17 @@ export const TILT_LAG = 0.25;
 /** Integration step for the leg solver. Runs once at module load. */
 const DT = 0.004;
 /** Default tilt used for a leg — brisk enough to watch, gentle enough to copy. */
-const DEFAULT_STICK = 0.38;
+export const DEFAULT_STICK = 0.38;
 /** Pause between legs, so each stop reads as a stop. */
-const DEFAULT_GAP = 0.7;
+export const DEFAULT_GAP = 0.7;
 /** Climb stick offset from centre. 0.25 -> 0.9 m/s, brisk without looking jumpy. */
 const CLIMB_STICK = 0.25;
 /** Yaw stick the turn is budgeted against; the Director may use less closing in. */
-const YAW_STICK = 0.5;
+export const YAW_STICK = 0.5;
 /** Turns smaller than this are not worth their own beat in the demonstration. */
-const MIN_TURN_DEG = 12;
+export const MIN_TURN_DEG = 12;
 /** Slack after a turn's nominal time, for the closed-loop hold to settle. */
-const YAW_SETTLE = 0.6;
+export const YAW_SETTLE = 0.6;
 
 /**
  * Horizontal acceleration from holding a tilt stick at `stick`.
@@ -230,7 +230,7 @@ export function solveThrough(metres: number, stick: number): { tAccel: number; t
 }
 
 /** How long to hold the tilt, and then the counter-tilt, to cover `metres`. */
-function solveLeg(metres: number, stick: number): { tAccel: number; tBrake: number } {
+export function solveLeg(metres: number, stick: number = DEFAULT_STICK): { tAccel: number; tBrake: number } {
   const cmdAngle = stick * PLAN_ENVELOPE.maxTiltDeg * DEG2RAD;
   let lo = 0.05;
   let hi = 12;
@@ -487,7 +487,7 @@ export function planCircle(opts: {
   // (3): the whole thing is shifted, so the phase term stays plain.
   const arcAt = runUpAt + tRunUp - TILT_LAG;
 
-  for (let i = 0; i <= n; i++) {
+  for (let i = 0; i < n; i++) {
     const t = (i * lap) / n;
     const phi = omega * t - lead;
     steps.push({

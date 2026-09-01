@@ -62,9 +62,9 @@ import {
 const FLY_AT = 3.3;
 
 const CORNERS = [
-  marker(12, 'Corner A', { height: FLY_AT, orb: true }), // the apex, straight ahead
-  marker(6, 'Corner B', { height: FLY_AT, orb: true }), //  back-left
-  marker(2, 'Corner C', { height: FLY_AT, orb: true }), //  back-right
+  marker(12, 'Corner A', { height: FLY_AT, orb: true, tag: 'A' }), // the apex, straight ahead
+  marker(6, 'Corner B', { height: FLY_AT, orb: true, tag: 'B' }), //  back-left
+  marker(2, 'Corner C', { height: FLY_AT, orb: true, tag: 'C' }), //  back-right
 ] as const;
 /** The loop closes where it began. Named as a RETURN, not as another corner:
  *  the intro card lays the route out as a numbered flow, and "Corner A again"

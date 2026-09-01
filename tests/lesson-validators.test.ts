@@ -240,9 +240,25 @@ describe('Module 10, Square Circuit using Yaw', () => {
   const on = (at: readonly [number, number, number], yaw: number) =>
     hovering(height, { position: [at[0], at[1], at[2]], yaw });
 
+  // The lap now opens with an ENTRY leg straight out in front of the pad, so
+  // the square's own first leg — out to Corner A — is route cursor 1, not 0.
+  const ON_A: LessonMemory = { rt: 1 };
+
+  it('TC-218 opens with a push forward and no turn at all', () => {
+    // The entry runs straight out on the heading the take-off left behind, so
+    // the first thing asked for after the climb is the pitch stick. Nothing is
+    // scored as turned onto: the nose was already pointing at it.
+    const mem: LessonMemory = {};
+    const r = lesson.validate(on(start, 0), mem);
+
+    expect(r.hint).toContain('Push forward');
+    expect(r.cue).toEqual(['ArrowUp']);
+    expect(mem.facedLegs ?? 0).toBe(0);
+  });
+
   it('TC-218 asks for the turn before it asks for the side', () => {
-    // Over the "H" at the start heading, Corner A is 45° off the nose.
-    const r = lesson.validate(on(start, 0), {});
+    // Over the "H" at the start heading, Corner A is 35° off the nose.
+    const r = lesson.validate(on(start, 0), { ...ON_A });
 
     expect(r.hint?.toLowerCase()).toContain('turn the nose');
     expect(r.hint).toContain('Corner A');
@@ -253,14 +269,14 @@ describe('Module 10, Square Circuit using Yaw', () => {
     // Corner A is off the front-RIGHT of the pad, so from a heading that has
     // already overshot past it the turn back is to the LEFT. Turning left is the
     // direction of increasing heading, which is the A key.
-    const past = lesson.validate(on(start, -Math.PI / 2), {});
+    const past = lesson.validate(on(start, -Math.PI / 2), { ...ON_A });
 
     expect(past.cue).toEqual(['KeyA']);
   });
 
   it('TC-218 wants one stick down the side once the nose is on the corner', () => {
     const facing = Math.atan2(-(route[0].at[0] - start[0]), -(route[0].at[2] - start[2]));
-    const r = lesson.validate(on(start, facing), {});
+    const r = lesson.validate(on(start, facing), { ...ON_A });
 
     expect(r.cue).toEqual(['ArrowUp']);
     expect(r.hint).toContain('Push forward');
@@ -270,7 +286,7 @@ describe('Module 10, Square Circuit using Yaw', () => {
   it('TC-218 keeps the side judged on the line, not on the heading', () => {
     // Nose on Corner B but flown from the middle of the pad: the side from A to
     // B runs up the right-hand edge, so this is a cut across the square.
-    const mem: LessonMemory = { rt: 1 };
+    const mem: LessonMemory = { rt: 2 };
     const facing = Math.atan2(-(route[1].at[0] - 0), -(route[1].at[2] - 0));
     const r = lesson.validate(on([0, height, 0], facing), mem);
 
@@ -280,9 +296,9 @@ describe('Module 10, Square Circuit using Yaw', () => {
 
   it('TC-218 counts a leg as turned onto only when the nose was actually put on it', () => {
     const facing = Math.atan2(-(route[0].at[0] - start[0]), -(route[0].at[2] - start[2]));
-    const crabbed: LessonMemory = {};
+    const crabbed: LessonMemory = { ...ON_A };
     lesson.validate(on(start, 0), crabbed);
-    const turned: LessonMemory = {};
+    const turned: LessonMemory = { ...ON_A };
     lesson.validate(on(start, facing), turned);
 
     expect(crabbed.facedLegs ?? 0).toBe(0);
@@ -304,5 +320,32 @@ describe('Module 10, Square Circuit using Yaw', () => {
     expect(
       lesson.stars[0].test({ ...crabbed, mem: { ...crabbed.mem, facedLegs: route.length } }),
     ).toBe(true);
+  });
+
+  it('TC-218 defines the full 13-stage progression including turns and legs', () => {
+    const stageLabels = lesson.stages?.map((s) => s.label);
+    expect(stageLabels).toEqual([
+      'Arm',
+      'Take off',
+      'Pitch forward',
+      'Yaw right',
+      'Pitch forward A',
+      'Yaw right',
+      'Pitch forward B',
+      'Yaw right',
+      'Pitch forward C',
+      'Yaw right',
+      'Pitch forward D',
+      'Yaw right',
+      'Close at A',
+    ]);
+  });
+
+  it('TC-218 demonstration visits all stages in increasing order', () => {
+    const stagesInDemo = lesson.demo
+      .filter((s) => s.stage !== undefined)
+      .map((s) => s.stage!);
+    const uniqueStages = [...new Set(stagesInDemo)];
+    expect(uniqueStages).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]);
   });
 });
