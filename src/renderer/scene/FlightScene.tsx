@@ -175,7 +175,7 @@ export function FlightScene({ envIdOverride }: { envIdOverride?: string } = {}) 
           the engine reads the camera pose for distance, panning and Doppler.
           Mounted above, it would be a frame behind — audible on a fly-by. */}
       <DroneAudio spec={spec} />
-      {cameraMode === 'orbit' && <OrbitCamera spec={spec} />}
+      {cameraMode === 'orbit' && <OrbitCamera spec={spec} env={env} />}
 
       <PostFX />
     </>
