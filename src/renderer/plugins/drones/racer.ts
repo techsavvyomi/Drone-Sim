@@ -95,9 +95,17 @@ export const racingDrone: DroneSpec = {
    * 0.043 m^2 wall to the air. A ~0.05 m^2 silhouette at Cd ~0.4 is 0.02.
    */
   dragArea: 0.02,
-  // Pulled back and tilted like a race build's cam — enough tilt that level
-  // flight is fast flight.
-  cameraMount: { position: [0, 0.022, 0.075], tiltDeg: 25 },
+  // On the nose and tilted like a race build's cam — enough tilt that level
+  // flight is fast flight. Forward is -Z; the old +0.075 was behind the CoG,
+  // which unscaled put the lens inside the frame plate.
+  //
+  // Drawn, the frame plate ends at z = -0.199 and the camera pod occupies
+  // z = -0.189..-0.141 at y = -0.001..0.056, so (0, 0.042, -0.21) x 1.8 puts
+  // the lens on the pod's own front face with nothing in the near plane.
+  // Unlike the Guru, this airframe shows no props: the art carries its rotors
+  // far out (prop diameter is 0.52 of the motor spacing against a real build's
+  // 0.82), so from the nose they sit past 48 degrees, outside the frame.
+  cameraMount: { position: [0, 0.0233, -0.1167], tiltDeg: 25 },
   model: racerModelUrl,
   // 0.127 m prop / 3.5955 authored units.
   // Drawn at 1.8x so the 311 mm frame reads at chase-camera distance in the

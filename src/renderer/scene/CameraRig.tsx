@@ -134,8 +134,17 @@ export function CameraRig({ spec, env }: { spec: DroneSpec; env?: EnvironmentSpe
       }
     } else if (mode === 'fpv') {
       // Onboard camera: mount offset in body frame, oriented with the drone plus
-      // the camera's downward tilt.
-      _mount.set(...spec.cameraMount.position).applyQuaternion(dronePose.quaternion);
+      // the camera's uptilt.
+      //
+      // The mount has to be inflated by sizeScale, exactly as DroneModel inflates
+      // the model it is mounted on. It is authored against the TRUE airframe, so
+      // left unscaled it lands deep inside a drone drawn 2.5x bigger: on the Guru
+      // the "nose camera" sat under the fuselage looking up at its own belly, and
+      // FPV showed the airframe rather than the world ahead of it.
+      _mount
+        .set(...spec.cameraMount.position)
+        .multiplyScalar(spec.sizeScale ?? 1)
+        .applyQuaternion(dronePose.quaternion);
       camera.position.copy(dronePose.position).add(_mount);
 
       _tilt.setFromAxisAngle(new THREE.Vector3(1, 0, 0), spec.cameraMount.tiltDeg * DEG2RAD);

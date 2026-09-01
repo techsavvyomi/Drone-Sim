@@ -54,9 +54,17 @@ export const guruDrone: DroneSpec = {
     maxClimbRate: 2.6,
     maxYawRate: 3.0,
   },
-  // Mirrors the PlutoX mount, scaled by the ratio of the two arm lengths so FPV
-  // frames the airframe the same way on both.
-  cameraMount: { position: [0, 0.015, 0.07], tiltDeg: 15 },
+  // Nose camera, MEASURED off the drawn airframe rather than mirrored from the
+  // PlutoX. Forward is -Z (the old +0.07 put it behind the CoG, i.e. inside the
+  // fuselage once sizeScale inflated the model around it).
+  //
+  // In drawn metres, this airframe's fuselage nose is at z = -0.145, its front
+  // props sweep z = -0.348..-0.062 at y = 0.108..0.145, and their inner edge
+  // comes in to x = 0.063. So (0, 0.09, -0.17) x 2.5 sits just ahead of the
+  // nose and just under the prop plane: the world is clear ahead and each front
+  // prop clips the frame edge at about 38 degrees off-axis, which is the sliver
+  // of blade a real FPV feed shows.
+  cameraMount: { position: [0, 0.036, -0.068], tiltDeg: 15 },
   // Guru Kit CAD export, optimized for realtime (222 draw calls, 275k tris —
   // on a par with the PlutoX's 219 / 277k).
   // The four props are tagged PROP_* by scripts/prepare-drone-model.mjs so the
