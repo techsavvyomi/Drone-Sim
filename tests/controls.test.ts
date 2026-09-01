@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import {
   isScripted,
+  isThrottleDown,
   resetStick,
   runScriptedCommand,
   setScripted,
@@ -92,6 +93,52 @@ describe('throttle behaviour by mode', () => {
     expect(stick.throttle).toBeCloseTo(0.9, 3);
   });
 
+  it("TC-207 Acro's throttle springs back to centre once airborne", () => {
+    // Acro's thrust stays direct — this is only where the stick RESTS, matching
+    // the spring in a gamepad's left stick.
+    useFlightStore.setState({ mode: 'acro', onGround: false });
+    stick.throttle = 0.9;
+
+    for (let i = 0; i < 60; i++) updateStick(1 / 60);
+
+    expect(stick.throttle).toBeCloseTo(0.5, 1);
+  });
+
+  it('TC-207 a low throttle springs UP to centre in Acro, not down', () => {
+    useFlightStore.setState({ mode: 'acro', onGround: false });
+    stick.throttle = 0.1;
+
+    for (let i = 0; i < 60; i++) updateStick(1 / 60);
+
+    expect(stick.throttle).toBeCloseTo(0.5, 1);
+  });
+
+  it('TC-208 the Acro spring works on the pad as well as in the air', () => {
+    // Where the stick rests is not a flight condition. What used to make a
+    // centred stick unsafe on the pad is covered in the controller now: the
+    // arming interlock, and a grounded stick at or below centre commanding
+    // nothing.
+    useFlightStore.setState({ mode: 'acro', onGround: true });
+    stick.throttle = 0.2;
+
+    for (let i = 0; i < 60; i++) updateStick(1 / 60);
+
+    expect(stick.throttle).toBeCloseTo(0.5, 1);
+  });
+
+  it('TC-208 a sprung centre is still safe to arm on in Acro', () => {
+    // Keyed on ALT_MANAGED, the interlock read Acro's sprung centre as a raised
+    // stick and refused to arm at all.
+    useFlightStore.setState({ mode: 'acro' });
+    resetStick();
+
+    expect(stick.throttle).toBeCloseTo(0.5, 3);
+    expect(throttleSafeToArm()).toBe(true);
+
+    stick.throttle = 0.8;
+    expect(throttleSafeToArm()).toBe(false);
+  });
+
   it('TC-046 a reset recentres the sticks for the mode it is in', () => {
     stick.roll = 0.7;
     stick.pitch = -0.4;
@@ -103,12 +150,36 @@ describe('throttle behaviour by mode', () => {
     expect(stick.roll).toBe(0);
     expect(stick.pitch).toBe(0);
     expect(stick.yaw).toBe(0);
-    // Altitude Hold rests at the spring centre; a direct mode rests at idle.
+    // A spring-centred mode rests at the centre; Stabilize rests at idle.
     expect(stick.throttle).toBeCloseTo(0.5, 3);
 
     useFlightStore.setState({ mode: 'acro' });
     resetStick();
+    expect(stick.throttle).toBeCloseTo(0.5, 3);
+
+    useFlightStore.setState({ mode: 'stabilize' });
+    resetStick();
     expect(stick.throttle).toBe(0);
+  });
+});
+
+describe('the idle-throttle command', () => {
+  it('TC-209 an untouched keyboard is not commanding idle', () => {
+    // Wherever the stick RESTS, resting is not a command — or arming alone would
+    // spin the props (invariants #15a). Stabilize rests at zero, which is the
+    // position that would otherwise read as a throttle-down.
+    useFlightStore.setState({ mode: 'stabilize' });
+    resetStick();
+
+    expect(stick.throttle).toBe(0);
+    expect(isThrottleDown()).toBe(false);
+  });
+
+  it('TC-209 a demonstration never asks for idle', () => {
+    setScripted(true);
+    setScriptedStick({ throttle: 0 });
+
+    expect(isThrottleDown()).toBe(false);
   });
 });
 
