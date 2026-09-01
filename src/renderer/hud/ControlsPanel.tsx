@@ -17,6 +17,7 @@ const GROUPS: { title: string; rows: [string, string][] }[] = [
     title: 'Aircraft',
     rows: [
       ['Enter', 'Arm / Disarm'],
+      ['S then W', 'After arming: throttle down, then up'],
       ['Space', 'Auto take-off / land'],
       ['M', 'Cycle flight mode'],
       ['R', 'Reset to spawn'],

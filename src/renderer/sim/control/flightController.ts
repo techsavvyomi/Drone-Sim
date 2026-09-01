@@ -147,6 +147,11 @@ export class FlightController {
   private heading = 0;
   /** Altitude held when the throttle stick is centred (Altitude Hold). */
   private targetAltitude = 0;
+  /**
+   * Arming interlock: the motors answer nothing until the pilot has commanded
+   * the throttle down once. See `lockThrottle()`.
+   */
+  private throttleInterlock = false;
   private lastMode: FlightMode | null = null;
   /** Yaw reaction coefficient (N·m per N). */
   private readonly kQ: number;
@@ -195,6 +200,7 @@ export class FlightController {
     this.yawRate.reset();
     this.heading = 0;
     this.lastMode = null;
+    this.throttleInterlock = false;
   }
 
   /**
@@ -211,6 +217,40 @@ export class FlightController {
   /** Capture the current altitude before handing an automatic climb to Alt Hold. */
   captureAltitude(altitude: number): void {
     this.targetAltitude = altitude;
+  }
+
+  /**
+   * Arm the throttle interlock: hold the motors at nothing until the pilot has
+   * commanded the throttle DOWN once.
+   *
+   * A real transmitter's throttle stick is physically at the bottom when you
+   * arm, so the pilot always starts a flight from idle and walks the stick up.
+   * A keyboard has no stick to be at the bottom — and in Altitude Hold it rests
+   * at the spring centre, which is "hold height" — so arming and tapping W flew
+   * the drone off the pad with no throttle-low step at all. Worse after a
+   * second arm: the pilot had already been at idle before disarming, and the
+   * aircraft answered W as though that still counted.
+   *
+   * It does not. Every arm starts a new flight, and every flight starts at
+   * idle: S first, then W. Cleared by `throttleDown` in `update()`, or by
+   * `unlockThrottle()` for the sequences that fly the aircraft themselves.
+   */
+  lockThrottle(): void {
+    this.throttleInterlock = true;
+  }
+
+  /**
+   * Clear the interlock without a throttle-down command — for an auto sequence
+   * or a scripted demonstration, neither of which has a pilot to press S, and
+   * both of which would otherwise be handed dead motors.
+   */
+  unlockThrottle(): void {
+    this.throttleInterlock = false;
+  }
+
+  /** Whether the interlock is still holding the motors (for the HUD). */
+  get throttleLocked(): boolean {
+    return this.throttleInterlock;
   }
 
   get maxThrust(): number {
@@ -321,6 +361,16 @@ export class FlightController {
       thrust = this.altitudeThrust(input, state, tiltCos);
     } else {
       thrust = clamp(input.throttle, 0, 1) * this.maxThrust;
+    }
+
+    // ---- Arming interlock ----
+    // Nothing turns until the pilot has asked for idle once since arming. The
+    // throttle-down command is the release, exactly as a radio's stick sitting
+    // at the bottom is on a real aircraft — so a radio pilot clears it by
+    // holding the stick where it already rests, and never notices it at all.
+    if (this.throttleInterlock) {
+      if (throttleDown) this.throttleInterlock = false;
+      else thrust = 0;
     }
 
     // ---- ESC idle ----

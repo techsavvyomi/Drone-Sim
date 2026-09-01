@@ -233,6 +233,8 @@ export function Drone({ spec, spawn, bounds, outdoor = false, groundY }: DronePr
   // stick move can be told apart from where the stick simply happens to rest.
   const autoEntryThrottle = useRef<number | null>(null);
   const prevAuto = useRef<AutoState>('manual');
+  /** Armed state at the previous physics step — see the arm transition below. */
+  const prevArmed = useRef(false);
   const prevSource = useRef(activeInputSource());
   /** Speed at the last physics step — used to grade collision severity. */
   const impactSpeed = useRef(0);
@@ -522,6 +524,31 @@ export function Drone({ spec, spawn, bounds, outdoor = false, groundY }: DronePr
     info.supportedCount = supportedCount;
     info.isStable = isStable;
     info.contactState = contactState;
+
+    // ---- Arming hands the controller a clean slate ----
+    // `targetAltitude` is the one piece of controller state that outlives a
+    // disarm, and Altitude Hold flies straight back to it. Cut the motors in the
+    // air — chop the throttle, hit disarm before it has settled — and the drone
+    // drops; re-arm, and the stick has sprung back to centre, which reads as
+    // "hold height" against a target still set to where the motors were cut. The
+    // aircraft climbed back up to it having been commanded nothing, which is
+    // #15a in the air. A real flight controller has no memory of the last flight
+    // either: arming holds where the aircraft IS.
+    //
+    // Arming on the pad also arms the throttle interlock: S before W, every
+    // flight. Arming in the AIR must not — a recovery, and Flight School's
+    // landing drill, both start armed and off the ground, and dead motors there
+    // is a drop, not a safety.
+    if (armed && !prevArmed.current) {
+      controller.captureAltitude(pos.y);
+      controller.resetIntegrators();
+      if (useFlightStore.getState().onGround) controller.lockThrottle();
+    }
+    prevArmed.current = armed;
+
+    // Neither a demonstration nor an auto sequence has a pilot to press S, and
+    // both fly the aircraft themselves — hand them live motors.
+    if (scripted || auto !== 'manual') controller.unlockThrottle();
 
     if (!armed || crashed) {
       lastOutput.current = null;
