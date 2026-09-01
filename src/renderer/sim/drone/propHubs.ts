@@ -80,3 +80,40 @@ export const TAU = Math.PI * 2;
  * of a real drone does.
  */
 export const BLUR_REV_PER_SEC = 20;
+
+/**
+ * Revolutions per second at FULL throttle for real, solid propeller blades.
+ *
+ * The same ceiling as `BLUR_REV_PER_SEC`, worked out for a two-blade prop: its
+ * pattern repeats every half turn, so once the blades advance more than a
+ * quarter turn between frames the eye takes the shorter way round and they
+ * appear to turn backwards. At 60 fps that ceiling is 15 rev/s.
+ *
+ * Applied through `solidRevs()`, not multiplied straight in, and only the range
+ * where the blades are still legible has to respect the ceiling — `DroneModel`
+ * fades them out as RPM rises. At 25 the crossing lands at an `rpm` of 0.36,
+ * where they are already down to a third opacity; past that the props have
+ * stopped resolving and are MEANT to alias, exactly as real footage does.
+ *
+ * This replaced a flat 6400 rad/s per unit — some 61,000 RPM at full throttle,
+ * and 51 rev/s at the ESC idle (`invariants.md` #15d), which turned what should
+ * be a visible idle spin into a strobe that read as four propellers running
+ * backwards over four idling motors.
+ */
+export const SOLID_REV_PER_SEC = 25;
+
+/**
+ * Blade speed for a normalised motor output, in revolutions per second.
+ *
+ * Rotor speed goes as the SQUARE ROOT of thrust — which is why `motorAudio`
+ * pitches its voices by `sqrt(load)`, and the props have to be drawn off the
+ * same curve or they disagree with what the pilot is hearing. Linear was the
+ * bug: at the ESC idle it drew 5% of full speed against a motor already singing
+ * at 22% of its RPM, so an idle that sounded alive looked dead.
+ *
+ * The curve is steep exactly where it is looked at. Idle turns at 5.6 rev/s
+ * rather than 1.3, and a hover is a disc either way.
+ */
+export function solidRevs(rpm: number): number {
+  return SOLID_REV_PER_SEC * Math.sqrt(Math.max(rpm, 0));
+}

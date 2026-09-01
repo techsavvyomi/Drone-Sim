@@ -5,7 +5,7 @@ import * as THREE from 'three';
 import type { DroneSpec } from '@shared/types';
 import { DEG2RAD } from '../mathx';
 import { DroneMesh } from './DroneMesh';
-import { BLUR_REV_PER_SEC, blurMix, propHubs, TAU } from './propHubs';
+import { BLUR_REV_PER_SEC, blurMix, propHubs, solidRevs, TAU } from './propHubs';
 import { useSimStore } from '../../state/simStore';
 import { useFlightStore } from '../../state/flightStore';
 import { damp } from '../mathx';
@@ -372,11 +372,13 @@ function Gltf({ spec, idleSpin = 0 }: { spec: DroneSpec; idleSpin?: number }) {
       }
 
       // The pivot sits axis-aligned under the model root, so Y is up.
-      // Full-speed rotation. Far past the point where 60 fps can resolve a
-      // two-blade prop (~15 rev/s), so the blades WOULD strobe — which is why
-      // they're faded out as RPM rises and the blur disc takes over, exactly as
-      // a real prop stops resolving and becomes a translucent disc.
-      r.pivot.rotation.y += dir * rpm.current[i] * 6400 * dt;
+      // Rated in revolutions per second rather than raw radians, off the same
+      // square-root curve the motor audio is pitched on, so the range where the
+      // blades are still legible stays under what 60 fps can resolve on a
+      // two-blade prop — see `solidRevs`. Past that they are faded out as RPM
+      // rises and the blur disc takes over, exactly as a real prop stops
+      // resolving and becomes a translucent disc.
+      r.pivot.rotation.y += dir * solidRevs(rpm.current[i]) * TAU * dt;
 
       const fade = 1 - Math.min(0.9, Math.max(0, rpm.current[i] - 0.08) * 2.6);
       r.blades.forEach((m) => {
