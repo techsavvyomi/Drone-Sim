@@ -81,10 +81,32 @@ export const BEGINNER_CONFIG: ControllerConfig = {
 
 /**
  * Modes whose thrust is managed by the altitude controller rather than being a
- * direct throttle position. In these the throttle stick is SPRING-CENTRED:
- * centre holds altitude, above climbs, below descends.
+ * direct throttle position. Here the throttle stick commands a CLIMB RATE:
+ * centre holds altitude, above climbs, below descends. Where the stick rests is
+ * a separate question — see `SPRING_THROTTLE`.
  */
 export const ALT_MANAGED: FlightMode[] = ['altitude-hold'];
+
+/**
+ * Modes whose throttle stick RESTS at centre — release it and it springs back.
+ *
+ * A superset of `ALT_MANAGED`, and deliberately a separate list, because the two
+ * answer different questions: `ALT_MANAGED` is what the stick *commands* (a
+ * climb rate the altitude controller flies), this is only where the stick
+ * *sits*. Acro's thrust stays direct — centre is plain mid-throttle, which is a
+ * hover on both Pluto airframes — but the stick self-centres, which is what a
+ * gamepad's left stick already does in every mode. Without acro in this list the
+ * keyboard and a pad disagreed about the same mode.
+ */
+export const SPRING_THROTTLE: FlightMode[] = [...ALT_MANAGED, 'acro'];
+
+/**
+ * Where a spring-centred throttle stick rests. Shared, because the input layer,
+ * the mode handover and the collective all have to agree on it — and because it
+ * is not an arbitrary number: it is the stick position at which a direct throttle
+ * makes exactly hover thrust on the Pluto airframes.
+ */
+export const THROTTLE_CENTER = 0.5;
 
 /**
  * The envelope this airframe actually flies in: the shared trainer config with
@@ -360,7 +382,16 @@ export class FlightController {
     } else if (ALT_MANAGED.includes(mode)) {
       thrust = this.altitudeThrust(input, state, tiltCos);
     } else {
-      thrust = clamp(input.throttle, 0, 1) * this.maxThrust;
+      let t = clamp(input.throttle, 0, 1);
+      // A spring-centred direct stick RESTS at centre, and on the pad that is
+      // not a command — it is only where the spring left it. Alt Hold already
+      // refuses to lift on a centred stick while grounded (#15c); acro has to do
+      // the same, or letting go of S would float the aircraft off the pad having
+      // been asked for nothing (#15a, #16). Above centre it IS a command, and
+      // centre is also exactly where a direct throttle makes hover thrust — so
+      // the drone leaves the ground at the moment the stick says it should.
+      if (state.onGround && SPRING_THROTTLE.includes(mode) && t <= THROTTLE_CENTER) t = 0;
+      thrust = t * this.maxThrust;
     }
 
     // ---- Arming interlock ----

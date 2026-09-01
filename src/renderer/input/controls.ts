@@ -1,7 +1,7 @@
 import type { GamepadAction, StickInput } from '@shared/types';
 import { clamp, damp } from '../sim/mathx';
 import { useFlightStore } from '../state/flightStore';
-import { ALT_MANAGED } from '../sim/control/flightController';
+import { ALT_MANAGED, SPRING_THROTTLE, THROTTLE_CENTER } from '../sim/control/flightController';
 import { useUiStore } from '../state/uiStore';
 import { useSimStore } from '../state/simStore';
 import {
@@ -122,9 +122,8 @@ export function isThrottleDown(): boolean {
 // the self-centering sticks are.
 // Slower ramp = finer resolution around the hover point (~50% stick).
 const STICK_LAMBDA = 14;
-/** Spring-return rate for the throttle in altitude-managed modes (~200 ms). */
+/** Spring-return rate for the throttle in the spring-centred modes (~200 ms). */
 const THROTTLE_CENTER_LAMBDA = 15;
-const THROTTLE_CENTER = 0.5;
 /**
  * Expo applied to the keyboard attitude sticks: gentle around centre for fine
  * corrections (less twitchy), full authority at the ends (not sluggish). 0 =
@@ -209,7 +208,8 @@ export function updateStick(dt: number): void {
   const throttleRateUp = 0.6;
   const throttleRateDown = 0.95;
 
-  if (ALT_MANAGED.includes(useFlightStore.getState().mode)) {
+  const flight = useFlightStore.getState();
+  if (ALT_MANAGED.includes(flight.mode)) {
     // Altitude-managed modes: W climbs, S descends responsively.
     if (up) stick.throttle += throttleRateUp * dt;
     else if (down) stick.throttle -= throttleRateDown * dt;
@@ -218,6 +218,19 @@ export function updateStick(dt: number): void {
     // Direct-thrust modes: W increases throttle, S decreases throttle to descend.
     if (up) stick.throttle += throttleRateUp * dt;
     if (down) stick.throttle -= throttleRateDown * dt;
+    // Acro flies a direct throttle on a spring-centred stick: let go and it
+    // returns to mid-throttle, which is a hover on both Pluto airframes. It is
+    // the same left stick a gamepad already presents in this mode; the keyboard
+    // was the odd one out, holding whatever the last W or S left behind.
+    //
+    // On the pad as well as in the air. What used to make that unsafe — a stick
+    // resting at centre is a *raised* stick to a direct mode, so arming would
+    // spool straight to hover thrust — is now covered twice over: the arming
+    // interlock holds the motors until S is pressed, and the collective ignores
+    // a grounded stick at or below centre (both in `flightController`).
+    if (!up && !down && SPRING_THROTTLE.includes(flight.mode)) {
+      stick.throttle = damp(stick.throttle, THROTTLE_CENTER, THROTTLE_CENTER_LAMBDA, dt);
+    }
   }
   stick.throttle = clamp(stick.throttle, 0, 1);
 
@@ -243,20 +256,22 @@ export function resetStick(): void {
   rawRoll = 0;
   rawPitch = 0;
   rawYaw = 0;
-  // Altitude-managed modes rest at centre; direct-thrust modes rest at zero.
-  stick.throttle = ALT_MANAGED.includes(useFlightStore.getState().mode) ? THROTTLE_CENTER : 0;
+  // A spring-centred mode rests at centre; Stabilize's direct stick rests at zero.
+  stick.throttle = SPRING_THROTTLE.includes(useFlightStore.getState().mode) ? THROTTLE_CENTER : 0;
   pressed.clear();
 }
 
 /**
  * Real flight controllers refuse to arm unless the throttle is at its safe
  * resting position — arming with the throttle raised would spin up and lurch.
- * In altitude-managed modes the safe position is the spring centre; in direct
- * modes it is near idle. Returns true when it's safe to arm.
+ * Where that position IS depends on how the stick rests, not on how its value is
+ * spent: a spring-centred mode is safe at the centre, Stabilize's stick near
+ * idle. Keyed on `ALT_MANAGED` this refused to arm in Acro at all, the stick
+ * having sprung to a centre the test read as raised. Returns true when it's safe.
  */
 export function throttleSafeToArm(): boolean {
-  const managed = ALT_MANAGED.includes(useFlightStore.getState().mode);
-  const limit = managed ? THROTTLE_CENTER + 0.12 : 0.15;
+  const sprung = SPRING_THROTTLE.includes(useFlightStore.getState().mode);
+  const limit = sprung ? THROTTLE_CENTER + 0.12 : 0.15;
   return stick.throttle <= limit;
 }
 
