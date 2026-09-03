@@ -1,0 +1,279 @@
+import { useMemo, useRef } from 'react';
+import * as THREE from 'three';
+import { useFrame } from '@react-three/fiber';
+import { dronePose } from '../sim/drone/pose';
+import { useSettingsStore } from '../state/settingsStore';
+import { useMissionStore } from '../state/missionStore';
+import { getDrone } from '../plugins/registry';
+import type { Mission } from './types';
+
+// ----------------------------------------------------------------------------
+// The package.
+//
+// Carried, not slung. It hangs off the airframe's transform and NOTHING about it
+// reaches the flight model — no rope, no joint, no mass. That is a deliberate
+// limit rather than a shortcut: a swinging load is a different flying exercise
+// from the one this mission is teaching, and the brief asks for precision
+// placement, not for pendulum management.
+//
+// It is WELDED on. It used to chase the point under the drone with a lag and
+// lean into the swing, which was meant to read as a slung load; at any real
+// speed it read as a box that had come loose and was flying along beside the
+// aircraft, tilted, several hand-widths behind. A package clamped under an
+// airframe does not do that. It now takes the drone's position and its FULL
+// orientation every frame, so it banks and turns as one object with it and
+// cannot drift, lag or tumble in flight however hard the drone is flown.
+//
+// It is never hidden mid-flight. The only states it has are: waiting on its
+// mark, carried, and down — and "down" still leaves it standing on the deck
+// where it landed.
+// ----------------------------------------------------------------------------
+
+/** Seconds the attach animation takes to pull the box up to the airframe. */
+const ATTACH_SEC = 0.35;
+/** Gravity for the drop, m/s². Its own number: this is an animation, not the
+ *  sim, and it must not start reading the world's physics by accident. */
+const DROP_G = 12;
+/** How much of its speed the box keeps on the bounce. */
+const BOUNCE = 0.32;
+
+type Motion = 'waiting' | 'attaching' | 'carried' | 'falling' | 'down';
+
+export function Payload({ mission }: { mission: Mission }) {
+  const droneId = useSettingsStore((s) => s.settings.selectedDroneId);
+  const payload = useMissionStore((s) => s.payload);
+  const phase = useMissionStore((s) => s.phase);
+
+  /** Sized off the airframe it hangs under, so it reads as cargo on every drone
+   *  rather than as a crate on the small one and a pebble on the big one. */
+  const { size, drop } = useMemo(() => {
+    const spec = getDrone(droneId);
+    const span = (spec?.armLength ?? 0.1) * (spec?.sizeScale ?? 1) * 2;
+    const s = THREE.MathUtils.clamp(span * 0.5, 0.13, 0.24);
+    // Hung clear of the airframe, not tucked into it. The gap has to cover the
+    // half-box AND whatever the drone has below its own origin — skids, belly,
+    // the props' own thickness — or the two meshes share the same space and the
+    // box reads as being INSIDE the drone rather than under it. It also means
+    // the box touches down first on a descent, which is what a slung load does.
+    // Tight to the belly. The gap only has to clear the half-box and whatever
+    // the drone carries below its own origin — skids, belly, the props'
+    // thickness. It was nearly twice this, which left the box hanging in open
+    // air under the aircraft with daylight between them; clamped cargo sits
+    // against the airframe.
+    return { size: s, drop: s * 0.5 + span * 0.06 + 0.015 };
+  }, [droneId]);
+
+  const group = useRef<THREE.Group>(null);
+  /** Where the box actually is, and how fast it is falling. */
+  const at = useRef(new THREE.Vector3());
+  const fall = useRef(0);
+  const motion = useRef<Motion>('waiting');
+  /** 0..1 through the attach pull. */
+  const pull = useRef(0);
+  /** Where the pull started from. */
+  const from = useRef(new THREE.Vector3());
+  /** Scratch, so the frame loop never allocates. */
+  const anchor = useMemo(() => new THREE.Vector3(), []);
+
+  const rest = useMemo(
+    () =>
+      new THREE.Vector3(
+        mission.zones.pickup.at[0],
+        mission.groundY + size / 2,
+        mission.zones.pickup.at[1],
+      ),
+    [mission, size],
+  );
+
+  useFrame(({ clock }, rawDt) => {
+    const dt = Math.min(rawDt, 0.1);
+    const g = group.current;
+    if (!g) return;
+
+    // --- Which of the five things is it doing --------------------------------
+    //
+    // Derived from the store every frame rather than remembered, so a restart —
+    // which puts `payload` back to 'waiting' — puts the box back on its mark
+    // with no teardown of its own to get wrong.
+    const carrying = payload === 'attached';
+    const wrecked = phase === 'failed';
+
+    if (payload === 'waiting' && motion.current !== 'waiting') {
+      motion.current = 'waiting';
+      at.current.copy(rest);
+      fall.current = 0;
+      pull.current = 0;
+    } else if (
+      carrying &&
+      !wrecked &&
+      motion.current !== 'attaching' &&
+      motion.current !== 'carried'
+    ) {
+      motion.current = 'attaching';
+      pull.current = 0;
+      from.current.copy(at.current);
+    } else if (carrying && wrecked && motion.current !== 'falling' && motion.current !== 'down') {
+      // The aircraft is wrecked, so the package it was holding comes down with
+      // it. This is the brief's "payload lost" made visible: there is no state
+      // for it, there is a box on the street.
+      motion.current = 'falling';
+      fall.current = 0;
+    } else if (
+      payload === 'delivered' &&
+      motion.current !== 'falling' &&
+      motion.current !== 'down'
+    ) {
+      motion.current = 'falling';
+      fall.current = 0;
+    }
+
+    // --- Move it -------------------------------------------------------------
+    switch (motion.current) {
+      case 'waiting': {
+        // Alive on its mark: a slow turn and a shallow bob, so a box on a grey
+        // street is something the eye finds.
+        at.current.set(rest.x, rest.y + 0.06 + Math.sin(clock.elapsedTime * 1.6) * 0.05, rest.z);
+        g.rotation.set(0, clock.elapsedTime * 0.55, 0);
+        break;
+      }
+      case 'attaching': {
+        pull.current = Math.min(1, pull.current + dt / ATTACH_SEC);
+        anchorUnder(anchor, drop);
+        // Ease out: it leaps off the deck and settles under the airframe rather
+        // than sliding there at a constant rate.
+        const t = 1 - (1 - pull.current) * (1 - pull.current);
+        at.current.lerpVectors(from.current, anchor, t);
+        // A short squash on arrival — the only "pop" in the mission, and it is
+        // on the one event that changes what the drone is.
+        const pop = 1 + Math.sin(pull.current * Math.PI) * 0.22;
+        g.scale.setScalar(pop);
+        g.rotation.set(0, g.rotation.y * (1 - t), 0);
+        if (pull.current >= 1) {
+          motion.current = 'carried';
+          g.scale.setScalar(1);
+        }
+        break;
+      }
+      case 'carried': {
+        // Bolted on: the anchor exactly, and the airframe's own orientation.
+        // No chase, no lean, nothing that can be left behind by a fast run.
+        anchorUnder(anchor, drop);
+        at.current.copy(anchor);
+        if (dronePose.present) g.quaternion.copy(dronePose.quaternion);
+        break;
+      }
+      case 'falling': {
+        fall.current += DROP_G * dt;
+        at.current.y -= fall.current * dt;
+        const floor = mission.groundY + size / 2;
+        if (at.current.y <= floor) {
+          at.current.y = floor;
+          fall.current *= -BOUNCE;
+          // Below a nudge it has stopped bouncing and is simply on the ground.
+          if (Math.abs(fall.current) < 0.6) {
+            fall.current = 0;
+            motion.current = 'down';
+            g.rotation.x = 0;
+            g.rotation.z = 0;
+          }
+        }
+        // Tumble a little on the way down, then stop.
+        g.rotation.x += dt * 1.1;
+        g.rotation.z += dt * 0.7;
+        break;
+      }
+      case 'down':
+        break;
+    }
+
+    g.position.copy(at.current);
+  });
+
+  const half = size / 2;
+  /** How far a face decal stands off the box, so it never fights the box's own
+   *  surface for depth. Small enough that the cross reads as printed on. */
+  const skin = size * 0.004;
+  const arm = size * 0.52;
+  const bar = size * 0.17;
+  return (
+    <group ref={group}>
+      {/* The parcel. A medical supply case: white shell, red cross, which is
+          what says WHAT is being carried at the one glance a pilot can spare. */}
+      <mesh castShadow>
+        <boxGeometry args={[size, size, size]} />
+        <meshStandardMaterial color="#f2f4f5" roughness={0.7} metalness={0} />
+      </mesh>
+      {/* A band round the middle, so a white cube still has an edge against a
+          bright sky. */}
+      <mesh>
+        <boxGeometry args={[size * 1.01, size * 0.14, size * 1.01]} />
+        <meshStandardMaterial color="#c8d0d6" roughness={0.6} />
+      </mesh>
+      {/* The cross, on all six faces — the box tumbles when it is dropped and
+          spins on its mark, so there is no face that can afford to be blank.
+          Two flat bars per face rather than a texture: no canvas, no upload, and
+          it stays crisp at every distance. */}
+      {CROSS_FACES.map(([rot, pos], i) => (
+        <group
+          key={i}
+          rotation={rot}
+          position={pos.map((v) => v * (half + skin)) as [number, number, number]}
+        >
+          <mesh>
+            <planeGeometry args={[arm, bar]} />
+            <meshBasicMaterial color="#e03131" toneMapped={false} side={THREE.DoubleSide} />
+          </mesh>
+          <mesh>
+            <planeGeometry args={[bar, arm]} />
+            <meshBasicMaterial color="#e03131" toneMapped={false} side={THREE.DoubleSide} />
+          </mesh>
+        </group>
+      ))}
+      {/* No ring under the box. It was an amber halo meant to give the box an
+          outline from twenty metres up, and it sat inside the pickup mark's own
+          ring — two circles round one object, the outer one green and the inner
+          one amber, which read as a second target rather than as a shadow. The
+          mark under it is doing that job already. */}
+    </group>
+  );
+}
+
+/** The six faces of the box, as a rotation for the decal plane and the unit
+ *  direction the face sits along. Built once: the box never changes shape. */
+const CROSS_FACES: ReadonlyArray<[[number, number, number], [number, number, number]]> = [
+  [
+    [0, 0, 0],
+    [0, 0, 1],
+  ],
+  [
+    [0, Math.PI, 0],
+    [0, 0, -1],
+  ],
+  [
+    [0, Math.PI / 2, 0],
+    [1, 0, 0],
+  ],
+  [
+    [0, -Math.PI / 2, 0],
+    [-1, 0, 0],
+  ],
+  [
+    [-Math.PI / 2, 0, 0],
+    [0, 1, 0],
+  ],
+  [
+    [Math.PI / 2, 0, 0],
+    [0, -1, 0],
+  ],
+];
+
+/** The point directly under the airframe the parcel hangs from. Taken from the
+ *  drone's own transform, so it follows roll and pitch instead of floating flat
+ *  under a banking aircraft. */
+function anchorUnder(out: THREE.Vector3, drop: number): void {
+  out.set(0, -drop, 0);
+  if (dronePose.present) {
+    out.applyQuaternion(dronePose.quaternion);
+    out.add(dronePose.position);
+  }
+}
