@@ -4553,6 +4553,16 @@ button {
 }
 
 /* ---- The strip ----------------------------------------------------------- */
+/*
+   One instrument, read left to right: what to do, what is on board, how it is
+   going, where the mark is, how high, how long.
+
+   It was six boxes butted together with a hairline between them, all the same
+   weight, so nothing in it was easier to find than anything else — the pilot
+   had to read the labels every time. The panel is one surface now, the numbers
+   carry the weight, the labels get out of the way, and only the objective wears
+   the accent.
+*/
 
 .ms-strip {
   position: absolute;
@@ -4561,50 +4571,88 @@ button {
   transform: translateX(-50%);
   display: flex;
   align-items: stretch;
-  gap: 1px;
-  background: var(--line);
-  border: 1px solid var(--line);
-  border-radius: 8px;
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  border-radius: 12px;
   overflow: hidden;
-  backdrop-filter: blur(8px);
-  box-shadow: 0 10px 34px rgba(0, 0, 0, 0.5);
+  /* Two layers: a top highlight so the panel reads as glass catching the sky,
+     and a body dark enough that white numerals hold over a bright street. */
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0) 42%),
+    rgba(9, 14, 22, 0.82);
+  backdrop-filter: blur(14px) saturate(1.1);
+  box-shadow:
+    0 18px 44px rgba(0, 0, 0, 0.55),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
   max-width: min(980px, 94%);
 }
 .ms-obj,
 .ms-cell {
+  position: relative;
   display: flex;
   flex-direction: column;
-  gap: 3px;
-  padding: 8px 14px;
-  background: var(--panel);
+  justify-content: center;
+  gap: 4px;
+  padding: 10px 18px;
+}
+/* Hairlines drawn as borders rather than as gaps over a background: a 1px gap
+   showing the panel behind it turns into a bright seam on a pale street. */
+.ms-cell + .ms-cell,
+.ms-obj + .ms-cell {
+  border-left: 1px solid rgba(148, 163, 184, 0.14);
 }
 .ms-obj {
-  /* The objective is the answer to "what do I do next", so it gets the room and
-     the accent, and it is first in the reading order. */
-  border-left: 2px solid var(--accent);
-  min-width: 210px;
-  max-width: 320px;
+  /* The objective is the answer to "what do I do next", so it gets the room,
+     the accent and first place in the reading order. */
+  min-width: 218px;
+  max-width: 330px;
+  background: linear-gradient(90deg, rgba(56, 189, 248, 0.14), rgba(56, 189, 248, 0));
+  box-shadow: inset 3px 0 0 var(--accent);
 }
 .ms-obj span,
 .ms-cell span {
   font-size: 9px;
-  letter-spacing: 0.18em;
+  font-weight: 700;
+  letter-spacing: 0.2em;
   text-transform: uppercase;
-  color: var(--text-dim);
+  color: rgba(148, 163, 184, 0.72);
 }
 .ms-obj b {
-  font-size: 13px;
+  font-size: 13.5px;
   font-weight: 700;
   line-height: 1.35;
 }
 .ms-cell b {
-  font-size: 16px;
+  font-size: 17px;
   font-weight: 800;
+  letter-spacing: 0.01em;
   white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
+/* The denominator is context, not a reading: same line, half the presence. */
 .ms-cell b i {
   font-style: normal;
-  font-size: 12px;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: rgba(148, 163, 184, 0.65);
+}
+/* The payload is a STATE, so it reads as one: a dot in the state's own colour
+   ahead of the words, which is findable without reading them. */
+.ms-cell.payload b {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+}
+.ms-cell.payload b::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow: 0 0 10px currentColor;
+  opacity: 0.9;
+}
+.ms-cell.payload.waiting b {
   color: var(--text-dim);
 }
 .ms-cell.payload.attached b {
@@ -4617,26 +4665,39 @@ button {
   color: var(--bad);
   animation: blink 1s steps(2) infinite;
 }
+/* Low on time earns a wash as well as red digits — a colour change on four
+   characters at the far end of the panel is easy to miss while flying. */
+.ms-cell.warn {
+  background: linear-gradient(180deg, rgba(255, 92, 122, 0), rgba(255, 92, 122, 0.14));
+}
 
 /* The direction arrow rides in the DISTANCE cell: which way to turn, and how
-   far, as one reading. It turns red-ish when the marker is behind you. */
+   far, as one reading. It sits in a disc so the rotation reads as a dial
+   rather than as a glyph that has come loose, and it turns amber when the
+   marker is behind you. */
 .ms-arrow {
   display: flex;
   align-items: center;
-  gap: 7px;
+  gap: 9px;
 }
 .ms-arrow svg {
-  width: 17px;
-  height: 17px;
+  width: 22px;
+  height: 22px;
+  padding: 3px;
+  border-radius: 50%;
+  box-sizing: border-box;
+  background: rgba(56, 189, 248, 0.14);
   fill: var(--accent);
   transition: transform 0.12s linear;
 }
 .ms-arrow.off svg {
+  background: rgba(255, 176, 60, 0.16);
   fill: var(--warn);
 }
 .ms-arrow b {
-  font-size: 16px;
+  font-size: 17px;
   font-weight: 800;
+  font-variant-numeric: tabular-nums;
 }
 
 /* ---- Transients ---------------------------------------------------------- */
@@ -4741,33 +4802,66 @@ button {
   }
 }
 
+/* Mission Control. One voice, one line, and it looks like a transmission
+   rather than a paragraph: the callsign sits in its own pill above the words
+   instead of hanging off the first line's baseline, where a long message left
+   it stranded beside a wall of text. */
 .ms-radio {
   position: absolute;
   left: 50%;
-  bottom: 86px;
+  bottom: 92px;
   transform: translateX(-50%);
   width: min(560px, 88%);
   display: flex;
-  align-items: baseline;
-  gap: 10px;
-  padding: 8px 14px;
-  background: rgba(9, 14, 22, 0.76);
-  border: 1px solid var(--line);
-  border-left: 2px solid var(--accent);
-  border-radius: 6px;
-  backdrop-filter: blur(6px);
+  flex-direction: column;
+  gap: 6px;
+  padding: 11px 16px;
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  border-radius: 12px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0) 46%),
+    rgba(9, 14, 22, 0.86);
+  box-shadow:
+    0 14px 36px rgba(0, 0, 0, 0.5),
+    inset 3px 0 0 var(--accent);
+  backdrop-filter: blur(12px) saturate(1.1);
   animation: ms-banner-in 0.3s ease both;
 }
 .ms-radio-tag {
-  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  align-self: flex-start;
   font-size: 9px;
-  letter-spacing: 0.16em;
+  font-weight: 800;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
   color: var(--accent);
+}
+/* A live dot, because a radio call is something arriving rather than a heading
+   printed on a card. */
+.ms-radio-tag::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 10px var(--accent);
+  animation: ms-radio-pulse 1.6s ease-in-out infinite;
+}
+@keyframes ms-radio-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
 }
 .ms-radio p {
   margin: 0;
-  font-size: 13px;
-  line-height: 1.45;
+  font-size: 13.5px;
+  line-height: 1.5;
   color: var(--text);
 }
 

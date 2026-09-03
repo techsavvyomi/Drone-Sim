@@ -208,7 +208,7 @@ export function MissionHud() {
               exit();
             }}
           >
-            ✕ Leave
+            Exit
           </button>
         </div>
       </div>
@@ -354,10 +354,14 @@ export function MissionHud() {
           </div>
           <div className={`ms-cell payload ${payload}`}>
             <span>PAYLOAD</span>
+            {/* One word each, with the state's colour carried by the dot the
+                stylesheet puts in front of them. The emoji and the tick that
+                used to sit here were doing the same job as that dot, in two
+                more glyphs and at whatever size the platform's font felt like. */}
             <b>
-              {payload === 'waiting' ? 'Not collected' : null}
-              {payload === 'attached' ? '📦 Attached' : null}
-              {payload === 'delivered' ? '✓ Delivered' : null}
+              {payload === 'waiting' ? 'Empty' : null}
+              {payload === 'attached' ? 'On board' : null}
+              {payload === 'delivered' ? 'Delivered' : null}
             </b>
           </div>
           <div className="ms-cell">
