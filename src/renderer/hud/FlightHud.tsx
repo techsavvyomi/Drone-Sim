@@ -129,9 +129,9 @@ export function FlightHud() {
         </div>
       )}
 
-      {lowBattery && <div className="warn-banner">CRITICAL BATTERY — AUTO LANDING</div>}
+      {lowBattery && <div className="warn-banner">CRITICAL BATTERY: AUTO LANDING</div>}
       {batteryLocked && !lowBattery && (
-        <div className="warn-banner">BATTERY DEPLETED — RECHARGE OR PRESS R</div>
+        <div className="warn-banner">BATTERY DEPLETED: RECHARGE OR PRESS R</div>
       )}
       {batteryWarning && !lowBattery && !batteryLocked && armed && (
         <div className="warn-banner warn-amber">LOW BATTERY</div>

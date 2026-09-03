@@ -180,7 +180,7 @@ function Cap({ k, demoKeys, cue, pressed, press, style, action }: CapProps) {
       className={`tr-key ${action ? 'action' : ''} ${active ? 'on' : ''} ${asking ? 'cue' : ''}`}
       style={style}
       onPointerDown={press(k.code)}
-      title={`${k.label} — ${k.hint}`}
+      title={`${k.label}: ${k.hint}`}
     >
       <kbd>{k.label}</kbd>
       <span>{k.hint}</span>

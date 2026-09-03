@@ -10,6 +10,7 @@ import { KeyActions, KeyHints } from './KeyHints';
 import { CrashOverlay } from './CrashOverlay';
 import { playClick, playSuccess, playStar, playRankUp } from '../audio/sfx';
 import { LessonMap } from './LessonMap';
+import { useModalKeyLock } from '../input/useModalKeyLock';
 
 // Deterministic-ish confetti pieces (module scope so they don't reshuffle on
 // every render — only the reward mount matters visually).
@@ -48,7 +49,8 @@ function StepChips({ steps, index }: { steps: { label: string; cap?: string }[];
     const offset = activeRect.left - containerRect.left;
 
     // Scroll so completed chips move to the left and active/upcoming chips stay visible
-    const targetScroll = container.scrollLeft + offset - (container.clientWidth / 2 - active.clientWidth / 2);
+    const targetScroll =
+      container.scrollLeft + offset - (container.clientWidth / 2 - active.clientWidth / 2);
     container.scrollTo({
       left: Math.max(0, targetScroll),
       behavior: 'smooth',
@@ -178,6 +180,12 @@ export function TrainingHud() {
     return () => timers.forEach(clearTimeout);
   }, [phase, lastStars, lastRankUp]);
 
+  // Nothing is being flown while a card is up — see `useModalKeyLock`. The Learn
+  // card and the result card are never on screen together, so they share one ref
+  // and one lock.
+  const cardRef = useRef<HTMLDivElement>(null);
+  useModalKeyLock(phase === 'intro' || phase === 'reward', cardRef);
+
   const clickThen = (fn: () => void) => () => {
     playClick();
     fn();
@@ -253,7 +261,7 @@ export function TrainingHud() {
       {/* Step 1 — Introduction (clean card) */}
       {phase === 'intro' && (
         <div className="tr-center">
-          <div className="tr-card">
+          <div className="tr-card" ref={cardRef}>
             <span className="tr-kicker">Learn · Module {num}</span>
             <h2>{lesson.explain.title}</h2>
 
@@ -354,53 +362,53 @@ export function TrainingHud() {
 
         {/* Step 2 — Demonstration: the same step row the pilot will fly, walking
           along with the caption for the leg being shown. */}
-      {phase === 'demo' && (
-        <div className="tr-line demo">
-          {steps.length > 1 && <StepChips steps={steps} index={stepIndex} />}
-          <div className="tr-line-row">
-            <span className="tr-line-tag">
-              DEMO
-              {/* Which pass is playing, as pips. It used to read "DEMO 2/3",
+        {phase === 'demo' && (
+          <div className="tr-line demo">
+            {steps.length > 1 && <StepChips steps={steps} index={stepIndex} />}
+            <div className="tr-line-row">
+              <span className="tr-line-tag">
+                DEMO
+                {/* Which pass is playing, as pips. It used to read "DEMO 2/3",
                   which sat directly under a row of two steps and was read as
                   "step 2 of 3" — a lesson with two steps does not have three. */}
-              <span className="tr-demo-pips" aria-label={`Pass ${demoRound} of ${demoRounds}`}>
-                {Array.from({ length: demoRounds }, (_, i) => (
-                  <i key={i} className={i < demoRound ? 'on' : ''} />
-                ))}
+                <span className="tr-demo-pips" aria-label={`Pass ${demoRound} of ${demoRounds}`}>
+                  {Array.from({ length: demoRounds }, (_, i) => (
+                    <i key={i} className={i < demoRound ? 'on' : ''} />
+                  ))}
+                </span>
               </span>
-            </span>
-            <span className="tr-line-txt">{demoCaption}</span>
-            <button className="tr-line-skip" onClick={clickThen(() => setPhase('practice'))}>
-              skip ⏭
-            </button>
+              <span className="tr-line-txt">{demoCaption}</span>
+              <button className="tr-line-skip" onClick={clickThen(() => setPhase('practice'))}>
+                skip ⏭
+              </button>
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* Step 3/4 — Practice: one bottom line, the checkpoint row, slim progress */}
-      {phase === 'practice' && (
-        <div className={`tr-line practice ${validation.failed ? 'fail' : ''}`}>
-          <div className="tr-line-row">
-            <span className="tr-line-txt">
-              {validation.failed ? '⚠ ' : '➤ '}
-              {hint || lesson.practice.prompt}
-            </span>
-            {nextTarget && (
-              <span className="tr-line-next">
-                NEXT <b>{nextTarget}</b>
+        {/* Step 3/4 — Practice: one bottom line, the checkpoint row, slim progress */}
+        {phase === 'practice' && (
+          <div className={`tr-line practice ${validation.failed ? 'fail' : ''}`}>
+            <div className="tr-line-row">
+              <span className="tr-line-txt">
+                {validation.failed ? '⚠ ' : '➤ '}
+                {hint || lesson.practice.prompt}
               </span>
-            )}
-            <span className="tr-line-pct">{pct}%</span>
+              {nextTarget && (
+                <span className="tr-line-next">
+                  NEXT <b>{nextTarget}</b>
+                </span>
+              )}
+              <span className="tr-line-pct">{pct}%</span>
+            </div>
+            {steps.length > 1 && <StepChips steps={steps} index={stepIndex} />}
+            <div className="tr-thinbar">
+              <div
+                className={`fill ${validation.failed ? 'fail' : ''}`}
+                style={{ width: `${pct}%` }}
+              />
+            </div>
           </div>
-          {steps.length > 1 && <StepChips steps={steps} index={stepIndex} />}
-          <div className="tr-thinbar">
-            <div
-              className={`fill ${validation.failed ? 'fail' : ''}`}
-              style={{ width: `${pct}%` }}
-            />
-          </div>
-        </div>
-      )}
+        )}
       </div>
 
       {/* Wrecked, waiting on R. The same card the free-flight HUD shows, because
@@ -413,7 +421,7 @@ export function TrainingHud() {
       {/* Step 5 — Reward (celebration) */}
       {phase === 'reward' && (
         <div className="tr-center">
-          <div className="tr-card reward">
+          <div className="tr-card reward" ref={cardRef}>
             <div className="tr-confetti">
               {CONFETTI.map((c, i) => (
                 <span

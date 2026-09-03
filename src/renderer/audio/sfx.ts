@@ -193,7 +193,9 @@ export function playStar(index: number): void {
 /** Lesson-complete flourish (major arpeggio). */
 export function playSuccess(): void {
   const notes = [523, 659, 784, 1047]; // C5 E5 G5 C6
-  notes.forEach((f, i) => tone({ freq: f, dur: 0.32, type: 'triangle', gain: 0.16, delay: i * 0.08 }));
+  notes.forEach((f, i) =>
+    tone({ freq: f, dur: 0.32, type: 'triangle', gain: 0.16, delay: i * 0.08 }),
+  );
 }
 
 /** Rank-up fanfare. */
@@ -203,4 +205,25 @@ export function playRankUp(): void {
     tone({ freq: f, dur: 0.4, type: 'square', gain: 0.12, delay: i * 0.11 });
     tone({ freq: f, dur: 0.4, type: 'triangle', gain: 0.1, delay: i * 0.11 });
   });
+}
+
+/**
+ * A package latching onto the airframe.
+ *
+ * Mechanical rather than musical, and deliberately unlike `playCollect`: a
+ * checkpoint is a score and this is a THING attaching to the aircraft, so it is
+ * a short metal clack with a low body under it rather than a chime. A pilot who
+ * hears both in the same flight should never have to ask which just happened.
+ */
+export function playLatch(): void {
+  noiseBurst({ freq: 1900, slideTo: 620, q: 3.2, dur: 0.06, gain: 0.16 });
+  tone({ freq: 150, dur: 0.16, type: 'sine', gain: 0.16, slideTo: 92 });
+  tone({ freq: 880, dur: 0.1, type: 'triangle', gain: 0.07, delay: 0.03 });
+}
+
+/** The same latch letting go, and the package settling on the mark. */
+export function playDrop(): void {
+  tone({ freq: 620, dur: 0.09, type: 'triangle', gain: 0.1, slideTo: 380 });
+  noiseBurst({ freq: 420, slideTo: 180, q: 1.2, dur: 0.14, gain: 0.14, delay: 0.06 });
+  tone({ freq: 96, dur: 0.2, type: 'sine', gain: 0.16, slideTo: 60, delay: 0.06 });
 }

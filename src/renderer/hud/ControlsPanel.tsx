@@ -63,7 +63,7 @@ export function ControlsPanel() {
           ))}
         </section>
       ))}
-      <p className="controls-note">Mode 2 layout — same stick assignment as a real transmitter.</p>
+      <p className="controls-note">Mode 2 layout, same stick assignment as a real transmitter.</p>
     </div>
   );
 }
