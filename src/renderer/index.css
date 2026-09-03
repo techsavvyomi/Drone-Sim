@@ -1461,14 +1461,17 @@ button {
   display: none;
 }
 
-/* Inside a lesson: stand down as well. The lesson HUD owns the top of the frame
-   — the module title, the LEARN/DEMO/FLY stepper and its exit button all live
-   there — and the strip was reaching down over that row, so aiming for the exit
-   pulled the navbar down on top of the click. Nothing up there is useful
-   mid-lesson anyway (the arena is pinned to the academy), and the lesson has its
-   own way out: the exit button, or Esc.
+/* Inside a lesson OR a mission: stand down as well. That HUD owns the top of the
+   frame — the module title, the LEARN/DEMO/FLY stepper and its exit button, or a
+   mission's badge and its Leave button — and the strip was reaching down over
+   that row, so aiming for the exit pulled the navbar down on top of the click.
+   Nothing up there is useful mid-flight anyway: the arena is pinned (to the
+   academy for a lesson, to the mission's own map for a mission), so the chip
+   would be reporting a map that is not the one being flown. Both have their own
+   way out: the exit button, or Esc.
    MUST stay after the `.app.is-fly` rule above — same specificity, order wins. */
-.app.in-lesson .topbar-peek {
+.app.in-lesson .topbar-peek,
+.app.in-mission .topbar-peek {
   display: none;
 }
 
@@ -3393,7 +3396,6 @@ button {
   }
 }
 
-
 @media (max-width: 720px) {
   .tr-stepper .tr-stepper-label {
     display: none;
@@ -4212,9 +4214,16 @@ button {
   gap: 24px;
   flex-wrap: wrap;
 }
+/* The title column takes the slack and wraps its own lede; the stats keep their
+   natural width so they stay pinned top-right however long the lede runs. */
+.journey-title {
+  flex: 1 1 340px;
+  min-width: 0;
+}
 .journey-stats {
   display: flex;
   gap: 12px;
+  flex: 0 0 auto;
 }
 .jstat {
   display: flex;
@@ -4437,64 +4446,18 @@ button {
    nothing to turn off, and nothing left running when an attempt is thrown away.
    ========================================================================== */
 
-.mcards {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 16px;
-  margin-top: 22px;
-}
-.mcard {
-  width: min(420px, 100%);
-  text-align: left;
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-left: 3px solid var(--accent);
-  border-radius: 12px;
-  padding: 20px 22px;
-  transition:
-    transform 0.16s ease,
-    border-color 0.16s ease,
-    box-shadow 0.16s ease;
-}
-.mcard:hover {
-  transform: translateY(-2px);
-  border-color: var(--accent);
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
-}
-.mcard-tag {
-  font-size: 10px;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-  color: var(--accent);
-}
-.mcard h2 {
-  margin: 8px 0 8px;
-  font-size: 22px;
-  font-weight: 800;
-}
-.mcard p {
-  margin: 0;
-  color: var(--text-dim);
-  font-size: 14px;
-  line-height: 1.6;
-}
-.mcard-facts {
-  display: flex;
-  gap: 18px;
-  margin: 16px 0 14px;
-  font-size: 12px;
+/* The mission path reuses Flight School's .journey-* and .jnode-* styles — it is
+   the same shape of thing and a second copy would drift. Only the facts line
+   under a mission card is new: a lesson node has nothing to say here, a mission
+   has its points, its checkpoints and its clock. */
+.jnode-facts {
+  margin-top: 6px;
+  font-size: 11px;
+  letter-spacing: 0.02em;
   color: var(--text-dim);
 }
-.mcard-facts b {
-  color: var(--text);
-  font-size: 15px;
-  margin-right: 4px;
-}
-.mcard-go {
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  color: var(--accent);
+.jnode.done .jnode-facts {
+  color: var(--good);
 }
 
 /* ---- The overlay --------------------------------------------------------- */
@@ -4539,6 +4502,42 @@ button {
   font-size: 15px;
   font-weight: 800;
 }
+/* The right end of the top row: the live numbers and the way out, in one
+   line directly above the radar. */
+.ms-top-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.ms-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+  font-size: 13px;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 7px 12px;
+  backdrop-filter: blur(6px);
+}
+.ms-meta i {
+  font-style: normal;
+  font-weight: 800;
+  color: #6b788f;
+}
+.ms-meta i.on {
+  color: var(--good);
+}
+/* The attempt clock. Bright and tabular so a glance reads it and the digits do
+   not shuffle sideways as they tick. */
+.ms-meta-clock {
+  font-weight: 800;
+  color: var(--text);
+}
+
 .ms-exit {
   background: var(--panel);
   border: 1px solid var(--line);
@@ -4801,6 +4800,19 @@ button {
   color: var(--good);
   font-weight: 700;
 }
+.ms-checks span.miss {
+  color: var(--bad);
+  font-weight: 700;
+}
+.ms-checks.blocked {
+  border-color: rgba(255, 92, 92, 0.5);
+}
+.ms-checks-note {
+  margin-top: 2px;
+  font-size: 10.5px;
+  line-height: 1.35;
+  color: var(--bad);
+}
 .ms-checks-bar {
   height: 4px;
   border-radius: 2px;
@@ -4864,40 +4876,178 @@ button {
   font-size: 25px;
   font-weight: 800;
 }
+/* ---- The briefing card ---------------------------------------------------
+
+   Two columns, and wider than the other cards. Read the flow row, then the
+   detail on the left with the numbers and the rubric on the right — the whole
+   job on one screen, with nothing to scroll past to reach Launch. */
+.ms-card.brief {
+  width: min(880px, 96%);
+  padding: 26px 30px 22px;
+  text-align: left;
+}
+.ms-brief-head {
+  text-align: center;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--line);
+}
+.ms-brief-head h2 {
+  margin: 6px 0 4px;
+}
+.ms-brief-sub {
+  margin: 0;
+  font-size: 13.5px;
+  color: var(--text-dim);
+}
+
+/* The job in four beats. A row of numbered steps with a hairline running
+   between them: it reads as a sequence rather than as four separate chips,
+   which is the one thing the briefing has to say before anything else. */
+.ms-flow {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  margin: 18px 0 20px;
+  padding: 0;
+  list-style: none;
+}
+.ms-flow li {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  text-align: center;
+}
+/* The connector, drawn behind the numbers and stopped short of each end so it
+   never runs out from under the row. */
+.ms-flow li:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  top: 13px;
+  left: calc(50% + 20px);
+  right: calc(-50% + 20px);
+  height: 1px;
+  background: var(--line);
+}
+.ms-flow-num {
+  display: grid;
+  place-items: center;
+  width: 27px;
+  height: 27px;
+  border-radius: 50%;
+  border: 1px solid var(--accent);
+  background: var(--bg-2);
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 800;
+  /* Above the connector, so the line meets the ring rather than crossing it. */
+  position: relative;
+  z-index: 1;
+}
+.ms-flow b {
+  margin-top: 4px;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.ms-flow i {
+  font-style: normal;
+  font-size: 11.5px;
+  color: var(--text-dim);
+}
+
+.ms-brief-cols {
+  display: grid;
+  grid-template-columns: 1.35fr 1fr;
+  gap: 24px;
+  align-items: start;
+}
 .ms-brief p {
-  margin: 0 0 10px;
+  margin: 0 0 12px;
   font-size: 14px;
-  line-height: 1.65;
+  line-height: 1.7;
   color: var(--text-dim);
   text-align: left;
 }
-.ms-brief-facts {
+.ms-brief p:last-child {
+  margin-bottom: 0;
+}
+/* The first line carries the one rule a pilot most often gets wrong, so it is
+   the one line that is not grey. */
+.ms-brief p:first-child {
+  color: var(--text);
+}
+
+.ms-brief-side {
   display: flex;
-  justify-content: center;
-  gap: 26px;
-  margin: 18px 0 4px;
+  flex-direction: column;
+  gap: 14px;
+}
+.ms-brief-facts {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 2px;
+  margin: 0;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--line);
 }
 .ms-brief-facts div {
   display: flex;
   flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 12px 6px;
+  background: rgba(255, 255, 255, 0.02);
 }
 .ms-brief-facts b {
-  font-size: 21px;
+  font-size: 20px;
   font-weight: 800;
 }
 .ms-brief-facts span {
-  font-size: 10px;
-  letter-spacing: 0.14em;
+  font-size: 9px;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--text-dim);
+  text-align: center;
+  line-height: 1.35;
 }
+
+.ms-brief-foot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  margin-top: 20px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+}
+.ms-brief-hint {
+  font-size: 11px;
+  color: var(--text-dim);
+}
+.ms-brief-hint kbd {
+  padding: 1px 5px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.04);
+  font-family: inherit;
+  font-size: 10px;
+}
+
+/* Mission Control's sign-off under the stars on the result card. */
 .ms-signoff {
   margin: 0 0 18px;
   font-size: 13.5px;
   font-style: italic;
   line-height: 1.6;
   color: var(--text-dim);
+  text-align: center;
 }
+
 .ms-fail-line {
   margin: 0 0 16px;
   font-size: 14px;
@@ -4906,7 +5056,7 @@ button {
 }
 
 .ms-rubric {
-  margin: 18px 0 20px;
+  margin: 0;
   padding: 12px 14px;
   border: 1px solid var(--line);
   border-radius: 10px;
@@ -5029,6 +5179,11 @@ button {
   color: var(--text);
   border-color: var(--accent);
 }
+.ms-btn.wide {
+  min-width: 260px;
+  padding: 12px 22px;
+  font-size: 14px;
+}
 .ms-btn.primary {
   background: var(--accent-2);
   border-color: var(--accent);
@@ -5037,4 +5192,23 @@ button {
 .ms-btn.primary:hover {
   background: var(--accent);
   color: #041018;
+}
+
+/* The mission radar, top right, clear of the badge and the exit button. Round,
+   because it is glanced at rather than read, and a square box the size of this
+   takes a bite out of the flying view it is meant to help with. */
+.ms-map {
+  position: absolute;
+  top: 72px;
+  right: 14px;
+  padding: 5px;
+  border-radius: 50%;
+  background: rgba(10, 14, 22, 0.72);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  pointer-events: none;
+  z-index: 3;
+}
+.ms-map canvas {
+  display: block;
+  border-radius: 50%;
 }
