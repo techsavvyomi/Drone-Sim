@@ -139,13 +139,20 @@ describe('the scoring model', () => {
 });
 
 describe('the delivery is the strict one', () => {
-  it('TC-228 asks more of the drop than of the pickup, on every axis', () => {
+  it('TC-228 asks more of the drop than of the pickup, where the two compare', () => {
     const { pickup, drop } = M.zones;
 
-    expect(drop.radius).toBeLessThan(pickup.radius);
+    // Speed, descent rate and hold: the drop is the careful one, and stays so.
     expect(drop.maxGroundSpeed).toBeLessThan(pickup.maxGroundSpeed);
     expect(drop.maxVerticalSpeed).toBeLessThan(pickup.maxVerticalSpeed);
     expect(drop.hold).toBeGreaterThan(pickup.hold);
+
+    // RADIUS does not compare, and it used to be asserted as though it did. The
+    // two are different jobs: the drop is a placement on a painted mark a couple
+    // of metres across, and the pickup is a grab onto a box the size of a hand.
+    // The pickup's is therefore the tighter of the two.
+    expect(pickup.radius).toBeLessThan(drop.radius);
+    expect(pickup.radius).toBeLessThanOrEqual(0.8);
   });
 
   it('TC-228 makes the pickup a descent onto the mark, not a fly-over', () => {

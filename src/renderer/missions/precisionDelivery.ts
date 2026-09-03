@@ -192,7 +192,7 @@ export const precisionDelivery: Mission = {
   envId: 'new-york',
   blurb: 'Collect a medical package, fly it across the city, land it on the mark and come home.',
   flow: [
-    { label: 'Collect', note: 'Come down low over the package' },
+    { label: 'Collect', note: 'Line up over the box, then descend' },
     { label: 'Fly', note: 'Take all fourteen rings' },
     { label: 'Deliver', note: 'Hold still on the yellow mark' },
     { label: 'Come home', note: 'Land back on the pad' },
@@ -203,7 +203,7 @@ export const precisionDelivery: Mission = {
   // both green, so home is "the pad you started from" rather than "the green
   // mark", which was the briefing sending pilots to the wrong end of the city.
   briefing: [
-    'The package is waiting on the pickup mark. Come down low over it and hold steady: it clips on by itself.',
+    'The package is waiting on the pickup mark. Line the drone up directly over the box, come down onto it and hold steady: it clips on by itself.',
     'Fly through all fourteen pink rings on the way. Every one of them has to be taken, or the package will not let go at the drop.',
     'The drop is the yellow mark. Come down over it and hold still, and the package goes down: that is point 15.',
     'Then fly back to the pad you started from and land. That is point 16, and the run is complete.',
@@ -231,8 +231,13 @@ export const precisionDelivery: Mission = {
       // still generous enough to catch a pilot easing past overhead; a metre
       // puts the airframe genuinely down beside the box, and the hold below
       // means it has stopped there rather than dipped through.
-      radius: 2,
-      band: { min: 0, max: 1 },
+      // Directly OVER the box, not merely near it. 2 m of radius is a drone
+      // span and a half in every direction: a pilot who came down anywhere in
+      // the neighbourhood had the package jump up to them, which is why it read
+      // as picking itself up. 0.6 m is the box plus a little, so the airframe
+      // has to be lined up on it and then flown down onto it.
+      radius: 0.6,
+      band: { min: 0, max: 0.9 },
       // Still the gentler of the two tests — the strict one is the DROP, which
       // is tighter on every axis — but a fly-through no longer counts: the
       // drone has to be slowed and settled, not merely passing low.
@@ -275,7 +280,7 @@ export const precisionDelivery: Mission = {
   radio: {
     start: {
       id: 'start',
-      text: 'A medical package is waiting on the pickup mark. Come down over it and hold steady to clip it on.',
+      text: 'A medical package is waiting on the pickup mark. Get directly over the box, come down onto it and hold steady.',
     },
     pickup: {
       id: 'pickup',
