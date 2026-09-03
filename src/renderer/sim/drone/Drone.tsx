@@ -1129,12 +1129,18 @@ export function Drone({ spec, spawn, bounds, outdoor = false, groundY }: DronePr
       prevSource.current = source;
     }
 
-    // Touching the throttle takes the aircraft back. Auto-takeoff overrides
-    // thrust outright, so without this the stick does nothing for the ~2s the
-    // climb takes and the pilot is left holding a dead control. The critical
-    // battery landing is the one sequence that stays uncancellable.
+    // Touching the throttle takes the aircraft back from an auto TAKEOFF. That
+    // sequence overrides thrust outright, so without this the stick does nothing
+    // for the ~2s the climb takes and the pilot is left holding a dead control.
+    //
+    // A LANDING is not the same thing and no longer aborts. Land is a decision,
+    // not a suggestion: once it is pressed the aircraft comes down, and the
+    // spring-centred throttle drifting back through its rest position on the way
+    // down was enough to cancel it, which left pilots hanging half a metre off
+    // the deck wondering why the drone had stopped. The critical battery landing
+    // was already uncancellable; ordinary ones now behave the same way.
     const pilotOverride =
-      flight.auto !== 'manual' &&
+      flight.auto === 'takeoff' &&
       !flight.lowBattery &&
       autoEntryThrottle.current !== null &&
       // Both halves matter: the stick has to be under active command *and*
@@ -1162,10 +1168,6 @@ export function Drone({ spec, spawn, bounds, outdoor = false, groundY }: DronePr
           ? THROTTLE_CENTER
           : clamp(hoverThrust / controller.maxThrust, 0, 1);
       }
-      flight.setAuto('manual');
-    } else if (flight.auto === 'land' && pilotOverride) {
-      // Same handover, aborting the descent instead of the climb.
-      controller.captureAltitude(altitude);
       flight.setAuto('manual');
     } else if (flight.auto === 'land' && onGround) {
       stick.throttle = 0;
