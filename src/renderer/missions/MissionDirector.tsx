@@ -14,6 +14,7 @@ import {
 } from './types';
 import { playDrop, playFail, playLatch, playSuccess, playWhoosh } from '../audio/sfx';
 import { resetForMission } from './reset';
+import { resetStick } from '../input/controls';
 
 // ----------------------------------------------------------------------------
 // The mission runtime.
@@ -366,6 +367,13 @@ export function MissionDirector() {
         leg = 'landing';
         store.setLeg(leg);
         store.takeZone('base', 'SAFE LANDING');
+        // The attempt is over the moment the wheels settle. The motors go off
+        // here rather than at `finish()`, because the result card is a couple of
+        // seconds behind the touchdown and the pilot could throttle up and fly
+        // away inside that window — the run scored, the drone airborne, and a
+        // result card about to cover a flight still in progress.
+        useFlightStore.getState().disarm();
+        resetStick();
         store.showBanner(
           { kind: 'good', title: 'SAFE LANDING', sub: 'Package delivered, drone home' },
           LAND_DWELL,

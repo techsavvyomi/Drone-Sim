@@ -161,7 +161,11 @@ export function MissionHud() {
   // drone from behind the briefing the pilot had not read yet. One ref for all
   // three, which are never on screen together.
   const cardRef = useRef<HTMLDivElement>(null);
-  useModalKeyLock(phase !== 'flying', cardRef);
+  // The landing leg counts as "not being flown" too. It is the two seconds
+  // between the wheels settling and the result card appearing, the attempt is
+  // already scored, and a throttle press in there put the drone back in the air
+  // under a SAFE LANDING banner.
+  useModalKeyLock(phase !== 'flying' || leg === 'landing', cardRef);
 
   if (!mission) return null;
 
