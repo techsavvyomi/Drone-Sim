@@ -7,6 +7,7 @@ import type { EnvironmentSpec } from '@shared/types';
 import newYorkModelUrl from '../../../assets/models/new_york_city.opt.glb?url';
 import { highResStreetPBR } from './textures';
 import { NewYorkColliders } from './NewYorkColliders';
+import { useWorldStore, TIME_PRESETS } from '../../state/worldStore';
 
 // High-Performance New York City Environment.
 // Optimized with:
@@ -27,11 +28,11 @@ const SPAWN_POS: [number, number, number] = [0, 0.024, 30];
 // 6 North-South building strip boundaries
 const STRIP_X_BOUNDS: Array<[number, number]> = [
   [-124, -88], // Strip 1: Far West
-  [-78, -38],  // Strip 2: Mid West
-  [-32, -6],   // Strip 3: Central West
-  [6, 34],     // Strip 4: Central East
-  [38, 80],    // Strip 5: Mid East
-  [88, 124],   // Strip 6: Far East
+  [-78, -38], // Strip 2: Mid West
+  [-32, -6], // Strip 3: Central West
+  [6, 34], // Strip 4: Central East
+  [38, 80], // Strip 5: Mid East
+  [88, 124], // Strip 6: Far East
 ];
 
 function extractSubGeometry(
@@ -56,7 +57,9 @@ function extractSubGeometry(
     const triCount = srcIdx.length / 3;
     const newIndices: number[] = [];
     for (let t = 0; t < triCount; t++) {
-      const i0 = srcIdx[t * 3], i1 = srcIdx[t * 3 + 1], i2 = srcIdx[t * 3 + 2];
+      const i0 = srcIdx[t * 3],
+        i1 = srcIdx[t * 3 + 1],
+        i2 = srcIdx[t * 3 + 2];
       if (inStrip[i0] && inStrip[i1] && inStrip[i2]) {
         newIndices.push(i0, i1, i2);
       }
@@ -200,7 +203,7 @@ function NewYorkModel({ url }: { url: string }) {
               shader.vertexShader = shader.vertexShader.replace(
                 '#include <common>',
                 `#include <common>
-                uniform float uTime;`
+                uniform float uTime;`,
               );
               shader.vertexShader = shader.vertexShader.replace(
                 '#include <begin_vertex>',
@@ -208,7 +211,7 @@ function NewYorkModel({ url }: { url: string }) {
                 float windHeight = clamp((position.y - 2.0) * 0.15, 0.0, 1.0);
                 float windSway = sin(uTime * 2.2 + position.x * 0.5 + position.z * 0.4) * 0.045 * windHeight;
                 transformed.x += windSway;
-                transformed.z += windSway * 0.7;`
+                transformed.z += windSway * 0.7;`,
               );
             };
             std.needsUpdate = true;
@@ -264,7 +267,7 @@ function NewYorkModel({ url }: { url: string }) {
             std.needsUpdate = true;
           } else if (/lanes/i.test(matName) || /Street_Assets/i.test(matName)) {
             std.color.set('#ffffff');
-            std.roughness = 0.40;
+            std.roughness = 0.4;
             std.metalness = 0.01;
             if (std.map) std.map.anisotropy = maxAniso;
             std.needsUpdate = true;
@@ -354,7 +357,10 @@ function NewYorkModel({ url }: { url: string }) {
         const p = props[i];
         if (p.geometry.boundingSphere) {
           const bsCenter = p.geometry.boundingSphere.center;
-          const dist = Math.hypot(camPos.x - (bsCenter.x + CITY_OFFSET[0]), camPos.z - (bsCenter.z + CITY_OFFSET[2]));
+          const dist = Math.hypot(
+            camPos.x - (bsCenter.x + CITY_OFFSET[0]),
+            camPos.z - (bsCenter.z + CITY_OFFSET[2]),
+          );
           p.visible = dist < 95;
         }
       }
@@ -368,12 +374,42 @@ useGLTF.preload(newYorkModelUrl, DRACO_DECODER_PATH);
 
 export function NewYorkEnv({ env }: { env: EnvironmentSpec }) {
   const url = env.model ?? newYorkModelUrl;
+  // The world outside the city is painted the HORIZON's own colour, whatever the
+  // hour is: pale blue at midday, deep blue in the evening, near-black at night.
+  // A fixed colour meant the ground beyond the road stopped matching the sky the
+  // moment the time of day changed, which is a hard seam all the way round the
+  // map.
+  const outer = TIME_PRESETS[useWorldStore((s) => s.timeOfDay)].fogColor;
 
   return (
     <group name="new-york-environment">
+      {/* The world outside the city.
+          
+          The GLB's ground stops at the last of the road, and past that the view
+          fell through to the sky dome's underside, which reads as a flat white
+          field running out to the horizon in every direction: the city looked
+          like a model sitting on a table. One large plane just under the road
+          fills it, in the same blue the sky is, so what surrounds the map reads
+          as distance rather than as a missing floor.
+
+          Unlit and shadow-free on purpose. It is a backdrop, not ground: it has
+          no collider, nothing lands on it, and lighting it would only give the
+          horizon a seam where its shading stopped matching the sky's. */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.06, 0]} renderOrder={-1}>
+        <planeGeometry args={[6000, 6000]} />
+        {/* Out of the fog as well as out of the light. At 6000 m across, most
+            of this plane sits past the far fog distance, so a fogged material
+            would paint the horizon in haze and hand back the white field it was
+            put there to remove. */}
+        <meshBasicMaterial color={outer} toneMapped={false} fog={false} />
+      </mesh>
+
       {/* Immediate spawn ground pad */}
       <RigidBody type="fixed" colliders={false}>
-        <CuboidCollider args={[APRON_HALF, 0.25, APRON_HALF]} position={[SPAWN_POS[0], -0.25, SPAWN_POS[2]]} />
+        <CuboidCollider
+          args={[APRON_HALF, 0.25, APRON_HALF]}
+          position={[SPAWN_POS[0], -0.25, SPAWN_POS[2]]}
+        />
       </RigidBody>
 
       {/* Precision Analytical Colliders (0 physics triangles, 100% solid obstacles) */}

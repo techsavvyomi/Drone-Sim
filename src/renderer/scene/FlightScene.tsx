@@ -53,23 +53,9 @@ export function FlightScene({ envIdOverride }: { envIdOverride?: string } = {}) 
   // Outdoor presets wash indoor albedo. Classroom 2 brings its own light rig;
   // keep global fill modest so textured PBR colors stay readable (Meshy-like).
   const ambient = isClassroom ? 0.35 : outdoor ? t.ambient : t.ambient * 0.4;
-  const hemi = isClassroom
-    ? 0.25
-    : outdoor
-      ? t.night
-        ? 0.25
-        : 0.7
-      : t.night
-        ? 0.18
-        : 0.28;
+  const hemi = isClassroom ? 0.25 : outdoor ? (t.night ? 0.25 : 0.7) : t.night ? 0.18 : 0.28;
   const sun = isClassroom ? 0.2 : outdoor ? t.sunIntensity : t.sunIntensity * 0.3;
-  const bg = isClassroom
-    ? '#2a3340'
-    : outdoor
-      ? t.fogColor
-      : t.night
-        ? '#1a2230'
-        : '#c8d0da';
+  const bg = isClassroom ? '#2a3340' : outdoor ? t.fogColor : t.night ? '#1a2230' : '#c8d0da';
   // Image-based lighting is what puts specular sheen on roads and glass, so the
   // time preset scales it: a hard midday sun made every surface read as wet.
   const ibl = (isClassroom ? 0.6 : outdoor ? 1 : 0.22) * t.iblScale;
@@ -94,7 +80,9 @@ export function FlightScene({ envIdOverride }: { envIdOverride?: string } = {}) 
           mieDirectionalG={0.8}
         />
       )}
-      {outdoor && t.night && <Stars radius={300} depth={60} count={3500} factor={5} fade speed={0.4} />}
+      {outdoor && t.night && (
+        <Stars radius={300} depth={60} count={3500} factor={5} fade speed={0.4} />
+      )}
       {outdoor && cloudsEnabled && !t.night && <SkyClouds tint={t.sunColor} />}
 
       <LocalEnvironment preset={t} environmentIntensity={ibl} />
