@@ -1,4 +1,4 @@
-import { listDrones, registerDrone, registerEnvironment } from './registry';
+import { listDrones, registerDrone, registerEnvironment, registerMission } from './registry';
 import { plutoDrone } from './drones/pluto';
 import { guruDrone } from './drones/guru';
 import { racingDrone } from './drones/racer';
@@ -8,6 +8,8 @@ import { flightSchool } from './environments/flightSchool';
 import { classroom2 } from './environments/classroom2';
 import { forest } from './environments/forest';
 import { newYork } from './environments/newYork';
+import { MISSIONS } from '../missions/precisionDelivery';
+import { toMissionSpec } from '../missions/types';
 import { preloadDroneModel } from '../sim/drone/DroneModel';
 
 // Registers all built-in content once at app startup. Adding a new drone/map is
@@ -22,6 +24,7 @@ export function loadBuiltinPlugins(): void {
   registerEnvironment(classroom2);
   registerEnvironment(forest);
   registerEnvironment(newYork);
+  MISSIONS.forEach((m) => registerMission(toMissionSpec(m)));
 
   // Warm the model cache immediately so nothing shows a stand-in airframe while
   // its .glb streams in. Every registered drone is warmed, not just the PlutoX:
