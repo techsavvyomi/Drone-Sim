@@ -73,7 +73,7 @@ export function TopBar() {
             </span>
             <span className="chip-body">
               <i>Ceiling</i>
-              <b>{drone?.maxAltitude ?? '—'} m</b>
+              <b>{drone?.maxAltitude ?? '-'} m</b>
             </span>
           </div>
           <button className="chip-gear" onClick={() => setSection('settings')} title="Settings">

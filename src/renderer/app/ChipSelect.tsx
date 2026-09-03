@@ -56,11 +56,15 @@ export function ChipSelect({
 
   return (
     <div className="chip-select" ref={root}>
-      <button className="chip chip-btn" onClick={() => setOpen((o) => !o)} title={`Change ${label}`}>
+      <button
+        className="chip chip-btn"
+        onClick={() => setOpen((o) => !o)}
+        title={`Change ${label}`}
+      >
         <span className="chip-icon">{icon}</span>
         <span className="chip-body">
           <i>{label}</i>
-          <b>{current?.name ?? '—'}</b>
+          <b>{current?.name ?? '-'}</b>
         </span>
         <span className={`chip-caret ${open ? 'open' : ''}`}>
           <IconChevron size={14} />

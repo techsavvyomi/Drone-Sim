@@ -7,11 +7,13 @@ import { SettingsPanel } from './SettingsPanel';
 import { Placeholder } from './Placeholder';
 import { StatusBar } from './StatusBar';
 import { TrainingScreen } from './TrainingScreen';
+import { MissionScreen } from './MissionScreen';
 import { Viewport } from '../scene/Viewport';
 import { useUiStore } from '../state/uiStore';
 import { useFlightStore } from '../state/flightStore';
 import { useSettingsStore } from '../state/settingsStore';
 import { useTrainingStore } from '../state/trainingStore';
+import { useMissionStore } from '../state/missionStore';
 import { attachGamepad } from '../input/gamepad';
 
 function MainArea() {
@@ -27,13 +29,7 @@ function MainArea() {
     case 'training':
       return <TrainingScreen />;
     case 'missions':
-      return (
-        <Placeholder
-          title="Missions"
-          phase="Phase 4"
-          blurb="Scored challenge runs. The taught syllabus now lives in Pluto Flight School, which has the runtime for it — Missions returns when it has one of its own."
-        />
-      );
+      return <MissionScreen />;
     case 'studio':
       return (
         <Placeholder
@@ -55,6 +51,7 @@ function MainArea() {
   }
 }
 
+// Root App Component
 export function App() {
   const hydrate = useSettingsStore((s) => s.hydrate);
   const hydrated = useSettingsStore((s) => s.hydrated);
@@ -62,10 +59,18 @@ export function App() {
   const panelOpen = useUiStore((s) => s.panelOpen);
   const togglePanel = useUiStore((s) => s.togglePanel);
   const trainingLesson = useTrainingStore((s) => s.activeLessonId);
+  const activeMission = useMissionStore((s) => s.mission);
 
-  // A running lesson is a flight view: full-bleed, no nav rail.
+  // A running lesson or mission is a flight view: full-bleed, no nav rail.
+  //
+  // A mission is exactly as much a cockpit as a lesson is — it has its own HUD
+  // across the top, its own way out, and a map the pilot cannot change from
+  // here. Leaving the nav rail up beside it made it read as a page inside the
+  // app rather than as a flight, and cost the mission a fifth of the city.
   const inLesson = section === 'training' && !!trainingLesson;
-  const flightLike = section === 'fly' || inLesson;
+  const inMission = section === 'missions' && !!activeMission;
+  const inBriefedFlight = inLesson || inMission;
+  const flightLike = section === 'fly' || inBriefedFlight;
 
   useEffect(() => {
     void hydrate();
@@ -99,6 +104,13 @@ export function App() {
         const training = useTrainingStore.getState();
         if (training.activeLessonId) training.exitLesson();
         else ui.goBack();
+      } else if (ui.section === 'missions') {
+        // Same one step at a time: out of the flight to the mission path, then
+        // out of the section. `exit` is the one teardown, so Esc cannot leave a
+        // half-open attempt behind any more than the Leave button can.
+        const missions = useMissionStore.getState();
+        if (missions.mission) missions.exit();
+        else ui.goBack();
       } else if (ui.section !== 'home') {
         ui.goBack();
       }
@@ -122,7 +134,7 @@ export function App() {
         flightLike ? 'is-fly' : ''
       } ${section === 'fly' && !panelOpen ? 'no-panel' : ''} ${
         section === 'fly' && panelOpen ? 'panel-open' : ''
-      } ${inLesson ? 'in-lesson' : ''}`}
+      } ${inLesson ? 'in-lesson' : ''} ${inMission ? 'in-mission' : ''}`}
     >
       {/* Hover strip along the very top edge. In flight the bar is parked out of
           frame, and reaching this strip is what brings it back — see the

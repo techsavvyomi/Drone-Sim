@@ -64,7 +64,7 @@ function DataTab() {
       <section className="panel-section">
         <div className="kv">
           <span>Drone</span>
-          <b>{drone?.name ?? '—'}</b>
+          <b>{drone?.name ?? '-'}</b>
         </div>
         <div className="kv">
           <span>Armed</span>
@@ -83,7 +83,10 @@ function DataTab() {
         <Kv label="Altitude" value={`${altitude.toFixed(2)} m`} />
         <Kv label="Ground speed" value={`${groundSpeed.toFixed(2)} m/s`} />
         <Kv label="Vertical speed" value={`${verticalSpeed.toFixed(2)} m/s`} />
-        <Kv label="Roll / Pitch" value={`${(roll * RAD2DEG).toFixed(0)}° / ${(pitch * RAD2DEG).toFixed(0)}°`} />
+        <Kv
+          label="Roll / Pitch"
+          value={`${(roll * RAD2DEG).toFixed(0)}° / ${(pitch * RAD2DEG).toFixed(0)}°`}
+        />
         <Kv label="Throttle" value={`${Math.round(throttle * 100)}%`} />
       </section>
 
@@ -251,7 +254,7 @@ function PhysicsTab() {
         </label>
       </section>
 
-      <p className="panel-note">Changes take effect on the next physics step — no restart.</p>
+      <p className="panel-note">Changes take effect on the next physics step, no restart.</p>
     </>
   );
 }

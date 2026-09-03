@@ -34,7 +34,7 @@ export function LessonSelect() {
       <header className="journey-head">
         <div className="journey-title">
           <h1 className="section-title">Pluto Flight School</h1>
-          <p className="section-lede">Climb the path — master every skill from arm to landing.</p>
+          <p className="section-lede">Climb the path and master every skill from arm to landing.</p>
         </div>
         <div className="journey-stats">
           <div className="jstat">

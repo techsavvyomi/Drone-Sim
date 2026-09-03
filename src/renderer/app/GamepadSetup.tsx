@@ -36,7 +36,7 @@ const CHANNELS = Object.keys(GAMEPAD_CHANNEL_LABELS) as GamepadChannel[];
 const ACTIONS = Object.keys(GAMEPAD_ACTION_LABELS) as GamepadAction[];
 
 function bindLabel(b: GamepadBinding | undefined): string {
-  if (!b) return '—';
+  if (!b) return '-';
   if (b.t === 'b') return `Button ${b.i}`;
   return `Axis ${b.a} ${b.p === 'hi' ? 'high' : 'low'}`;
 }
@@ -242,10 +242,9 @@ export function GamepadSetup() {
       )}
 
       <p className="section-lede">
-        Controllers are detected automatically over USB or Bluetooth — game pads and RC
-        transmitters use different stick axes, so the right layout is applied on first
-        connect and remembered per device. Keyboard and gamepad stay live together;
-        whichever you touch last takes over.
+        Controllers are detected automatically over USB or Bluetooth. Game pads and RC transmitters
+        use different stick axes, so the right layout is applied on first connect and remembered per
+        device. Keyboard and gamepad stay live together; whichever you touch last takes over.
       </p>
 
       <h3 className="settings-h3">Stick channels</h3>
@@ -331,20 +330,19 @@ export function GamepadSetup() {
 
       <h3 className="settings-h3">Stick calibration</h3>
       <p className="section-lede">
-        The Gamepad API is supposed to report -1 to +1, but most radios in USB-joystick
-        mode swing less than that, and subtrim leaves the rest position off zero. Until
-        the real endpoints are measured, a fully deflected stick lands short of full
-        output. Calibrate once per controller and the whole range is available.
+        The Gamepad API is supposed to report -1 to +1, but most radios in USB-joystick mode swing
+        less than that, and subtrim leaves the rest position off zero. Until the real endpoints are
+        measured, a fully deflected stick lands short of full output. Calibrate once per controller
+        and the whole range is available.
       </p>
       {calibrating ? (
         <div className="gp-calibrate active">
           <p className="section-note">
-            Push <b>every stick to both ends</b> of each axis — left <i>and</i> right, up{' '}
-            <i>and</i> down — then let them go. Each direction is measured separately, so
-            a stick moved only one way cannot be calibrated; the markers above turn to{' '}
-            <b>ok</b> once a channel has seen both. A radio&apos;s throttle is one travel
-            instead: run it from the very bottom to the very top. Sticks are ignored by
-            the aircraft until you save.
+            Push <b>every stick to both ends</b> of each axis: left <i>and</i> right, up <i>and</i>{' '}
+            down, then let them go. Each direction is measured separately, so a stick moved only one
+            way cannot be calibrated; the markers above turn to <b>ok</b> once a channel has seen
+            both. A radio&apos;s throttle is one travel instead: run it from the very bottom to the
+            very top. Sticks are ignored by the aircraft until you save.
           </p>
           <div className="gp-cal-actions">
             <button
@@ -357,9 +355,7 @@ export function GamepadSetup() {
                 }
                 setGamepad({ axes });
                 setSaved(
-                  CHANNELS.filter((ch) => !measured[ch]).map(
-                    (ch) => GAMEPAD_CHANNEL_LABELS[ch],
-                  ),
+                  CHANNELS.filter((ch) => !measured[ch]).map((ch) => GAMEPAD_CHANNEL_LABELS[ch]),
                 );
               }}
             >
@@ -383,7 +379,7 @@ export function GamepadSetup() {
               ? 'All four channels calibrated'
               : CHANNELS.some((ch) => gamepad.axes[ch].cal)
                 ? 'Partly calibrated'
-                : 'Not calibrated — using the assumed ±1 range'}
+                : 'Not calibrated, using the assumed ±1 range'}
           </span>
           <button
             className="btn-sm"
@@ -415,7 +411,7 @@ export function GamepadSetup() {
       {!calibrating && saved && (
         <p className="section-note">
           {saved.length === 0
-            ? 'Calibrated — all four channels now reach their full range.'
+            ? 'Calibrated. All four channels now reach their full range.'
             : `Saved, but ${saved.join(', ')} ${
                 saved.length === 1 ? 'was' : 'were'
               } not swept to both ends and stayed uncalibrated. Run it again and move ${
@@ -427,16 +423,16 @@ export function GamepadSetup() {
       <h3 className="settings-h3">Buttons</h3>
       {kind === 'rc' && counts.buttons > 0 && (
         <p className="section-note">
-          This radio enumerates {counts.buttons} buttons, but they stay dark until you map
-          switches to them on the radio itself (EdgeTX: Model → USB Joystick, set a channel's
-          mode to Button). You do not have to: hit <b>Bind</b> below and flick a switch, and
-          it will be captured as an axis position instead.
+          This radio enumerates {counts.buttons} buttons, but they stay dark until you map switches
+          to them on the radio itself (EdgeTX: Model → USB Joystick, set a channel's mode to
+          Button). You do not have to: hit <b>Bind</b> below and flick a switch, and it will be
+          captured as an axis position instead.
         </p>
       )}
       {counts.buttons === 0 ? (
         <p className="section-note">
-          This device reports no buttons. Its switches and pots come through as extra{' '}
-          <b>axes</b> instead — use Bind below and flick a switch.
+          This device reports no buttons. Its switches and pots come through as extra <b>axes</b>{' '}
+          instead. Use Bind below and flick a switch.
         </p>
       ) : (
         <div className="gp-buttons" ref={buttonRow}>
@@ -450,8 +446,8 @@ export function GamepadSetup() {
 
       <h3 className="settings-h3">Actions</h3>
       <p className="section-lede">
-        Bind to a button, or flick a switch — transmitters expose their 2- and 3-position
-        switches as axes, so those bind too.
+        Bind to a button, or flick a switch. Transmitters expose their 2- and 3-position switches as
+        axes, so those bind too.
       </p>
       <div className="gp-bind-list">
         {ACTIONS.map((a) => (
@@ -519,8 +515,8 @@ export function GamepadSetup() {
         <span className="setting-value">{gamepad.sensitivity.toFixed(2)}×</span>
       </div>
       <p className="section-note">
-        Deadzone and sensitivity shape the middle of the travel only — full deflection
-        always commands full output, whatever these are set to.
+        Deadzone and sensitivity shape the middle of the travel only. Full deflection always
+        commands full output, whatever these are set to.
       </p>
 
       <button

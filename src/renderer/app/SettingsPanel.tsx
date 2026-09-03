@@ -78,8 +78,8 @@ export function SettingsPanel() {
               </div>
             </div>
             <p className="section-lede">
-              Low: no post-processing (best for integrated GPUs). Medium: Bloom + Vignette.
-              High: + SMAA anti-aliasing and sharper shadows.
+              Low: no post-processing (best for integrated GPUs). Medium: Bloom + Vignette. High: +
+              SMAA anti-aliasing and sharper shadows.
             </p>
 
             <div className="setting-row">
@@ -133,9 +133,9 @@ export function SettingsPanel() {
               <span className="setting-value">{Math.round(settings.engineVolume * 100)}%</span>
             </div>
             <p className="section-note">
-              The rotor sound is synthesised from the selected drone's own motor and battery
-              spec, so each airframe has its own pitch — the Pluto whines, the Guru growls.
-              Motor volume is separate because it is the one sound that never stops.
+              The rotor sound is synthesised from the selected drone's own motor and battery spec,
+              so each airframe has its own pitch: the Pluto whines, the Guru growls. Motor volume is
+              separate because it is the one sound that never stops.
             </p>
           </>
         )}
@@ -206,7 +206,7 @@ export function SettingsPanel() {
               </div>
             </div>
             <p className="section-note">
-              Everything here persists — quit and relaunch and it comes back as you left it.
+              Everything here persists. Quit and relaunch and it comes back as you left it.
             </p>
           </>
         )}

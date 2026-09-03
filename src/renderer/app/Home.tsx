@@ -62,7 +62,7 @@ const CARDS: ModeCard[] = [
   {
     id: 'missions',
     title: 'Missions',
-    lines: ['Complete challenges.', 'Unlock achievements.'],
+    lines: ['Fly real jobs.', 'Every run is scored.'],
     cta: 'View Missions',
     icon: <IconMedal size={34} />,
     target: 'missions',
