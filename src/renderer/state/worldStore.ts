@@ -3,7 +3,7 @@ import { create } from 'zustand';
 // Time of day drives the sky, sun position, light colour/intensity and fog.
 // Kept separate from physics settings because it's purely presentation.
 
-export type TimeOfDay = 'morning' | 'afternoon' | 'sunset' | 'night';
+export type TimeOfDay = 'morning' | 'afternoon' | 'evening' | 'sunset' | 'night';
 
 export interface TimePreset {
   label: string;
@@ -47,7 +47,7 @@ export const TIME_PRESETS: Record<TimeOfDay, TimePreset> = {
     ambient: 0.9,
     skyTurbidity: 4,
     skyRayleigh: 1.4,
-    fogColor: '#cfe0ee',
+    fogColor: '#bcd5ea',
     fogNear: 70,
     fogFar: 460,
     night: false,
@@ -63,13 +63,42 @@ export const TIME_PRESETS: Record<TimeOfDay, TimePreset> = {
     ambient: 1.1,
     skyTurbidity: 2.6,
     skyRayleigh: 0.9,
-    fogColor: '#dceaf5',
+    fogColor: '#b2d2ee',
     fogNear: 100,
     fogFar: 560,
     night: false,
     bloomThreshold: 1.2,
     bloomIntensity: 0.15,
     iblScale: 0.7,
+  },
+  /**
+   * Evening: the blue half hour, after the colour has gone out of the sunset
+   * and before the stars.
+   *
+   * Not a dimmed afternoon and not a blue sunset. The sun is BELOW the horizon
+   * (negative y), so nothing is lit directly and what remains is skylight —
+   * which is why the ambient carries the scene while `sunIntensity` is almost
+   * nothing, and why the sun colour is a cold blue rather than a warm one.
+   * `night` stays false: the stars are not out, the floodlights do not come on,
+   * and the city is still perfectly flyable.
+   */
+  evening: {
+    label: 'Evening',
+    sun: [30, -4, -45],
+    sunIntensity: 0.5,
+    sunColor: '#8fa8d8',
+    ambient: 0.55,
+    // High rayleigh with the sun under the horizon is what makes the whole dome
+    // deep blue rather than a bright sky with the lights turned down.
+    skyTurbidity: 6,
+    skyRayleigh: 3.2,
+    fogColor: '#2f4a72',
+    fogNear: 50,
+    fogFar: 420,
+    night: false,
+    bloomThreshold: 0.9,
+    bloomIntensity: 0.34,
+    iblScale: 0.9,
   },
   sunset: {
     label: 'Sunset',
