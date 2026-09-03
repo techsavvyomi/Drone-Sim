@@ -8,6 +8,7 @@ import { SceneReady, SceneVeil } from '../scene/SceneReady';
 import { useSettingsStore } from '../state/settingsStore';
 import { useWorldStore } from '../state/worldStore';
 import { useControls } from '../input/useControls';
+import { setCommandScale } from '../input/controls';
 import { MissionHud } from '../hud/MissionHud';
 import { MissionDirector } from './MissionDirector';
 import { MissionMarkers } from './MissionMarkers';
@@ -27,6 +28,14 @@ const MISSION_DRONE = 'pluto-guru';
 /** And in the evening: the city at the blue half hour, which is the light this
  *  mission was built to look like. */
 const MISSION_HOUR = 'evening' as const;
+/** How much of the stick a mission gives the pilot.
+ *
+ *  A mission is flown to a metre, not to a corner: the pickup, the corridor and
+ *  the drop zone all reward a slow, placed approach, and at full rate the Guru
+ *  crosses the whole drop zone in the time it takes to notice it is inside it.
+ *  Softening the commands here rather than retuning the aircraft keeps free
+ *  flight and Flight School exactly as they were tuned. */
+const MISSION_COMMAND_SCALE = 0.55;
 
 export function MissionViewport({ mission }: { mission: Mission }) {
   useControls();
@@ -50,7 +59,11 @@ export function MissionViewport({ mission }: { mission: Mission }) {
     const hour = world.timeOfDay;
     if (hour !== MISSION_HOUR) world.setTimeOfDay(MISSION_HOUR);
 
+    // Missions fly a gentler stick. Only here: put it back on the way out.
+    setCommandScale(MISSION_COMMAND_SCALE);
+
     return () => {
+      setCommandScale(1);
       if (chosen !== MISSION_DRONE) {
         useSettingsStore.getState().set('selectedDroneId', chosen);
       }

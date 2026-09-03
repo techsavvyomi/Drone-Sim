@@ -37,6 +37,22 @@ export function setScripted(on: boolean): void {
   throttleCommanded = false;
 }
 
+// ---- Command softening (missions) -------------------------------------------
+// A single multiplier over what the pilot commands, so a view can ask for a
+// gentler aircraft without a second control path. It scales the attitude
+// channels and the keyboard's throttle ramp; it deliberately does NOT scale a
+// gamepad's throttle, which is an absolute stick position — halving that is not
+// a softer climb, it is half power, and the drone falls out of the sky.
+//
+// Missions only, set by the mission view and put back on the way out. Free
+// flight and Flight School keep the full-rate sticks they were tuned against.
+let commandScale = 1;
+
+/** 1 = the normal aircraft; below 1 = softer sticks. Missions use this. */
+export function setCommandScale(scale: number): void {
+  commandScale = clamp(scale, 0.1, 1);
+}
+
 export function isScripted(): boolean {
   return scripted;
 }
@@ -195,9 +211,9 @@ export function updateStick(dt: number): void {
     // Gamepad axes are absolute positions — no easing, the spring in the stick
     // already does that job. Nothing moves the throttle here but the pilot, so
     // its position is always a live command.
-    stick.roll = gamepadStick.roll;
-    stick.pitch = gamepadStick.pitch;
-    stick.yaw = gamepadStick.yaw;
+    stick.roll = gamepadStick.roll * commandScale;
+    stick.pitch = gamepadStick.pitch * commandScale;
+    stick.yaw = gamepadStick.yaw * commandScale;
     stick.throttle = gamepadStick.throttle;
     throttleCommanded = true;
     return;
@@ -205,8 +221,8 @@ export function updateStick(dt: number): void {
 
   throttleCommanded = up || down;
 
-  const throttleRateUp = 0.6;
-  const throttleRateDown = 0.95;
+  const throttleRateUp = 0.6 * commandScale;
+  const throttleRateDown = 0.95 * commandScale;
 
   const flight = useFlightStore.getState();
   if (ALT_MANAGED.includes(flight.mode)) {
@@ -243,9 +259,9 @@ export function updateStick(dt: number): void {
   rawPitch = damp(rawPitch, pitchTarget, STICK_LAMBDA, dt);
   rawYaw = damp(rawYaw, yawTarget, STICK_LAMBDA, dt);
 
-  stick.roll = expo(rawRoll, KEYBOARD_EXPO);
-  stick.pitch = expo(rawPitch, KEYBOARD_EXPO);
-  stick.yaw = expo(rawYaw, KEYBOARD_EXPO);
+  stick.roll = expo(rawRoll, KEYBOARD_EXPO) * commandScale;
+  stick.pitch = expo(rawPitch, KEYBOARD_EXPO) * commandScale;
+  stick.yaw = expo(rawYaw, KEYBOARD_EXPO) * commandScale;
 }
 
 /** Reset sticks (e.g. on scene reset). */
