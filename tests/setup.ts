@@ -18,18 +18,29 @@ export function getStoredSettings(): Record<string, unknown> {
 
 beforeEach(() => {
   stored = {};
-  (globalThis as Record<string, unknown>).window = {
-    api: {
-      loadSettings: vi.fn(async () => stored),
-      saveSettings: vi.fn(async (s: Record<string, unknown>) => {
-        stored = s;
-      }),
-      appInfo: vi.fn(async () => ({
-        name: 'Drone Flight Simulator',
-        version: '0.1.0',
-        platform: 'darwin',
-        electron: '43.0.0',
-      })),
-    },
+  const api = {
+    loadSettings: vi.fn(async () => stored),
+    saveSettings: vi.fn(async (s: Record<string, unknown>) => {
+      stored = s;
+    }),
+    appInfo: vi.fn(async () => ({
+      name: 'Drone Flight Simulator',
+      version: '0.1.0',
+      platform: 'darwin',
+      electron: '43.0.0',
+    })),
   };
+
+  // Only `api` is ours to define. A file that opts into jsdom
+  // (`// @vitest-environment jsdom`) has a REAL window — listeners, focus, the
+  // DOM — and this used to replace the whole object, so `addEventListener`
+  // stopped being a function in every such test. A Node test still gets the bare
+  // stand-in, which is all it ever needed.
+  const g = globalThis as Record<string, unknown>;
+  const existing = g.window as { addEventListener?: unknown } | undefined;
+  if (existing && typeof existing.addEventListener === 'function') {
+    (existing as Record<string, unknown>).api = api;
+  } else {
+    g.window = { api };
+  }
 });
