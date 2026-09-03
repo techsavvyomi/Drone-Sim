@@ -48,8 +48,13 @@ import { dronePose } from '../sim/drone/pose';
  *  The airframes here span 0.32 m (Pluto) to 0.62 m (Racer) across the props, so
  *  this clears the widest of them — the drone sits INSIDE the circle with room
  *  around it — while staying close enough to read as part of the aircraft rather
- *  than as scenery it happens to be inside. */
-const RADIUS = 0.6;
+ *  than as scenery it happens to be inside.
+ *
+ *  It was 0.6, which cleared the props twice over and, from the chase camera,
+ *  drew a white hoop most of the way across the picture. The dial only has to be
+ *  big enough for the arrow's position on it to be readable; anything past that
+ *  is a line over the city. */
+const RADIUS = 0.42;
 /** How quickly the arrow chases a new bearing, and the seconds the whole ring
  *  takes to fade in or out.
  *
@@ -69,43 +74,76 @@ const FADE = 0.25;
  *  the gate rather than at an instrument. */
 const HOLD_M = 0.9;
 
-const RIM = '#dbe4f0';
+const RIM = '#cbd5e1';
 const ARROW = '#ff2b4d';
+/** How much of the circle the marker occupies, in radians.
+ *
+ *  The rim is a hairline so it stops drawing a hoop over the city, and the
+ *  marker is the stretch of it that is doing work: thickened, red, and swelling
+ *  to a point. Wide enough to be found at a glance, narrow enough that WHERE on
+ *  the dial it sits is still the thing being read. */
+const ARC = 0.2;
 
 /**
- * The arrowhead, as a flat outline pointing along +Y.
+ * The marker, as a filled outline in the ring's own plane.
  *
- * Drawn as a SHAPE rather than taken off a primitive. It was a three-sided cone
- * first, on the reasoning that a cone is an arrow — and it is not: a cone has no
- * notch, so square on to the camera it reads as a plain triangle, and a triangle
- * sitting on a circle is a blob rather than something pointing. The tail cut in
- * behind the barbs is the whole difference. It gives the shape a direction that
- * survives being small, which is the only size it is ever seen at.
+ * There is no separate arrow any more. A head standing off the rim is two
+ * objects that have to be read as one, and at the size this is actually flown it
+ * never was: the ring went faint enough to stay out of the city's way, and what
+ * was left was a red splinter floating over the street with nothing under it.
  *
- * Authored with its BASE on the origin and its tip up the +Y axis, so the marker
- * group only has to nudge it clear of the rim; the group's own rotation carries
- * +Y onto the radius. Built once at module scope — the geometry is the same for
- * every frame and every lesson.
+ * So the marker IS a piece of the circle. A stretch of the rim thickens, turns
+ * red, and swells outward to a point in the middle of that stretch. Nothing
+ * hovers, nothing has to be joined up, and the thing the pilot reads — where on
+ * the dial the red is — is the same as it ever was.
+ *
+ * Built in absolute ring coordinates with the segment centred on the TOP of the
+ * circle, so the group carrying it only has to turn by the arrow's angle.
  */
-const ARROW_SHAPE = (() => {
-  const a = new THREE.Shape();
-  // Tip, right barb, tail notch, left barb — four points, mirrored exactly
-  // about x = 0 so the head cannot lean.
-  //
-  // 0.14 tall and 0.10 wide against a ring 1.2 across: about a TWELFTH of the
-  // circle, which is the proportion that keeps the ring the main shape and the
-  // arrow a marker attached to it. It was more than twice this and read as a
-  // slab of red sitting on the dial rather than as something pointing.
-  //
-  // The tip is long relative to the barbs on purpose. A wide, shallow head is
-  // what makes an arrow look blunt, and at the size this is actually seen the
-  // point is the only part carrying the meaning.
-  a.moveTo(0, 0.105);
-  a.lineTo(0.05, -0.035);
-  a.lineTo(0, 0);
-  a.lineTo(-0.05, -0.035);
-  a.closePath();
-  return a;
+const MARK_SHAPE = (() => {
+  /** Half the band's thickness, and how far the middle of it reaches past the
+   *  rim to make the point. The tip is a little over three times the band, which
+   *  is what reads as "pointed" rather than as a bump.
+   *
+   *  Both are small. The mark is a hand on a dial and it is read by WHERE it is,
+   *  not by how much of the picture it takes: at four times this thickness it
+   *  was a slab of red hanging off the side of the aircraft. */
+  const w = 0.005;
+  const tip = 0.055;
+  /** How much of the segment the point occupies, as a fraction of its HALF
+   *  width. It must never exceed it: with a wider nose the taper is still part
+   *  way up when the segment runs out, so the outer edge stops on a step rather
+   *  than closing on the apex, and the mark comes out as a blunt lopsided wedge.
+   *  Equal to it, the rise reaches zero at both ends and the shape is a clean
+   *  triangle standing on the rim. */
+  const nose = ARC / 2;
+  const STEPS = 24;
+
+  const shape = new THREE.Shape();
+  const at = (t: number, r: number): [number, number] => {
+    // t is measured from the top of the circle, clockwise, matching the way the
+    // arrow's angle is measured.
+    const th = Math.PI / 2 - t;
+    return [Math.cos(th) * r, Math.sin(th) * r];
+  };
+
+  // Outer edge, left to right: flat, up to the point, flat again.
+  for (let i = 0; i <= STEPS; i++) {
+    const t = -ARC / 2 + (ARC * i) / STEPS;
+    const rise = Math.max(0, 1 - Math.abs(t) / nose);
+    const [x, y] = at(t, RADIUS + w + tip * rise);
+    if (i === 0) shape.moveTo(x, y);
+    else shape.lineTo(x, y);
+  }
+  // Inner edge, back the other way. Plain: the point belongs on the outside,
+  // where it is pointing.
+  for (let i = STEPS; i >= 0; i--) {
+    const t = -ARC / 2 + (ARC * i) / STEPS;
+    const [x, y] = at(t, RADIUS - w);
+    shape.lineTo(x, y);
+  }
+  shape.closePath();
+  return shape;
 })();
 
 /**
@@ -126,7 +164,6 @@ export function TargetRing({ at }: { at?: readonly [number, number, number] }) {
   const marker = useRef<THREE.Group>(null);
   const rim = useRef<THREE.Material>(null);
   const head = useRef<THREE.Material>(null);
-  const halo = useRef<THREE.Material>(null);
 
   /** How lit it is, 0..1, and where the arrow sits on the rim, in radians
    *  clockwise from the top of the circle. */
@@ -198,19 +235,22 @@ export function TargetRing({ at }: { at?: readonly [number, number, number] }) {
       : Math.max(0, lit.current - step / FADE));
 
     g.visible = t > 0.002;
-    if (rim.current) rim.current.opacity = t * 0.42;
+    // The rim is a DIAL, not a mark: it exists so the arrow has somewhere to
+    // sit, and the pilot reads the arrow. It was at 0.09 of a mid grey, which
+    // over a concrete pad in daylight is not a hairline, it is nothing at all —
+    // the arrow was left floating beside the aircraft with no circle under it.
+    // Light grey at a third opacity reads as a thin circle on both the pad and
+    // the city without going back to being a hoop drawn over the view.
+    if (rim.current) rim.current.opacity = t * 0.34;
     if (head.current) head.current.opacity = t;
-    if (halo.current) halo.current.opacity = t * 0.2;
 
     // The arrow is placed ON the circumference and turned to face outward along
     // the radius. Measured clockwise from the top, which is why sin drives x and
     // cos drives y.
-    const m = marker.current;
-    if (m) {
-      const a = angle.current;
-      m.position.set(Math.sin(a) * RADIUS, Math.cos(a) * RADIUS, 0);
-      m.rotation.z = -a;
-    }
+    // The mark is authored centred on the top of the circle, so turning it by
+    // the angle carries it round to where the target is. It is drawn AT the
+    // rim's radius, so there is nothing to position — only to rotate.
+    if (marker.current) marker.current.rotation.z = -angle.current;
   });
 
   return (
@@ -225,7 +265,7 @@ export function TargetRing({ at }: { at?: readonly [number, number, number] }) {
           arrow is read against, and anything else on it would be answering a
           question nobody asked. */}
       <mesh renderOrder={10}>
-        <ringGeometry args={[RADIUS - 0.008, RADIUS + 0.008, 72]} />
+        <ringGeometry args={[RADIUS - 0.0032, RADIUS + 0.0032, 72]} />
         <meshBasicMaterial
           ref={rim}
           color={RIM}
@@ -238,42 +278,20 @@ export function TargetRing({ at }: { at?: readonly [number, number, number] }) {
         />
       </mesh>
 
-      {/* And one arrow, standing just off the rim and pointing out along it. Its
-          position on the circle is the whole message.
+      {/* The marker: a short stretch of the same circle, thickened and drawn out
+          to a point, turned round to where the target is.
 
-          FLAT, not a solid. A cone was tried and is the wrong primitive for
-          this: it has no tail notch, so square on to the camera it is a plain
-          triangle, and its round base bulges under a light that comes from
-          nowhere — which is what made it read as a chunk rather than as a mark.
-          A `ShapeGeometry` has no thickness at all, so what the camera gets is
-          the outline and only the outline, at every angle the ring turns to.
-
-          The 0.05 offset puts the barbs about 7 mm clear of the rim's outer
-          edge: attached to the circle, touching nothing, and with no coplanar
-          surfaces to fight over depth.
-
-          Two copies of the one shape: a soft oversized one underneath and the
-          solid head on top. The under-copy is what makes it read as LIT rather
-          than as a sticker — on a bright concrete apron a small flat red mark
-          with a hard edge disappears into the background, and this project can
-          spend nothing on a bloom pass (512 MB of VRAM), so the glow is drawn
-          rather than post-processed. */}
+          ONE mesh, deliberately. There used to be an oversized soft copy
+          underneath it for a drawn-on glow. That works for a shape centred on
+          its own origin and does not work for this one: the mark is authored in
+          absolute ring coordinates, so scaling it up walks it outward and round
+          the circle, and what landed on the screen was a second, displaced,
+          darker mark beside the real one — read, correctly, as a shadow. There
+          is no glow to add here anyway; solid red on grey concrete is already
+          the strongest mark in the picture. */}
       <group ref={marker}>
-        <mesh position={[0, 0.05, 0]} scale={1.6} renderOrder={11}>
-          <shapeGeometry args={[ARROW_SHAPE]} />
-          <meshBasicMaterial
-            ref={halo}
-            color={ARROW}
-            transparent
-            opacity={0}
-            side={THREE.DoubleSide}
-            depthWrite={false}
-            depthTest={false}
-            toneMapped={false}
-          />
-        </mesh>
-        <mesh position={[0, 0.05, 0]} renderOrder={12}>
-          <shapeGeometry args={[ARROW_SHAPE]} />
+        <mesh renderOrder={12}>
+          <shapeGeometry args={[MARK_SHAPE]} />
           <meshBasicMaterial
             ref={head}
             color={ARROW}

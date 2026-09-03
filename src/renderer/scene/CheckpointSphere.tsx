@@ -70,8 +70,8 @@ export const ORB_RIM = '#ff5ce8';
  *  harder to see. The shell is drawn double-sided, so both numbers land TWICE
  *  down the middle of the ball and the values below are half of what reaches the
  *  screen. */
-const BODY = 0.15;
-const BODY_RIM = 0.35;
+const BODY = 0.09;
+const BODY_RIM = 0.24;
 const RIM_POW = 2.0;
 
 // `BODY` is the one of these you can see THROUGH, and it was too high. At 0.3,
@@ -118,7 +118,18 @@ const BAND_SPIN = 0.9;
  *  which is a post-process and smears over the picture instead; this is the
  *  fallback that carries the glow on the Low graphics preset, where there is no
  *  bloom at all. */
-const HALO_W = 2.6;
+const HALO_W = 1.8;
+
+/** How close the CAMERA can get, in ball radii, before the marker starts
+ *  dimming, and the least it is ever drawn at.
+ *
+ *  The shell is additive and drawn double-sided, so flying up to one puts both
+ *  walls plus the halo across the whole picture and the sum saturates to flat
+ *  white — the ball stops being a target and becomes a sheet over the city. The
+ *  trigger is unaffected: this changes only how brightly the marker is DRAWN,
+ *  and scoring is measured from its fixed centre. */
+const NEAR_FADE = 5.5;
+const NEAR_FLOOR = 0.05;
 // --- The motion ------------------------------------------------------------
 //
 // Four things move, at four different rates, and the rates are deliberately not
@@ -278,12 +289,13 @@ function orbHalo(): THREE.CanvasTexture {
     // carries on past the silhouette — enough that the ball does not end in a
     // hard cut, and enough to be the whole of the glow on the Low preset, where
     // there is no bloom at all.
-    const rim = 1 / HALO_W;
-    g.addColorStop(0.0, 'rgba(255, 150, 240, 0.055)');
-    g.addColorStop(rim, 'rgba(255, 110, 236, 0.12)');
-    g.addColorStop(rim * 1.35, 'rgba(255, 55, 224, 0.145)');
-    g.addColorStop(0.66, 'rgba(255, 25, 205, 0.07)');
-    g.addColorStop(0.85, 'rgba(214, 0, 170, 0.02)');
+    // Stops are placed relative to the rim rather than at fixed fractions, so
+    // narrowing HALO_W cannot push a later stop in front of an earlier one.
+    const rim = Math.min(0.6, 1 / HALO_W);
+    g.addColorStop(0.0, 'rgba(255, 150, 240, 0.03)');
+    g.addColorStop(rim, 'rgba(255, 110, 236, 0.06)');
+    g.addColorStop(rim + (1 - rim) * 0.22, 'rgba(255, 55, 224, 0.07)');
+    g.addColorStop(rim + (1 - rim) * 0.55, 'rgba(255, 25, 205, 0.03)');
     g.addColorStop(1.0, 'rgba(190, 0, 150, 0)');
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, size, size);
@@ -295,6 +307,22 @@ function orbHalo(): THREE.CanvasTexture {
 
 const tagTextures = new Map<string, THREE.CanvasTexture>();
 
+/**
+ * A checkpoint's letter, as a texture for the sprite that rides in the ball.
+ *
+ * Just the letter. It was a BADGE — a dark disc, a neon pink rim, a white inner
+ * rim and the letter inside all three — and a badge is the wrong object here:
+ * the ball is already a disc with a rim, so a second disc with a rim hung in the
+ * middle of it read as a sticker slapped on the mark rather than as its name.
+ * On the triangle, where three of them stand out on the pad at once, A, B and C
+ * came back as three little targets and the letters were the smallest thing in
+ * them.
+ *
+ * What is left is the letter and the shadow that keeps it readable. The ball is
+ * bright pink and it BREATHES, so white alone flickers in and out of legibility
+ * against it; a soft dark drop behind the glyph holds the edge without drawing a
+ * shape of its own. Nothing else — no fill behind, no ring around.
+ */
 export function orbTagTexture(text: string): THREE.CanvasTexture {
   const cached = tagTextures.get(text);
   if (cached) return cached;
@@ -307,32 +335,21 @@ export function orbTagTexture(text: string): THREE.CanvasTexture {
   if (ctx) {
     const cx = size / 2;
     const cy = size / 2;
-    const r = size * 0.42;
 
-    // Dark glowing circular backing disc
-    ctx.beginPath();
-    ctx.arc(cx, cy, r, 0, Math.PI * 2);
-    ctx.fillStyle = 'rgba(15, 10, 24, 0.85)';
-    ctx.fill();
-
-    // Vibrant neon pink rim ring around the badge
-    ctx.lineWidth = size * 0.045;
-    ctx.strokeStyle = '#ff3db8';
-    ctx.stroke();
-
-    // Inner bright neon rim accent
-    ctx.beginPath();
-    ctx.arc(cx, cy, r * 0.94, 0, Math.PI * 2);
-    ctx.lineWidth = size * 0.015;
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.7)';
-    ctx.stroke();
-
-    // Bold clean white letter
-    ctx.fillStyle = '#ffffff';
-    ctx.font = `900 ${text.length > 1 ? 210 : 260}px Inter, system-ui, -apple-system, sans-serif`;
+    // Bigger than it was, because the disc it used to have to fit inside is
+    // gone: the letter is now the whole mark, so it gets the whole texture.
+    ctx.font = `900 ${text.length > 1 ? 260 : 330}px Inter, system-ui, -apple-system, sans-serif`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(text, cx, cy + 8);
+
+    ctx.shadowColor = 'rgba(10, 6, 20, 0.85)';
+    ctx.shadowBlur = size * 0.07;
+    ctx.fillStyle = '#ffffff';
+    // Twice, so the shadow builds up enough to separate the glyph from the
+    // light behind it. Cheaper and softer than an outline, which at this size
+    // thickens the strokes until the letter closes up.
+    ctx.fillText(text, cx, cy + 6);
+    ctx.fillText(text, cx, cy + 6);
   }
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
@@ -439,7 +456,7 @@ export function CheckpointSphere({
     [],
   );
 
-  useFrame(({ clock }, dt) => {
+  useFrame(({ clock, camera }, dt) => {
     const [x, y, z] = position;
     const reach = triggerRadius ?? radius;
     centre.set(x, y, z);
@@ -487,7 +504,13 @@ export function CheckpointSphere({
 
     // The pulse, on its own clock — see `PULSE`. Deeper than the breath and
     // faster, so the two never sit still together.
-    const glow = t * (1 + PULSE * Math.sin(time * PULSE_HZ * Math.PI * 2));
+    // Close in, pull it right down — see `NEAR_FADE`.
+    const near = THREE.MathUtils.clamp(
+      camera.position.distanceTo(centre) / (radius * NEAR_FADE),
+      NEAR_FLOOR,
+      1,
+    );
+    const glow = t * near * (1 + PULSE * Math.sin(time * PULSE_HZ * Math.PI * 2));
     uniforms.uLit.value = glow;
     uniforms.uTime.value = time;
     if (halo.current) halo.current.opacity = glow;
@@ -529,7 +552,10 @@ export function CheckpointSphere({
         />
       </sprite>
       {tag && (
-        <sprite renderOrder={10} scale={[Math.max(1.8, radius * 1.3), Math.max(1.8, radius * 1.3), 1]}>
+        <sprite
+          renderOrder={10}
+          scale={[Math.max(1.8, radius * 1.3), Math.max(1.8, radius * 1.3), 1]}
+        >
           <spriteMaterial
             ref={tagMat}
             map={orbTagTexture(tag)}
