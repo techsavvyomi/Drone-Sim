@@ -85,6 +85,8 @@ export interface AppSettings {
   gamepad: GamepadSettings;
   /** Flight School progression (completed lessons, stars, pilot XP). */
   training: TrainingProgress;
+  /** Mission progression (best rating, points and time per mission). */
+  missions: MissionProgress;
 }
 
 // ----------------------------------------------------------------------------
@@ -113,6 +115,39 @@ export const DEFAULT_TRAINING: TrainingProgress = {
   xp: 0,
 };
 
+// ----------------------------------------------------------------------------
+// Mission progression
+// ----------------------------------------------------------------------------
+
+/**
+ * The best attempt at one mission, kept so a rating survives a restart.
+ *
+ * BEST, not last. A pilot who three-stars a mission and then takes it up again
+ * for fun has not un-earned it, and a card that dropped back to one star for a
+ * casual second run would teach exactly the wrong lesson about replaying.
+ *
+ * Deliberately NOT merged into `TrainingProgress`: pilot XP lives there and is
+ * described as earned from Flight School, and a mission writing into that ledger
+ * would make the field's name a lie. Missions rate; the school ranks.
+ */
+export interface MissionResultRecord {
+  completed: boolean;
+  /** Best star rating earned, 0..3. */
+  stars: number;
+  /** Most points taken in a single attempt. */
+  bestPoints: number;
+  /** Fastest completed run, in seconds. */
+  bestTimeSec: number;
+}
+
+export interface MissionProgress {
+  /** Keyed by mission id. Absent id = never flown. */
+  missions: Record<string, MissionResultRecord>;
+}
+
+export const DEFAULT_MISSIONS: MissionProgress = {
+  missions: {},
+};
 
 // ----------------------------------------------------------------------------
 // Gamepad / RC transmitter
@@ -211,18 +246,11 @@ export function normalizeUnipolar(raw: number, cal?: AxisCalibration): number {
 export type AxisPos = 'lo' | 'mid' | 'hi';
 
 /** A discrete binding: a button edge, or an axis entering a switch position. */
-export type GamepadBinding =
-  | { t: 'b'; i: number }
-  | { t: 'a'; a: number; p: AxisPos };
+export type GamepadBinding = { t: 'b'; i: number } | { t: 'a'; a: number; p: AxisPos };
 
 /** Discrete actions a gamepad can trigger. */
 export type GamepadAction =
-  | 'arm'
-  | 'disarm'
-  | 'takeoffLand'
-  | 'modeCycle'
-  | 'cameraCycle'
-  | 'reset';
+  'arm' | 'disarm' | 'takeoffLand' | 'modeCycle' | 'cameraCycle' | 'reset';
 
 export const GAMEPAD_ACTION_LABELS: Record<GamepadAction, string> = {
   arm: 'Arm',
@@ -423,6 +451,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   cameraZoom: 1,
   gamepad: DEFAULT_GAMEPAD,
   training: DEFAULT_TRAINING,
+  missions: DEFAULT_MISSIONS,
   hud: {
     altitudeTape: true,
     horizon: true,
@@ -644,14 +673,7 @@ export interface EnvironmentSpec {
 }
 
 export type MissionType =
-  | 'takeoff'
-  | 'hover'
-  | 'hoops'
-  | 'landing'
-  | 'search'
-  | 'race'
-  | 'timetrial'
-  | 'delivery';
+  'takeoff' | 'hover' | 'hoops' | 'landing' | 'search' | 'race' | 'timetrial' | 'delivery';
 
 export interface MissionSpec {
   id: string;
