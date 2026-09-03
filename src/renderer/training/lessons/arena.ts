@@ -40,7 +40,14 @@ export const HOVER = 1.8;
 export function gate(
   id: string,
   label: string,
-  opts: { ease?: number; through?: boolean; height?: number; tag?: string; orb?: boolean } = {},
+  opts: {
+    ease?: number;
+    through?: boolean;
+    height?: number;
+    tag?: string;
+    tagMapOnly?: boolean;
+    orb?: boolean;
+  } = {},
 ): Checkpoint {
   const g = academyGate(id);
   // Every gate is modelled facing local +Z — the torus hole and the square
@@ -51,6 +58,8 @@ export function gate(
   return {
     label,
     tag: opts.tag,
+    // Named on the map, unnamed on the field — see `Checkpoint.tagMapOnly`.
+    tagMapOnly: opts.tagMapOnly,
     // A ball of light in the opening instead of a letter on it — see
     // `Checkpoint.orb`. Sized off `markSize` by the guide, so a gate asks for
     // one without also having to say how big it should be.
@@ -267,7 +276,7 @@ export function routeLegs(
         caption,
         // The release, on a pass this long, is the technique worth naming: the
         // sticks go to centre several seconds out and the drone sails the rest.
-        arrive: 'Ease off early — it carries on through',
+        arrive: 'Ease off early, it carries on through',
         coast: true,
         stick,
         face,
@@ -292,7 +301,7 @@ export function routeLegs(
     legs.push({
       to: [gx + ax * LINE_UP * side, gy, gz + az * LINE_UP * side],
       caption,
-      arrive: `Lined up on ${c.label} — hold this line`,
+      arrive: `Lined up on ${c.label}, hold this line`,
       stick,
       face,
       label: c.label,

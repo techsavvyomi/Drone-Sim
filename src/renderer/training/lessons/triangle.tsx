@@ -108,15 +108,15 @@ export const triangleLesson: Lesson = {
   ],
 
   demo: [
-    ...preflightDemo('SPACE — it climbs to the circuit height on its own'),
+    ...preflightDemo('SPACE: it climbs to the circuit height on its own'),
     ...afterPreflightDemo(
       planDemo(
         routeLegs(
           ROUTE,
           [
             { caption: 'Straight ahead to A', arrive: 'Stop on A' },
-            { caption: 'A to B — both sticks, back and to the left', arrive: 'Stop on B' },
-            { caption: 'B to C — straight across, one stick', arrive: 'Stop on C' },
+            { caption: 'A to B: both sticks, back and to the left', arrive: 'Stop on B' },
+            { caption: 'B to C: straight across, one stick', arrive: 'Stop on C' },
             { caption: 'C back up to A, and the loop is closed', arrive: 'Triangle complete' },
           ],
           undefined,
@@ -170,7 +170,7 @@ export const triangleLesson: Lesson = {
         hint: wandered
           ? 'Off the side. Get back on the line to the next corner'
           : r.next === ROUTE.length - 1
-            ? 'Last side — close the triangle back at Corner A'
+            ? 'Last side: close the triangle back at Corner A'
             : `Fly the side to ${target.label}`,
         cue: cueBetween(from, target.at),
       };

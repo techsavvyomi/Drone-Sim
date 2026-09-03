@@ -93,7 +93,7 @@ function navLesson(cfg: {
       route,
       route.map((c, i) => ({
         caption: `Line up on ${c.label}`,
-        arrive: i === route.length - 1 ? 'Route complete' : `Through ${c.label} — on to the next`,
+        arrive: i === route.length - 1 ? 'Route complete' : `Through ${c.label}, on to the next`,
       })),
       0.48,
       { face: true },
@@ -109,14 +109,14 @@ function navLesson(cfg: {
       stage: 0,
       cmd: 'arm' as const,
       key: 'Enter',
-      caption: 'ENTER — armed and live',
+      caption: 'ENTER: armed and live',
     },
     {
       at: TAKEOFF_AT,
       stage: 1,
       cmd: 'takeoffLand' as const,
       key: 'Space',
-      caption: 'SPACE — it climbs to a hover on its own',
+      caption: 'SPACE: it climbs to a hover on its own',
     },
     // The route legs sit two steps into the row: Arm, Take off, then the gates.
     ...routeDemo.map((step) => ({

@@ -21,13 +21,18 @@ import { HOVER, gate, home } from './arena';
 // a hole you either went through or did not is a clearer test of a straight
 // line than a circle you stopped somewhere near.
 //
-// The lesson calls it "A", and what stands in the opening is a lit pink sphere
-// rather than the letter. Nothing is painted on the gate itself and "the blue
-// one" stops being enough the moment there is a second blue one on the field,
-// so the gate has to be marked either way — but a letter is a name, and this
-// module does not need the gate NAMED, it needs the hole aimed at. The ball
-// hangs on the checkpoint, at the height the pass is judged at, so lining up on
-// the light and flying through it IS the exercise. It goes out as the drone
+// What stands in the opening is a lit pink sphere, and NOTHING else — no letter
+// on the gate, none in the ball, and none in the copy either. The lesson used to
+// call the gate "A", on the reasoning that "the blue one" stops being enough the
+// moment there is a second blue one on the field. There is one, out on the far
+// side, but it is not the one in front of the pilot: this gate stands 16 m dead
+// ahead on the centre line, it is the first thing seen from the pad, and the
+// ball is lit in its hole. A name added nothing to any of that, and a route with
+// a single stop does not need its stop named — so the module says "the blue gate
+// ahead" wherever it used to say "A", and the arena says it with light.
+//
+// The ball hangs on the checkpoint, at the height the pass is judged at, so
+// lining up on the light and flying through it IS the exercise. It goes out as the drone
 // goes through, which is the pilot being told the run counted by the arena
 // rather than by the HUD.
 //
@@ -38,14 +43,14 @@ import { HOVER, gate, home } from './arena';
 // throttle is on the row — it has been since Module 3 — but as the answer to a
 // drift, not as a fourth thing to fly.
 const START = home('H');
-const TARGET = gate('blue-near', 'A', { ease: 1.3, height: HOVER, tag: 'A', orb: true });
+const TARGET = gate('blue-near', 'Blue gate', { ease: 1.3, height: HOVER, orb: true });
 const ROUTE = [TARGET] as const;
 
-/** How far out A is, measured rather than written down — the demonstration
+/** How far out the gate is, measured rather than written down — the demonstration
  *  solves its run against it, so the demo follows the arena if the arena moves. */
 const OUT_M = Math.hypot(TARGET.at[0] - START.at[0], TARGET.at[2] - START.at[2]);
 
-const LEGS = [{ hint: 'Pitch forward — take it straight through A', cue: CUE.forward }];
+const LEGS = [{ hint: 'Pitch forward, take it straight through the blue gate', cue: CUE.forward }];
 
 // ONE stick in the DEMONSTRATION: pitch, and only forward. Getting up and
 // getting down are the SPACE take-off and landing already taught in Modules 1
@@ -66,11 +71,11 @@ const LEGS = [{ hint: 'Pitch forward — take it straight through A', cue: CUE.f
  *  the demonstration away from the line and lit the pitch-backward channel,
  *  which is not even a key this module shows. */
 const RUN_STICK = 0.35;
-/** How fast it is still going as it reaches A, m/s.
+/** How fast it is still going as it reaches the gate, m/s.
  *
  *  Brisk, because the task is to go THROUGH the gate and out the far side, not
  *  to park in the frame — and because a slower arrival means a longer coast to
- *  sit through. It carries the drone several metres past A before the demo
+ *  sit through. It carries the drone several metres past the gate before the demo
  *  ends, which is the flight the module is asking for. */
 const RUN_ARRIVE = 1.2;
 const RUN = solveCoast(OUT_M, RUN_STICK, RUN_ARRIVE);
@@ -88,13 +93,13 @@ export const straightLineLesson: Lesson = {
   id: 'straight-line',
   order: 7,
   title: 'Straight Flight',
-  subtitle: 'Take off and fly one straight line through A',
+  subtitle: 'Take off and fly one straight line through the gate',
 
   explain: {
     title: 'Flying a Straight Line',
     body: [
-      'Arm, take off, then push forward through gate A.',
-      'A is the blue square ahead of you. Keep it in the middle of your view.',
+      'Arm, take off, then push forward through the blue gate.',
+      'It is the blue square straight ahead of you. Keep it in the middle of your view.',
     ],
   },
 
@@ -113,20 +118,20 @@ export const straightLineLesson: Lesson = {
 
   demo: [
     { at: 0.0, caption: 'On the pad, motors off. Nothing turns until it is armed' },
-    { at: ARM_AT, stage: 0, cmd: 'arm', key: 'Enter', caption: 'Step 1 — ENTER arms it' },
+    { at: ARM_AT, stage: 0, cmd: 'arm', key: 'Enter', caption: 'Step 1: ENTER arms it' },
     { at: ARM_AT + 1.4, caption: 'Armed and live, but still on the ground' },
     {
       at: TAKEOFF_AT,
       stage: 1,
       cmd: 'takeoffLand',
       key: 'Space',
-      caption: 'Step 2 — SPACE, and it climbs to a hover on its own',
+      caption: 'Step 2: SPACE, and it climbs to a hover on its own',
     },
     {
       at: RUN_AT,
       stage: 2,
       stick: { pitch: RUN_STICK },
-      caption: 'Step 3 — pitch forward, one straight run at A',
+      caption: 'Step 3: pitch forward, one straight run at the gate',
     },
     {
       at: RUN_AT + RUN.tPush,
@@ -137,12 +142,12 @@ export const straightLineLesson: Lesson = {
     // `rt` says the checkpoint is BEHIND the aircraft, and it is what puts the
     // light out mid-demonstration. Without it the demo flew through a sphere that
     // stayed lit and the pilot was shown a pass that did not register.
-    { at: ARRIVES_AT, stage: 3, rt: 1, caption: 'Straight through A. That is the flight' },
+    { at: ARRIVES_AT, stage: 3, rt: 1, caption: 'Straight through the gate. That is the flight' },
     { at: ARRIVES_AT + 2.4, caption: 'Out the far side, still on the line' },
   ],
 
   practice: {
-    prompt: 'Arm, take off, and fly straight forward through gate A',
+    prompt: 'Arm, take off, and fly straight forward through the blue gate',
     hint: 'Press ENTER to arm',
   },
 
@@ -161,7 +166,7 @@ export const straightLineLesson: Lesson = {
   ],
 
   tips: [
-    'If A moves to one side, you have moved too.',
+    'If the gate moves to one side, you have moved too.',
     'Let go early. It keeps gliding, and only has to pass through.',
   ],
   commonMistakes: [

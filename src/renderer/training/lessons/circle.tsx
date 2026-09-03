@@ -63,11 +63,11 @@ export const circleLesson: Lesson = {
         captions: [
           'Out to the dark yellow circle',
           'Build some speed ALONG the ring, not across it',
-          'Now lean INTO the middle — and keep leaning',
+          'Now lean INTO the middle, and keep leaning',
           'The lean points at the centre the whole way round',
-          'Same lean, new direction — that is all a circle is',
+          'Same lean, new direction. That is all a circle is',
           'Round the far side and back to the start',
-          'Level out — one continuous arc, no stops',
+          'Level out: one continuous arc, no stops',
         ],
       }),
     ),
@@ -160,8 +160,8 @@ export const circleLesson: Lesson = {
           : Math.abs(off) <= LANE * 0.5
             ? `On the line. ${pct}% round`
             : off < 0
-              ? `${(-off).toFixed(1)} m inside — ease out. ${pct}% round`
-              : `${off.toFixed(1)} m wide — ease in. ${pct}% round`,
+              ? `${(-off).toFixed(1)} m inside, ease out. ${pct}% round`
+              : `${off.toFixed(1)} m wide, ease in. ${pct}% round`,
         cue: Math.abs(off) <= LANE * 0.5 ? [] : toRing,
       };
     }),

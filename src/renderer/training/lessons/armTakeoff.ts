@@ -38,7 +38,7 @@ export const armTakeoffLesson: Lesson = {
   // `stage` walks the step row on screen with the demonstration, so the flow the
   // intro card showed is the flow the pilot watches being flown.
   demo: [
-    { at: 0.0, stage: 0, caption: 'Step 1 — press ENTER to arm' },
+    { at: 0.0, stage: 0, caption: 'Step 1: press ENTER to arm' },
     { at: 0.8, cmd: 'arm', key: 'Enter', caption: 'Armed. The drone is live' },
     { at: 2.4, stage: 1, caption: 'Armed, but still on the ground' },
     {
@@ -46,7 +46,7 @@ export const armTakeoffLesson: Lesson = {
       stage: 1,
       cmd: 'takeoffLand',
       key: 'Space',
-      caption: 'Step 2 — press SPACE to take off',
+      caption: 'Step 2: press SPACE to take off',
     },
     // The Director holds the demo clock while auto take-off owns the aircraft,
     // so this beat lands at the hover rather than part way up the climb.

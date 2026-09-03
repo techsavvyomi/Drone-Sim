@@ -230,7 +230,10 @@ export function solveThrough(metres: number, stick: number): { tAccel: number; t
 }
 
 /** How long to hold the tilt, and then the counter-tilt, to cover `metres`. */
-export function solveLeg(metres: number, stick: number = DEFAULT_STICK): { tAccel: number; tBrake: number } {
+export function solveLeg(
+  metres: number,
+  stick: number = DEFAULT_STICK,
+): { tAccel: number; tBrake: number } {
   const cmdAngle = stick * PLAN_ENVELOPE.maxTiltDeg * DEG2RAD;
   let lo = 0.05;
   let hi = 12;

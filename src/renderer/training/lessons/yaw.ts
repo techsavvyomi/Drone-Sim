@@ -56,15 +56,15 @@ export const yawLesson: Lesson = {
         stage: 0,
         stick: { yaw: -DEMO_YAW },
         key: 'KeyA',
-        caption: 'Yaw left — the nose swings round',
+        caption: 'Yaw left: the nose swings round',
       },
-      { at: 1.4 + TURN_SEC, stick: { yaw: 0 }, caption: 'Centre the stick — the turn stops there' },
+      { at: 1.4 + TURN_SEC, stick: { yaw: 0 }, caption: 'Centre the stick: the turn stops there' },
       {
         at: 1.4 + TURN_SEC + 1.2,
         stage: 1,
         stick: { yaw: DEMO_YAW },
         key: 'KeyD',
-        caption: 'Yaw right — back to centre',
+        caption: 'Yaw right: back to centre',
       },
       { at: 1.4 + 2 * TURN_SEC + 1.2, stick: { yaw: 0 }, caption: 'Back to the start heading' },
       {

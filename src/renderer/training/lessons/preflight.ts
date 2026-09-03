@@ -202,9 +202,7 @@ export const TAKEOFF_AT = 4.0;
 export const PREFLIGHT_DEMO_SEC = TAKEOFF_AT + 1.6;
 
 /** The two opening beats of every demonstration. */
-export function preflightDemo(
-  climbCaption = 'SPACE — it climbs to a hover on its own',
-): DemoStep[] {
+export function preflightDemo(climbCaption = 'SPACE: it climbs to a hover on its own'): DemoStep[] {
   return [
     { at: 0.0, caption: 'On the pad, motors off' },
     {
@@ -212,7 +210,7 @@ export function preflightDemo(
       stage: 0,
       cmd: 'arm',
       key: 'Enter',
-      caption: 'ENTER — armed and live, still on the ground',
+      caption: 'ENTER: armed and live, still on the ground',
     },
     { at: TAKEOFF_AT, stage: 1, cmd: 'takeoffLand', key: 'Space', caption: climbCaption },
   ];

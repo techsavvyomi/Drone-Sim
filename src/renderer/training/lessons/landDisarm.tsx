@@ -63,7 +63,7 @@ export const landDisarmLesson: Lesson = {
     ...afterPreflightDemo([
       { at: 0.0, stage: 0, caption: 'Hovering over the pad. Now put it back down' },
       { at: 1.0, caption: 'Holding here. Nothing happens on its own' },
-      { at: 2.2, caption: 'Step 1 — press SPACE again to land' },
+      { at: 2.2, caption: 'Step 1: press SPACE again to land' },
       { at: 2.8, cmd: 'takeoffLand', key: 'Space', caption: 'It comes down onto the pad' },
       { at: 3.6, caption: 'Soft touchdown on the pad' },
       {
@@ -71,7 +71,7 @@ export const landDisarmLesson: Lesson = {
         stage: 1,
         cmd: 'disarm',
         key: 'Enter',
-        caption: 'Step 2 — ENTER stops the motors',
+        caption: 'Step 2: ENTER stops the motors',
       },
       { at: 5.8, caption: 'Motors off. Safe to handle' },
     ]),

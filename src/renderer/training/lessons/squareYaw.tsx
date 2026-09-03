@@ -87,18 +87,32 @@ const LEAD_OUT = 4;
  * there is genuinely no turn to make here — and the validator does not ask for
  * one, see `r.next === 0` below.
  *
- * A beacon and NO letter. It is a place to get to, not a corner of the square,
- * and the four letters painted on the deck have to go on meaning the four
- * corners; a fifth lettered mark inside the shape would read as a fifth corner.
+ * NOTHING is drawn on it. No letter, and no light either.
+ *
+ * The letter went first, and for the reason that ends up applying to both: this
+ * is a place to get to, not a corner of the square, and the four letters painted
+ * on the deck have to go on meaning the four corners — a fifth lettered mark
+ * inside the shape reads as a fifth corner. It carried a yellow beacon instead,
+ * which turned out to say the same wrong thing in the same colour: the corners
+ * ARE yellow beacons, so the lap opened with five of them standing on the field
+ * and the first one was the one nearest the pilot.
+ *
+ * So the entry is left bare. It is still a leg — it is judged, the step row
+ * names it, and the ring on the aircraft points at it — but the pilot flies it
+ * on the one instruction the module opens with, which is "push forward and leave
+ * the nose alone". The first thing lit on the field is Corner A, which is the
+ * first thing that is actually a corner.
  */
 const ENTRY: Checkpoint = {
   label: 'Out front',
   at: [START[0], FLY_AT, START[2] - LEAD_OUT],
   reach: 1.8,
+  // `mark`, `markSize` and `color` are the MINIMAP's, not the arena's: the plan
+  // still draws the entry as a stop on the route. Nothing here asks the guide
+  // for a mark, and the guide only paints checkpoints that ask.
   mark: 'marker',
   markSize: 0.9,
   color: '#e2e8f0',
-  beacon: true,
 };
 
 /** The entry leg, then Module 9's square unchanged. */
@@ -125,9 +139,7 @@ const FACE_TOL = 20;
 const FACE_NEAR = 2.5;
 
 function buildSquareYawDemo(): DemoStep[] {
-  const steps: DemoStep[] = [
-    ...preflightDemo('SPACE — it climbs to the circuit height on its own'),
-  ];
+  const steps: DemoStep[] = [...preflightDemo('SPACE: it climbs to the circuit height on its own')];
   let at = PREFLIGHT_DEMO_SEC;
   let heading = 0;
   let [x, , z] = START;
@@ -139,7 +151,7 @@ function buildSquareYawDemo(): DemoStep[] {
       pitchStage: 2,
       rt: 1,
       turnCaption: '',
-      pitchCaption: 'Push forward — leave the nose where it is',
+      pitchCaption: 'Push forward, leave the nose where it is',
       arriveCaption: 'Stop out in front of the pad',
     },
     {
@@ -147,7 +159,7 @@ function buildSquareYawDemo(): DemoStep[] {
       turnStage: 3,
       pitchStage: 4,
       rt: 2,
-      turnCaption: 'Yaw right — turn the nose onto Corner A',
+      turnCaption: 'Yaw right, turn the nose onto Corner A',
       pitchCaption: 'Pitch forward to Corner A',
       arriveCaption: 'Stop on Corner A',
     },
@@ -156,7 +168,7 @@ function buildSquareYawDemo(): DemoStep[] {
       turnStage: 5,
       pitchStage: 6,
       rt: 3,
-      turnCaption: 'Yaw right — turn the nose onto Corner B',
+      turnCaption: 'Yaw right, turn the nose onto Corner B',
       pitchCaption: 'Pitch forward to Corner B',
       arriveCaption: 'Stop on Corner B',
     },
@@ -165,7 +177,7 @@ function buildSquareYawDemo(): DemoStep[] {
       turnStage: 7,
       pitchStage: 8,
       rt: 4,
-      turnCaption: 'Yaw right — turn the nose onto Corner C',
+      turnCaption: 'Yaw right, turn the nose onto Corner C',
       pitchCaption: 'Pitch forward to Corner C',
       arriveCaption: 'Stop on Corner C',
     },
@@ -174,7 +186,7 @@ function buildSquareYawDemo(): DemoStep[] {
       turnStage: 9,
       pitchStage: 10,
       rt: 5,
-      turnCaption: 'Yaw right — turn the nose onto Corner D',
+      turnCaption: 'Yaw right, turn the nose onto Corner D',
       pitchCaption: 'Pitch forward to Corner D',
       arriveCaption: 'Stop on Corner D',
     },
@@ -183,8 +195,8 @@ function buildSquareYawDemo(): DemoStep[] {
       turnStage: 11,
       pitchStage: 12,
       rt: 6,
-      turnCaption: 'Yaw right — turn the nose onto Corner A',
-      pitchCaption: 'Pitch forward — close the square at Corner A',
+      turnCaption: 'Yaw right, turn the nose onto Corner A',
+      pitchCaption: 'Pitch forward, close the square at Corner A',
       arriveCaption: 'One square, flown on the nose',
     },
   ];
@@ -289,7 +301,7 @@ export const squareYawLesson: Lesson = {
 
   practice: {
     prompt:
-      'Arm, take off, push straight forward off the pad, then turn onto each corner and fly the side — A, B, C, D and back to A',
+      'Arm, take off, push straight forward off the pad, then turn onto each corner and fly the side: A, B, C, D and back to A',
     hint: 'Press ENTER to arm',
   },
 
@@ -329,7 +341,7 @@ export const squareYawLesson: Lesson = {
         return {
           done: false,
           progress: clamp01(r.progress),
-          hint: 'Push forward off the pad — leave the nose where it is',
+          hint: 'Push forward off the pad, leave the nose where it is',
           cue: CUE.forward,
         };
       }
@@ -372,7 +384,7 @@ export const squareYawLesson: Lesson = {
         return {
           done: false,
           progress: clamp01(r.progress),
-          hint: `Turn the nose onto ${target.label} — ${adrift.toFixed(0)}° to go`,
+          hint: `Turn the nose onto ${target.label}, ${adrift.toFixed(0)}° to go`,
           cue: turnCue,
         };
       }
@@ -392,7 +404,7 @@ export const squareYawLesson: Lesson = {
           : swung
             ? `Nose has swung off ${target.label}. Line it up again`
             : r.next === ROUTE.length - 1
-              ? 'Last side — close the square back at Corner A'
+              ? 'Last side: close the square back at Corner A'
               : `Nose is on ${target.label}. Push forward`,
         // Once the nose is on the corner there is only ever one stick left, and
         // it is the same one on all four sides. That is the lesson.

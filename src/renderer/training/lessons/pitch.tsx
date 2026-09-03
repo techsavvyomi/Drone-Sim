@@ -52,11 +52,11 @@ const FLIGHT = afterPreflightDemo(
   planDemo(
     routeLegs(ROUTE, [
       {
-        caption: 'PITCH FORWARD — straight out to the blue gate',
+        caption: 'PITCH FORWARD: straight out to the blue gate',
         arrive: 'PITCH BACKWARD to stop on it. Levelling off only coasts',
       },
       {
-        caption: 'PITCH BACKWARD — all the way back to the start',
+        caption: 'PITCH BACKWARD: all the way back to the start',
         arrive: 'PITCH FORWARD again to stop on the spot',
       },
     ]),

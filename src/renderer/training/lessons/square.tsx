@@ -156,17 +156,17 @@ export const squareLesson: Lesson = {
   ],
 
   demo: [
-    ...preflightDemo('SPACE — it climbs to the circuit height on its own'),
+    ...preflightDemo('SPACE: it climbs to the circuit height on its own'),
     ...afterPreflightDemo(
       planDemo(
         routeLegs(
           ROUTE,
           [
             { caption: 'Out to A', arrive: 'Stop square on it' },
-            { caption: 'Side 1 — one stick only', arrive: 'Stop on B' },
-            { caption: 'Side 2 — one stick only', arrive: 'Stop on C' },
-            { caption: 'Side 3 — one stick only', arrive: 'Stop on D' },
-            { caption: 'Side 4 — back to A, the loop is closed', arrive: 'One clean square' },
+            { caption: 'Side 1: one stick only', arrive: 'Stop on B' },
+            { caption: 'Side 2: one stick only', arrive: 'Stop on C' },
+            { caption: 'Side 3: one stick only', arrive: 'Stop on D' },
+            { caption: 'Side 4: back to A, the loop is closed', arrive: 'One clean square' },
           ],
           undefined,
           { from: START },
@@ -219,7 +219,7 @@ export const squareLesson: Lesson = {
         hint: wandered
           ? 'Off the side. Get back on the line, do not cross the middle'
           : r.next === ROUTE.length - 1
-            ? 'Last side — close the square back at Corner A'
+            ? 'Last side: close the square back at Corner A'
             : `Fly the side to ${target.label}`,
         cue: cueBetween(from, target.at),
       };

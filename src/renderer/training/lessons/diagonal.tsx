@@ -37,12 +37,17 @@ import { ACADEMY_PAD } from '../../plugins/environments/droneAcademy';
 // the checkpoint, it now hangs in the middle of the circle, which is the thing
 // the pilot flies at.
 //
-// `tag` stays: the letter is gone from the arena, but the minimap still names
-// the checkpoint with it.
+// `tag` stays, but only for the MAP. The letter was still being painted in the
+// arena — twice, in fact: the ball writes the name in its own middle and the
+// guide hung a second badge over it — so the module that says it marks its gate
+// with a light was showing a light with an "A" stamped across it. `tagMapOnly`
+// is what the paragraph above always meant: nothing on the field, and the
+// minimap still names the checkpoint.
 const TARGET = gate('red-right', 'Red circle', {
   ease: 1.4,
   through: true,
   tag: 'A',
+  tagMapOnly: true,
   orb: true,
 });
 /** The height the run is flown at: the circle's own centre, so the pass goes
@@ -59,10 +64,10 @@ const START: readonly [number, number, number] = [
 
 const LEGS = [
   {
-    hint: 'Both sticks together — forward and right, held in the same balance',
+    hint: 'Both sticks together: forward and right, held in the same balance',
     cue: [...CUE.forward, ...CUE.right],
   },
-  { hint: 'Reverse both — back down the same diagonal', cue: [...CUE.backward, ...CUE.left] },
+  { hint: 'Reverse both, back down the same diagonal', cue: [...CUE.backward, ...CUE.left] },
 ];
 
 /** The arm and the take-off each get their own beat. Firing them together — the
@@ -78,10 +83,10 @@ const FLIGHT = planDemo(
     ROUTE,
     [
       {
-        caption: 'Forward and right together — one long diagonal',
+        caption: 'Forward and right together, one long diagonal',
         arrive: 'Straight through the middle of the circle',
       },
-      { caption: 'Reverse both — back down the same diagonal', arrive: 'Back over the "H"' },
+      { caption: 'Reverse both, back down the same diagonal', arrive: 'Back over the "H"' },
     ],
     0.45,
     { from: START },
@@ -123,14 +128,14 @@ export const diagonalLesson: Lesson = {
       stage: 0,
       cmd: 'arm',
       key: 'Enter',
-      caption: 'ENTER — armed and live, still on the ground',
+      caption: 'ENTER: armed and live, still on the ground',
     },
     {
       at: TAKEOFF_AT,
       stage: 1,
       cmd: 'takeoffLand',
       key: 'Space',
-      caption: "SPACE — it climbs to the circle's height on its own",
+      caption: "SPACE: it climbs to the circle's height on its own",
     },
     ...FLIGHT,
     {

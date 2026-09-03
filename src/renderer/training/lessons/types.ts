@@ -270,6 +270,19 @@ export interface Checkpoint {
    *  and needs it; the marker itself wants "B", because a phrase written across
    *  the deck beside a 0.9 m sphere is a phrase covering the field. */
   tag?: string;
+  /** Keep `tag` for the MINIMAP and write nothing in the arena.
+   *
+   *  A checkpoint already marked by a ball of light does not need its name
+   *  painted on it as well. Where there is ONE target and then the way home, the
+   *  exercise is the pass and a letter answers a question nobody is asking — the
+   *  ball already says where the hole is and, by going out, that it was taken.
+   *
+   *  The minimap is a different surface. It is a plan of the route rather than
+   *  the thing being flown at, and a plan reads better with its stops named, so
+   *  the name is kept and only the arena copy is dropped. Without this the two
+   *  had to be traded against each other: dropping `tag` to clear the field also
+   *  left the map with an unnamed dot. */
+  tagMapOnly?: boolean;
   /** Draw a lit sphere hanging in the middle of this checkpoint, which goes out
    *  as the drone passes through it.
    *

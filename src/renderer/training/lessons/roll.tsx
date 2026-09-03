@@ -57,11 +57,11 @@ const FLIGHT = afterPreflightDemo(
   planDemo(
     routeLegs(ROUTE, [
       {
-        caption: 'ROLL LEFT — slide out to the left marker',
+        caption: 'ROLL LEFT: slide out to the left marker',
         arrive: 'ROLL RIGHT to stop on it. Levelling off only coasts',
       },
       {
-        caption: 'ROLL RIGHT — straight across to the right marker',
+        caption: 'ROLL RIGHT: straight across to the right marker',
         arrive: 'ROLL LEFT again to stop on it. Both markers cleared',
       },
     ]),

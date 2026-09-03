@@ -56,12 +56,12 @@ export const throttleLesson: Lesson = {
     ...preflightDemo(),
     ...afterPreflightDemo([
       { at: 0.0, stage: 0, caption: 'Hovering at about 2 m. Now the drill' },
-      { at: 1.4, stick: { throttle: 0.34 }, key: 'KeyS', caption: 'Throttle DOWN — it comes down' },
+      { at: 1.4, stick: { throttle: 0.34 }, key: 'KeyS', caption: 'Throttle DOWN: it comes down' },
       {
         at: 3.8,
         stage: 1,
         stick: { throttle: 0.5 },
-        caption: 'Centre the stick — it holds height',
+        caption: 'Centre the stick: it holds height',
       },
       { at: 5.2, caption: 'Steady, about a metre up' },
       {
@@ -69,7 +69,7 @@ export const throttleLesson: Lesson = {
         stage: 2,
         stick: { throttle: 0.66 },
         key: 'KeyW',
-        caption: 'Throttle UP — the same stick, the other way',
+        caption: 'Throttle UP: the same stick, the other way',
       },
       { at: 8.4, stick: { throttle: 0.5 }, caption: 'Centre again, and it holds at the top' },
       { at: 10.0, stage: 3, cmd: 'takeoffLand', key: 'Space', caption: 'SPACE puts it back down' },
