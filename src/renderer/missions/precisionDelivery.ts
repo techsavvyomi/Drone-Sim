@@ -192,12 +192,22 @@ export const precisionDelivery: Mission = {
   kind: 'delivery',
   envId: 'new-york',
   blurb: 'Collect a medical package, fly it across the city, land it on the mark and come home.',
+  story:
+    'A medical package is waiting at a logistics station a few blocks west of the pad. It has to be across the city inside eight minutes, and the streets are not going to do it. You are the pilot.',
   flow: [
-    { label: 'Collect', note: 'Line up over the box, then descend' },
-    { label: 'Fly', note: 'Take all fourteen rings' },
-    { label: 'Deliver', note: 'Hold still on the yellow mark' },
-    { label: 'Come home', note: 'Land back on the pad' },
+    { label: 'Collect', note: 'Line up over the box, then descend', art: 'collect' },
+    { label: 'Fly', note: 'Take all fourteen rings', art: 'city' },
+    { label: 'Deliver', note: 'Hold still on the yellow mark', art: 'deliver' },
+    { label: 'Come home', note: 'Land back on the pad', art: 'land' },
   ],
+  objectives: [
+    'Collect the medical package from the pickup mark.',
+    'Carry it through all fourteen rings across the city.',
+    'Deliver it by holding still over the yellow mark.',
+    'Return to the pad you started from and land.',
+  ],
+  difficulty: 'Medium',
+  mapNote: 'Buildings and roads only',
   // Four lines, one per beat, in the order the pilot flies them. Short
   // sentences, and each one names the thing on screen it is about. Colours are
   // used only where they are unambiguous: the pickup mark and the home pad are

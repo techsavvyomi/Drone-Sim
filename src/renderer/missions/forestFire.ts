@@ -142,12 +142,22 @@ export const forestFire: Mission = {
   envId: 'forest',
   blurb:
     'Collect the suppression tank, cross the forest, hold a hover over the fire until it is out, then come home and land.',
+  story:
+    'A fire has taken hold deep in the forest, in a hollow the ground crews cannot reach. A suppression tank has been prepared at the emergency station on the road. Your job is to fly it out, put the fire down, and come back.',
   flow: [
-    { label: 'Collect', note: 'Descend onto the tank on the road' },
-    { label: 'Cross', note: 'Weave out through the trees' },
-    { label: 'Suppress', note: 'Hold your position over the fire' },
-    { label: 'Come home', note: 'Land back at the station' },
+    { label: 'Collect', note: 'Descend onto the tank on the road', art: 'collect' },
+    { label: 'Cross', note: 'Weave out through the trees', art: 'forest' },
+    { label: 'Suppress', note: 'Hold your position over the fire', art: 'suppress' },
+    { label: 'Come home', note: 'Land back at the station', art: 'land' },
   ],
+  objectives: [
+    'Collect the suppression tank at the emergency station.',
+    'Cross the forest and find the fire.',
+    'Hold your position over the fire until it is out.',
+    'Return to the emergency base and land safely.',
+  ],
+  difficulty: 'Medium-hard',
+  mapNote: 'Dense forest, uneven ground',
   briefing: [
     'A fire has taken hold deep in the woods, in a hollow the ground crews cannot reach. The suppression tank is waiting on the road ahead of you: line up over it, come down onto it and hold steady, and it clips on by itself.',
     'The fire is about 95 metres out, through the trees. There is no way over them: this aircraft tops out at 30 metres and the canopy stands higher than that. Five rings mark the widest line through the trunks, east along the old trail and then south. Take them or take your own way: they are worth a point each and they gate nothing.',

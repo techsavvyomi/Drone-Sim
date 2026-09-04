@@ -14,7 +14,7 @@ import {
 } from '../src/renderer/missions/types';
 import type { MissionResult } from '../src/renderer/missions/types';
 import { objectiveFor, useMissionStore } from '../src/renderer/state/missionStore';
-import { getDrone } from '../src/renderer/plugins/registry';
+import { getDrone, getEnvironment } from '../src/renderer/plugins/registry';
 import { loadBuiltinPlugins } from '../src/renderer/plugins';
 
 // Forest Fire Emergency: what makes it a DIFFERENT mission from the delivery,
@@ -259,4 +259,33 @@ describe('the coordinates', () => {
     const toTank = flatDist({ x: M.zones.base.at[0], z: M.zones.base.at[1] }, M.zones.pickup.at);
     expect(toTank).toBeLessThan(35);
   });
+});
+
+// The briefing card is shared by every mission, so what it needs is checked
+// across MISSIONS rather than against this one. A mission added without a story
+// or with three objectives instead of four does not fail to compile — it renders
+// a card with a hole in it, which is the kind of thing nobody sees until a pilot
+// does.
+describe('what the briefing card needs from a mission', () => {
+  for (const m of MISSIONS) {
+    it(`TC-241 ${m.id} carries a story, four beats and four objectives`, () => {
+      expect(m.story.length).toBeGreaterThan(60);
+      expect(m.flow).toHaveLength(4);
+      expect(m.objectives).toHaveLength(m.flow.length);
+      expect(m.difficulty).not.toBe('');
+      expect(m.mapNote).not.toBe('');
+      // Every beat names a scene the card knows how to draw. A key it does not
+      // know renders an empty box.
+      const drawable = ['collect', 'city', 'forest', 'deliver', 'suppress', 'land'];
+      for (const step of m.flow) expect(drawable).toContain(step.art);
+      // And every objective is a sentence rather than a label.
+      for (const line of m.objectives) expect(line).toMatch(/\.$/);
+    });
+
+    it(`TC-241 ${m.id} is flown on a registered map`, () => {
+      // The card names the map from its own spec, so an unregistered envId puts
+      // a raw id under the hero image.
+      expect(getEnvironment(m.envId)?.name).toBeTruthy();
+    });
+  }
 });

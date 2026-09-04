@@ -131,7 +131,22 @@ export interface MissionStep {
   label: string;
   /** A few words under it, in the pilot's language. */
   note: string;
+  /**
+   * Which picture the briefing draws over this beat.
+   *
+   * A KEY, not an image path. The briefing card wants a thumbnail per step and
+   * this app has no image assets at all — `src/assets` is models and nothing
+   * else, and a strict CSP means a texture cannot be fetched from anywhere. So
+   * each beat names a small scene the card draws in SVG: the package on its lit
+   * mark, the drone threading the towers, the tank open over the fire. Drawn
+   * rather than photographed also means they stay right when a mission's numbers
+   * move, which a screenshot would not.
+   */
+  art: MissionArt;
 }
+
+/** The scenes the briefing card knows how to draw. */
+export type MissionArt = 'collect' | 'city' | 'forest' | 'deliver' | 'suppress' | 'land';
 
 /** A line from Mission Control, played once when its leg begins. */
 export interface RadioLine {
@@ -192,8 +207,24 @@ export interface Mission {
   envId: string;
   /** One-line summary for the mission card. */
   blurb: string;
+  /**
+   * The situation, in two or three sentences, told rather than instructed.
+   *
+   * Separate from `briefing`, which is the how. This is the WHY, and it is the
+   * first thing on the card: a pilot who reads nothing else should still know
+   * what has happened and what is being asked of them.
+   */
+  story: string;
+  /** The job as four numbered lines, one per beat of `flow`. Whole sentences,
+   *  in the pilot's language — this is the part of the card most pilots read
+   *  instead of the prose. */
+  objectives: readonly string[];
   /** The briefing shown before launch, as short paragraphs. */
   briefing: string[];
+  /** One word for the card's difficulty tile. */
+  difficulty: string;
+  /** A few words under the map's name: what is out there. */
+  mapNote: string;
   /** The job in four beats, shown as a numbered row above the briefing. */
   flow: readonly MissionStep[];
   /** Seconds before the mission times out. */

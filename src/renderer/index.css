@@ -4972,36 +4972,143 @@ button {
 }
 /* ---- The briefing card ---------------------------------------------------
 
-   Two columns, and wider than the other cards. Read the flow row, then the
-   detail on the left with the numbers and the rubric on the right — the whole
-   job on one screen, with nothing to scroll past to reach Launch. */
+   The widest card in the app, and the only one that has to answer "what am I
+   about to do" from a standing start. Four regions, in the order a pilot asks
+   for them: the name and the story, the job as four illustrated beats, the
+   objectives, and the numbers. It is sized so all of it is on screen at once —
+   nothing worth reading should sit below the Launch button. */
 .ms-card.brief {
-  width: min(880px, 96%);
-  padding: 26px 30px 22px;
+  width: min(1180px, 97%);
+  padding: 22px 26px 18px;
   text-align: left;
 }
-.ms-brief-head {
-  text-align: center;
+
+/* The head: title on the left, the situation on the right. */
+.ms-brief-top {
+  display: grid;
+  grid-template-columns: 1fr minmax(300px, 0.85fr);
+  gap: 24px;
+  align-items: start;
   padding-bottom: 16px;
   border-bottom: 1px solid var(--line);
 }
-.ms-brief-head h2 {
-  margin: 6px 0 4px;
+.ms-brief-title h2 {
+  margin: 4px 0 2px;
+  font-size: 30px;
+  line-height: 1.1;
 }
 .ms-brief-sub {
   margin: 0;
-  font-size: 13.5px;
+  font-size: 14px;
+  color: var(--text-dim);
+}
+.ms-story {
+  display: flex;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgba(56, 189, 248, 0.05);
+}
+.ms-story-icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 34px;
+  height: 34px;
+  border-radius: 8px;
+  background: rgba(56, 189, 248, 0.14);
+  font-size: 15px;
+}
+.ms-story b {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+.ms-story p {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--text-dim);
+}
+
+/* The body: the map down the left, everything else to the right of it. */
+.ms-brief-body {
+  display: grid;
+  grid-template-columns: 232px 1fr;
+  gap: 20px;
+  margin-top: 18px;
+  align-items: stretch;
+}
+.ms-brief-main {
+  min-width: 0;
+}
+
+/* The hero. A drawn map rather than a screenshot — see hud/MissionArt.tsx for
+   why this app cannot have photographs on this card. */
+.ms-hero {
+  position: relative;
+  margin: 0;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--bg-2);
+  min-height: 300px;
+}
+.ms-hero-art {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.ms-hero figcaption {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  /* A scrim, so the caption is legible over whatever the drawing puts behind
+     it — the skyline is busiest exactly along the bottom. */
+  background: linear-gradient(to top, rgba(7, 11, 18, 0.95), rgba(7, 11, 18, 0));
+}
+.ms-hero-pin {
+  color: var(--accent);
+  font-size: 15px;
+}
+.ms-hero figcaption i {
+  display: block;
+  font-style: normal;
+  font-size: 9px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+.ms-hero figcaption b {
+  display: block;
+  font-size: 15px;
+  font-weight: 800;
+}
+.ms-hero figcaption em {
+  display: block;
+  font-style: normal;
+  font-size: 11px;
   color: var(--text-dim);
 }
 
 /* The job in four beats. A row of numbered steps with a hairline running
    between them: it reads as a sequence rather than as four separate chips,
-   which is the one thing the briefing has to say before anything else. */
+   which is the one thing the briefing has to say before anything else. Each one
+   now carries a drawn thumbnail of what that beat looks like from the air. */
 .ms-flow {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 10px;
-  margin: 18px 0 20px;
+  gap: 12px;
+  margin: 0 0 18px;
   padding: 0;
   list-style: none;
 }
@@ -5041,27 +5148,137 @@ button {
 }
 .ms-flow b {
   margin-top: 4px;
-  font-size: 12px;
+  font-size: 11.5px;
   font-weight: 800;
   letter-spacing: 0.14em;
   text-transform: uppercase;
 }
 .ms-flow i {
   font-style: normal;
-  font-size: 11.5px;
+  font-size: 11px;
+  line-height: 1.35;
+  color: var(--text-dim);
+}
+.ms-flow-art {
+  display: block;
+  width: 100%;
+  margin-top: 8px;
+  aspect-ratio: 120 / 76;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--bg-2);
+}
+.ms-art {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* The objectives: the part of the card most pilots read instead of the prose,
+   so it gets the numbering and the prose gets the smaller type under it. */
+.ms-panel-head {
+  display: block;
+  margin-bottom: 10px;
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+.ms-objectives {
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.02);
+}
+.ms-objectives ol {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+.ms-objectives li {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  font-size: 13.5px;
+  line-height: 1.45;
+}
+/* One ring per beat, in that beat's own colour, so the objective, the marker in
+   the world and the step above it are recognisably the same thing. */
+.ms-obj-num {
+  display: grid;
+  place-items: center;
+  flex: 0 0 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1px solid currentColor;
+  font-size: 10.5px;
+  font-weight: 800;
+}
+.ms-obj-num.n1 {
+  color: #ff17dd;
+}
+.ms-obj-num.n2 {
+  color: var(--accent);
+}
+.ms-obj-num.n3 {
+  color: var(--warn);
+}
+.ms-obj-num.n4 {
+  color: var(--good);
+}
+
+/* Four numbers in a two-by-two block. Bigger than the old three-across row,
+   because on a card this wide three tiles read as a caption strip. */
+.ms-tiles {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.ms-tiles div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 11px 13px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.02);
+}
+.ms-tiles b {
+  font-size: 21px;
+  font-weight: 800;
+  line-height: 1.1;
+}
+.ms-tiles .ms-tile-word {
+  font-size: 15px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.ms-tiles span {
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
   color: var(--text-dim);
 }
 
 .ms-brief-cols {
   display: grid;
-  grid-template-columns: 1.35fr 1fr;
-  gap: 24px;
+  grid-template-columns: 1.3fr minmax(260px, 0.9fr);
+  gap: 16px;
   align-items: start;
 }
+.ms-brief {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
 .ms-brief p {
-  margin: 0 0 12px;
-  font-size: 14px;
-  line-height: 1.7;
+  margin: 0 0 9px;
+  font-size: 12.5px;
+  line-height: 1.6;
   color: var(--text-dim);
   text-align: left;
 }
@@ -5079,45 +5296,23 @@ button {
   flex-direction: column;
   gap: 14px;
 }
-.ms-brief-facts {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 2px;
-  margin: 0;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  overflow: hidden;
-  background: var(--line);
-}
-.ms-brief-facts div {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
-  padding: 12px 6px;
-  background: rgba(255, 255, 255, 0.02);
-}
-.ms-brief-facts b {
-  font-size: 20px;
-  font-weight: 800;
-}
-.ms-brief-facts span {
-  font-size: 9px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--text-dim);
-  text-align: center;
-  line-height: 1.35;
-}
-
 .ms-brief-foot {
-  display: flex;
-  flex-direction: column;
+  /* Back on the left, Launch dead centre, the hint on the right — the shape of
+     every "are you ready" screen, and it keeps the primary action in the middle
+     of a card this wide rather than at the end of a row. */
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  gap: 8px;
-  margin-top: 20px;
-  padding-top: 18px;
+  gap: 12px;
+  margin-top: 16px;
+  padding-top: 14px;
   border-top: 1px solid var(--line);
+}
+.ms-brief-foot .ms-btn.ghost {
+  justify-self: start;
+}
+.ms-brief-foot .ms-brief-hint {
+  justify-self: end;
 }
 .ms-brief-hint {
   font-size: 11px;
@@ -5156,7 +5351,7 @@ button {
   border-radius: 10px;
   background: rgba(255, 255, 255, 0.02);
 }
-.ms-rubric > b {
+.ms-rubric b:first-child {
   display: block;
   margin-bottom: 8px;
   font-size: 10px;
@@ -5277,6 +5472,15 @@ button {
   min-width: 260px;
   padding: 12px 22px;
   font-size: 14px;
+}
+.ms-btn.ghost {
+  background: none;
+  border-color: transparent;
+  padding-left: 8px;
+}
+.ms-btn.ghost:hover {
+  border-color: var(--line);
+  background: rgba(255, 255, 255, 0.04);
 }
 .ms-btn.primary {
   background: var(--accent-2);

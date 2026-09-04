@@ -8,6 +8,8 @@ import { playClick, playStar, playSuccess } from '../audio/sfx';
 import { RAD2DEG } from '../sim/mathx';
 import { useModalKeyLock } from '../input/useModalKeyLock';
 import { MissionMap } from './MissionMap';
+import { MissionHero, StepArt } from './MissionArt';
+import { getEnvironment } from '../plugins/registry';
 
 // ----------------------------------------------------------------------------
 // The mission overlay.
@@ -192,6 +194,9 @@ export function MissionHud() {
   // pilot plans the flight around. Forest Fire's rings gate nothing, so its card
   // says how many there are to collect instead of how many are compulsory.
   const required = requiredCheckpoints(mission).length;
+  // The map's name comes from its own spec rather than from the mission, so a
+  // renamed environment renames itself on every briefing that flies it.
+  const mapName = getEnvironment(mission.envId)?.name ?? mission.envId;
   const remaining = Math.max(0, mission.timeLimitSec - elapsed);
   const lowOnTime = remaining <= 45;
 
@@ -241,68 +246,144 @@ export function MissionHud() {
           underneath as detail, and the numbers and the rubric stand beside it
           instead of below it, which is what keeps the whole thing on screen
           without scrolling. */}
+      {/* The briefing — the only card that stands between the pilot and the map
+          before the clock starts, and the only screen in the app that has to
+          answer "what am I about to do" from a standing start.
+
+          Four regions, in the order a pilot actually asks for them: WHO/WHAT at
+          the top with the story beside it, the JOB as four illustrated beats,
+          then the objectives on the left with the numbers and the rubric on the
+          right. Everything sits on one screen; nothing has to be scrolled past
+          to reach Launch.
+
+          It used to be four paragraphs of prose stacked over a row of numbers,
+          which made the pilot read to find out what the job even was — and most
+          of them will not. The prose is still here, under the objectives, where
+          it is detail rather than the front door. */}
       {phase === 'briefing' && (
         <div className="ms-center">
           <div className="ms-card brief" ref={cardRef}>
-            <header className="ms-brief-head">
-              <span className="ms-card-tag">Mission {mission.order} · Briefing</span>
-              <h2>{mission.name}</h2>
-              <p className="ms-brief-sub">{mission.subtitle}</p>
-            </header>
-
-            {/* The job in four beats, before a word of prose. */}
-            <ol className="ms-flow">
-              {mission.flow.map((step, i) => (
-                <li key={step.label}>
-                  <span className="ms-flow-num">{i + 1}</span>
-                  <b>{step.label}</b>
-                  <i>{step.note}</i>
-                </li>
-              ))}
-            </ol>
-
-            <div className="ms-brief-cols">
-              <div className="ms-brief">
-                {mission.briefing.map((line, i) => (
-                  <p key={i}>{line}</p>
-                ))}
+            <header className="ms-brief-top">
+              <div className="ms-brief-title">
+                <span className="ms-card-tag">Mission {mission.order} · Briefing</span>
+                <h2>{mission.name}</h2>
+                <p className="ms-brief-sub">{mission.subtitle}</p>
               </div>
-
-              <aside className="ms-brief-side">
-                <div className="ms-brief-facts">
-                  <div>
-                    <b>{maxPoints}</b>
-                    <span>points to collect</span>
-                  </div>
-                  <div>
-                    <b>{clock(mission.timeLimitSec)}</b>
-                    <span>time to do it in</span>
-                  </div>
-                  <div>
-                    <b>{fire ? mission.route.length : required}</b>
-                    <span>{fire ? 'rings, all optional' : 'rings, all of them'}</span>
-                  </div>
-                </div>
-
-                <div className="ms-rubric">
-                  <b>How you earn your stars</b>
-                  {mission.ranks.map((r) => (
-                    <div key={r.stars} className="ms-rubric-row">
-                      <span className="ms-rubric-stars">
-                        {[1, 2, 3].map((i) => (
-                          <span key={i} className={i <= r.stars ? 'on' : ''}>
-                            ★
-                          </span>
-                        ))}
-                      </span>
-                      <span>{r.text}</span>
-                    </div>
-                  ))}
+              {/* The situation, told rather than instructed. The one thing on
+                  this card a pilot who reads nothing else should still take in. */}
+              <aside className="ms-story">
+                <span className="ms-story-icon" aria-hidden="true">
+                  {fire ? '🔥' : '✚'}
+                </span>
+                <div>
+                  <b>The story</b>
+                  <p>{mission.story}</p>
                 </div>
               </aside>
+            </header>
+
+            <div className="ms-brief-body">
+              {/* The map, drawn rather than photographed — see MissionArt. */}
+              <figure className="ms-hero">
+                <MissionHero envId={mission.envId} />
+                <figcaption>
+                  <span className="ms-hero-pin" aria-hidden="true">
+                    ◎
+                  </span>
+                  <span>
+                    <i>Map</i>
+                    <b>{mapName}</b>
+                    <em>{mission.mapNote}</em>
+                  </span>
+                </figcaption>
+              </figure>
+
+              <div className="ms-brief-main">
+                {/* The job in four beats, before a word of prose. */}
+                <ol className="ms-flow">
+                  {mission.flow.map((step, i) => (
+                    <li key={step.label}>
+                      <span className="ms-flow-num">{i + 1}</span>
+                      <b>{step.label}</b>
+                      <i>{step.note}</i>
+                      <span className="ms-flow-art">
+                        <StepArt art={step.art} />
+                      </span>
+                    </li>
+                  ))}
+                </ol>
+
+                <div className="ms-brief-cols">
+                  <section className="ms-objectives">
+                    <b className="ms-panel-head">Mission objectives</b>
+                    <ol>
+                      {mission.objectives.map((line, i) => (
+                        <li key={line}>
+                          <span className={`ms-obj-num n${i + 1}`}>{i + 1}</span>
+                          {line}
+                        </li>
+                      ))}
+                    </ol>
+                    {/* The detail, under the summary rather than in front of it.
+                        It carries the rules a pilot cannot work out from the
+                        objectives — the release gate, the ceiling, the hold. */}
+                    <div className="ms-brief">
+                      {mission.briefing.map((line, i) => (
+                        <p key={i}>{line}</p>
+                      ))}
+                    </div>
+                  </section>
+
+                  <aside className="ms-brief-side">
+                    <div className="ms-tiles">
+                      <div>
+                        <b>{maxPoints}</b>
+                        <span>Points to collect</span>
+                      </div>
+                      <div>
+                        <b>{clock(mission.timeLimitSec)}</b>
+                        <span>Time limit</span>
+                      </div>
+                      <div>
+                        <b>{fire ? mission.route.length : required}</b>
+                        <span>{fire ? 'Rings, all optional' : 'Rings, all of them'}</span>
+                      </div>
+                      <div>
+                        <b className="ms-tile-word">{mission.difficulty}</b>
+                        <span>Difficulty</span>
+                      </div>
+                    </div>
+
+                    <div className="ms-rubric">
+                      <b>Star rating</b>
+                      {mission.ranks.map((r) => (
+                        <div key={r.stars} className="ms-rubric-row">
+                          <span className="ms-rubric-stars">
+                            {[1, 2, 3].map((i) => (
+                              <span key={i} className={i <= r.stars ? 'on' : ''}>
+                                ★
+                              </span>
+                            ))}
+                          </span>
+                          <span>{r.text}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </aside>
+                </div>
+              </div>
             </div>
 
             <footer className="ms-brief-foot">
+              <button
+                className="ms-btn ghost"
+                onClick={() => {
+                  playClick();
+                  exit();
+                }}
+              >
+                ‹ Back
+              </button>
               <button
                 className="ms-btn primary wide"
                 onClick={() => {
@@ -318,11 +399,10 @@ export function MissionHud() {
                   beginFlight();
                 }}
               >
-                ▶ Launch
+                ▶ Launch Mission
               </button>
               <span className="ms-brief-hint">
-                Take your time reading this: the clock only starts when you launch. <kbd>Esc</kbd>{' '}
-                to leave.
+                Press <kbd>Esc</kbd> to leave
               </span>
             </footer>
           </div>
