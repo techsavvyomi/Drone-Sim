@@ -200,6 +200,11 @@ export const precisionDelivery: Mission = {
     { label: 'Deliver', note: 'Hold still on the yellow mark', art: 'deliver' },
     { label: 'Come home', note: 'Land back on the pad', art: 'land' },
   ],
+  // Four lines, one per beat, in the order the pilot flies them. Short
+  // sentences, and each one names the thing on screen it is about. Colours are
+  // used only where they are unambiguous: the pickup mark and the home pad are
+  // BOTH green, so home is "the pad you started from" rather than "the green
+  // mark", which was sending pilots to the wrong end of the city.
   objectives: [
     'Collect the medical package from the pickup mark.',
     'Carry it through all fourteen rings across the city.',
@@ -208,17 +213,6 @@ export const precisionDelivery: Mission = {
   ],
   difficulty: 'Medium',
   mapNote: 'Buildings and roads only',
-  // Four lines, one per beat, in the order the pilot flies them. Short
-  // sentences, and each one names the thing on screen it is about. Colours are
-  // used only where they are unambiguous: the pickup mark and the home pad are
-  // both green, so home is "the pad you started from" rather than "the green
-  // mark", which was the briefing sending pilots to the wrong end of the city.
-  briefing: [
-    'The package is waiting on the pickup mark. Line the drone up directly over the box, come down onto it and hold steady: it clips on by itself.',
-    'Fly through all fourteen pink rings on the way. Every one of them has to be taken, or the package will not let go at the drop.',
-    'The drop is the yellow mark. Come down over it and hold still, and the package goes down: that is point 15.',
-    'Then fly back to the pad you started from and land. That is point 16, and the run is complete.',
-  ],
   timeLimitSec: 480,
   parTimeSec: 300,
   groundY: 0,

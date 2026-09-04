@@ -324,14 +324,6 @@ export function MissionHud() {
                         </li>
                       ))}
                     </ol>
-                    {/* The detail, under the summary rather than in front of it.
-                        It carries the rules a pilot cannot work out from the
-                        objectives — the release gate, the ceiling, the hold. */}
-                    <div className="ms-brief">
-                      {mission.briefing.map((line, i) => (
-                        <p key={i}>{line}</p>
-                      ))}
-                    </div>
                   </section>
 
                   <aside className="ms-brief-side">

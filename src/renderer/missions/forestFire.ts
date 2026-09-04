@@ -158,12 +158,6 @@ export const forestFire: Mission = {
   ],
   difficulty: 'Medium-hard',
   mapNote: 'Dense forest, uneven ground',
-  briefing: [
-    'A fire has taken hold deep in the woods, in a hollow the ground crews cannot reach. The suppression tank is waiting on the road ahead of you: line up over it, come down onto it and hold steady, and it clips on by itself.',
-    'The fire is about 95 metres out, through the trees. There is no way over them: this aircraft tops out at 30 metres and the canopy stands higher than that. Five rings mark the widest line through the trunks, east along the old trail and then south. Take them or take your own way: they are worth a point each and they gate nothing.',
-    'The fire has burned a clear column through the canopy above it, so the last stretch is a descent into the open. Get centred, come down into the marked height band and stop. The tank opens on its own and the fire starts going out. Hold it there for ten seconds. Drift off the mark and the spray stops, but nothing you have already put out comes back.',
-    'When the fire is out, fly back to the station and land. That is the last point, and the run is complete.',
-  ],
   // Longer than the city's, and it needs to be: this crossing includes a climb
   // to forty metres and a descent into a hollow, on a stick softened to 55%.
   timeLimitSec: 420,

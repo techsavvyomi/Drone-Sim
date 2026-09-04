@@ -210,17 +210,17 @@ export interface Mission {
   /**
    * The situation, in two or three sentences, told rather than instructed.
    *
-   * Separate from `briefing`, which is the how. This is the WHY, and it is the
-   * first thing on the card: a pilot who reads nothing else should still know
-   * what has happened and what is being asked of them.
+   * The WHY, and the first thing on the card. The HOW used to sit beside it as
+   * four paragraphs of `briefing` prose; it is gone, because nobody read it. A
+   * pilot arrives at this card wanting to fly, and what they take in is the
+   * story, the four beats and the objectives — so those three now have to carry
+   * the mission on their own.
    */
   story: string;
   /** The job as four numbered lines, one per beat of `flow`. Whole sentences,
    *  in the pilot's language — this is the part of the card most pilots read
    *  instead of the prose. */
   objectives: readonly string[];
-  /** The briefing shown before launch, as short paragraphs. */
-  briefing: string[];
   /** One word for the card's difficulty tile. */
   difficulty: string;
   /** A few words under the map's name: what is out there. */

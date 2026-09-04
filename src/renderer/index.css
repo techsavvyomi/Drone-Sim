@@ -5276,27 +5276,6 @@ button {
   gap: 16px;
   align-items: start;
 }
-.ms-brief {
-  margin-top: 12px;
-  padding-top: 12px;
-  border-top: 1px solid var(--line);
-}
-.ms-brief p {
-  margin: 0 0 9px;
-  font-size: 12.5px;
-  line-height: 1.6;
-  color: var(--text-dim);
-  text-align: left;
-}
-.ms-brief p:last-child {
-  margin-bottom: 0;
-}
-/* The first line carries the one rule a pilot most often gets wrong, so it is
-   the one line that is not grey. */
-.ms-brief p:first-child {
-  color: var(--text);
-}
-
 .ms-brief-side {
   display: flex;
   flex-direction: column;
