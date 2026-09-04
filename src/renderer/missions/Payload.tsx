@@ -226,12 +226,12 @@ export function Payload({ mission }: { mission: Mission }) {
         <boxGeometry args={[size, size, size]} />
         <meshStandardMaterial color="#f2f4f5" roughness={0.7} metalness={0} />
       </mesh>
-      {/* A band round the middle, so a white cube still has an edge against a
-          bright sky. */}
-      <mesh>
-        <boxGeometry args={[size * 1.01, size * 0.14, size * 1.01]} />
-        <meshStandardMaterial color="#c8d0d6" roughness={0.6} />
-      </mesh>
+      {/* No band round the middle. It was a grey strap standing 1% proud of the
+          shell, there to give a white cube an edge against a bright sky — and it
+          ran straight through the waist of the red cross on all four side faces,
+          so the marking on a medical case read as a box someone had taped shut.
+          The cross is the thing that says what is being carried; nothing gets to
+          cross it. The shell keeps its edge from its own shading. */}
       {/* The cross, on all six faces — the box tumbles when it is dropped and
           spins on its mark, so there is no face that can afford to be blank.
           Two flat bars per face rather than a texture: no canvas, no upload, and
