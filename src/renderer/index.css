@@ -5062,6 +5062,11 @@ button {
   inset: 0;
   width: 100%;
   height: 100%;
+  /* `cover` on the photograph and `slice` on the drawing are the same rule: fill
+     the box from the centre and let the edges go. The two have to crop
+     identically or a mission with art and one without would not be the same
+     card. */
+  object-fit: cover;
 }
 .ms-hero figcaption {
   position: absolute;
@@ -5173,6 +5178,7 @@ button {
   display: block;
   width: 100%;
   height: 100%;
+  object-fit: cover;
 }
 
 /* The objectives: the part of the card most pilots read instead of the prose,

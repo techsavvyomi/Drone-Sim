@@ -4,25 +4,71 @@ import type { MissionArt as ArtKey } from '../missions/types';
 // ----------------------------------------------------------------------------
 // The briefing card's pictures.
 //
-// DRAWN, not photographed, and that is a constraint rather than a preference:
-// this app ships no image assets at all — `src/assets` is drone and map models
-// and nothing else — and a strict CSP means nothing can be fetched from
-// anywhere either. A briefing card that wanted five screenshots would need five
-// files nobody has.
+// A PHOTOGRAPH IF THERE IS ONE, A DRAWING IF THERE IS NOT.
 //
-// Drawn also stays TRUE. A screenshot of the drop zone is wrong the moment the
-// drop zone moves, and silently: nothing in a diff or a typecheck notices that
-// the picture on the card is of a mission that no longer exists. These say what
-// each beat IS — a package on a lit mark, a drone threading towers, a tank open
-// over a fire — which is what the pilot needs from a thumbnail and what does not
-// go stale.
+// Real art goes in `src/assets/missions/` and is picked up by filename — see the
+// README in there. Nothing has to be imported or registered: this file globs the
+// folder at build time, so adding a mission's five pictures is five files and no
+// code. They are BUNDLED rather than fetched, because a strict CSP blocks every
+// external URL (see docs/invariants.md) — the glob is what makes that painless.
 //
-// Every one of them is inline SVG using the app's own palette, so they cost one
-// element each and follow the theme.
+// Everything with no file falls back to a drawn SVG scene, and that fallback is
+// not a placeholder to be embarrassed about:
+//
+//   1. A mission added later is never BROKEN by not having art yet. The card is
+//      never half empty, which is the state a briefing can least afford.
+//   2. A drawing stays TRUE. A screenshot of the drop zone is wrong the moment
+//      the drop zone moves, and silently — nothing in a diff or a typecheck
+//      notices that the picture on the card is of a mission that no longer
+//      exists. The scenes say what each beat IS: a package on a lit mark, a
+//      drone threading towers, a tank open over a fire.
+//
+// Every scene is inline SVG using the app's own palette, so it costs one element
+// and follows the theme.
 // ----------------------------------------------------------------------------
 
-/** One drawn scene, sized to fill whatever box it is put in. */
-export function StepArt({ art }: { art: ArtKey }) {
+/**
+ * Every picture in `src/assets/missions/`, keyed by its bare filename.
+ *
+ * Eager and URL-only: Vite resolves each match to an emitted asset path at build
+ * time, so this is a plain string map at runtime with no dynamic import and no
+ * request the CSP could object to. An empty folder gives an empty map, which is
+ * exactly the fallback path below.
+ */
+const ART = import.meta.glob('../../assets/missions/*.{png,jpg,jpeg,webp}', {
+  eager: true,
+  query: '?url',
+  import: 'default',
+}) as Record<string, string>;
+
+const BY_NAME = new Map<string, string>(
+  Object.entries(ART).map(([path, url]) => [
+    // '../../assets/missions/forest-fire-2.jpg' -> 'forest-fire-2'
+    path.slice(path.lastIndexOf('/') + 1).replace(/\.[^.]+$/, ''),
+    url,
+  ]),
+);
+
+/**
+ * The file for one slot, or undefined.
+ *
+ * `<mission id>-hero` for the tall picture and `<mission id>-1`..`-4` for the
+ * flow row. Matching on the mission's OWN id rather than on a field in the
+ * mission means the art cannot drift from the mission it belongs to, and a
+ * mission that has no art simply finds nothing.
+ */
+export function missionImage(missionId: string, slot: 'hero' | number): string | undefined {
+  return BY_NAME.get(`${missionId}-${slot}`);
+}
+
+/**
+ * One beat's picture: the supplied photograph, or the drawn scene for its key.
+ *
+ * Both fill the same box the same way, so a mission with art and a mission
+ * without sit side by side in the list without the row changing shape.
+ */
+export function StepArt({ art, src }: { art: ArtKey; src?: string }) {
+  if (src) return <img className="ms-art" src={src} alt="" />;
   return (
     <svg
       className="ms-art"
@@ -232,10 +278,12 @@ const SCENES: Record<ArtKey, () => ReactElement> = {
 /**
  * The big picture down the left of the card: the map the mission is flown on.
  *
- * One per environment, and it falls back to the city rather than to nothing —
- * a briefing with a hole in it is worse than a briefing with a generic skyline.
+ * The mission's own picture if it has one. Otherwise a drawing, one per
+ * environment, falling back to the city rather than to nothing — a briefing with
+ * a hole in it is worse than a briefing with a generic skyline.
  */
-export function MissionHero({ envId }: { envId: string }) {
+export function MissionHero({ envId, src }: { envId: string; src?: string }) {
+  if (src) return <img className="ms-hero-art" src={src} alt="" />;
   return (
     <svg
       className="ms-hero-art"

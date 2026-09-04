@@ -8,7 +8,7 @@ import { playClick, playStar, playSuccess } from '../audio/sfx';
 import { RAD2DEG } from '../sim/mathx';
 import { useModalKeyLock } from '../input/useModalKeyLock';
 import { MissionMap } from './MissionMap';
-import { MissionHero, StepArt } from './MissionArt';
+import { MissionHero, StepArt, missionImage } from './MissionArt';
 import { getEnvironment } from '../plugins/registry';
 
 // ----------------------------------------------------------------------------
@@ -285,7 +285,7 @@ export function MissionHud() {
             <div className="ms-brief-body">
               {/* The map, drawn rather than photographed — see MissionArt. */}
               <figure className="ms-hero">
-                <MissionHero envId={mission.envId} />
+                <MissionHero envId={mission.envId} src={missionImage(mission.id, 'hero')} />
                 <figcaption>
                   <span className="ms-hero-pin" aria-hidden="true">
                     ◎
@@ -307,7 +307,7 @@ export function MissionHud() {
                       <b>{step.label}</b>
                       <i>{step.note}</i>
                       <span className="ms-flow-art">
-                        <StepArt art={step.art} />
+                        <StepArt art={step.art} src={missionImage(mission.id, i + 1)} />
                       </span>
                     </li>
                   ))}
