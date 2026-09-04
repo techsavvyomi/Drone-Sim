@@ -1,7 +1,7 @@
 import { useSettingsStore } from '../state/settingsStore';
 import { useMissionStore } from '../state/missionStore';
 import { MissionViewport } from '../missions/MissionViewport';
-import { MISSIONS } from '../missions/precisionDelivery';
+import { MISSIONS } from '../missions';
 import { maxPointsOf } from '../missions/types';
 import { playClick } from '../audio/sfx';
 
@@ -56,8 +56,8 @@ export function MissionScreen() {
               classroom, doing a job with a clock on it. */}
           <h1 className="section-title">Pluto Field Ops</h1>
           <p className="section-lede">
-            Real jobs over a real city. Fly them however you like. The checkpoints pay, they do not
-            steer.
+            Real jobs, over a real city and out in the woods. Fly them however you like. The
+            checkpoints pay, they do not steer.
           </p>
         </div>
         <div className="journey-stats">
@@ -83,8 +83,7 @@ export function MissionScreen() {
         {MISSIONS.map((m, i) => {
           const done = progress[m.id];
           // Same rule as the school's: the first is open, the rest wait on the
-          // one before. With a single mission today it never locks anything —
-          // it is here so the second one behaves the moment it is added.
+          // one before.
           const unlocked = i === 0 || !!progress[MISSIONS[i - 1].id]?.completed;
           const completed = !!done?.completed;
           const state = completed ? 'done' : unlocked ? 'current' : 'locked';

@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import type { MissionProgress } from '@shared/types';
-import type { Mission, MissionResult, MissionZoneKind } from '../missions/types';
+import type { Mission, MissionKind, MissionResult, MissionZoneKind } from '../missions/types';
 import { maxPointsOf, rankFor } from '../missions/types';
 import { useSettingsStore } from './settingsStore';
 
@@ -118,6 +118,20 @@ interface MissionState {
   gate: { left: number; total: number };
   collisions: number;
 
+  /**
+   * How much of the fire is left, 1 down to 0. Suppression missions only.
+   *
+   * Published rather than derived from the hold timer, because it is not the
+   * same number: the hold RESETS when the pilot drifts off the mark and the
+   * fire does not. A fire that jumped back to full every time the drone slid
+   * two metres would make a ten second hover a thing nobody finishes, and the
+   * brief is explicit that leaving the zone pauses the suppression.
+   */
+  fireIntensity: number;
+  /** Whether the tank is actually spraying this frame — the spray plume, the
+   *  HUD's live readout and the fire's own hiss all read it. */
+  suppressing: boolean;
+
   result: CompletedResult | null;
   failReason: FailReason | null;
 
@@ -140,6 +154,7 @@ interface MissionState {
   setFlightData: (d: { distance: number; altitude: number; bearing: number }) => void;
   setChecks: (checks: DeliveryChecks) => void;
   setGate: (gate: { left: number; total: number }) => void;
+  setFire: (fire: { fireIntensity: number; suppressing: boolean }) => void;
   setElapsed: (elapsed: number) => void;
   setCollisions: (collisions: number) => void;
   finish: (r: MissionResult) => void;
@@ -166,6 +181,11 @@ function freshAttempt() {
     checks: NO_CHECKS,
     gate: { left: 0, total: 0 },
     collisions: 0,
+    // A fresh attempt is a fire burning at full. It has to be reset here with
+    // everything else: a retry that kept the last run's intensity would open on
+    // a fire the pilot had already half put out.
+    fireIntensity: 1,
+    suppressing: false,
     result: null,
     failReason: null,
   };
@@ -236,6 +256,7 @@ export const useMissionStore = create<MissionState>((set, get) => ({
   setFlightData: (d) => set(d),
   setChecks: (checks) => set({ checks }),
   setGate: (gate) => set({ gate }),
+  setFire: (fire) => set(fire),
   setElapsed: (elapsed) => set({ elapsed }),
   setCollisions: (collisions) => set({ collisions }),
 
@@ -243,10 +264,18 @@ export const useMissionStore = create<MissionState>((set, get) => ({
     const mission = get().mission;
     const stars = mission ? rankFor(mission.ranks, r) : 1;
     if (mission) record(mission.id, r, stars);
-    set({ phase: 'complete', leg: 'complete', banner: null, result: { ...r, stars } });
+    // The tank is shut off with the flight. `suppressing` drives a plume in the
+    // world, and the world is still being rendered behind the result card.
+    set({
+      phase: 'complete',
+      leg: 'complete',
+      banner: null,
+      suppressing: false,
+      result: { ...r, stars },
+    });
   },
 
-  fail: (reason) => set({ phase: 'failed', banner: null, failReason: reason }),
+  fail: (reason) => set({ phase: 'failed', banner: null, suppressing: false, failReason: reason }),
 }));
 
 /**
@@ -308,15 +337,25 @@ export function activeZone(leg: MissionLeg): MissionZoneKind | null {
   return null;
 }
 
-/** The objective line, in the pilot's words. One sentence, no punctuation games. */
-export function objectiveFor(leg: MissionLeg): string {
+/**
+ * The objective line, in the pilot's words. One sentence, no punctuation games.
+ *
+ * Written per KIND rather than per mission. The state machine is the same on
+ * both — collect, cross, hold, come home, land — and what changes is only what
+ * the holding is for, so two short tables say it without either mission having
+ * to carry seven strings of its own.
+ */
+export function objectiveFor(leg: MissionLeg, kind: MissionKind = 'delivery'): string {
+  const fire = kind === 'suppression';
   switch (leg) {
     case 'toPickup':
-      return 'Fly to the pickup location.';
+      return fire ? 'Collect the firefighting payload.' : 'Fly to the pickup location.';
     case 'carrying':
-      return 'Deliver the payload to the marked location.';
+      return fire
+        ? 'Reach the fire zone and suppress the fire.'
+        : 'Deliver the payload to the marked location.';
     case 'toDrop':
-      return 'Centre over the drop mark and descend.';
+      return fire ? 'Hold your position over the fire.' : 'Centre over the drop mark and descend.';
     case 'delivered':
       return 'Return to base.';
     case 'returning':

@@ -9,6 +9,7 @@ import {
   requiredCheckpoints,
   requiredLeft,
   nextTargetOf,
+  zoneGroundY,
   type Mission,
   type MissionZone,
 } from './types';
@@ -46,6 +47,17 @@ const CALL_FAR = 150;
 const CALL_NEAR = 75;
 const CALL_APPROACH = 40;
 
+/**
+ * How much further out than the arrival circle the pilot has to drift before the
+ * mission decides they have LEFT.
+ *
+ * Entering and leaving on the same circle means a drone sitting on the boundary
+ * changes leg every frame, which flickers the objective line and re-arms every
+ * banner behind it. The delivery has the same gap between its two numbers for
+ * the same reason.
+ */
+const LEAVE_HYSTERESIS = 1.35;
+
 /** How close to base counts as "over the pad", metres. Wider than the landing
  *  zone itself: this only decides when the pilot is TOLD to land. */
 const BASE_CALL_R = 9;
@@ -72,11 +84,14 @@ interface ZoneProbe {
   ok: boolean;
 }
 
-function probeZone(zone: MissionZone, groundY: number): ZoneProbe {
+function probeZone(mission: Mission, zone: MissionZone): ZoneProbe {
   const sim = useSimStore.getState();
   const p = dronePose.position;
   const flat = flatDist(p, zone.at);
-  const agl = p.y - groundY;
+  // Against THIS zone's deck, not the mission's. On the forest the fire burns
+  // twelve and a half metres below the clearing the pilot launched from, and a
+  // band measured off the clearing is a hover under the terrain.
+  const agl = p.y - zoneGroundY(mission, zone);
   const centred = flat <= zone.radius;
   const inBand = agl >= zone.band.min && agl <= zone.band.max;
   const steady =
@@ -94,6 +109,14 @@ export function MissionDirector() {
   const dropHold = useRef(0);
   /** How long the drone has been down and still, seconds. */
   const landHold = useRef(0);
+  /** Seconds of suppression served, on a fire mission. Unlike `dropHold` this
+   *  does NOT reset when the pilot drifts off: the fire stays as far out as it
+   *  has been put out, which is what makes an interruption a pause rather than
+   *  a punishment. */
+  const suppressed = useRef(0);
+  /** Whether the tank was spraying last frame, so INTERRUPTED is announced on
+   *  the edge rather than every frame the drone is off the mark. */
+  const spraying = useRef(false);
   /** Counts down the SAFE LANDING card before the result screen. */
   const landDwell = useRef(0);
   /** `flightStore.touches` when the attempt began — it is a running total. */
@@ -133,6 +156,8 @@ export function MissionDirector() {
     dropHold.current = 0;
     landHold.current = 0;
     landDwell.current = 0;
+    suppressed.current = 0;
+    spraying.current = false;
     publishAt.current = 0;
     queued.current = null;
     lastChecks.current = '';
@@ -229,7 +254,7 @@ export function MissionDirector() {
     let leg: MissionLeg = store.leg;
 
     if (leg === 'toPickup') {
-      const z = probeZone(mission.zones.pickup, mission.groundY);
+      const z = probeZone(mission, mission.zones.pickup);
       pickupHold.current = z.ok ? pickupHold.current + dt : 0;
       if (pickupHold.current >= mission.zones.pickup.hold) {
         leg = 'carrying';
@@ -244,7 +269,7 @@ export function MissionDirector() {
         say(mission, 'pickup');
       }
     } else if (leg === 'carrying') {
-      const z = probeZone(mission.zones.drop, mission.groundY);
+      const z = probeZone(mission, mission.zones.drop);
       // Awareness, then approach, then the careful line — each once, and only
       // once, so a pilot circling the block is not told the same thing four
       // times. `playRadio` is the thing that guarantees it.
@@ -254,25 +279,112 @@ export function MissionDirector() {
 
       // Entering the zone is a change of JOB, not a score: from navigating the
       // city to positioning over a mark. That is why it gets its own leg.
-      if (z.flat <= mission.zones.drop.radius * 3) {
+      if (z.flat <= enterRadius(mission)) {
         leg = 'toDrop';
         store.setLeg(leg);
         if (!announcedDrop.current) {
           announcedDrop.current = true;
           store.showBanner(
-            {
-              kind: 'info',
-              title: 'DELIVERY ZONE REACHED',
-              sub: 'Slow down, centre over the mark, then descend',
-            },
+            mission.fire
+              ? {
+                  kind: 'info',
+                  title: 'FIRE ZONE REACHED',
+                  sub: 'Get over the affected area and hold your position',
+                }
+              : {
+                  kind: 'info',
+                  title: 'DELIVERY ZONE REACHED',
+                  sub: 'Slow down, centre over the mark, then descend',
+                },
             BANNER_SEC,
           );
           playWhoosh();
         }
       }
+    } else if (leg === 'toDrop' && mission.fire) {
+      // ---- Suppression -----------------------------------------------------
+      //
+      // The same hover the delivery asks for, held for ten seconds instead of
+      // one, with the progress kept across an interruption rather than reset by
+      // it. Everything else about the leg — the leg it falls back to, the
+      // banner, the release — is the delivery's, because it IS the delivery:
+      // something is being put down on a mark.
+      const zone = mission.zones.drop;
+      const fire = mission.fire;
+      const z = probeZone(mission, zone);
+
+      // Drifting well clear puts the pilot back on the navigation leg. The
+      // boundary is the fire's own, and it is wider than the hover zone: an
+      // aircraft nudged two metres off the mark is repositioning, not leaving.
+      if (z.flat > fire.breakRadius * LEAVE_HYSTERESIS) {
+        lastChecks.current = '';
+        spraying.current = false;
+        store.setLeg('carrying');
+        store.setChecks({ centred: false, inBand: false, steady: false, hold: 0 });
+        // The tank has to be shut off HERE and not left to the publish below:
+        // the next frame is on the navigation leg, which never touches the fire
+        // state, so a plume left on would follow the drone across the forest.
+        store.setFire({
+          fireIntensity: 1 - suppressed.current / fire.suppressSec,
+          suppressing: false,
+        });
+      } else {
+        const on = z.ok;
+        suppressed.current = on
+          ? Math.min(fire.suppressSec, suppressed.current + dt)
+          : suppressed.current;
+        const done = suppressed.current / fire.suppressSec;
+
+        // INTERRUPTED, on the edge only. A pilot fighting a hover crosses this
+        // boundary repeatedly, and a banner per frame would be the whole screen.
+        if (spraying.current && !on && done > 0 && done < 1) {
+          store.showBanner(
+            {
+              kind: 'warn',
+              title: 'SUPPRESSION INTERRUPTED',
+              sub: 'Get back over the fire and hold it steady',
+            },
+            BANNER_SEC,
+          );
+          playFail();
+        }
+        if (!spraying.current && on) say(mission, 'spraying');
+        spraying.current = on && done < 1;
+
+        // Half way is worth saying out loud: it is the one point in a ten second
+        // hover where the pilot learns the holding is working.
+        if (done >= 0.5) say(mission, 'half');
+
+        const hold = Math.round(Math.min(1, done) * 20) / 20;
+        const key = `${z.centred}${z.inBand}${z.steady}${hold}${on}`;
+        if (key !== lastChecks.current) {
+          lastChecks.current = key;
+          store.setChecks({ centred: z.centred, inBand: z.inBand, steady: z.steady, hold });
+          store.setFire({ fireIntensity: 1 - hold, suppressing: on && hold < 1 });
+        }
+
+        if (done >= 1) {
+          leg = 'delivered';
+          store.setLeg(leg);
+          store.setPayload('delivered');
+          store.takeZone('drop', 'FIRE CONTAINED');
+          lastChecks.current = '';
+          spraying.current = false;
+          store.setChecks({ centred: false, inBand: false, steady: false, hold: 0 });
+          store.setFire({ fireIntensity: 0, suppressing: false });
+          playDrop();
+          playSuccess();
+          store.showBanner(
+            { kind: 'good', title: 'FIRE CONTAINED', sub: 'The affected area is under control' },
+            BANNER_SEC,
+          );
+          say(mission, 'delivered');
+          queued.current = { key: 'home', at: clock.current + 1.2 };
+        }
+      }
     } else if (leg === 'toDrop') {
       const zone = mission.zones.drop;
-      const z = probeZone(zone, mission.groundY);
+      const z = probeZone(mission, zone);
       // Drifting back out of the approach ring is not a failure — it puts the
       // pilot back on the navigation leg without re-announcing anything.
       if (z.flat > zone.radius * 4.5) {
@@ -423,7 +535,7 @@ export function MissionDirector() {
       // arrow on the ring still pointed at the mark behind it.
       const p = dronePose.position;
       const taken = useMissionStore.getState().collected;
-      const cp = nextTargetOf(mission, legOf(leg), taken);
+      const cp = nextTargetOf(mission, legOf(leg), taken, p);
       const target: readonly [number, number, number] = cp ?? markerFor(mission, leg);
       const dx = target[0] - p.x;
       const dz = target[2] - p.z;
@@ -448,6 +560,19 @@ export function MissionDirector() {
   return null;
 }
 
+/**
+ * How close counts as ARRIVING at the middle mark, in metres.
+ *
+ * Three zone radii for a delivery: the drop is 1.8 m across and the pilot needs
+ * to be told they are over the block before they are inside a two metre circle.
+ * A fire is a much bigger object and its hover zone sits INSIDE the burning
+ * ground, so the call is made at the edge of the fire itself — which is where a
+ * pilot would say they had reached it.
+ */
+function enterRadius(mission: Mission): number {
+  return mission.fire ? mission.fire.breakRadius : mission.zones.drop.radius * 3;
+}
+
 /** Play a Mission Control line, once per attempt. */
 function say(mission: Mission, key: string): void {
   const line = mission.radio[key];
@@ -459,9 +584,15 @@ function say(mission: Mission, key: string): void {
  *  arrow are both measured to. */
 function markerFor(mission: Mission, leg: MissionLeg): [number, number, number] {
   const kind = activeZone(leg);
-  if (!kind) return [mission.zones.base.at[0], mission.groundY, mission.zones.base.at[1]];
+  if (!kind) {
+    return [
+      mission.zones.base.at[0],
+      zoneGroundY(mission, mission.zones.base),
+      mission.zones.base.at[1],
+    ];
+  }
   const zone = mission.zones[kind];
-  return [zone.at[0], mission.groundY + zone.band.max * 0.5, zone.at[1]];
+  return [zone.at[0], zoneGroundY(mission, zone) + zone.band.max * 0.5, zone.at[1]];
 }
 
 /** Wrap an angle to -pi..pi. */

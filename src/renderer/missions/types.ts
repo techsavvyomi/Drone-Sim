@@ -42,6 +42,16 @@ export interface MissionCheckpoint {
    *  inside the volume that scores. */
   radius: number;
   leg: MissionLegId;
+  /**
+   * Whether the payload is GATED on this one. Default true.
+   *
+   * Precision Delivery makes every ring required: the package will not release
+   * until they are all taken, which is what turns a scattering of bonuses into a
+   * route. Forest Fire cannot do that — its brief asks for a pilot who picks
+   * their own way through the trees — so its rings are pure guidance and pure
+   * score, and skipping the lot still lets the tank open over the fire.
+   */
+  required?: boolean;
 }
 
 /** The three mandatory zones: where the package is, where it goes, where home is. */
@@ -71,6 +81,19 @@ export interface MissionZone {
   maxVerticalSpeed: number;
   /** Seconds every condition must hold together before the zone fires. */
   hold: number;
+  /**
+   * The ground height under THIS mark, when it is not the mission's own.
+   *
+   * New York is a flat plane and one `groundY` describes all three of its zones.
+   * The forest is not: its clearing is at zero and the hollow the fire burns in
+   * is twelve and a half metres below it (measured — see
+   * `scripts/check-forest-route.mjs`). A height band judged against the
+   * clearing would ask the pilot to hover under the terrain.
+   *
+   * Measured, never guessed. The forest map has no `groundY` in its spec at all,
+   * precisely because it has no single ground height.
+   */
+  groundY?: number;
 }
 
 /** One rung of the mission's rating, best first. */
@@ -117,6 +140,42 @@ export interface RadioLine {
   text: string;
 }
 
+/**
+ * What KIND of job the mission is, which is the one thing the runtime branches
+ * on.
+ *
+ * 'delivery' puts something down on a mark. 'suppression' holds a position over
+ * a target while a tank empties into it. They share the whole of the rest of the
+ * mission — collect, carry, come home, land — and they share the zone that
+ * judges the middle of it: in both cases the pilot has to be centred, at the
+ * right height and stopped. What differs is how long, and what the holding is
+ * FOR.
+ */
+export type MissionKind = 'delivery' | 'suppression';
+
+/**
+ * The fire, for a suppression mission.
+ *
+ * Only the numbers the runtime needs. Where it burns is the `drop` zone — the
+ * mission has exactly one place in the middle it must get to, and giving the
+ * fire a fourth zone would mean two marks, two radars and two sets of release
+ * conditions describing one hover.
+ */
+export interface MissionFire {
+  /** Seconds of unbroken, correctly positioned hover that puts the fire out.
+   *  The whole point of the mission: a fire that went out on contact would be a
+   *  marker to touch rather than a position to hold. */
+  suppressSec: number;
+  /** How far off centre the drone can drift before suppression is INTERRUPTED,
+   *  in metres. Wider than the zone's own radius: losing the hold is a warning
+   *  and a pause, not a reset, and a boundary the pilot bounces in and out of
+   *  every second would be unflyable. */
+  breakRadius: number;
+  /** Radius of the burning ground, metres — what the fire and its scorch mark
+   *  are drawn at. Bigger than the hover zone, which sits inside it. */
+  burnRadius: number;
+}
+
 export interface Mission {
   id: string;
   /** 1-based position in the mission list, and what the card and the in-flight
@@ -126,6 +185,9 @@ export interface Mission {
   name: string;
   /** One short line under the name on the card. */
   subtitle: string;
+  /** Delivery or suppression. Drives the runtime's middle leg, the HUD's
+   *  wording and the result sheet — nothing else. */
+  kind: MissionKind;
   /** Environment the mission is flown in. */
   envId: string;
   /** One-line summary for the mission card. */
@@ -146,6 +208,8 @@ export interface Mission {
    *  the registry's summary of this mission and the mission itself cannot drift:
    *  `ranks` reads them rather than repeating them. */
   medals: { bronze: number; silver: number; gold: number };
+  /** The fire, on a suppression mission. Absent on a delivery. */
+  fire?: MissionFire;
   route: readonly MissionCheckpoint[];
   /** Bare waypoints for the flight home: the line a sensible pilot takes from
    *  the drop back to the pad. They score nothing and draw nothing — the return
@@ -170,7 +234,7 @@ export function toMissionSpec(m: Mission): MissionSpec {
   return {
     id: m.id,
     name: m.name,
-    type: 'delivery',
+    type: m.kind === 'suppression' ? 'rescue' : 'delivery',
     description: m.blurb,
     medalThresholds: m.medals,
   };
@@ -188,7 +252,9 @@ export function toMissionSpec(m: Mission): MissionSpec {
  * cannot do is skip the city and go straight to the mark.
  */
 export function requiredCheckpoints(m: Mission): readonly MissionCheckpoint[] {
-  return m.route.filter((c) => c.leg === 'toPickup' || c.leg === 'toDrop');
+  return m.route.filter(
+    (c) => c.required !== false && (c.leg === 'toPickup' || c.leg === 'toDrop'),
+  );
 }
 
 /** How many of those are still outstanding. */
@@ -214,14 +280,40 @@ export function nextCheckpointOf(
   m: Mission,
   leg: 'toPickup' | 'toDrop' | 'toBase' | null,
   collected: Record<string, true>,
+  from?: { x: number; z: number },
 ): MissionCheckpoint | null {
   if (!leg) return null;
-  const required = requiredCheckpoints(m);
+  // Every outstanding ring on this leg, required or not. The lit ring is
+  // GUIDANCE — it is what the radar dot and the DISTANCE readout point at — and
+  // a mission whose rings are all optional (Forest Fire) would otherwise fly
+  // past a route with nothing ever lit on it.
+  //
+  // But an OPTIONAL ring the pilot has flown past has to stop being the
+  // guidance, or a pilot who chose the low line through the trees is sent back
+  // to a ring behind them for the rest of the mission while the fire burns. A
+  // required ring never drops out: it has to be taken, and pointing at it is the
+  // correct answer however far past it the drone is.
+  //
+  // "Past" is measured against the DESTINATION, not against the drone's own
+  // path: a ring is still AHEAD while it is closer to the mark than the drone
+  // is, and behind the moment it is not. Measuring against the drone instead
+  // would drop rings it is merely flying wide of.
+  const goal = m.zones[ZONE_OF_LEG[leg]].at;
   return (
-    m.route.find((c) => c.leg === leg && !collected[c.id] && required.some((r) => r.id === c.id)) ??
-    null
+    m.route.find((c) => {
+      if (c.leg !== leg || collected[c.id]) return false;
+      if (c.required !== false || !from) return true;
+      return flatDist({ x: c.at[0], z: c.at[2] }, goal) < flatDist(from, goal);
+    }) ?? null
   );
 }
+
+/** Which mark each leg of the route is heading for. */
+const ZONE_OF_LEG: Record<'toPickup' | 'toDrop' | 'toBase', MissionZoneKind> = {
+  toPickup: 'pickup',
+  toDrop: 'drop',
+  toBase: 'base',
+};
 
 /** The same answer as a world position, for the radar and the DISTANCE
  *  readout. Null once the leg's rings are all taken, and the caller falls back
@@ -230,8 +322,9 @@ export function nextTargetOf(
   m: Mission,
   leg: 'toPickup' | 'toDrop' | 'toBase' | null,
   collected: Record<string, true>,
+  from?: { x: number; z: number },
 ): readonly [number, number, number] | null {
-  return nextCheckpointOf(m, leg, collected)?.at ?? null;
+  return nextCheckpointOf(m, leg, collected, from)?.at ?? null;
 }
 
 /**
@@ -252,6 +345,19 @@ export function maxPointsOf(m: Mission): number {
 export function rankFor(ranks: readonly MissionRank[], r: MissionResult): 1 | 2 | 3 {
   for (const rank of ranks) if (rank.test(r)) return rank.stars;
   return 1;
+}
+
+/**
+ * The ground height under one zone.
+ *
+ * The mission's own, unless the zone carries its own — which only the forest
+ * needs, and only because its fire burns in a hollow twelve metres below the
+ * clearing it launches from. Read through this everywhere rather than through
+ * `mission.groundY` directly: a height band measured against the wrong deck is
+ * a hover the pilot cannot reach, and it fails silently.
+ */
+export function zoneGroundY(m: Mission, zone: MissionZone): number {
+  return zone.groundY ?? m.groundY;
 }
 
 /** Horizontal distance between a point and a ground mark, in metres. */

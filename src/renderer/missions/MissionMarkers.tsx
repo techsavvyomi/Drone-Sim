@@ -1,10 +1,11 @@
-import { useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
+import { dronePose } from '../sim/drone/pose';
 import { CheckpointSphere } from '../scene/CheckpointSphere';
 import { useMissionStore, activeZone, legOf } from '../state/missionStore';
 import { playCollect } from '../audio/sfx';
-import { nextCheckpointOf } from './types';
+import { nextCheckpointOf, zoneGroundY } from './types';
 import type { Mission, MissionZone, MissionZoneKind } from './types';
 
 // ----------------------------------------------------------------------------
@@ -240,8 +241,26 @@ export function MissionMarkers({ mission }: { mission: Mission }) {
   // `nextCheckpointOf` picks it in route order — the same call the radar dot and
   // the DISTANCE readout use, so what is lit in the world is what the dial is
   // pointing at.
-  const next = nextCheckpointOf(mission, liveLeg, collected);
-  const shown = next ? [next] : [];
+  //
+  // Sampled off `dronePose` on a timer rather than on every frame: an optional
+  // ring stops being the guidance once the drone is past it, which makes the
+  // choice depend on where the aircraft is, and re-running this component sixty
+  // times a second to move one light is exactly what the mounted-and-dark
+  // approach below exists to avoid. Four times a second is faster than a pilot
+  // can fly past a 3 m ball.
+  const [droneAt, setDroneAt] = useState(() => ({ x: 0, z: 0 }));
+  useEffect(() => {
+    if (!flying) return;
+    const id = window.setInterval(() => {
+      const p = dronePose.position;
+      setDroneAt((prev) =>
+        Math.abs(prev.x - p.x) < 0.5 && Math.abs(prev.z - p.z) < 0.5 ? prev : { x: p.x, z: p.z },
+      );
+    }, 250);
+    return () => window.clearInterval(id);
+  }, [flying]);
+
+  const next = nextCheckpointOf(mission, liveLeg, collected, droneAt);
 
   // How close the drop is to firing, as one number the mark can be coloured by.
   //
@@ -264,26 +283,45 @@ export function MissionMarkers({ mission }: { mission: Mission }) {
           instruments saying "that way" put a large circle over the view for the
           second one. The radar keeps it; the world stays clear. */}
 
-      {shown.map((c) => (
-        <CheckpointSphere
-          key={c.id}
-          position={c.at}
-          radius={c.radius}
-          triggerRadius={c.reach}
-          collected={!flying || !!collected[c.id]}
-          onCollect={() => {
-            if (!flying) return;
-            collect(c.id, c.label);
-            playCollect();
-          }}
-        />
-      ))}
+      {/* Every ring on the route is mounted for the whole flight, and all but
+          one of them is dark.
+
+          Mounting only the live ring drew the same picture and it JERKED. Taking
+          a ring tore one sphere down and built the next: a geometry, three
+          materials and two sprites, allocated and uploaded on the frame the
+          drone was passing through the marker. That frame ran long, and a long
+          frame is where the rigid body's interpolation regresses, so the
+          aircraft appeared to snap BACKWARDS at the moment of the pass, which is
+          the one moment the pilot is watching it.
+
+          So nothing is built or thrown away while the drone is flying. A dark
+          ring sets `visible = false` and costs one distance check a frame. */}
+      {mission.route.map((c) => {
+        const live = flying && next?.id === c.id;
+        return (
+          <CheckpointSphere
+            key={c.id}
+            position={c.at}
+            radius={c.radius}
+            triggerRadius={c.reach}
+            collected={!live}
+            onCollect={
+              live
+                ? () => {
+                    collect(c.id, c.label);
+                    playCollect();
+                  }
+                : undefined
+            }
+          />
+        );
+      })}
 
       {(['pickup', 'drop', 'base'] as const).map((kind) => (
         <ZoneMark
           key={kind}
           zone={mission.zones[kind]}
-          groundY={mission.groundY}
+          groundY={zoneGroundY(mission, mission.zones[kind])}
           live={flying && zoneKind === kind}
           ready={kind === 'drop' ? ready : undefined}
         />

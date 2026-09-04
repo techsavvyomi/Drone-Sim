@@ -5,7 +5,7 @@ import { dronePose } from '../sim/drone/pose';
 import { useSettingsStore } from '../state/settingsStore';
 import { useMissionStore } from '../state/missionStore';
 import { getDrone } from '../plugins/registry';
-import type { Mission } from './types';
+import { zoneGroundY, type Mission } from './types';
 
 // ----------------------------------------------------------------------------
 // The package.
@@ -27,6 +27,14 @@ import type { Mission } from './types';
 // It is never hidden mid-flight. The only states it has are: waiting on its
 // mark, carried, and down — and "down" still leaves it standing on the deck
 // where it landed.
+//
+// TWO CARGOES, one behaviour. A delivery carries a medical case and puts it
+// DOWN, so 'delivered' drops it. A suppression mission carries a retardant tank
+// and empties it in the air, so 'delivered' there means SPENT: the tank stays
+// bolted under the airframe for the flight home and is drawn empty. That is the
+// only branch in this file, and it is a look plus one early return rather than a
+// second component — a tank that fell out of the sky the moment the fire went
+// out would be the mission littering the forest it had just saved.
 // ----------------------------------------------------------------------------
 
 /** Seconds the attach animation takes to pull the box up to the airframe. */
@@ -43,6 +51,9 @@ export function Payload({ mission }: { mission: Mission }) {
   const droneId = useSettingsStore((s) => s.settings.selectedDroneId);
   const payload = useMissionStore((s) => s.payload);
   const phase = useMissionStore((s) => s.phase);
+  /** A tank is emptied, not dropped. */
+  const keepsPayload = mission.kind === 'suppression';
+  const spent = keepsPayload && payload === 'delivered';
 
   /** Sized off the airframe it hangs under, so it reads as cargo on every drone
    *  rather than as a crate on the small one and a pebble on the big one. */
@@ -79,7 +90,7 @@ export function Payload({ mission }: { mission: Mission }) {
     () =>
       new THREE.Vector3(
         mission.zones.pickup.at[0],
-        mission.groundY + size / 2,
+        zoneGroundY(mission, mission.zones.pickup) + size / 2,
         mission.zones.pickup.at[1],
       ),
     [mission, size],
@@ -120,6 +131,7 @@ export function Payload({ mission }: { mission: Mission }) {
       fall.current = 0;
     } else if (
       payload === 'delivered' &&
+      !keepsPayload &&
       motion.current !== 'falling' &&
       motion.current !== 'down'
     ) {
@@ -165,7 +177,7 @@ export function Payload({ mission }: { mission: Mission }) {
       case 'falling': {
         fall.current += DROP_G * dt;
         at.current.y -= fall.current * dt;
-        const floor = mission.groundY + size / 2;
+        const floor = zoneGroundY(mission, mission.zones.pickup) + size / 2;
         if (at.current.y <= floor) {
           at.current.y = floor;
           fall.current *= -BOUNCE;
@@ -188,6 +200,17 @@ export function Payload({ mission }: { mission: Mission }) {
 
     g.position.copy(at.current);
   });
+
+  // The firefighting tank. Same transform, same states, different object — and
+  // it returns before the medical case's decals are built at all, so a mission
+  // carrying one never pays for the other.
+  if (keepsPayload) {
+    return (
+      <group ref={group}>
+        <RetardantTank size={size} spent={spent} />
+      </group>
+    );
+  }
 
   const half = size / 2;
   /** How far a face decal stands off the box, so it never fights the box's own
@@ -234,6 +257,51 @@ export function Payload({ mission }: { mission: Mission }) {
           ring — two circles round one object, the outer one green and the inner
           one amber, which read as a second target rather than as a shadow. The
           mark under it is doing that job already. */}
+    </group>
+  );
+}
+
+/**
+ * The fire-suppression tank: a red cylinder slung crosswise with a nozzle under
+ * it.
+ *
+ * CROSSWISE, not fore-and-aft. Slung along the drone's nose it disappeared
+ * behind the airframe in the chase camera — which is the only camera most of
+ * this mission is flown in — and the pilot had no way to tell a loaded drone
+ * from an empty one. Across the airframe it reads from behind as a bar under
+ * the aircraft at every attitude.
+ *
+ * `spent` is what the pilot sees after the fire is out: the same tank, drained
+ * of its colour, with the nozzle dark. It is the HUD's "Payload: Empty" said in
+ * the world, and it is why the tank is not simply hidden — a payload that
+ * vanished would leave nothing to have been emptied.
+ */
+function RetardantTank({ size, spent }: { size: number; spent: boolean }) {
+  const shell = spent ? '#6d5b57' : '#e03131';
+  const trim = spent ? '#8d8177' : '#f2f4f5';
+  const len = size * 1.7;
+  const r = size * 0.42;
+  return (
+    <group>
+      {/* The body, lying across the airframe. */}
+      <mesh castShadow rotation={[0, 0, Math.PI / 2]}>
+        <cylinderGeometry args={[r, r, len, 14]} />
+        <meshStandardMaterial color={shell} roughness={0.55} metalness={0.1} />
+      </mesh>
+      {/* Two white bands, which is what gives a smooth cylinder an edge against
+          both a dark canopy and a bright sky. */}
+      {[-len * 0.28, len * 0.28].map((x) => (
+        <mesh key={x} position={[x, 0, 0]} rotation={[0, 0, Math.PI / 2]}>
+          <cylinderGeometry args={[r * 1.04, r * 1.04, size * 0.16, 14]} />
+          <meshStandardMaterial color={trim} roughness={0.6} />
+        </mesh>
+      ))}
+      {/* The nozzle. Small, and it points at the ground — the one part that says
+          which way this thing works. */}
+      <mesh position={[0, -r * 0.95, 0]}>
+        <cylinderGeometry args={[size * 0.09, size * 0.13, size * 0.3, 10]} />
+        <meshStandardMaterial color={spent ? '#4a4440' : '#2b2f33'} roughness={0.5} />
+      </mesh>
     </group>
   );
 }

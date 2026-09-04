@@ -175,7 +175,7 @@ export function MissionMap({ mission }: { mission: Mission }) {
       // readout come from the same call: the nearest checkpoint this leg still
       // owes, and once they are all taken the mark itself. The dial and the
       // arrow point the same way because they are the same point.
-      const cp = nextTargetOf(mission, liveLeg, collected);
+      const cp = nextTargetOf(mission, liveLeg, collected, dronePose.position);
       const zone = zones.find((z) => z.kind === here);
       const at = cp
         ? { x: sx(cp[0]), y: sz(cp[2]) }

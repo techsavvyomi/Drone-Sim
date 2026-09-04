@@ -673,7 +673,17 @@ export interface EnvironmentSpec {
 }
 
 export type MissionType =
-  'takeoff' | 'hover' | 'hoops' | 'landing' | 'search' | 'race' | 'timetrial' | 'delivery';
+  | 'takeoff'
+  | 'hover'
+  | 'hoops'
+  | 'landing'
+  | 'search'
+  | 'race'
+  | 'timetrial'
+  | 'delivery'
+  // Emergency response: get a payload to a place that cannot be reached from
+  // the ground and hold a position while it is used. Forest Fire is the first.
+  | 'rescue';
 
 export interface MissionSpec {
   id: string;

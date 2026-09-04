@@ -189,6 +189,7 @@ export const precisionDelivery: Mission = {
   // sits under a mission NAME that already says "delivery" — the blurb below is
   // where the sentence belongs.
   subtitle: 'Carry a medical package across the city',
+  kind: 'delivery',
   envId: 'new-york',
   blurb: 'Collect a medical package, fly it across the city, land it on the mark and come home.',
   flow: [
@@ -325,10 +326,3 @@ export const precisionDelivery: Mission = {
     },
   ],
 };
-
-/** Every mission, in the order the list walks them. */
-export const MISSIONS: readonly Mission[] = [precisionDelivery].sort((a, b) => a.order - b.order);
-
-export function getMission(id: string): Mission | undefined {
-  return MISSIONS.find((m) => m.id === id);
-}

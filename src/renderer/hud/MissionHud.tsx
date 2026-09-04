@@ -58,17 +58,27 @@ function TargetArrow({ bearing, distance }: { bearing: number; distance: number 
  * bar that refuses to fill is the worst thing this HUD could show; naming the
  * checkpoints still owed turns it from a bug into an instruction.
  */
-function DeliveryChecklist() {
+function DeliveryChecklist({ fire }: { fire: boolean }) {
   const checks = useMissionStore((s) => s.checks);
   const gate = useMissionStore((s) => s.gate);
+  const suppressing = useMissionStore((s) => s.suppressing);
+  // A mission with no required rings has nothing to be blocked ON, so the route
+  // row is left off rather than shown as a permanent 0/0 tick.
+  const gated = gate.total > 0;
   const blocked = gate.left > 0;
   return (
     <div className={`ms-checks ${blocked ? 'blocked' : ''}`}>
-      <span className="ms-checks-head">RELEASE CONDITIONS</span>
-      <span className={blocked ? 'miss' : 'ok'}>
-        {blocked ? '✕' : '✓'} Route {gate.total - gate.left}/{gate.total}
+      <span className="ms-checks-head">
+        {fire ? (suppressing ? 'SUPPRESSING' : 'SUPPRESSION CONDITIONS') : 'RELEASE CONDITIONS'}
       </span>
-      <span className={checks.centred ? 'ok' : ''}>{checks.centred ? '✓' : '•'} Centred</span>
+      {gated && (
+        <span className={blocked ? 'miss' : 'ok'}>
+          {blocked ? '✕' : '✓'} Route {gate.total - gate.left}/{gate.total}
+        </span>
+      )}
+      <span className={checks.centred ? 'ok' : ''}>
+        {checks.centred ? '✓' : '•'} {fire ? 'Over the fire' : 'Centred'}
+      </span>
       <span className={checks.inBand ? 'ok' : ''}>{checks.inBand ? '✓' : '•'} Height</span>
       <span className={checks.steady ? 'ok' : ''}>{checks.steady ? '✓' : '•'} Steady</span>
       <span className="ms-checks-bar">
@@ -77,6 +87,11 @@ function DeliveryChecklist() {
       {blocked && (
         <span className="ms-checks-note">
           The package will not release: collect all the pink rings first
+        </span>
+      )}
+      {fire && !suppressing && checks.hold > 0 && checks.hold < 1 && (
+        <span className="ms-checks-note">
+          Suppression paused. Get back over the fire: nothing you have put out comes back
         </span>
       )}
     </div>
@@ -132,6 +147,7 @@ export function MissionHud() {
   const result = useMissionStore((s) => s.result);
   const failReason = useMissionStore((s) => s.failReason);
   const collisions = useMissionStore((s) => s.collisions);
+  const fireIntensity = useMissionStore((s) => s.fireIntensity);
   const beginFlight = useMissionStore((s) => s.beginFlight);
   const restart = useMissionStore((s) => s.restart);
   const exit = useMissionStore((s) => s.exit);
@@ -170,9 +186,11 @@ export function MissionHud() {
   if (!mission) return null;
 
   const flying = phase === 'flying';
-  // Every ring is required before the package will release — the briefing used
-  // to call some of them optional, which is the one number on that card a pilot
-  // would plan the flight around.
+  const fire = !!mission.fire;
+  // On Precision Delivery every ring is required before the package will
+  // release, and the briefing has to say so: it is the one number on that card a
+  // pilot plans the flight around. Forest Fire's rings gate nothing, so its card
+  // says how many there are to collect instead of how many are compulsory.
   const required = requiredCheckpoints(mission).length;
   const remaining = Math.max(0, mission.timeLimitSec - elapsed);
   const lowOnTime = remaining <= 45;
@@ -261,8 +279,8 @@ export function MissionHud() {
                     <span>time to do it in</span>
                   </div>
                   <div>
-                    <b>{required}</b>
-                    <span>rings, all of them</span>
+                    <b>{fire ? mission.route.length : required}</b>
+                    <span>{fire ? 'rings, all optional' : 'rings, all of them'}</span>
                   </div>
                 </div>
 
@@ -329,7 +347,7 @@ export function MissionHud() {
         </div>
       )}
 
-      {flying && leg === 'toDrop' && <DeliveryChecklist />}
+      {flying && leg === 'toDrop' && <DeliveryChecklist fire={fire} />}
 
       {/* Mission Control. Along the bottom, above the strip, so it never covers
           the horizon the pilot is flying against. */}
@@ -350,20 +368,35 @@ export function MissionHud() {
         <div className="ms-strip">
           <div className="ms-obj">
             <span>OBJECTIVE</span>
-            <b>{objectiveFor(leg)}</b>
+            <b>{objectiveFor(leg, mission.kind)}</b>
           </div>
           <div className={`ms-cell payload ${payload}`}>
             <span>PAYLOAD</span>
             {/* One word each, with the state's colour carried by the dot the
                 stylesheet puts in front of them. The emoji and the tick that
                 used to sit here were doing the same job as that dot, in two
-                more glyphs and at whatever size the platform's font felt like. */}
+                more glyphs and at whatever size the platform's font felt like.
+
+                A tank that has been emptied reads 'Empty', not 'Delivered':
+                nothing was delivered, it was used up, and the pilot flying home
+                needs to know they have nothing left rather than that they
+                succeeded — the banner already said that. */}
             <b>
               {payload === 'waiting' ? 'Empty' : null}
-              {payload === 'attached' ? 'On board' : null}
-              {payload === 'delivered' ? 'Delivered' : null}
+              {payload === 'attached' ? (fire ? 'Ready' : 'On board') : null}
+              {payload === 'delivered' ? (fire ? 'Empty' : 'Delivered') : null}
             </b>
           </div>
+          {/* The fire, while there is one to report. It goes in beside the
+              payload rather than replacing the points, because it is the thing
+              the whole middle of this mission is about and the pilot should be
+              able to watch it fall without looking away from the flying. */}
+          {fire && (
+            <div className={`ms-cell ${fireIntensity > 0 ? 'warn' : ''}`}>
+              <span>FIRE</span>
+              <b>{Math.round(fireIntensity * 100)}%</b>
+            </div>
+          )}
           <div className="ms-cell">
             <span>POINTS</span>
             <b>
@@ -396,8 +429,8 @@ export function MissionHud() {
             <p className="ms-signoff">“{mission.radio.complete.text}”</p>
             <div className="ms-sheet">
               {[
-                ['Payload picked up', '✓', true],
-                ['Payload delivered', '✓', true],
+                [fire ? 'Payload collected' : 'Payload picked up', '✓', true],
+                [fire ? 'Fire suppressed' : 'Payload delivered', '✓', true],
                 ['Returned to base', '✓', true],
                 ['Safe landing', '✓', true],
                 [
@@ -443,10 +476,16 @@ export function MissionHud() {
             <h2>{failReason === 'timeout' ? 'Out of time' : 'Drone destroyed'}</h2>
             <p className="ms-fail-line">
               {failReason === 'timeout'
-                ? 'The delivery window closed. Take a straighter line through the city.'
+                ? fire
+                  ? 'The fire got away from you. Take the marked line east next time.'
+                  : 'The delivery window closed. Take a straighter line through the city.'
                 : payload === 'attached'
-                  ? 'The aircraft is wrecked and the package went down with it.'
-                  : 'The aircraft is wrecked. Watch the street furniture on the approach.'}
+                  ? fire
+                    ? 'The aircraft is wrecked and the suppression tank went down with it.'
+                    : 'The aircraft is wrecked and the package went down with it.'
+                  : fire
+                    ? 'The aircraft is wrecked. A tree is solid all the way up to its own treetop.'
+                    : 'The aircraft is wrecked. Watch the street furniture on the approach.'}
             </p>
             <div className="ms-sheet">
               <div className="ms-sheet-row">

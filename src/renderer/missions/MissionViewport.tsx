@@ -12,6 +12,8 @@ import { setCommandScale } from '../input/controls';
 import { MissionHud } from '../hud/MissionHud';
 import { MissionDirector } from './MissionDirector';
 import { MissionMarkers } from './MissionMarkers';
+import { FireZone } from './FireZone';
+import { Spray } from './Spray';
 import { Payload } from './Payload';
 import type { Mission } from './types';
 
@@ -93,13 +95,26 @@ export function MissionViewport({ mission }: { mission: Mission }) {
         >
           <FlightScene envIdOverride={mission.envId} />
           <MissionMarkers mission={mission} />
+          {/* Only a suppression mission carries these, and they mount with the
+              mission rather than with the leg: a fire that appeared when the
+              pilot arrived would be a fire nobody could see on the way. */}
+          {mission.fire && <FireZone mission={mission} />}
+          {mission.fire && <Spray />}
           <Payload mission={mission} />
           <MissionDirector />
           <SceneReady onReady={onReady} />
         </Canvas>
       </SceneBoundary>
       <MissionHud />
-      {!ready && <SceneVeil label="Getting the city ready" />}
+      {/* The map is named, not assumed. "Getting the city ready" over a forest
+          was the one line in the mission view that could be plainly wrong. */}
+      {!ready && (
+        <SceneVeil
+          label={
+            mission.envId === 'new-york' ? 'Getting the city ready' : 'Getting the forest ready'
+          }
+        />
+      )}
     </div>
   );
 }
