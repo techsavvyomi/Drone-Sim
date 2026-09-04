@@ -436,8 +436,13 @@ export function CheckpointSphere({
   const halo = useRef<THREE.Material>(null);
   const tagMat = useRef<THREE.Material>(null);
   /** How lit it is, 0..1. Driven both ways, so a marker that is put back lights
-   *  up again instead of leaving a dark ball hanging in the air. */
-  const lit = useRef(1);
+   *  up again instead of leaving a dark ball hanging in the air.
+   *
+   *  Seeded from `collected` rather than from 1. A caller that mounts a whole
+   *  route at once and lights one ball at a time, which is how a marker avoids
+   *  being built and thrown away mid-flight, would otherwise open with every
+   *  ball on the route lit and half a second of them all fading out together. */
+  const lit = useRef(collected === true ? 0 : 1);
   /** The trigger's own answer, and whether it is armed. */
   const taken = useRef(false);
   const armed = useRef(true);

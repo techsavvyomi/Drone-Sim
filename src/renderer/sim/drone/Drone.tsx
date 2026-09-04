@@ -100,27 +100,41 @@ const CP_HEIGHT = 0.022;
  * HUD displays — that's the number a real pilot sees dip.
  */
 
-/** Impact speeds (m/s): below MINOR nothing, above MAJOR is a floor slam crash. */
+/** Impact speeds (m/s): below MINOR nothing is felt, MAJOR is the worst shake. */
 const MINOR_IMPACT = 1.8;
 const MAJOR_IMPACT = 4.5;
+/**
+ * Speed at which arriving on the floor writes the aircraft off.
+ *
+ * Separate from MINOR_IMPACT, which now only grades the SHAKE. The two were the
+ * same number, so anything that touched down above 1.8 m/s was destroyed — and
+ * in Altitude Hold the descent is capped by the airframe's own `maxClimbRate`,
+ * which is 2.6 m/s on the Guru. A pilot holding S came down at the rate the
+ * MODE allows, arrived above the crash line through no fault of their own, and
+ * lost the drone for flying it exactly as the aircraft was built to fly.
+ *
+ * 4.2 sits clear of every airframe's capped rate — the fastest is the racer at
+ * 3.5 m/s — so a descent the mode is managing can never destroy the aircraft. What still can is a real dive: in
+ * the manual modes the sink is not capped at all, and a drone falling out of
+ * the sky passes this on the way down.
+ */
+const FLOOR_CRASH = 4.2;
 /**
  * Sink rate (m/s) at which arriving on the floor is a crash rather than a
  * landing.
  *
- * MINOR_IMPACT alone could never catch a dropped throttle. It grades the TOTAL
- * speed, and in Altitude Hold — the mode Flight School flies in — the descent is
- * capped at `maxClimbRate`, 1.8 m/s. Cutting the throttle to the stop therefore
- * arrives at the floor a hair UNDER the 1.8 threshold, and ground effect takes
- * the rest: the drone slammed down out of a hover and the lesson carried on as
- * if nothing had happened. Module 3 is the one it hurt most — the whole drill is
- * the throttle, and its own listed mistake is "pushing the throttle all the way
- * down and landing", which cost the pilot nothing.
+ * It was 1.5, chosen to punish a throttle dropped to the stop in Flight School
+ * — Module 3 is the throttle drill and its own listed mistake is "pushing the
+ * throttle all the way down and landing". But 1.5 is BELOW what Altitude Hold
+ * itself descends at, so it stopped punishing the mistake and started punishing
+ * the mode: every deliberate, controlled descent ended in a destroyed drone.
  *
- * 1.5 m/s is well clear of a landing. A pilot easing down puts it on at 0.3-0.6
- * and the auto-land is gentler still; only a stick held at or near the bottom
- * gets here, which is exactly the input this is meant to punish.
+ * 4.0 is above every airframe's capped rate and below a fall. A pilot easing
+ * down puts it on at 0.3-0.6, a full-stick managed descent arrives at 2.6 on the
+ * Guru and 3.5 on the racer, and only something genuinely out of control gets
+ * here.
  */
-const HARD_SINK = 1.5;
+const HARD_SINK = 4;
 /** Walls / furniture — only crash on a clear fast hit. Slow/medium bumps must not flip. */
 const WALL_CRASH_SPEED = 3.2;
 /**
@@ -1223,7 +1237,8 @@ export function Drone({ spec, spawn, bounds, outdoor = false, groundY }: DronePr
         // 1. Any obstacle/building/pole impact while airborne (posY > 0.15m and v >= 0.8 m/s)
         // 2. High speed floor slam (v >= 1.8 m/s)
         // 3. Tilted contact / flip (> 25 deg) with velocity >= 0.8 m/s
-        // 4. Dropped onto the floor at HARD_SINK or more, under the pilot's own hand
+        // 4. Dropped onto the floor at HARD_SINK or more, under the pilot's own
+        //    hand — a rate no managed descent reaches
         // Graded by impact speed, the way a real airframe fails. Touching a wall
         // at walking pace scuffs a prop guard; it does not write the aircraft
         // off. The old 0.8 m/s obstacle threshold destroyed the drone on contact
@@ -1243,15 +1258,26 @@ export function Drone({ spec, spawn, bounds, outdoor = false, groundY }: DronePr
         //    landing on" — and keeps a dive that clips a wall mid-air out of it,
         //    which a bare sink-rate test would call a crash.
         const sinkNow = rb ? -rb.linvel().y : 0;
+        //    A descent the pilot is ASKING for is never a crash, however fast it
+        //    got and however long the key was held. Bringing a drone down is the
+        //    one manoeuvre where the input and the outcome are the same thing:
+        //    a pilot holding S is landing, and an aircraft that destroys itself
+        //    for being landed teaches nothing except not to press the key. It
+        //    arrives hard, it shakes, it keeps flying. The floor is forgiving
+        //    here; the buildings are not, and an obstacle hit below still
+        //    crashes on its own line whatever the throttle is doing.
+        const landingUnderPower = isThrottleDown();
+        const onFloor = posY <= TOUCH_ALT;
         const isHardLanding =
-          posY <= TOUCH_ALT &&
+          onFloor &&
+          !landingUnderPower &&
           flight.auto === 'manual' &&
           Math.max(sinkNow, peakSink.current) >= HARD_SINK;
         const isImpactCrash =
           isObstacleHit ||
-          v >= MINOR_IMPACT ||
+          (v >= FLOOR_CRASH && !(onFloor && landingUnderPower)) ||
           isHardLanding ||
-          (v >= OBSTACLE_CRASH_SPEED && isTilted);
+          (v >= OBSTACLE_CRASH_SPEED && isTilted && !(onFloor && landingUnderPower));
 
         // Anything hit while properly off the ground is a TOUCH, whether or not
         // it was hard enough to be a crash. Flight School scores a clean flight

@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import type { ContactState, StickInput } from '../src/shared/types';
 import { FlightController, type ControlState } from '../src/renderer/sim/control/flightController';
@@ -305,5 +306,61 @@ describe('the arming throttle interlock', () => {
     fc.reset();
 
     expect(fc.throttleLocked).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// A managed descent must never be able to destroy the aircraft.
+//
+// The crash thresholds live in `Drone.tsx` as module constants and the climb
+// rates live on the drone plugins, so nothing in the type system stops one from
+// drifting under the other — which is exactly what happened. The floor-slam line
+// was set against a 1.8 m/s trainer envelope; the Guru descends at 2.6 and the
+// racer at 3.5, so holding the throttle down on either arrived above the line
+// and the pilot lost the drone for flying it the way the mode flies it.
+// ---------------------------------------------------------------------------
+describe('crash thresholds against the airframes', () => {
+  const droneSrc = ['guru', 'racer', 'pluto'].map((id) =>
+    readFileSync(`src/renderer/plugins/drones/${id}.ts`, 'utf8'),
+  );
+  const crashSrc = readFileSync('src/renderer/sim/drone/Drone.tsx', 'utf8');
+
+  const constant = (name: string): number => {
+    const m = crashSrc.match(new RegExp(`const ${name} = ([\\d.]+);`));
+    if (!m) throw new Error(`${name} is gone from Drone.tsx — has it been renamed?`);
+    return Number(m[1]);
+  };
+
+  it('TC-238 keeps every crash line above every airframe’s capped descent', () => {
+    const rates = droneSrc.flatMap((s) =>
+      [...s.matchAll(/maxClimbRate: ([\d.]+)/g)].map((m) => Number(m[1])),
+    );
+    // The default in `flightController` when a plugin does not set one.
+    const fastest = Math.max(1.8, ...rates);
+
+    expect(fastest).toBeGreaterThan(0);
+    expect(constant('FLOOR_CRASH')).toBeGreaterThan(fastest);
+    expect(constant('HARD_SINK')).toBeGreaterThan(fastest);
+  });
+
+  it('TC-239 never destroys the aircraft for a descent the pilot asked for', () => {
+    // Holding S is landing. However fast it got and however long the key was
+    // held, arriving on the floor under a commanded descent is a hard landing,
+    // not a crash: an aircraft that destroys itself for being landed teaches
+    // nothing except not to press the key. Buildings are unchanged - an obstacle
+    // hit crashes on its own line whatever the throttle is doing.
+    expect(crashSrc).toContain('const landingUnderPower = isThrottleDown();');
+    expect(crashSrc).toContain('v >= FLOOR_CRASH && !(onFloor && landingUnderPower)');
+    expect(crashSrc).toContain('!landingUnderPower');
+  });
+
+  it('TC-238 caps a commanded descent at the airframe’s own rate', () => {
+    // Full stick asks for twice the rate on the way UP, and that is deliberate.
+    // Down is capped at the plain rate: the floor is at the bottom of a descent,
+    // and 2x put the Guru at 5.2 m/s from a stick the pilot thought was gentle.
+    const src = readFileSync('src/renderer/sim/control/flightController.ts', 'utf8');
+    expect(src).toContain(
+      'Math.max(stick * 2 * this.config.maxClimbRate, -this.config.maxClimbRate)',
+    );
   });
 });

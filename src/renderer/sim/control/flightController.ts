@@ -541,7 +541,15 @@ export class FlightController {
 
     let climbSp: number;
     if (stickActive) {
-      climbSp = stick * 2 * this.config.maxClimbRate;
+      // Full stick asks for twice the configured rate, which is what makes a
+      // deliberate climb feel like one. DESCENT is capped at the plain rate.
+      //
+      // It was symmetric, so a throttle held down commanded 2x: 5.2 m/s on the
+      // Guru and 7 m/s on the racer, from a stick the pilot was pushing gently.
+      // Coming down is not the same manoeuvre as going up — the floor is at the
+      // bottom of it — and a descent nobody asked to be that fast arrived at the
+      // deck fast enough to write the aircraft off.
+      climbSp = Math.max(stick * 2 * this.config.maxClimbRate, -this.config.maxClimbRate);
       this.targetAltitude = alt; // follow the stick, resume holding on release
     } else {
       climbSp = clamp(
