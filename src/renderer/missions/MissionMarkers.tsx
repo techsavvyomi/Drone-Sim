@@ -93,7 +93,28 @@ function ZoneMark({
   const ready1 = useMemo(() => new THREE.Color(DROP_READY), []);
   const tint = useMemo(() => new THREE.Color(), []);
 
-  const height = Math.max(zone.band.max * 1.4, 4);
+  /**
+   * How tall the column of light stands, in metres.
+   *
+   * It is a POINTER, not a landmark. Its job is to say "the mark is here" from
+   * far enough out to turn towards, and then to get out of the way — the ring on
+   * the deck is what the pilot actually flies to.
+   *
+   * It was `band.max * 1.4` with a floor of 4, and the floor was doing all the
+   * work: the pickup's height band is 0.9 m deep, so a mark you have to descend
+   * to within a metre of the deck stood a four metre pillar of green up into the
+   * street trees. It read as a wall the drone had to fly into rather than as a
+   * mark to come down onto, and over the city it was tall enough to be mistaken
+   * for a checkpoint.
+   *
+   * Now it is barely more than the band it is drawing, floored at 2.2. Every
+   * mark in the game got SHORTER, which is the point: the pickup drops from 4 m
+   * to 2.2, the city's drop from 4 to 2.2, the pad from 4.2 to 3.3, and the
+   * forest fire's hover — a genuinely 11 m deep band, in a hollow — from 15.4 to
+   * 12.1. A zone that needs a tall column now has to say so through its band,
+   * which is the number the column is meant to be describing in the first place.
+   */
+  const height = Math.max(zone.band.max * 1.1, 2.2);
   const tex = columnTexture();
 
   useFrame(({ clock, camera }, dt) => {
