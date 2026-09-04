@@ -5168,26 +5168,17 @@ button {
   display: block;
   width: 100%;
   margin-top: 8px;
-  /* Squarer than the 120/76 it was, because the captures are portrait: a shot of
-     a drone coming down onto a mark is a tall picture, and a wide slot either
-     crops the subject out or shows it postage-stamp small between two bars. */
-  aspect-ratio: 4 / 3;
+  aspect-ratio: 120 / 76;
   border: 1px solid var(--line);
   border-radius: 8px;
   overflow: hidden;
   background: var(--bg-2);
 }
-/* WHOLE IMAGE, never a crop.
-   `cover` filled the slot and quietly ate the subject — on a portrait capture it
-   keeps a narrow band down the middle, which on the FLY shot meant the ring or
-   the package, never both. A thumbnail whose job is to say what a beat looks
-   like cannot be allowed to remove the thing it is of, so it is `contain` and
-   the slot's own background shows at the sides. */
 .ms-art {
   display: block;
   width: 100%;
   height: 100%;
-  object-fit: contain;
+  object-fit: cover;
 }
 
 /* The objectives: the part of the card most pilots read instead of the prose,
