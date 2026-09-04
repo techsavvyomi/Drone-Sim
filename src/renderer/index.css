@@ -5245,42 +5245,18 @@ button {
   color: var(--good);
 }
 
-/* Four numbers in a two-by-two block. Bigger than the old three-across row,
-   because on a card this wide three tiles read as a caption strip. */
-.ms-tiles {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
-}
-.ms-tiles div {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 11px 13px;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.02);
-}
-.ms-tiles b {
-  font-size: 21px;
-  font-weight: 800;
-  line-height: 1.1;
-}
-.ms-tiles .ms-tile-word {
-  font-size: 15px;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-.ms-tiles span {
-  font-size: 9px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--text-dim);
-}
+/* The lower half: objectives on the left, the rubric on the right.
 
+   The right column used to carry a two-by-two block of numbers above the star
+   rubric - points, time, rings, difficulty. They are gone, and what they were
+   really doing was repeating: the points and the time are in the strip the
+   whole flight, the ring count is the first thing the route tells you, and
+   "difficulty" was a word the mission had to invent about itself. What is left
+   there is the one thing the pilot cannot find anywhere else, which is what
+   earns each star. */
 .ms-brief-cols {
   display: grid;
-  grid-template-columns: 1.3fr minmax(260px, 0.9fr);
+  grid-template-columns: 1.35fr minmax(240px, 0.8fr);
   gap: 16px;
   align-items: start;
 }
@@ -5289,6 +5265,7 @@ button {
   flex-direction: column;
   gap: 14px;
 }
+
 .ms-brief-foot {
   /* Back on the left, Launch dead centre, the hint on the right — the shape of
      every "are you ready" screen, and it keeps the primary action in the middle

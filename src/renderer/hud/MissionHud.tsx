@@ -3,7 +3,6 @@ import { useMissionStore, objectiveFor } from '../state/missionStore';
 import { useSimStore } from '../state/simStore';
 import { useFlightStore } from '../state/flightStore';
 import { resetForMission } from '../missions/reset';
-import { requiredCheckpoints } from '../missions/types';
 import { playClick, playStar, playSuccess } from '../audio/sfx';
 import { RAD2DEG } from '../sim/mathx';
 import { useModalKeyLock } from '../input/useModalKeyLock';
@@ -189,11 +188,6 @@ export function MissionHud() {
 
   const flying = phase === 'flying';
   const fire = !!mission.fire;
-  // On Precision Delivery every ring is required before the package will
-  // release, and the briefing has to say so: it is the one number on that card a
-  // pilot plans the flight around. Forest Fire's rings gate nothing, so its card
-  // says how many there are to collect instead of how many are compulsory.
-  const required = requiredCheckpoints(mission).length;
   // The map's name comes from its own spec rather than from the mission, so a
   // renamed environment renames itself on every briefing that flies it.
   const mapName = getEnvironment(mission.envId)?.name ?? mission.envId;
@@ -327,25 +321,6 @@ export function MissionHud() {
                   </section>
 
                   <aside className="ms-brief-side">
-                    <div className="ms-tiles">
-                      <div>
-                        <b>{maxPoints}</b>
-                        <span>Points to collect</span>
-                      </div>
-                      <div>
-                        <b>{clock(mission.timeLimitSec)}</b>
-                        <span>Time limit</span>
-                      </div>
-                      <div>
-                        <b>{fire ? mission.route.length : required}</b>
-                        <span>{fire ? 'Rings, all optional' : 'Rings, all of them'}</span>
-                      </div>
-                      <div>
-                        <b className="ms-tile-word">{mission.difficulty}</b>
-                        <span>Difficulty</span>
-                      </div>
-                    </div>
-
                     <div className="ms-rubric">
                       <b>Star rating</b>
                       {mission.ranks.map((r) => (

@@ -156,7 +156,6 @@ export const forestFire: Mission = {
     'Hold your position over the fire until it is out.',
     'Return to the emergency base and land safely.',
   ],
-  difficulty: 'Medium-hard',
   mapNote: 'Dense forest, uneven ground',
   // Longer than the city's, and it needs to be: this crossing includes a climb
   // to forty metres and a descent into a hollow, on a stick softened to 55%.

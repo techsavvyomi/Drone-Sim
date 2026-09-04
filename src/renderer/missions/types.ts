@@ -221,8 +221,6 @@ export interface Mission {
    *  in the pilot's language — this is the part of the card most pilots read
    *  instead of the prose. */
   objectives: readonly string[];
-  /** One word for the card's difficulty tile. */
-  difficulty: string;
   /** A few words under the map's name: what is out there. */
   mapNote: string;
   /** The job in four beats, shown as a numbered row above the briefing. */

@@ -272,7 +272,6 @@ describe('what the briefing card needs from a mission', () => {
       expect(m.story.length).toBeGreaterThan(60);
       expect(m.flow).toHaveLength(4);
       expect(m.objectives).toHaveLength(m.flow.length);
-      expect(m.difficulty).not.toBe('');
       expect(m.mapNote).not.toBe('');
       // Every beat names a scene the card knows how to draw. A key it does not
       // know renders an empty box.

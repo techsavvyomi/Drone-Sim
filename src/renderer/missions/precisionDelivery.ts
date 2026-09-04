@@ -211,7 +211,6 @@ export const precisionDelivery: Mission = {
     'Deliver it by holding still over the yellow mark.',
     'Return to the pad you started from and land.',
   ],
-  difficulty: 'Medium',
   mapNote: 'Buildings and roads only',
   timeLimitSec: 480,
   parTimeSec: 300,
