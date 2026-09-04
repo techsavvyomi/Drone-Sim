@@ -39,15 +39,22 @@ A beat with no file keeps the SVG scene `hud/MissionArt.tsx` draws for it, and s
 does the hero. That is deliberate: a mission added later is never broken by not
 having art yet, and a card is never half empty.
 
-## Sizes
+## Shapes and sizes
 
-The hero is shown at roughly **232 x 300 CSS px** and the step thumbnails at
-about **160 x 100**, on a display that may be 2x. So:
+**The four step slots are SQUARE.** They were wide once and it did not survive
+contact with real captures: a shot of a drone coming down onto a mark is a tall
+picture, and a wide slot either crops the subject out or leaves the shot between
+two bars. A square takes a portrait and a landscape source equally well, and four
+of them in a row read as a set.
 
-| | Export at |
-|---|---|
-| Hero | ~700 x 900 |
-| Step | ~640 x 400 |
+Each file is cut to its slot's shape, so nothing is cropped when it is drawn and
+no bar is ever shown. If you drop in a picture that is not square it will be
+centre-cropped to fit — check that the subject survives, or crop it yourself.
+
+| | Shape | Export at |
+|---|---|---|
+| Hero | tall, roughly 2:3 | ~700 x 900 |
+| Step | square | ~420 x 420 |
 
 Keep each one under ~300 KB. They are bundled into the app rather than fetched —
 a strict CSP blocks every external URL — so their size is the app's size, and the
@@ -56,5 +63,9 @@ quality-80 `.jpg` over a `.png` photograph.
 
 ## Framing
 
-The hero is cropped to fill a tall box, the steps to fill wide ones, both from the
-centre. Keep the subject away from the edges or the crop will take it.
+The hero fills a tall box from the centre. Keep the subject away from the edges
+or the crop will take it.
+
+The package and its ring sit low in most captures, so the step squares are cut
+from the BOTTOM of a tall source rather than its middle. If you replace one, look
+at it afterwards.

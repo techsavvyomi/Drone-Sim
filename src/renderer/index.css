@@ -5168,7 +5168,15 @@ button {
   display: block;
   width: 100%;
   margin-top: 8px;
-  aspect-ratio: 120 / 76;
+  /* SQUARE, and the shape the art is cut to.
+     It was 120/76, which is the shape the mockup drew and the wrong shape for
+     the pictures: every capture of a drone coming down onto a mark is a tall
+     picture, so a wide slot either cropped the subject out or left the shot
+     sitting between two bars. Both were tried and both looked broken.
+     A square takes a portrait and a landscape source with equal grace, four of
+     them in a row read as a set, and each file is cut to it so nothing is
+     cropped at display time and no bar is ever drawn. */
+  aspect-ratio: 1 / 1;
   border: 1px solid var(--line);
   border-radius: 8px;
   overflow: hidden;
