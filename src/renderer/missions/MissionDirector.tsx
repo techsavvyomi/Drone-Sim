@@ -307,8 +307,18 @@ export function MissionDirector() {
         store.setPayload('attached');
         store.takeZone('pickup', 'PICKUP', false);
         playLatch();
+        // What was attached is not the same object on the two missions, and the
+        // banner is the only place the pilot is told what they now carry. A
+        // suppression pilot who reads 'Package secured' has been handed the
+        // delivery's words for a tank they are about to empty in the air.
         store.showBanner(
-          { kind: 'good', title: 'PAYLOAD ATTACHED', sub: 'Package secured under the airframe' },
+          mission.fire
+            ? {
+                kind: 'good',
+                title: 'FIREFIGHTING PAYLOAD ATTACHED',
+                sub: 'Suppression tank secured under the airframe',
+              }
+            : { kind: 'good', title: 'PAYLOAD ATTACHED', sub: 'Package secured under the airframe' },
           BANNER_SEC,
         );
         say(mission, 'pickup');

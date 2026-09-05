@@ -187,12 +187,20 @@ export const forestFire: Mission = {
   },
 
   zones: {
-    // On the bare dirt road, 20 m up from the spawn point and dead flat: the
-    // ground varies by 4 cm across the whole mark and the nearest trunk is
-    // 13.8 m away, so the column above it is open all the way up.
+    // On the bare dirt road, 11.7 m up from the spawn point and dead flat: the
+    // ground varies by 3 cm across the whole mark and there is 11.75 m of clear
+    // column above it.
+    //
+    // It used to sit at (20, -8), 21.5 m out and 68 degrees off the spawn
+    // heading, which put the first thing the pilot is asked to find OUTSIDE the
+    // view they start in. They had to turn to look for it, and behind a trunk
+    // from a lot of the headings in between there was nothing to see at all. A
+    // mark this close is in the picture the moment the mission opens, and the
+    // leg is still a flight rather than a hop: the tank is 11.7 m away and 0.9 m
+    // off the deck.
     pickup: {
       kind: 'pickup',
-      at: [20, -8],
+      at: [11, -4],
       label: 'Emergency station',
       // The city's numbers, unchanged. Directly over the tank and down onto it,
       // not merely somewhere in the neighbourhood.
