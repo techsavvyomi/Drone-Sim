@@ -17,6 +17,22 @@ export const forest: EnvironmentSpec = {
   // (0.5 m of undulation across its whole 40 m length).
   spawn: { position: [0, 0.35, 0], heading: 0 },
   /**
+   * Fog pushed past the whole map.
+   *
+   * The time presets fog from 50-100 m out, which is tuned for the city, where
+   * haze between the blocks IS the depth cue and the far towers are meant to go
+   * soft. A forest is not that: the trees the pilot has to weave between start
+   * at 10 m and the tree line runs to 200, so the same fog laid grey over the
+   * whole crossing and washed the trunks together into one flat wall — exactly
+   * the thing the mission asks the pilot to read. The mission also runs at dusk,
+   * where the fog colour is at its lightest against the darkest scene.
+   *
+   * 320 m clears the playable box in every direction, so nothing the pilot flies
+   * near is fogged at all, while the far valley and the ridge lines behind it
+   * still soften instead of ending in a hard edge against the sky.
+   */
+  fog: { near: 320, far: 1400 },
+  /**
    * Play area, measured against the model rather than guessed.
    *
    * The tree trunks — the forest you can actually see — span X -200..170 and
