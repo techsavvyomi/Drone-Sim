@@ -340,18 +340,18 @@ describe('crash thresholds against the airframes', () => {
 
     expect(fastest).toBeGreaterThan(0);
     expect(constant('FLOOR_CRASH')).toBeGreaterThan(fastest);
-    expect(constant('HARD_SINK')).toBeGreaterThan(fastest);
   });
 
-  it('TC-239 never destroys the aircraft for a descent the pilot asked for', () => {
-    // Holding S is landing. However fast it got and however long the key was
-    // held, arriving on the floor under a commanded descent is a hard landing,
-    // not a crash: an aircraft that destroys itself for being landed teaches
-    // nothing except not to press the key. Buildings are unchanged - an obstacle
-    // hit crashes on its own line whatever the throttle is doing.
-    expect(crashSrc).toContain('const landingUnderPower = isThrottleDown();');
-    expect(crashSrc).toContain('v >= FLOOR_CRASH && !(onFloor && landingUnderPower)');
-    expect(crashSrc).toContain('!landingUnderPower');
+  it('TC-239 never destroys the aircraft for arriving on the floor', () => {
+    // At ANY rate, and whatever the throttle was doing. It used to depend on
+    // whether the descent was commanded, which made the same arrival a landing
+    // or a wreck on a difference only the code could see. Buildings are
+    // unchanged: an obstacle hit crashes on its own line, and every surviving
+    // crash clause is gated on NOT being on the floor.
+    expect(crashSrc).toContain('v >= FLOOR_CRASH && !onFloor');
+    expect(crashSrc).toContain('isTilted && !onFloor');
+    expect(crashSrc).not.toContain('HARD_SINK');
+    expect(crashSrc).not.toContain('landingUnderPower');
   });
 
   it('TC-238 caps a commanded descent at the airframe’s own rate', () => {

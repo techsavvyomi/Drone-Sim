@@ -119,22 +119,6 @@ const MAJOR_IMPACT = 4.5;
  * the sky passes this on the way down.
  */
 const FLOOR_CRASH = 4.2;
-/**
- * Sink rate (m/s) at which arriving on the floor is a crash rather than a
- * landing.
- *
- * It was 1.5, chosen to punish a throttle dropped to the stop in Flight School
- * — Module 3 is the throttle drill and its own listed mistake is "pushing the
- * throttle all the way down and landing". But 1.5 is BELOW what Altitude Hold
- * itself descends at, so it stopped punishing the mistake and started punishing
- * the mode: every deliberate, controlled descent ended in a destroyed drone.
- *
- * 4.0 is above every airframe's capped rate and below a fall. A pilot easing
- * down puts it on at 0.3-0.6, a full-stick managed descent arrives at 2.6 on the
- * Guru and 3.5 on the racer, and only something genuinely out of control gets
- * here.
- */
-const HARD_SINK = 4;
 /** Walls / furniture — only crash on a clear fast hit. Slow/medium bumps must not flip. */
 const WALL_CRASH_SPEED = 3.2;
 /**
@@ -260,9 +244,6 @@ export function Drone({ spec, spawn, bounds, outdoor = false, groundY }: DronePr
   /** Peak speed in a short window — tunneling can zero linvel before onCollisionEnter. */
   const peakSpeed = useRef(0);
   const peakSpeedUntil = useRef(0);
-  /** Peak DESCENT rate over the same window, for grading an arrival on the floor. */
-  const peakSink = useRef(0);
-  const peakSinkUntil = useRef(0);
   /** Seconds the pack has been continuously below LOW_VOLTAGE. */
   const lowVoltageFor = useRef(0);
   /** Previous horizontal velocity, for deriving lateral G. */
@@ -317,8 +298,6 @@ export function Drone({ spec, spawn, bounds, outdoor = false, groundY }: DronePr
     wallBumpUntil.current = 0;
     peakSpeed.current = 0;
     peakSpeedUntil.current = 0;
-    peakSink.current = 0;
-    peakSinkUntil.current = 0;
     prevVel.current = { x: 0, z: 0 };
     useFlightStore.getState().setOnGround(lift <= 0);
     useFlightStore.getState().clearCrash();
@@ -413,16 +392,6 @@ export function Drone({ spec, spawn, bounds, outdoor = false, groundY }: DronePr
       peakSpeedUntil.current = simTime.current + PEAK_SPEED_HOLD;
     } else if (simTime.current > peakSpeedUntil.current) {
       peakSpeed.current = speedNow;
-    }
-    // Sink rate gets its own peak-hold for the same reason, and separately:
-    // a drone dropping straight down is slow by `speedNow` and still arriving
-    // hard, so the floor has to be graded on the vertical component alone.
-    const sinkNow = Math.max(0, -lin.y);
-    if (sinkNow >= peakSink.current) {
-      peakSink.current = sinkNow;
-      peakSinkUntil.current = simTime.current + PEAK_SPEED_HOLD;
-    } else if (simTime.current > peakSinkUntil.current) {
-      peakSink.current = sinkNow;
     }
 
     // A demonstration has no pilot in the loop. The Director writes stick
@@ -1233,12 +1202,12 @@ export function Drone({ spec, spawn, bounds, outdoor = false, groundY }: DronePr
         _euler.setFromQuaternion(_q, 'YXZ');
         const isTilted = Math.abs(_euler.x) > 0.45 || Math.abs(_euler.z) > 0.45; // > 25 degrees
 
-        // Crash conditions:
-        // 1. Any obstacle/building/pole impact while airborne (posY > 0.15m and v >= 0.8 m/s)
-        // 2. High speed floor slam (v >= 1.8 m/s)
-        // 3. Tilted contact / flip (> 25 deg) with velocity >= 0.8 m/s
-        // 4. Dropped onto the floor at HARD_SINK or more, under the pilot's own
-        //    hand — a rate no managed descent reaches
+        // Crash conditions, and all three are about hitting SOMETHING rather
+        // than about arriving somewhere:
+        // 1. An obstacle, building, pole or tree hit while airborne
+        // 2. A fast contact clear of the floor
+        // 3. A tilted contact (> 25 degrees) clear of the floor
+        // The floor itself is not on the list at any speed — see below.
         // Graded by impact speed, the way a real airframe fails. Touching a wall
         // at walking pace scuffs a prop guard; it does not write the aircraft
         // off. The old 0.8 m/s obstacle threshold destroyed the drone on contact
@@ -1257,27 +1226,22 @@ export function Drone({ spec, spawn, bounds, outdoor = false, groundY }: DronePr
         //    wanted here — "low enough that what it hit is the floor it was
         //    landing on" — and keeps a dive that clips a wall mid-air out of it,
         //    which a bare sink-rate test would call a crash.
-        const sinkNow = rb ? -rb.linvel().y : 0;
-        //    A descent the pilot is ASKING for is never a crash, however fast it
-        //    got and however long the key was held. Bringing a drone down is the
-        //    one manoeuvre where the input and the outcome are the same thing:
-        //    a pilot holding S is landing, and an aircraft that destroys itself
-        //    for being landed teaches nothing except not to press the key. It
-        //    arrives hard, it shakes, it keeps flying. The floor is forgiving
-        //    here; the buildings are not, and an obstacle hit below still
-        //    crashes on its own line whatever the throttle is doing.
-        const landingUnderPower = isThrottleDown();
+        //    ARRIVING ON THE FLOOR IS NEVER A CRASH, at any rate at all.
+        //
+        //    It used to depend on how the descent was flown: held under power it
+        //    was a landing, and the same arrival with the stick released was a
+        //    destroyed aircraft. That is a distinction only the code could see.
+        //    A pilot coming down fast is coming down — they get the shake, which
+        //    is graded on the speed and says plainly that it was hard, and they
+        //    keep the aircraft. What is still lethal is everything that is NOT
+        //    the floor: a building, a pole, a tree, a gate upright. Those crash
+        //    on the obstacle line above, unchanged, and a dive that clips one on
+        //    the way down is an obstacle hit, not a landing.
         const onFloor = posY <= TOUCH_ALT;
-        const isHardLanding =
-          onFloor &&
-          !landingUnderPower &&
-          flight.auto === 'manual' &&
-          Math.max(sinkNow, peakSink.current) >= HARD_SINK;
         const isImpactCrash =
           isObstacleHit ||
-          (v >= FLOOR_CRASH && !(onFloor && landingUnderPower)) ||
-          isHardLanding ||
-          (v >= OBSTACLE_CRASH_SPEED && isTilted && !(onFloor && landingUnderPower));
+          (v >= FLOOR_CRASH && !onFloor) ||
+          (v >= OBSTACLE_CRASH_SPEED && isTilted && !onFloor);
 
         // Anything hit while properly off the ground is a TOUCH, whether or not
         // it was hard enough to be a crash. Flight School scores a clean flight
