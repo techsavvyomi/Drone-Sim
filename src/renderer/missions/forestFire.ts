@@ -173,6 +173,10 @@ export const forestFire: Mission = {
   // entirely is told so instead of timing out in silence.
   strayRadius: 150,
 
+  // Trunks everywhere and not one building: a column that ignores depth cannot
+  // put a light in front of something the pilot would have to fly round.
+  seeThroughMarks: true,
+
   fire: {
     // Ten seconds, which is what the brief asks for and what makes this a
     // mission about holding a hover rather than about touching a marker.

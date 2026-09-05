@@ -83,6 +83,7 @@ function ZoneMark({
   live,
   ready,
   column: withColumn = true,
+  xray = false,
 }: {
   zone: MissionZone;
   groundY: number;
@@ -92,6 +93,9 @@ function ZoneMark({
   /** Draw the column of light. Off where the world already has a landmark of
    *  its own standing on the mark — see the fire, below. */
   column?: boolean;
+  /** Let the column draw through the scenery once the mark is the one being
+   *  arrived at. The mission's `seeThroughMarks` — off over a city. */
+  xray?: boolean;
 }) {
   const group = useRef<THREE.Group>(null);
   const ring = useRef<THREE.Mesh>(null);
@@ -213,10 +217,13 @@ function ZoneMark({
       // times the wall area painting the same amount of light per square metre.
       const punch = Math.min(1, Math.max(0.6, 1.6 / colR));
       colMat.opacity = t * fade * punch * (0.3 + 0.16 * pulse);
-      // The X-ray is for the mark you are coming to, not for one across the
-      // map: inside `REVEAL` a trunk must not swallow the light, but a column
-      // that ignores depth at every range is a light shining through a forest.
-      colMat.depthTest = flat > REVEAL * 0.9;
+      // The X-ray, where the mission asks for one, is for the mark you are
+      // coming to and not for one across the map: inside `REVEAL` a trunk must
+      // not swallow the light, but a column that ignores depth at every range is
+      // a light shining through a forest. A mission that does not ask keeps its
+      // depth at every range — over a city the thing in front of the mark is a
+      // building, and hiding one behind a light is how a pilot flies into it.
+      colMat.depthTest = !xray || flat > REVEAL * 0.9;
     }
   });
 
@@ -241,17 +248,16 @@ function ZoneMark({
           double-sided: no lid to see from above, and the far wall draws too,
           which is most of what makes it read as a volume.
 
-          IT DRAWS THROUGH THE SCENERY while it is the mark being arrived at —
-          `depthTest` is toggled per frame above, off inside `REVEAL`, and this
-          is the off state it starts in. Last of everything, either way.
-          A forest is a wall of trunks with a canopy over it, and a light that
-          respects depth is a light that is behind a tree from most of the
-          headings a pilot can be on: the mark vanished and came back as they
-          yawed, which reads as a bug rather than as an occlusion. This is a
-          NAVIGATION cue, and the one question it answers — which way is the
-          thing I have been sent to — has to have the same answer from every
-          direction. The ring on the deck keeps its depth: that one is a place on
-          the ground, and a place on the ground behind a tree IS behind a tree. */}
+          On a mission that asks for it, it DRAWS THROUGH THE SCENERY while it
+          is the mark being arrived at: `depthTest` is toggled per frame above,
+          off inside `REVEAL` and on everywhere else. A forest is a wall of
+          trunks with a canopy over it, and a light that respects depth is a
+          light that is behind a tree from most of the headings a pilot can be
+          on: the mark vanished and came back as they yawed, which reads as a bug
+          rather than as an occlusion. A city is the opposite case and keeps its
+          depth — see `seeThroughMarks`. The ring on the deck always keeps its:
+          that one is a place on the ground, and a place on the ground behind
+          something IS behind it. */}
       {withColumn && (
         <mesh ref={column} position={[0, height / 2, 0]} renderOrder={3}>
           {/* A cone, very slightly: the top is a fifth wider than the foot. A
@@ -265,7 +271,6 @@ function ZoneMark({
             map={tex}
             transparent
             depthWrite={false}
-            depthTest={false}
             blending={THREE.AdditiveBlending}
             side={THREE.DoubleSide}
             toneMapped={false}
@@ -410,6 +415,7 @@ export function MissionMarkers({ mission }: { mission: Mission }) {
           // smoke already was. The deck ring stays, because centring over the
           // mark is still judged to a metre.
           column={!(mission.fire && kind === 'drop')}
+          xray={mission.seeThroughMarks === true}
         />
       ))}
     </group>

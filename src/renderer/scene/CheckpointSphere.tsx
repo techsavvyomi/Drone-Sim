@@ -566,7 +566,14 @@ export function CheckpointSphere({
             map={orbTagTexture(tag)}
             transparent
             opacity={1}
-            depthTest={false}
+            // Depth-TESTED, unlike the rest of the marker's chrome, and it costs
+            // nothing: the ball and its halo both write no depth, so the number
+            // still reads through the sphere it is sitting inside. What it will
+            // not do any more is read through a BUILDING. Ignoring depth put a
+            // legible route number on the face of the block that the checkpoint
+            // was behind, which is the one place a pilot must not be told there
+            // is a way through.
+            depthTest
             depthWrite={false}
             toneMapped={false}
           />

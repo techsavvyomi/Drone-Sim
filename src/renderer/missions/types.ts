@@ -251,6 +251,21 @@ export interface Mission {
    * nothing on screen ever saying they were going the wrong way.
    */
   strayRadius?: number;
+  /**
+   * Let a live zone's column of light draw THROUGH the scenery.
+   *
+   * Off by default, and it has to be: over a city the mark is on a street with
+   * buildings between it and the pilot, and a light that ignores them is a
+   * column hanging in front of a block it is actually behind — the pilot reads
+   * a clear line to a mark that has a tower across it.
+   *
+   * A forest is the case that wants it. It is a wall of trunks with a canopy
+   * over it, so a depth-tested light is behind a tree from most of the headings
+   * a pilot can be on: the mark vanishes and comes back as they yaw, which reads
+   * as a bug rather than as an occlusion. Nothing there is a building, so
+   * nothing is misread as a route.
+   */
+  seeThroughMarks?: boolean;
   route: readonly MissionCheckpoint[];
   /** Bare waypoints for the flight home: the line a sensible pilot takes from
    *  the drop back to the pad. They score nothing and draw nothing — the return
