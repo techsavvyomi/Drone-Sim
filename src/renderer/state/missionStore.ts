@@ -46,11 +46,16 @@ export type PayloadState = 'waiting' | 'attached' | 'delivered';
  * the crash. Rather than carry an enum member nothing can ever set, a crash made
  * while carrying drops the package (see `Payload`) and the result card says so.
  *
+ * `payload` is the load lost in flight rather than in a wreck: the suppression
+ * fire takes the tank off an aircraft that drops into it — see `loseLoadAgl`.
+ * There is no way to pick a second one up, so it ends the attempt rather than
+ * leaving the pilot flying an unwinnable mission.
+ *
  * `strayed` is the brief's optional fourth: the pilot left the mission area and
  * did not come back inside the grace period. Only a mission that declares a
  * `strayRadius` can reach it.
  */
-export type FailReason = 'crash' | 'timeout' | 'strayed';
+export type FailReason = 'crash' | 'timeout' | 'strayed' | 'payload';
 
 /** A transient line across the middle of the view. */
 export interface Banner {

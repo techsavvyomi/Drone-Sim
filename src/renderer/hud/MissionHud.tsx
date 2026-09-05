@@ -525,24 +525,28 @@ export function MissionHud() {
                 ? 'Out of time'
                 : failReason === 'strayed'
                   ? 'Left the mission area'
-                  : 'Drone destroyed'}
+                  : failReason === 'payload'
+                    ? 'Payload lost'
+                    : 'Drone destroyed'}
             </h2>
             <p className="ms-fail-line">
-              {failReason === 'strayed'
-                ? fire
-                  ? 'The drone flew out of the response area and did not come back. The arrow on the strip points at the fire the whole way.'
-                  : 'The drone flew out of the delivery area and did not come back. The arrow on the strip points at your next target.'
-                : failReason === 'timeout'
-                ? fire
-                  ? 'The fire got away from you. Take the marked line east next time.'
-                  : 'The delivery window closed. Take a straighter line through the city.'
-                : payload === 'attached'
+              {failReason === 'payload'
+                ? 'The drone dropped into the flames and the tank went with it. Hold the hover above the fire: the height band on the checklist is where the spray reaches from.'
+                : failReason === 'strayed'
                   ? fire
-                    ? 'The aircraft is wrecked and the suppression tank went down with it.'
-                    : 'The aircraft is wrecked and the package went down with it.'
-                  : fire
-                    ? 'The aircraft is wrecked. A tree is solid all the way up to its own treetop.'
-                    : 'The aircraft is wrecked. Watch the street furniture on the approach.'}
+                    ? 'The drone flew out of the response area and did not come back. The arrow on the strip points at the fire the whole way.'
+                    : 'The drone flew out of the delivery area and did not come back. The arrow on the strip points at your next target.'
+                  : failReason === 'timeout'
+                    ? fire
+                      ? 'The fire got away from you. Take the marked line east next time.'
+                      : 'The delivery window closed. Take a straighter line through the city.'
+                    : payload === 'attached'
+                      ? fire
+                        ? 'The aircraft is wrecked and the suppression tank went down with it.'
+                        : 'The aircraft is wrecked and the package went down with it.'
+                      : fire
+                        ? 'The aircraft is wrecked. A tree is solid all the way up to its own treetop.'
+                        : 'The aircraft is wrecked. Watch the street furniture on the approach.'}
             </p>
             <div className="ms-sheet">
               <div className="ms-sheet-row">

@@ -189,6 +189,20 @@ export interface MissionFire {
   /** Radius of the burning ground, metres — what the fire and its scorch mark
    *  are drawn at. Bigger than the hover zone, which sits inside it. */
   burnRadius: number;
+  /**
+   * How low over the fire's own deck the aircraft may go before it LOSES the
+   * tank, in metres. Optional: a fire that does not declare it cannot take the
+   * load off anybody.
+   *
+   * The suppression band starts at a height for a reason — the drone is meant to
+   * be over the fire, not in it — and until now dropping below the band simply
+   * stopped the hold timer, so a pilot could sit a metre off the burning ground
+   * with the tank happily slung underneath and nothing at all happening. This is
+   * the honest answer: down there the slings go, the tank falls into the fire,
+   * and the attempt is over. It only bites inside the fire's own break radius,
+   * so a low pass anywhere else on the map costs nothing.
+   */
+  loseLoadAgl?: number;
 }
 
 export interface Mission {

@@ -87,6 +87,9 @@ interface ZoneProbe {
   steady: boolean;
   /** All three, which is what the hold timer runs on. */
   ok: boolean;
+  /** Height over THIS zone's deck, metres. Read by the fire, which cares how far
+   *  DOWN the drone has gone as well as whether it is in the band. */
+  agl: number;
 }
 
 function probeZone(mission: Mission, zone: MissionZone): ZoneProbe {
@@ -101,7 +104,7 @@ function probeZone(mission: Mission, zone: MissionZone): ZoneProbe {
   const inBand = agl >= zone.band.min && agl <= zone.band.max;
   const steady =
     sim.groundSpeed <= zone.maxGroundSpeed && Math.abs(sim.verticalSpeed) <= zone.maxVerticalSpeed;
-  return { flat, centred, inBand, steady, ok: centred && inBand && steady };
+  return { flat, centred, inBand, steady, ok: centred && inBand && steady, agl };
 }
 
 export function MissionDirector() {
@@ -318,7 +321,11 @@ export function MissionDirector() {
                 title: 'FIREFIGHTING PAYLOAD ATTACHED',
                 sub: 'Suppression tank secured under the airframe',
               }
-            : { kind: 'good', title: 'PAYLOAD ATTACHED', sub: 'Package secured under the airframe' },
+            : {
+                kind: 'good',
+                title: 'PAYLOAD ATTACHED',
+                sub: 'Package secured under the airframe',
+              },
           BANNER_SEC,
         );
         say(mission, 'pickup');
@@ -383,6 +390,22 @@ export function MissionDirector() {
           fireIntensity: 1 - suppressed.current / fire.suppressSec,
           suppressing: false,
         });
+      } else if (mission.fire.loseLoadAgl !== undefined && z.agl < mission.fire.loseLoadAgl) {
+        // INTO the fire. The band is five metres up and this is three, so the
+        // pilot has already flown down through the hold and out the bottom of
+        // it. The tank goes: `Payload` drops whatever it is carrying the moment
+        // the attempt fails, so there is nothing to script here beyond ending it
+        // — and there is no second tank, which is why this ends the attempt
+        // rather than leaving an unwinnable one running.
+        spraying.current = false;
+        store.setFire({
+          fireIntensity: 1 - suppressed.current / fire.suppressSec,
+          suppressing: false,
+        });
+        playFail();
+        store.setCollisions(collisions);
+        store.fail('payload');
+        return;
       } else {
         const on = z.ok;
         suppressed.current = on

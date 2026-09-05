@@ -188,6 +188,12 @@ export const forestFire: Mission = {
     // The burning ground. The hover zone sits inside it, so a pilot who is over
     // the fire at all is already most of the way to being over the mark.
     burnRadius: 6,
+    // Three metres over the floor of the hollow, which is two metres BELOW the
+    // band the hover is judged in. That gap is the warning: a pilot who sinks
+    // out of the band has already lost the hold and watched IN BAND go out
+    // before anything is taken off them. Under it the drone is in the flames
+    // rather than over them, and the tank goes.
+    loseLoadAgl: 3,
   },
 
   zones: {

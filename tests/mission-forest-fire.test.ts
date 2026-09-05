@@ -305,3 +305,15 @@ describe('TC-242 the mission area', () => {
     expect(furthest).toBeLessThan(r! - 30);
   });
 });
+
+// Losing the tank in the fire. The number has to sit BELOW the hover band with
+// room to spare: a floor inside the band would take the load off a pilot who is
+// flying the mission exactly as the checklist asks.
+describe('TC-243 flying into the fire', () => {
+  it('drops the tank only well under the hover band', () => {
+    const agl = forestFire.fire?.loseLoadAgl;
+    expect(agl).toBeDefined();
+    expect(agl!).toBeGreaterThan(0);
+    expect(agl!).toBeLessThanOrEqual(forestFire.zones.drop.band.min - 2);
+  });
+});
