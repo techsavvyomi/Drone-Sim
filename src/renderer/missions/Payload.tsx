@@ -51,7 +51,8 @@ export function Payload({ mission }: { mission: Mission }) {
   const droneId = useSettingsStore((s) => s.settings.selectedDroneId);
   const payload = useMissionStore((s) => s.payload);
   const phase = useMissionStore((s) => s.phase);
-  /** A tank is emptied, not dropped. */
+  /** Which object is slung: a tank on a suppression mission, a case on a
+   *  delivery. Both come off at the end of their middle leg. */
   const keepsPayload = mission.kind === 'suppression';
   const spent = keepsPayload && payload === 'delivered';
 
@@ -143,10 +144,16 @@ export function Payload({ mission }: { mission: Mission }) {
       fall.current = 0;
     } else if (
       payload === 'delivered' &&
-      !keepsPayload &&
       motion.current !== 'falling' &&
       motion.current !== 'down'
     ) {
+      // Delivered means PUT DOWN, on both missions. The tank used to stay slung
+      // once the fire was out, on the reasoning that a tank is emptied rather
+      // than dropped — but the pilot then flew home with an empty tank still
+      // hanging under them, and nothing on the aircraft ever said the job was
+      // finished. It comes off over the fire like the package comes off on the
+      // mark: it falls, it lands, and it is drawn `spent` from that moment, so
+      // what is left on the ground is a used tank at the place it was used.
       motion.current = 'falling';
       fall.current = 0;
     }
@@ -196,7 +203,10 @@ export function Payload({ mission }: { mission: Mission }) {
         // is the anchor exactly, as before; near the ground it stops falling and
         // the drone settles the rest of the way onto it, which is what a slung
         // load does anyway.
-        at.current.y = Math.max(at.current.y, deckUnder(mission, at.current.x, at.current.z) + belly);
+        at.current.y = Math.max(
+          at.current.y,
+          deckUnder(mission, at.current.x, at.current.z) + belly,
+        );
         if (dronePose.present) g.quaternion.copy(dronePose.quaternion);
         break;
       }
