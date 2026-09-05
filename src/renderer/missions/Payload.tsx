@@ -74,6 +74,18 @@ export function Payload({ mission }: { mission: Mission }) {
     return { size: s, drop: s * 0.5 + span * 0.06 + 0.015 };
   }, [droneId]);
 
+  /**
+   * How far the load's lowest point sits under its own origin.
+   *
+   * The case is a box, so it is half of one. The tank is a cylinder slung
+   * crosswise with a nozzle beneath it, and the nozzle is the lowest thing on
+   * the aircraft — it reaches further down than a half-box does, which is what
+   * put it through the road. Both numbers are read off the geometry below, the
+   * case's including the `skin` its decals stand proud by: the underside plate
+   * is the lowest thing on it, not the box face.
+   */
+  const belly = keepsPayload ? size * 0.549 : size * 0.504;
+
   const group = useRef<THREE.Group>(null);
   /** Where the box actually is, and how fast it is falling. */
   const at = useRef(new THREE.Vector3());
@@ -90,10 +102,10 @@ export function Payload({ mission }: { mission: Mission }) {
     () =>
       new THREE.Vector3(
         mission.zones.pickup.at[0],
-        zoneGroundY(mission, mission.zones.pickup) + size / 2,
+        zoneGroundY(mission, mission.zones.pickup) + belly,
         mission.zones.pickup.at[1],
       ),
-    [mission, size],
+    [mission, belly],
   );
 
   useFrame(({ clock }, rawDt) => {
@@ -171,13 +183,27 @@ export function Payload({ mission }: { mission: Mission }) {
         // No chase, no lean, nothing that can be left behind by a fast run.
         anchorUnder(anchor, drop);
         at.current.copy(anchor);
+        // ...but never through the deck.
+        //
+        // The load hangs 0.30 m under the airframe's origin and the drone's
+        // collider is 0.024 m deep, so an aircraft sitting on the road has its
+        // slung load a quarter of a metre INSIDE it: the tank was buried to its
+        // waist in the dirt on every take-off and every landing. Nothing in the
+        // physics can fix that — the tank is drawn, not simulated, and the body
+        // that rests on the ground is the airframe's.
+        //
+        // So the load rides up the last few centimetres instead. Off the deck it
+        // is the anchor exactly, as before; near the ground it stops falling and
+        // the drone settles the rest of the way onto it, which is what a slung
+        // load does anyway.
+        at.current.y = Math.max(at.current.y, deckUnder(mission, at.current.x, at.current.z) + belly);
         if (dronePose.present) g.quaternion.copy(dronePose.quaternion);
         break;
       }
       case 'falling': {
         fall.current += DROP_G * dt;
         at.current.y -= fall.current * dt;
-        const floor = zoneGroundY(mission, mission.zones.pickup) + size / 2;
+        const floor = deckUnder(mission, at.current.x, at.current.z) + belly;
         if (at.current.y <= floor) {
           at.current.y = floor;
           fall.current *= -BOUNCE;
@@ -334,6 +360,29 @@ const CROSS_FACES: ReadonlyArray<[[number, number, number], [number, number, num
     [0, -1, 0],
   ],
 ];
+
+/**
+ * The ground height under a point, as well as this component can know it.
+ *
+ * A map with one deck answers with it. The forest does not have one — its ground
+ * falls 12.5 m between the road and the fire — so the answer is the declared
+ * deck of the NEAREST zone, which is exact at the three places the aircraft is
+ * ever low: the pickup, the fire and the pad. Between them the drone is flying,
+ * where nothing is resting on anything and the number is never read.
+ */
+function deckUnder(mission: Mission, x: number, z: number): number {
+  let best = mission.groundY;
+  let bestD = Infinity;
+  for (const kind of ['pickup', 'drop', 'base'] as const) {
+    const zone = mission.zones[kind];
+    const d = (zone.at[0] - x) ** 2 + (zone.at[1] - z) ** 2;
+    if (d < bestD) {
+      bestD = d;
+      best = zoneGroundY(mission, zone);
+    }
+  }
+  return best;
+}
 
 /** The point directly under the airframe the parcel hangs from. Taken from the
  *  drone's own transform, so it follows roll and pitch instead of floating flat
