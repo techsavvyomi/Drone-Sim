@@ -28,6 +28,11 @@ import type { Mission, MissionZone, MissionZoneKind } from './types';
  *  the pickup going dark as the drop lights up reads as one movement. */
 const FADE = 0.45;
 
+/** How close the drone has to be, flat, before a zone's mark lights at all.
+ *  Matches the Director's `CALL_NEAR`, so the light comes up on the same
+ *  boundary Mission Control says "you are getting close" on. */
+const REVEAL = 75;
+
 /** Zone colours. Green is "go here": the pickup mark and its column, and the
  *  pad you come home to, the same green the radar's dot uses for whatever is
  *  next. The drop keeps its own amber until the release conditions are met,
@@ -77,12 +82,16 @@ function ZoneMark({
   groundY,
   live,
   ready,
+  column: withColumn = true,
 }: {
   zone: MissionZone;
   groundY: number;
   live: boolean;
   /** 0..1 of the release conditions met — drop zone only. Colours the mark. */
   ready?: number;
+  /** Draw the column of light. Off where the world already has a landmark of
+   *  its own standing on the mark — see the fire, below. */
+  column?: boolean;
 }) {
   const group = useRef<THREE.Group>(null);
   const ring = useRef<THREE.Mesh>(null);
@@ -107,6 +116,13 @@ function ZoneMark({
    * mark to come down onto, and over the city it was tall enough to be mistaken
    * for a checkpoint.
    *
+   * It is also CAPPED at 6, and that is the fire's doing. Its band is 5 to 11 m
+   * deep, so band * 1.1 stood a twelve metre, seven metre wide barrel of light
+   * in a hollow: from inside the trees it filled the view, and the two green
+   * hoops that actually draw the band were somewhere inside it. The band has its
+   * own drawing; the column only has to say where. Six metres is tall enough to
+   * find over the canopy and short enough to see past.
+   *
    * Now it is barely more than the band it is drawing, floored at 2.2. Every
    * mark in the game got SHORTER, which is the point: the pickup drops from 4 m
    * to 2.2, the city's drop from 4 to 2.2, the pad from 4.2 to 3.3, and the
@@ -114,14 +130,53 @@ function ZoneMark({
    * 12.1. A zone that needs a tall column now has to say so through its band,
    * which is the number the column is meant to be describing in the first place.
    */
-  const height = Math.max(zone.band.max * 1.1, 2.2);
+  const height = Math.min(Math.max(zone.band.max * 1.1, 2.2), 6);
+
+  /**
+   * How WIDE the column stands, in metres, and it is not the zone's radius.
+   *
+   * It was, and over the city that passed unnoticed because the city is dark and
+   * the pickup is approached from twenty metres up a street. The forest found it
+   * out: the emergency station's mark is a 0.6 m circle — the delivery's numbers,
+   * because the drone has to come down ONTO the tank — so the column above it was
+   * a 0.6 m thread, additive at a fifth opacity, over a lit grey road. From the
+   * spawn point 23 m away there was no green light at all, only the ring's dot,
+   * and the first leg of the mission became "find the thing you were told to fly
+   * to".
+   *
+   * A floor of 1.2 m fixes it without touching the height, which is deliberately
+   * low: what the pilot gets is a wider, shorter patch of light, which reads as a
+   * mark ON the ground rather than as the pillar this column used to be. The
+   * precision is still the ring's — the column never judged anything.
+   */
+  const colR = Math.max(zone.radius, 1.2);
   const tex = columnTexture();
 
   useFrame(({ clock, camera }, dt) => {
+    const dx = camera.position.x - zone.at[0];
+    const dz = camera.position.z - zone.at[1];
+    const flat = Math.hypot(dx, dz);
+
+    /**
+     * ONE mark at a time, and the next one only once you are near it.
+     *
+     * A lit zone is the destination of the leg, so on the crossing the fire's
+     * amber column was lit from the moment the tank came off the road — 95 m
+     * away, and drawing through the trees now that the column ignores depth.
+     * The pilot got a pink ring ahead of them AND a second, differently coloured
+     * light beyond it, which is two targets and no order between them.
+     *
+     * So a mark stays dark until the drone is inside `REVEAL` of it. Between
+     * here and there the guidance is the ring in front and the arrow on the
+     * strip, which is one thing to fly at; the mark lights when it is the thing
+     * you are actually arriving at. It never gates anything — a zone judges the
+     * drone whether or not its light is up, so a pilot who arrives in the dark
+     * still picks the tank up.
+     */
+    const near = flat <= REVEAL;
     const step = Math.min(dt, 0.1) / FADE;
-    const t = (lit.current = live
-      ? Math.min(1, lit.current + step)
-      : Math.max(0, lit.current - step));
+    const t = (lit.current =
+      live && near ? Math.min(1, lit.current + step) : Math.max(0, lit.current - step));
 
     if (group.current) {
       group.current.visible = t > 0.002;
@@ -152,10 +207,16 @@ function ZoneMark({
       // cannot fly through. So it thins out as the view gets close and is gone
       // by the time the camera is inside: by then the ring on the deck is the
       // cue, and the column has nothing left to point at.
-      const dx = camera.position.x - zone.at[0];
-      const dz = camera.position.z - zone.at[1];
-      const near = Math.min(1, Math.max(0, Math.hypot(dx, dz) / (zone.radius * 3) - 0.4) / 0.6);
-      colMat.opacity = t * near * (0.2 + 0.12 * pulse);
+      const fade = Math.min(1, Math.max(0, flat / (colR * 3) - 0.4) / 0.6);
+      // Wide marks come down in brightness. The lift that made a 1.2 m thread
+      // findable on a lit road is far too much on a 3.5 m barrel, which is nine
+      // times the wall area painting the same amount of light per square metre.
+      const punch = Math.min(1, Math.max(0.6, 1.6 / colR));
+      colMat.opacity = t * fade * punch * (0.3 + 0.16 * pulse);
+      // The X-ray is for the mark you are coming to, not for one across the
+      // map: inside `REVEAL` a trunk must not swallow the light, but a column
+      // that ignores depth at every range is a light shining through a forest.
+      colMat.depthTest = flat > REVEAL * 0.9;
     }
   });
 
@@ -178,56 +239,49 @@ function ZoneMark({
 
       {/* The column, so the mark can be found from the air. Open-ended and
           double-sided: no lid to see from above, and the far wall draws too,
-          which is most of what makes it read as a volume. */}
-      <mesh ref={column} position={[0, height / 2, 0]}>
-        <cylinderGeometry args={[zone.radius, zone.radius, height, 32, 1, true]} />
-        <meshBasicMaterial
-          map={tex}
-          transparent
-          depthWrite={false}
-          blending={THREE.AdditiveBlending}
-          side={THREE.DoubleSide}
-          toneMapped={false}
-        />
-      </mesh>
+          which is most of what makes it read as a volume.
 
-      {/* The height band, on the drop only. Two hoops at the floor and ceiling
-          of the window the release is judged in, so "descend to the right
-          height" is a thing the pilot can SEE rather than a number to guess. */}
-      {zone.kind === 'drop' && (
-        <>
-          <BandHoop radius={zone.radius} y={zone.band.min} live={live} />
-          <BandHoop radius={zone.radius} y={zone.band.max} live={live} />
-        </>
+          IT DRAWS THROUGH THE SCENERY while it is the mark being arrived at —
+          `depthTest` is toggled per frame above, off inside `REVEAL`, and this
+          is the off state it starts in. Last of everything, either way.
+          A forest is a wall of trunks with a canopy over it, and a light that
+          respects depth is a light that is behind a tree from most of the
+          headings a pilot can be on: the mark vanished and came back as they
+          yawed, which reads as a bug rather than as an occlusion. This is a
+          NAVIGATION cue, and the one question it answers — which way is the
+          thing I have been sent to — has to have the same answer from every
+          direction. The ring on the deck keeps its depth: that one is a place on
+          the ground, and a place on the ground behind a tree IS behind a tree. */}
+      {withColumn && (
+        <mesh ref={column} position={[0, height / 2, 0]} renderOrder={3}>
+          {/* A cone, very slightly: the top is a fifth wider than the foot. A
+            true cylinder reads as a DRUM standing on the ground — the eye finds
+            the two parallel edges and the hard elliptical rim — and a shaft of
+            light does not have parallel edges. The flare plus the texture's fade
+            to nothing at the top is what turns the same 32 segments into
+            something that looks lit rather than built. */}
+          <cylinderGeometry args={[colR * 1.2, colR, height, 32, 1, true]} />
+          <meshBasicMaterial
+            map={tex}
+            transparent
+            depthWrite={false}
+            depthTest={false}
+            blending={THREE.AdditiveBlending}
+            side={THREE.DoubleSide}
+            toneMapped={false}
+          />
+        </mesh>
       )}
-    </group>
-  );
-}
 
-/** One hoop of the delivery height band. Thin and dim on purpose: it is a guide
- *  for the descent, not another target. */
-function BandHoop({ radius, y, live }: { radius: number; y: number; live: boolean }) {
-  const mesh = useRef<THREE.Mesh>(null);
-  const lit = useRef(0);
-  useFrame((_, dt) => {
-    const step = Math.min(dt, 0.1) / FADE;
-    lit.current = live ? Math.min(1, lit.current + step) : Math.max(0, lit.current - step);
-    const mat = mesh.current?.material as THREE.MeshBasicMaterial | undefined;
-    if (mat) mat.opacity = lit.current * 0.22;
-    if (mesh.current) mesh.current.visible = lit.current > 0.002;
-  });
-  return (
-    <mesh ref={mesh} rotation={[-Math.PI / 2, 0, 0]} position={[0, y, 0]}>
-      <ringGeometry args={[radius * 0.94, radius, 40]} />
-      <meshBasicMaterial
-        color={DROP_READY}
-        transparent
-        depthWrite={false}
-        blending={THREE.AdditiveBlending}
-        side={THREE.DoubleSide}
-        toneMapped={false}
-      />
-    </mesh>
+      {/* No hoops for the height band any more.
+          They drew the release window as two rings at the floor and ceiling of
+          it, which was honest and, over the fire, unreadable: two thin green
+          circles hanging in and around a yellow column, in a zone whose whole
+          point is a colour that means "not yet". A pilot reads a second colour
+          as a second thing to do. The band lives on where it is judged — the
+          suppression checklist's IN BAND, and the mark going green when every
+          condition is met — and the world keeps ONE light per mark. */}
+    </group>
   );
 }
 
@@ -345,6 +399,17 @@ export function MissionMarkers({ mission }: { mission: Mission }) {
           groundY={zoneGroundY(mission, mission.zones[kind])}
           live={flying && zoneKind === kind}
           ready={kind === 'drop' ? ready : undefined}
+          // NO COLUMN OVER THE FIRE.
+          //
+          // A column of light is for a mark the world gives you nothing else to
+          // find. The fire gives you flames, a smoke plume that stands well above
+          // the canopy and firelight on the trunks around it — it is the most
+          // visible thing on the map by a distance. Standing a 6 m amber cylinder
+          // on top of all that read as HAZE hanging over the burning ground:
+          // warm, translucent and exactly the shape of smoke, sitting where real
+          // smoke already was. The deck ring stays, because centring over the
+          // mark is still judged to a metre.
+          column={!(mission.fire && kind === 'drop')}
         />
       ))}
     </group>
