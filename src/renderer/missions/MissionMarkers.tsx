@@ -233,7 +233,7 @@ function ZoneMark({
           middle of its own mark, so the middle is the part hidden under the
           airframe and its shadow — lit as a ring, the brightest thing on the
           street is exactly the line where "close enough" stops. */}
-      <mesh ref={ring} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.03, 0]}>
+      <mesh ref={ring} rotation={[-Math.PI / 2, 0, 0]} position={[0, zone.ringLift ?? 0.03, 0]}>
         <ringGeometry args={[zone.radius * 0.72, zone.radius, 48]} />
         <meshBasicMaterial
           transparent

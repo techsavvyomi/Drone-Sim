@@ -317,3 +317,16 @@ describe('TC-243 flying into the fire', () => {
     expect(agl!).toBeLessThanOrEqual(forestFire.zones.drop.band.min - 2);
   });
 });
+
+// The landing ring. It is the last thing the pilot flies to, from low and from
+// any heading, so it has to clear the road it is painted on.
+describe('TC-244 the landing mark', () => {
+  it('is lifted clear of the uneven road', () => {
+    const lift = forestFire.zones.base.ringLift;
+    expect(lift).toBeDefined();
+    // Above the road's own undulation, and well under the band it is judged in,
+    // so a lifted ring never becomes a ring the drone lands on top of.
+    expect(lift!).toBeGreaterThanOrEqual(0.25);
+    expect(lift!).toBeLessThan(forestFire.zones.base.band.max / 2);
+  });
+});

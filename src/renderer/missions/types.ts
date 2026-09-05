@@ -94,6 +94,19 @@ export interface MissionZone {
    * precisely because it has no single ground height.
    */
   groundY?: number;
+  /**
+   * How far over this mark's deck the ring is drawn, metres. Defaults to 3 cm,
+   * which is a value for FLAT ground: it only has to clear the road surface so
+   * the two do not z-fight.
+   *
+   * A mark on uneven ground needs more. The forest's landing pad sits on a road
+   * with half a metre of undulation along it, and at 3 cm the ring was UNDER the
+   * ground it was painted on from any low approach: a rise a few metres out
+   * covered it, so the mark the pilot is coming home to disappeared from some
+   * headings and came back on others. Raised, it clears the lip and stays one
+   * ring from every direction, which is the whole job of the thing.
+   */
+  ringLift?: number;
 }
 
 /** One rung of the mission's rating, best first. */

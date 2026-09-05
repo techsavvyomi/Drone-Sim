@@ -259,6 +259,13 @@ export const forestFire: Mission = {
       maxGroundSpeed: 12,
       maxVerticalSpeed: 12,
       hold: 0,
+      // The road undulates about half a metre along its length, and the pad is
+      // approached from low and from any heading at the end of the flight. At
+      // the default 3 cm the ring sank behind whatever rise was between the
+      // camera and it, so the mark vanished and came back as the pilot circled.
+      // 0.35 clears the lip from every direction and is still low enough to read
+      // as a mark painted on the ground rather than a hoop floating over it.
+      ringLift: 0.35,
     },
   },
 
