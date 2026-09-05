@@ -239,6 +239,18 @@ export interface Mission {
   medals: { bronze: number; silver: number; gold: number };
   /** The fire, on a suppression mission. Absent on a delivery. */
   fire?: MissionFire;
+  /**
+   * How far from the base a pilot may stray before the mission calls them back,
+   * in metres, measured flat from the base zone. Optional, and unset on a
+   * mission that does not want it: a bound nothing declares is a bound nothing
+   * enforces.
+   *
+   * It is a WARNING with a grace period, not a wall — see `STRAY_GRACE_SEC` in
+   * the Director. A forest has no streets to keep the route honest, so a pilot
+   * who has lost the fire can fly the whole map away from it and time out with
+   * nothing on screen ever saying they were going the wrong way.
+   */
+  strayRadius?: number;
   route: readonly MissionCheckpoint[];
   /** Bare waypoints for the flight home: the line a sensible pilot takes from
    *  the drop back to the pad. They score nothing and draw nothing — the return

@@ -288,3 +288,20 @@ describe('what the briefing card needs from a mission', () => {
     });
   }
 });
+
+// The mission area bound. It is a failure condition, so a number that drifts
+// inside the route is a mission that recalls a pilot who is flying it correctly.
+describe('TC-242 the mission area', () => {
+  it('is generous enough to hold every mark on the route', () => {
+    const r = forestFire.strayRadius;
+    expect(r).toBeDefined();
+    const b = forestFire.zones.base.at;
+    const marks: (readonly [number, number])[] = [
+      forestFire.zones.pickup.at,
+      forestFire.zones.drop.at,
+      ...forestFire.route.map((c) => [c.at[0], c.at[2]] as const),
+    ];
+    const furthest = Math.max(...marks.map((m) => Math.hypot(m[0] - b[0], m[1] - b[1])));
+    expect(furthest).toBeLessThan(r! - 30);
+  });
+});

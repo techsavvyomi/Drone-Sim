@@ -520,9 +520,19 @@ export function MissionHud() {
         <div className="ms-center">
           <div className="ms-card failed" ref={cardRef}>
             <span className="ms-card-tag">MISSION FAILED</span>
-            <h2>{failReason === 'timeout' ? 'Out of time' : 'Drone destroyed'}</h2>
-            <p className="ms-fail-line">
+            <h2>
               {failReason === 'timeout'
+                ? 'Out of time'
+                : failReason === 'strayed'
+                  ? 'Left the mission area'
+                  : 'Drone destroyed'}
+            </h2>
+            <p className="ms-fail-line">
+              {failReason === 'strayed'
+                ? fire
+                  ? 'The drone flew out of the response area and did not come back. The arrow on the strip points at the fire the whole way.'
+                  : 'The drone flew out of the delivery area and did not come back. The arrow on the strip points at your next target.'
+                : failReason === 'timeout'
                 ? fire
                   ? 'The fire got away from you. Take the marked line east next time.'
                   : 'The delivery window closed. Take a straighter line through the city.'

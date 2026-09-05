@@ -45,8 +45,12 @@ export type PayloadState = 'waiting' | 'attached' | 'delivered';
  * not by a rope, so the only way to lose it is to wreck the aircraft — which is
  * the crash. Rather than carry an enum member nothing can ever set, a crash made
  * while carrying drops the package (see `Payload`) and the result card says so.
+ *
+ * `strayed` is the brief's optional fourth: the pilot left the mission area and
+ * did not come back inside the grace period. Only a mission that declares a
+ * `strayRadius` can reach it.
  */
-export type FailReason = 'crash' | 'timeout';
+export type FailReason = 'crash' | 'timeout' | 'strayed';
 
 /** A transient line across the middle of the view. */
 export interface Banner {

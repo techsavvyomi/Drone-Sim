@@ -167,6 +167,12 @@ export const forestFire: Mission = {
   route: ROUTE,
   homeVia: HOME_VIA,
 
+  // 150 m from the base, which is fifty clear metres past the fire — the
+  // furthest thing on the route, at 100.4 m. A pilot flying any line at all
+  // through the trees stays well inside it; a pilot who has lost their bearings
+  // entirely is told so instead of timing out in silence.
+  strayRadius: 150,
+
   fire: {
     // Ten seconds, which is what the brief asks for and what makes this a
     // mission about holding a hover rather than about touching a marker.

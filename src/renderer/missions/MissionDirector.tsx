@@ -43,6 +43,11 @@ const RADIO_SEC = 5.5;
 
 /** Distances the destination is called out at, metres. Three calls across a
  *  90 m crossing, and nothing between them — guidance, not a killstreak. */
+/** How long a pilot may stay outside `mission.strayRadius` before the attempt
+ *  ends. Long enough to turn round and come back from the edge under power, and
+ *  the banner is re-shown while it runs, so the failure is never a surprise. */
+const STRAY_GRACE_SEC = 15;
+
 const CALL_FAR = 150;
 const CALL_NEAR = 75;
 const CALL_APPROACH = 40;
@@ -147,6 +152,11 @@ export function MissionDirector() {
    *  as often as the flying requires. */
   const announcedDrop = useRef(false);
 
+  /** Seconds spent outside the mission area, and the clock time the last recall
+   *  banner was shown at. Both reset the moment the drone is back inside. */
+  const strayFor = useRef(0);
+  const straySaidAt = useRef(-99);
+
   /** Everything the attempt accumulates, in one place. A new timer added to the
    *  runtime has to be cleared here, and the compiler will not remind you — so
    *  they all live together rather than beside the code that uses them. */
@@ -242,6 +252,41 @@ export function MissionDirector() {
       store.setCollisions(collisions);
       store.fail('crash');
       return;
+    }
+    // Outside the mission area: a recall, a countdown, and only then a failure.
+    // Measured flat from the base, so an altitude the pilot cannot reach anyway
+    // never counts as straying, and skipped entirely by a mission that declares
+    // no bound.
+    if (mission.strayRadius !== undefined) {
+      const b = mission.zones.base.at;
+      const p = dronePose.position;
+      const out = Math.hypot(p.x - b[0], p.z - b[1]) > mission.strayRadius;
+      if (!out) {
+        strayFor.current = 0;
+        straySaidAt.current = -99;
+      } else {
+        strayFor.current += dt;
+        // Re-said rather than said once: the pilot is flying away from the
+        // banner that told them, and the seconds left are the whole message.
+        if (clock.current - straySaidAt.current >= 4) {
+          straySaidAt.current = clock.current;
+          store.showBanner(
+            {
+              kind: 'warn',
+              title: 'RETURN TO MISSION AREA',
+              sub: `Turn back within ${Math.max(1, Math.ceil(STRAY_GRACE_SEC - strayFor.current))} s`,
+            },
+            BANNER_SEC,
+          );
+          playFail();
+        }
+        if (strayFor.current >= STRAY_GRACE_SEC) {
+          playFail();
+          store.setCollisions(collisions);
+          store.fail('strayed');
+          return;
+        }
+      }
     }
     if (clock.current >= mission.timeLimitSec) {
       playFail();
