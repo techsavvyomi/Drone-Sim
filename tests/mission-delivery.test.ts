@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { precisionDelivery } from '../src/renderer/missions/precisionDelivery';
 import {
   maxPointsOf,
+  nextCheckpointOf,
   rankFor,
   requiredCheckpoints,
   requiredLeft,
@@ -174,6 +175,38 @@ describe('the delivery is the strict one', () => {
     expect(drop.band.min).toBeGreaterThan(0);
     expect(drop.maxGroundSpeed).toBeLessThanOrEqual(1);
     expect(drop.hold).toBeGreaterThanOrEqual(0.5);
+  });
+});
+
+describe('the ring the pilot is being sent to', () => {
+  it('TC-228 lights them one at a time, in route order', () => {
+    const carry = M.route.filter((c) => c.leg === 'toDrop');
+    expect(nextCheckpointOf(M, 'toDrop', {})?.id).toBe(carry[0].id);
+    expect(nextCheckpointOf(M, 'toDrop', { [carry[0].id]: true })?.id).toBe(carry[1].id);
+  });
+
+  it('TC-228 keeps a MISSED ring lit rather than moving on to the next', () => {
+    // Skipping a ring must not advance the guidance — a route that quietly
+    // re-writes itself around the ring you dropped is a route you cannot tell
+    // you are off. Here it is also the honest answer twice over: every ring on
+    // this mission is REQUIRED, so the package will not release until this one
+    // is taken however far down the street the drone is.
+    expect(M.route.every((c) => c.required !== false)).toBe(true);
+
+    const carry = M.route.filter((c) => c.leg === 'toDrop');
+    // Every carry ring but the first taken, the first skipped: the guidance is
+    // still on the first.
+    const allButFirst = Object.fromEntries(carry.slice(1).map((c) => [c.id, true])) as Record<
+      string,
+      true
+    >;
+    expect(nextCheckpointOf(M, 'toDrop', allButFirst)?.id).toBe(carry[0].id);
+  });
+
+  it('TC-228 lights nothing once a leg is clear, and the mark takes over', () => {
+    const all = Object.fromEntries(M.route.map((c) => [c.id, true])) as Record<string, true>;
+    expect(nextCheckpointOf(M, 'toDrop', all)).toBeNull();
+    expect(nextCheckpointOf(M, null, {})).toBeNull();
   });
 });
 
