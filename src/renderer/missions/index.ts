@@ -1,5 +1,6 @@
 import { precisionDelivery } from './precisionDelivery';
 import { forestFire } from './forestFire';
+import { multiPointDelivery } from './multiPointDelivery';
 import type { Mission } from './types';
 
 // The mission list.
@@ -14,12 +15,14 @@ import type { Mission } from './types';
 // array. The order it appears in is not the order it is walked in — `order` is,
 // and the sort below is what makes the two agree.
 
-export const MISSIONS: readonly Mission[] = [precisionDelivery, forestFire].sort(
-  (a, b) => a.order - b.order,
-);
+export const MISSIONS: readonly Mission[] = [
+  precisionDelivery,
+  forestFire,
+  multiPointDelivery,
+].sort((a, b) => a.order - b.order);
 
 export function getMission(id: string): Mission | undefined {
   return MISSIONS.find((m) => m.id === id);
 }
 
-export { precisionDelivery, forestFire };
+export { precisionDelivery, forestFire, multiPointDelivery };
