@@ -5,126 +5,223 @@ import { useMissionStore } from '../state/missionStore';
 import { zoneGroundY, type Mission } from './types';
 
 // ----------------------------------------------------------------------------
-// The fire, and what is left of it.
+// Cinematic Realistic Wildfire Simulation
 //
-// Drawn as BILLBOARDS, not as a particle system and not as a shader. Two dozen
-// camera-facing quads sharing one 64 px canvas texture is the whole thing: no
-// texture upload beyond that one canvas, no per-frame allocation, no second
-// render target. This map is the heaviest in the app on a 512 MB integrated GPU
-// — the forest is 341k triangles before anything of the mission is added — so
-// the fire had to cost what a decal costs.
-//
-// Everything reads ONE number: `fireIntensity`, 1 down to 0, published by
-// `MissionDirector`. The flames shrink with it, the smoke thins with it, the
-// light dims with it, and at zero what is left is a scorched circle on the
-// forest floor. There is no separate "contained" state to get out of step —
-// contained IS intensity zero.
-//
-// The whole thing sits at the FIRE's own ground height, which on this map is
-// twelve and a half metres below the clearing the pilot took off from. See
-// `zoneGroundY`.
+// 1. Clustered Hotspot Raging Flames: Dynamic licking flame tongues originating
+//    from multiple burning fuel nodes across the fire zone.
+// 2. Interactive Water Steam Bursts: Dense vapor clouds billowing violently
+//    when the water suppressant impacts burning ground.
+// 3. Swirling Fiery Embers: Sparks carried upward in a turbulent thermal vortex.
+// 4. Heavy Volumetric Smoke Plumes: Massive multi-tone smoke rising past canopy.
+// 5. Dual-Color Dynamic Fire Lighting: Blazing gold core + deep crimson perimeter.
+// 6. Glowing Ember Ash Bed: Glowing coals cooling to charred black carbon.
 // ----------------------------------------------------------------------------
 
-/** The hot core of a flame, and its cooler top. Additive, so these are
- *  intensities rather than colours: what the pilot sees is the sum of the quads
- *  they are looking through, which is what gives a flame its dense middle. */
-const FLAME_HOT = '#ffb43a';
-const FLAME_EDGE = '#ff4a1a';
-/** Smoke is the one thing here that is NOT additive. Smoke hides what is behind
- *  it — that is the whole of what smoke is — and an additive grey would brighten
- *  the canopy behind the column instead of blotting it out. */
-const SMOKE = '#4a4239';
+const FLAME_COUNT = 48;
+const EMBER_COUNT = 32;
+const SMOKE_COUNT = 22;
+const STEAM_COUNT = 20;
 
-/** How many quads in each layer. Small numbers, and they are the budget: every
- *  one of these is a draw the forest is already paying 27 meshes for. */
-const FLAMES = 16;
-const SMOKES = 10;
-
-/** Seconds a flame takes to rise and loop, and how far it gets. */
-const FLAME_LIFE = 1.15;
+const FLAME_LIFE = 0.92;
 const FLAME_RISE = 4.2;
-/** The same for a smoke puff, which is slower and goes much higher — the column
- *  is what makes the fire findable from the far side of the forest. */
-const SMOKE_LIFE = 5.5;
-const SMOKE_RISE = 26;
+const EMBER_LIFE = 1.9;
+const EMBER_RISE = 9.5;
+const SMOKE_LIFE = 5.6;
+const SMOKE_RISE = 30;
+const STEAM_LIFE = 1.2;
 
-/**
- * One soft round blob, as a canvas texture.
- *
- * Shared by every quad in every fire. It is built once and never disposed: there
- * is one fire in the app and it lives as long as the mission does.
- */
-let blobTex: THREE.CanvasTexture | null = null;
-function blob(): THREE.CanvasTexture {
-  if (blobTex) return blobTex;
+const COLOR_CORE = '#fffbe8';
+const COLOR_HOT = '#ffba3b';
+const COLOR_MID = '#ff6a00';
+const COLOR_TIP = '#e61e00';
+const COLOR_EMBER = '#ffc83b';
+const COLOR_SMOKE = '#2e2620';
+const COLOR_STEAM = '#f2f8fc';
+
+let flameTex: THREE.CanvasTexture | null = null;
+function getFlameTexture(): THREE.CanvasTexture {
+  if (flameTex) return flameTex;
   const canvas = document.createElement('canvas');
-  canvas.width = canvas.height = 64;
+  canvas.width = 64;
+  canvas.height = 128;
   const ctx = canvas.getContext('2d');
   if (ctx) {
-    const g = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
-    g.addColorStop(0, 'rgba(255,255,255,1)');
-    g.addColorStop(0.45, 'rgba(255,255,255,0.55)');
-    g.addColorStop(1, 'rgba(255,255,255,0)');
+    const g = ctx.createLinearGradient(32, 128, 32, 0);
+    g.addColorStop(0, 'rgba(255, 255, 255, 1)');
+    g.addColorStop(0.2, 'rgba(255, 230, 110, 0.98)');
+    g.addColorStop(0.55, 'rgba(255, 105, 15, 0.8)');
+    g.addColorStop(0.85, 'rgba(230, 35, 0, 0.4)');
+    g.addColorStop(1, 'rgba(140, 0, 0, 0)');
+    ctx.fillStyle = g;
+
+    ctx.beginPath();
+    ctx.moveTo(32, 0);
+    ctx.bezierCurveTo(2, 45, 0, 105, 32, 128);
+    ctx.bezierCurveTo(64, 105, 62, 45, 32, 0);
+    ctx.fill();
+  }
+  flameTex = new THREE.CanvasTexture(canvas);
+  return flameTex;
+}
+
+let emberTex: THREE.CanvasTexture | null = null;
+function getEmberTexture(): THREE.CanvasTexture {
+  if (emberTex) return emberTex;
+  const canvas = document.createElement('canvas');
+  canvas.width = 32;
+  canvas.height = 32;
+  const ctx = canvas.getContext('2d');
+  if (ctx) {
+    const g = ctx.createRadialGradient(16, 16, 0, 16, 16, 16);
+    g.addColorStop(0, 'rgba(255, 255, 255, 1)');
+    g.addColorStop(0.35, 'rgba(255, 215, 70, 0.95)');
+    g.addColorStop(0.7, 'rgba(255, 90, 0, 0.4)');
+    g.addColorStop(1, 'rgba(255, 0, 0, 0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, 32, 32);
+  }
+  emberTex = new THREE.CanvasTexture(canvas);
+  return emberTex;
+}
+
+let smokeTex: THREE.CanvasTexture | null = null;
+function getSmokeTexture(): THREE.CanvasTexture {
+  if (smokeTex) return smokeTex;
+  const canvas = document.createElement('canvas');
+  canvas.width = 64;
+  canvas.height = 64;
+  const ctx = canvas.getContext('2d');
+  if (ctx) {
+    const g = ctx.createRadialGradient(32, 32, 4, 32, 32, 32);
+    g.addColorStop(0, 'rgba(255, 255, 255, 0.85)');
+    g.addColorStop(0.4, 'rgba(215, 215, 215, 0.55)');
+    g.addColorStop(0.75, 'rgba(140, 140, 140, 0.22)');
+    g.addColorStop(1, 'rgba(90, 90, 90, 0)');
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, 64, 64);
   }
-  blobTex = new THREE.CanvasTexture(canvas);
-  return blobTex;
+  smokeTex = new THREE.CanvasTexture(canvas);
+  return smokeTex;
 }
 
-/** One quad's own rhythm, so sixteen of them do not pulse as one object. */
-interface Puff {
-  /** Where in its own life it starts, 0..1. */
+let steamTex: THREE.CanvasTexture | null = null;
+function getSteamTexture(): THREE.CanvasTexture {
+  if (steamTex) return steamTex;
+  const canvas = document.createElement('canvas');
+  canvas.width = 64;
+  canvas.height = 64;
+  const ctx = canvas.getContext('2d');
+  if (ctx) {
+    const g = ctx.createRadialGradient(32, 32, 2, 32, 32, 32);
+    g.addColorStop(0, 'rgba(255, 255, 255, 0.9)');
+    g.addColorStop(0.45, 'rgba(240, 248, 255, 0.6)');
+    g.addColorStop(0.8, 'rgba(210, 230, 245, 0.2)');
+    g.addColorStop(1, 'rgba(200, 220, 240, 0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, 64, 64);
+  }
+  steamTex = new THREE.CanvasTexture(canvas);
+  return steamTex;
+}
+
+let ashBedTex: THREE.CanvasTexture | null = null;
+function getAshBedTexture(): THREE.CanvasTexture {
+  if (ashBedTex) return ashBedTex;
+  const canvas = document.createElement('canvas');
+  canvas.width = 128;
+  canvas.height = 128;
+  const ctx = canvas.getContext('2d');
+  if (ctx) {
+    const g = ctx.createRadialGradient(64, 64, 10, 64, 64, 64);
+    g.addColorStop(0, 'rgba(255, 110, 10, 0.95)');
+    g.addColorStop(0.35, 'rgba(200, 50, 0, 0.75)');
+    g.addColorStop(0.7, 'rgba(40, 25, 18, 0.85)');
+    g.addColorStop(1, 'rgba(12, 6, 2, 0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, 128, 128);
+  }
+  ashBedTex = new THREE.CanvasTexture(canvas);
+  return ashBedTex;
+}
+
+interface FireParticle {
   phase: number;
-  /** Metres off centre, and which way. */
+  cx: number;
+  cz: number;
   radius: number;
   angle: number;
-  /** How big it gets, as a multiple of the layer's base size. */
   scale: number;
-  /** Sideways drift over its life, metres. */
-  drift: number;
+  speed: number;
+  swirl: number;
 }
 
-function puffs(n: number, spread: number, seed: number): Puff[] {
-  // Deterministic rather than Math.random: the fire looks the same on every
-  // attempt, which is what makes it a place rather than an effect.
+function createClusterParticles(count: number, spread: number, seed: number): FireParticle[] {
   let s = seed;
   const rnd = () => {
     s = (s * 1664525 + 1013904223) % 4294967296;
     return s / 4294967296;
   };
-  return Array.from({ length: n }, () => ({
-    phase: rnd(),
-    radius: Math.sqrt(rnd()) * spread,
-    angle: rnd() * Math.PI * 2,
-    scale: 0.7 + rnd() * 0.7,
-    drift: (rnd() - 0.5) * 3,
-  }));
+
+  // 4 fuel hotspot centers across the clearing
+  const hotspots: [number, number][] = [
+    [0, 0],
+    [(rnd() - 0.5) * spread * 0.9, (rnd() - 0.5) * spread * 0.9],
+    [(rnd() - 0.5) * spread * 0.9, (rnd() - 0.5) * spread * 0.9],
+    [(rnd() - 0.5) * spread * 0.8, (rnd() - 0.5) * spread * 0.8],
+  ];
+
+  return Array.from({ length: count }, (_, i) => {
+    const spot = hotspots[i % hotspots.length];
+    return {
+      phase: i / count + (rnd() - 0.5) * 0.05,
+      cx: spot[0],
+      cz: spot[1],
+      radius: Math.pow(rnd(), 0.7) * (spread * 0.45),
+      angle: rnd() * Math.PI * 2,
+      scale: 0.8 + rnd() * 0.75,
+      speed: 0.85 + rnd() * 0.35,
+      swirl: (rnd() - 0.5) * 3.0,
+    };
+  });
 }
 
-/**
- * The fire itself: flames, a smoke column, a scorch mark and one flickering
- * light.
- *
- * Rendered whenever the mission has a fire — including at intensity zero, where
- * the scorch stays and everything else has gone. A fire that unmounted on being
- * put out would leave clean forest floor where the pilot had just been working.
- */
 export function FireZone({ mission }: { mission: Mission }) {
   const fire = mission.fire;
   const intensity = useMissionStore((s) => s.fireIntensity);
+  const suppressing = useMissionStore((s) => s.suppressing);
   const phase = useMissionStore((s) => s.phase);
 
-  const flames = useRef<THREE.Group>(null);
-  const smoke = useRef<THREE.Group>(null);
-  const light = useRef<THREE.PointLight>(null);
-  /** Smoothed intensity. The published number steps in 5% notches at 10 Hz, and
-   *  a fire that shrank in visible steps would read as a progress bar. */
-  const shown = useRef(1);
+  const flamesGroup = useRef<THREE.Group>(null);
+  const embersGroup = useRef<THREE.Group>(null);
+  const smokeGroup = useRef<THREE.Group>(null);
+  const steamGroup = useRef<THREE.Group>(null);
+  const ashMesh = useRef<THREE.Mesh>(null);
+  const coreLight = useRef<THREE.PointLight>(null);
+  const ambientLight = useRef<THREE.PointLight>(null);
 
-  const tex = useMemo(() => blob(), []);
-  const flamePuffs = useMemo(() => puffs(FLAMES, (fire?.burnRadius ?? 5) * 0.62, 7), [fire]);
-  const smokePuffs = useMemo(() => puffs(SMOKES, (fire?.burnRadius ?? 5) * 0.45, 91), [fire]);
+  const shown = useRef(1);
+  const steamPower = useRef(0);
+
+  const flameT = useMemo(() => getFlameTexture(), []);
+  const emberT = useMemo(() => getEmberTexture(), []);
+  const smokeT = useMemo(() => getSmokeTexture(), []);
+  const steamT = useMemo(() => getSteamTexture(), []);
+  const ashT = useMemo(() => getAshBedTexture(), []);
+
+  const burnR = (fire?.burnRadius ?? 8) * 0.8;
+  const flameParticles = useMemo(() => createClusterParticles(FLAME_COUNT, burnR, 701), [burnR]);
+  const emberParticles = useMemo(
+    () => createClusterParticles(EMBER_COUNT, burnR * 0.95, 802),
+    [burnR],
+  );
+  const smokeParticles = useMemo(
+    () => createClusterParticles(SMOKE_COUNT, burnR * 0.7, 903),
+    [burnR],
+  );
+  const steamParticles = useMemo(
+    () => createClusterParticles(STEAM_COUNT, burnR * 0.8, 1004),
+    [burnR],
+  );
 
   const groundY = fire ? zoneGroundY(mission, mission.zones.drop) : 0;
   const at = mission.zones.drop.at;
@@ -132,98 +229,175 @@ export function FireZone({ mission }: { mission: Mission }) {
   useFrame(({ clock, camera }, rawDt) => {
     if (!fire) return;
     const dt = Math.min(rawDt, 0.1);
-    // Eased towards the published value, and faster going out than coming back:
-    // suppression should feel like it is winning the moment the spray lands.
-    shown.current += (intensity - shown.current) * Math.min(1, dt * 3);
-    const t = clock.elapsedTime;
+    shown.current += (intensity - shown.current) * Math.min(1, dt * 3.5);
     const lit = shown.current;
 
+    // Steam activates when suppressing and fire is still burning
+    const targetSteam = suppressing && lit > 0.05 ? 1 : 0;
+    steamPower.current += (targetSteam - steamPower.current) * Math.min(1, dt * 6);
+    const steamLit = steamPower.current;
+
+    const t = clock.elapsedTime;
     const face = camera.quaternion;
 
-    if (flames.current) {
-      flames.current.visible = lit > 0.02;
-      flames.current.children.forEach((child, i) => {
-        const p = flamePuffs[i];
-        const age = (((t / FLAME_LIFE + p.phase) % 1) + 1) % 1;
+    // 1. Hot Raging Flames
+    if (flamesGroup.current) {
+      flamesGroup.current.visible = lit > 0.01;
+      flamesGroup.current.children.forEach((child, i) => {
+        const p = flameParticles[i];
+        const age = (((t / (FLAME_LIFE / p.speed) + p.phase) % 1) + 1) % 1;
         const mesh = child as THREE.Mesh;
-        // A flame is widest low down and tapers as it rises and cools.
-        const grow = 1 - age * 0.55;
-        const s = p.scale * (0.9 + lit * 1.1) * grow;
-        mesh.position.set(
-          Math.cos(p.angle) * p.radius * (0.35 + lit * 0.65) + p.drift * age * 0.3,
-          age * FLAME_RISE * (0.4 + lit * 0.6) + 0.25,
-          Math.sin(p.angle) * p.radius * (0.35 + lit * 0.65),
-        );
-        mesh.scale.set(s, s * 1.5, s);
+
+        const rise = age * FLAME_RISE * (0.55 + lit * 0.55);
+        const taper = 1 - age * 0.42;
+        const r = p.radius * (0.35 + lit * 0.65) * taper;
+        const wobble = Math.sin(t * 9 + i * 1.6) * 0.3 * age;
+        const x = p.cx + Math.cos(p.angle) * r + wobble;
+        const z = p.cz + Math.sin(p.angle) * r + wobble;
+
+        mesh.position.set(x, rise + 0.25, z);
         mesh.quaternion.copy(face);
+
+        const sw = p.scale * (1.25 + lit * 0.95) * taper;
+        const sh = p.scale * (1.9 + lit * 1.8) * (1 + (1 - age) * 0.55);
+        mesh.scale.set(sw, sh, sw);
+
         const mat = mesh.material as THREE.MeshBasicMaterial;
-        // Bright and hot at the base, fading out as it climbs. Multiplied by the
-        // intensity twice over — through the fade and through the size — which
-        // is what makes 20% read as a fire nearly out rather than a small one.
-        mat.opacity = lit * (1 - age) * (0.55 + 0.25 * Math.sin(t * 9 + i));
+        const alpha = Math.sin(age * Math.PI) * (1 - age * 0.22);
+        mat.opacity = lit * alpha * 0.9;
       });
     }
 
-    if (smoke.current) {
-      // Smoke outlives the flames: a fire just put out still smokes, and the
-      // brief asks for it to reduce rather than to vanish. It only stops when
-      // the mission is over.
-      const smokeLit = Math.max(lit, lit > 0.001 ? 0.18 : 0);
-      smoke.current.visible = smokeLit > 0.02;
-      smoke.current.children.forEach((child, i) => {
-        const p = smokePuffs[i];
-        const age = (((t / SMOKE_LIFE + p.phase) % 1) + 1) % 1;
+    // 2. Swirling Rising Embers
+    if (embersGroup.current) {
+      embersGroup.current.visible = lit > 0.04;
+      embersGroup.current.children.forEach((child, i) => {
+        const p = emberParticles[i];
+        const age = (((t / (EMBER_LIFE / p.speed) + p.phase) % 1) + 1) % 1;
         const mesh = child as THREE.Mesh;
-        const s = p.scale * (2.2 + age * 7) * (0.5 + smokeLit * 0.5);
-        mesh.position.set(
-          Math.cos(p.angle) * p.radius + p.drift * age * 4,
-          1.5 + age * SMOKE_RISE * (0.5 + smokeLit * 0.5),
-          Math.sin(p.angle) * p.radius + p.drift * age * 2,
-        );
+
+        const rise = age * EMBER_RISE * (0.65 + lit * 0.5);
+        const swirlAngle = p.angle + p.swirl * age * 2.8 + t * 0.9;
+        const r = p.radius * (0.3 + age * 1.1);
+        const x = p.cx + Math.cos(swirlAngle) * r;
+        const z = p.cz + Math.sin(swirlAngle) * r;
+
+        mesh.position.set(x, rise + 0.35, z);
+        mesh.quaternion.copy(face);
+
+        const s = p.scale * 0.38 * (1 - age * 0.45);
         mesh.scale.set(s, s, s);
-        mesh.quaternion.copy(face);
+
         const mat = mesh.material as THREE.MeshBasicMaterial;
-        // In at the bottom, out at the top, so the column has a head and a tail
-        // rather than a hard edge where the puffs are recycled.
-        const fade = Math.min(1, age * 5) * (1 - age);
-        mat.opacity = smokeLit * fade * 0.5;
+        const twinkle = 0.65 + 0.35 * Math.sin(t * 20 + i * 3.7);
+        mat.opacity = lit * (1 - age) * twinkle * 0.95;
       });
     }
 
-    if (light.current) {
-      // One light, and it is the reason the fire lights the trunks around it.
-      // Flicker is two sines rather than a random walk: a random flicker on a
-      // 60 Hz frame reads as a strobe.
-      const flick = 0.82 + 0.18 * Math.sin(t * 11) * Math.sin(t * 4.3);
-      light.current.intensity = lit * lit * 90 * flick;
-      light.current.visible = lit > 0.02;
+    // 3. Volumetric Smoke Plumes
+    if (smokeGroup.current) {
+      const smokeLit = Math.max(lit, lit > 0.001 ? 0.22 : 0);
+      smokeGroup.current.visible = smokeLit > 0.02;
+      smokeGroup.current.children.forEach((child, i) => {
+        const p = smokeParticles[i];
+        const age = (((t / (SMOKE_LIFE / p.speed) + p.phase) % 1) + 1) % 1;
+        const mesh = child as THREE.Mesh;
+
+        const rise = 1.2 + age * SMOKE_RISE * (0.6 + smokeLit * 0.4);
+        const r = p.radius * 0.5 + Math.pow(age, 1.3) * (fire?.burnRadius ?? 8) * 0.85;
+        const drift = p.swirl * age * 3.8;
+        const x = p.cx + Math.cos(p.angle) * r + drift;
+        const z = p.cz + Math.sin(p.angle) * r + drift * 0.5;
+
+        mesh.position.set(x, rise, z);
+        mesh.quaternion.copy(face);
+
+        const s = p.scale * (2.8 + age * 12) * (0.6 + smokeLit * 0.4);
+        mesh.scale.set(s, s, s);
+
+        const mat = mesh.material as THREE.MeshBasicMaterial;
+        const fade = Math.min(1, age * 4.5) * (1 - age * age);
+        mat.opacity = smokeLit * fade * 0.48;
+      });
+    }
+
+    // 4. Interactive Suppressant Steam Clouds
+    if (steamGroup.current) {
+      steamGroup.current.visible = steamLit > 0.01;
+      steamGroup.current.children.forEach((child, i) => {
+        const p = steamParticles[i];
+        const age = (((t / (STEAM_LIFE / p.speed) + p.phase) % 1) + 1) % 1;
+        const mesh = child as THREE.Mesh;
+
+        const rise = age * 5.5;
+        const r = p.radius * 0.6 + age * 2.8;
+        const x = p.cx * 0.5 + Math.cos(p.angle) * r;
+        const z = p.cz * 0.5 + Math.sin(p.angle) * r;
+
+        mesh.position.set(x, rise + 0.4, z);
+        mesh.quaternion.copy(face);
+
+        const s = p.scale * (1.5 + age * 4.8);
+        mesh.scale.set(s, s * 0.85, s);
+
+        const mat = mesh.material as THREE.MeshBasicMaterial;
+        const alpha = Math.sin(age * Math.PI) * (1 - age * 0.35);
+        mat.opacity = steamLit * alpha * 0.65;
+      });
+    }
+
+    // 5. Ash Bed Cooling
+    if (ashMesh.current) {
+      const mat = ashMesh.current.material as THREE.MeshBasicMaterial;
+      mat.opacity = 0.4 + lit * 0.5;
+    }
+
+    // 6. Dual Organic Fire Lights
+    if (coreLight.current) {
+      const flick1 = 0.85 + 0.15 * Math.sin(t * 15) * Math.cos(t * 7.3);
+      coreLight.current.intensity = lit * lit * 90 * flick1;
+      coreLight.current.visible = lit > 0.02;
+    }
+    if (ambientLight.current) {
+      const flick2 = 0.9 + 0.1 * Math.sin(t * 8.5);
+      ambientLight.current.intensity = lit * 65 * flick2;
+      ambientLight.current.visible = lit > 0.02;
     }
   });
 
   if (!fire) return null;
-  // Hidden on the briefing card, like every other mission marker: the pilot is
-  // reading, and the camera is sitting on the pad.
   const flying = phase !== 'briefing';
 
   return (
     <group position={[at[0], groundY, at[1]]} visible={flying}>
-      {/* The burnt ground. Alpha-blended and dark — the one part of this that
-          takes light AWAY — so it still reads once the flames are out and the
-          screenshot at the end has something to show for the flight. */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.05, 0]}>
+      {/* 5. Glowing Ash & Scorched Earth Bed */}
+      <mesh ref={ashMesh} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.08, 0]}>
         <circleGeometry args={[fire.burnRadius, 40]} />
-        <meshBasicMaterial color="#140d07" transparent opacity={0.55} depthWrite={false} />
+        <meshBasicMaterial
+          map={ashT}
+          transparent
+          depthWrite={false}
+          blending={THREE.AdditiveBlending}
+          toneMapped={false}
+        />
       </mesh>
 
-      <group ref={flames}>
-        {flamePuffs.map((_puff, i) => (
+      {/* 1. Hot Core Flames */}
+      <group ref={flamesGroup}>
+        {flameParticles.map((_p, i) => (
           <mesh key={i}>
-            <planeGeometry args={[1.6, 1.6]} />
+            <planeGeometry args={[1.5, 2.2]} />
             <meshBasicMaterial
-              map={tex}
-              // Alternating hot and cool, so the sum through a stack of them has
-              // a yellow core and a red edge without a gradient texture.
-              color={i % 3 === 0 ? FLAME_HOT : FLAME_EDGE}
+              map={flameT}
+              color={
+                i % 4 === 0
+                  ? COLOR_CORE
+                  : i % 3 === 0
+                    ? COLOR_HOT
+                    : i % 2 === 0
+                      ? COLOR_MID
+                      : COLOR_TIP
+              }
               transparent
               depthWrite={false}
               blending={THREE.AdditiveBlending}
@@ -233,16 +407,59 @@ export function FireZone({ mission }: { mission: Mission }) {
         ))}
       </group>
 
-      <group ref={smoke}>
-        {smokePuffs.map((_puff, i) => (
+      {/* 2. Rising Embers & Sparks */}
+      <group ref={embersGroup}>
+        {emberParticles.map((_p, i) => (
           <mesh key={i}>
-            <planeGeometry args={[1, 1]} />
-            <meshBasicMaterial map={tex} color={SMOKE} transparent depthWrite={false} />
+            <planeGeometry args={[0.6, 0.6]} />
+            <meshBasicMaterial
+              map={emberT}
+              color={COLOR_EMBER}
+              transparent
+              depthWrite={false}
+              blending={THREE.AdditiveBlending}
+              toneMapped={false}
+            />
           </mesh>
         ))}
       </group>
 
-      <pointLight ref={light} position={[0, 2.5, 0]} color="#ff7a2a" distance={46} decay={2} />
+      {/* 3. Billowing Smoke Plumes */}
+      <group ref={smokeGroup}>
+        {smokeParticles.map((_p, i) => (
+          <mesh key={i}>
+            <planeGeometry args={[1, 1]} />
+            <meshBasicMaterial map={smokeT} color={COLOR_SMOKE} transparent depthWrite={false} />
+          </mesh>
+        ))}
+      </group>
+
+      {/* 4. Interactive Suppressant Steam Clouds */}
+      <group ref={steamGroup}>
+        {steamParticles.map((_p, i) => (
+          <mesh key={i}>
+            <planeGeometry args={[1, 1]} />
+            <meshBasicMaterial
+              map={steamT}
+              color={COLOR_STEAM}
+              transparent
+              depthWrite={false}
+              blending={THREE.AdditiveBlending}
+              toneMapped={false}
+            />
+          </mesh>
+        ))}
+      </group>
+
+      {/* 6. Dual-Tone Dynamic Lighting */}
+      <pointLight ref={coreLight} position={[0, 2.2, 0]} color="#ffa834" distance={30} decay={2} />
+      <pointLight
+        ref={ambientLight}
+        position={[0, 3.5, 0]}
+        color="#ff3b00"
+        distance={55}
+        decay={2}
+      />
     </group>
   );
 }
