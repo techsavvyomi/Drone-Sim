@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { dronePose } from '../sim/drone/pose';
 import { useMissionStore, legOf, activeZone } from '../state/missionStore';
-import { requiredCheckpoints, nextTargetOf } from '../missions/types';
+import { requiredCheckpoints, nextTargetOf, dropZoneOf } from '../missions/types';
 import type { Mission } from '../missions/types';
 
 // ----------------------------------------------------------------------------
@@ -57,21 +57,27 @@ export function MissionMap({ mission }: { mission: Mission }) {
   const state = useRef({
     leg: useMissionStore.getState().leg,
     collected: useMissionStore.getState().collected,
+    runIndex: useMissionStore.getState().runIndex,
   });
   useEffect(
     () =>
       useMissionStore.subscribe((s) => {
-        state.current = { leg: s.leg, collected: s.collected };
+        state.current = { leg: s.leg, collected: s.collected, runIndex: s.runIndex };
       }),
     [],
   );
 
-  const zones = useMemo<readonly Zone[]>(
-    () => [
-      { at: mission.zones.pickup.at, color: PICKUP, kind: 'pickup' },
-      { at: mission.zones.drop.at, color: DROP, kind: 'drop' },
-      { at: mission.zones.base.at, color: BASE, kind: 'base' },
-    ],
+  // The DROP is a function of the run, not a fixed mark: on a multi-point
+  // delivery the dial has to point at whichever destination this package is for,
+  // and pointing at `zones.drop` would send the pilot to the first one all three
+  // times. `dropZoneOf` is the same call the Director and the world marks use.
+  const zonesFor = useMemo(
+    () =>
+      (runIndex: number): readonly Zone[] => [
+        { at: mission.zones.pickup.at, color: PICKUP, kind: 'pickup' },
+        { at: dropZoneOf(mission, runIndex).at, color: DROP, kind: 'drop' },
+        { at: mission.zones.base.at, color: BASE, kind: 'base' },
+      ],
     [mission],
   );
 
@@ -108,7 +114,8 @@ export function MissionMap({ mission }: { mission: Mission }) {
       ctx.arc(half, half, half - 0.5, 0, Math.PI * 2);
       ctx.clip();
 
-      const { leg, collected } = state.current;
+      const { leg, collected, runIndex } = state.current;
+      const zones = zonesFor(runIndex);
       const liveLeg = legOf(leg as never);
       const here = activeZone(leg as never);
       const owed = mission.route.filter((c) => required.has(c.id) && !collected[c.id]);
@@ -175,7 +182,7 @@ export function MissionMap({ mission }: { mission: Mission }) {
       // readout come from the same call: the nearest checkpoint this leg still
       // owes, and once they are all taken the mark itself. The dial and the
       // arrow point the same way because they are the same point.
-      const cp = nextTargetOf(mission, liveLeg, collected, dronePose.position);
+      const cp = nextTargetOf(mission, liveLeg, collected);
       const zone = zones.find((z) => z.kind === here);
       const at = cp
         ? { x: sx(cp[0]), y: sz(cp[2]) }
@@ -281,7 +288,7 @@ export function MissionMap({ mission }: { mission: Mission }) {
 
     raf = requestAnimationFrame(draw);
     return () => cancelAnimationFrame(raf);
-  }, [mission, zones, required]);
+  }, [mission, zonesFor, required]);
 
   return (
     <div className="ms-map" aria-hidden="true">
