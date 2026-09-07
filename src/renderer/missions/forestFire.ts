@@ -4,8 +4,15 @@ import type { Mission, MissionCheckpoint } from './types';
 // Forest Fire Emergency — the forest map.
 //
 // Collect a suppression tank from the emergency station on the road, cross the
-// woods, hold a hover over the fire until it is out, then come home and land.
-// Seven points: five optional rings on the way, plus the fire and the landing.
+// woods, and hold a hover over the fire until it is out. Six points: five
+// optional rings on the way, plus the fire itself.
+//
+// THE MISSION ENDS OVER THE FIRE (`endsAtDrop`). There is no flight home and no
+// landing, unlike Precision Delivery. Putting the fire out IS the job here — the
+// crossing has already been flown and scored by the time the tank empties, and
+// making the pilot weave ninety-five metres back through the same trunks to a
+// pad proves nothing the outward leg did not already prove. It also ends the
+// mission on its own climax rather than four minutes after it.
 //
 // WHY THE RINGS ARE OPTIONAL HERE, when Precision Delivery's are compulsory.
 //
@@ -118,10 +125,15 @@ const ROUTE = [
   ring('F5', 78, -2, -46),
 ];
 
-/** The way home, as bare waypoints — the same idea as the city's: they score
- *  nothing and draw nothing, and exist so the route check measures a line a
- *  sensible pilot would actually fly rather than a straight line through the
- *  trunks. */
+/**
+ * The way home, as bare waypoints.
+ *
+ * Kept even though this mission ENDS at the fire and nobody flies these: they
+ * are what `check-mission-route` walks back along, and the return corridor is
+ * the outward one reversed, so deleting them would leave the route checker
+ * measuring a straight line from the fire to the pad — through the trunks — and
+ * reporting a bottleneck no pilot will ever be in.
+ */
 const HOME_VIA: readonly (readonly [number, number])[] = [
   [78, -46],
   [84, -30],
@@ -130,8 +142,8 @@ const HOME_VIA: readonly (readonly [number, number])[] = [
 ];
 
 /** The point thresholds, named once so the card and the scoring cannot drift. */
-const GOLD = 7;
-const SILVER = 6;
+const GOLD = 6;
+const SILVER = 5;
 
 export const forestFire: Mission = {
   id: 'forest-fire',
@@ -141,20 +153,18 @@ export const forestFire: Mission = {
   kind: 'suppression',
   envId: 'forest',
   blurb:
-    'Collect the suppression tank, cross the forest, hold a hover over the fire until it is out, then come home and land.',
+    'Collect the suppression tank, cross the forest, and hold a hover over the fire until it is out.',
   story:
-    'A fire has taken hold deep in the forest, in a hollow the ground crews cannot reach. A suppression tank has been prepared at the emergency station on the road. Your job is to fly it out, put the fire down, and come back.',
+    'A fire has taken hold deep in the forest, in a hollow the ground crews cannot reach. A suppression tank has been prepared at the emergency station on the road. Your job is to fly it out and put the fire down.',
   flow: [
     { label: 'Collect', note: 'Descend onto the tank on the road', art: 'collect' },
     { label: 'Cross', note: 'Weave out through the trees', art: 'forest' },
-    { label: 'Suppress', note: 'Hold your position over the fire', art: 'suppress' },
-    { label: 'Come home', note: 'Land back at the station', art: 'land' },
+    { label: 'Suppress', note: 'Hold your position until the fire is out', art: 'suppress' },
   ],
   objectives: [
     'Collect the suppression tank at the emergency station.',
     'Cross the forest and find the fire.',
     'Hold your position over the fire until it is out.',
-    'Return to the emergency base and land safely.',
   ],
   mapNote: 'Dense forest, uneven ground',
   // Longer than the city's, and it needs to be: this crossing includes a climb
@@ -162,10 +172,13 @@ export const forestFire: Mission = {
   timeLimitSec: 420,
   parTimeSec: 270,
   groundY: CLEARING_Y,
-  medals: { bronze: 6, silver: SILVER, gold: GOLD },
+  medals: { bronze: 4, silver: SILVER, gold: GOLD },
   routeAltitude: ALT,
   route: ROUTE,
   homeVia: HOME_VIA,
+
+  // The run is scored the moment the fire is out. See the header.
+  endsAtDrop: true,
 
   // 150 m from the base, which is fifty clear metres past the fire — the
   // furthest thing on the route, at 100.4 m. A pilot flying any line at all
@@ -181,13 +194,13 @@ export const forestFire: Mission = {
     // Ten seconds, which is what the brief asks for and what makes this a
     // mission about holding a hover rather than about touching a marker.
     suppressSec: 10,
-    // Nine metres. Wider than the hover zone by a good margin: an aircraft
+    // Twelve metres. Wider than the hover zone by a good margin: an aircraft
     // nudged off the mark by a gust is repositioning, and being thrown back onto
     // the navigation leg for it would be the mission punishing a correction.
-    breakRadius: 9,
+    breakRadius: 12,
     // The burning ground. The hover zone sits inside it, so a pilot who is over
-    // the fire at all is already most of the way to being over the mark.
-    burnRadius: 6,
+    // the fire at all is already over the mark.
+    burnRadius: 8,
     // Three metres over the floor of the hollow, which is two metres BELOW the
     // band the hover is judged in. That gap is the warning: a pilot who sinks
     // out of the band has already lost the hold and watched IN BAND go out
@@ -200,25 +213,15 @@ export const forestFire: Mission = {
     // On the bare dirt road, 11.7 m up from the spawn point and dead flat: the
     // ground varies by 3 cm across the whole mark and there is 11.75 m of clear
     // column above it.
-    //
-    // It used to sit at (20, -8), 21.5 m out and 68 degrees off the spawn
-    // heading, which put the first thing the pilot is asked to find OUTSIDE the
-    // view they start in. They had to turn to look for it, and behind a trunk
-    // from a lot of the headings in between there was nothing to see at all. A
-    // mark this close is in the picture the moment the mission opens, and the
-    // leg is still a flight rather than a hop: the tank is 11.7 m away and 0.9 m
-    // off the deck.
     pickup: {
       kind: 'pickup',
       at: [11, -4],
       label: 'Emergency station',
-      // The city's numbers, unchanged. Directly over the tank and down onto it,
-      // not merely somewhere in the neighbourhood.
-      radius: 0.6,
-      band: { min: 0, max: 0.9 },
-      maxGroundSpeed: 1.1,
-      maxVerticalSpeed: 1,
-      hold: 0.8,
+      radius: 1.8,
+      band: { min: 0, max: 2.2 },
+      maxGroundSpeed: 1.8,
+      maxVerticalSpeed: 1.5,
+      hold: 0.35,
     },
     // The fire. 95 m out, in a hollow 12.5 m below the clearing, with 10.5 m of
     // clear air around the column above it.
@@ -226,24 +229,22 @@ export const forestFire: Mission = {
       kind: 'drop',
       at: [76, -56],
       label: 'Fire zone',
-      // Much wider than a delivery's mark, and it has to be: this is a
-      // ten second hover rather than a one second one, held over an object six
-      // metres across, and a 1.8 m circle would make it a test of trim rather
-      // than of flying.
-      radius: 3.5,
-      // Well ABOVE the flames. The band is 5 to 11 m over the floor of the
-      // hollow: high enough that the drone is over the fire rather than in it,
-      // low enough that the spray reaches, and 6 m deep so holding it is a
-      // hover rather than a tightrope.
-      band: { min: 5, max: 11 },
-      maxGroundSpeed: 1.2,
-      maxVerticalSpeed: 1,
+      // Generous radius covering the fire area so getting near the fire starts
+      // suppression immediately.
+      radius: 6.5,
+      // Broad vertical band 5 to 16 m over the floor of the hollow (-7.5 m to
+      // +3.5 m in world Y): starts spraying as soon as the drone approaches
+      // above or inside the hollow without forcing extreme low descent.
+      band: { min: 5, max: 16 },
+      maxGroundSpeed: 2.2,
+      maxVerticalSpeed: 1.8,
       // Unused on a suppression mission: what the hold is measured against is
       // `fire.suppressSec`, which is ten times longer and survives an
       // interruption. Left at zero rather than duplicated, so there is only ever
       // one number saying how long the hover is.
       hold: 0,
       groundY: FIRE_Y,
+      ringLift: 0.45,
     },
     // The emergency station's pad, 6 m up the road from the spawn point — as
     // close to "where you started" as the road allows, on ground that is flat to
@@ -290,30 +291,30 @@ export const forestFire: Mission = {
     spraying: { id: 'spraying', text: 'Suppression system active. Hold your position.' },
     half: { id: 'half', text: 'Fire intensity is dropping. Keep the drone steady.' },
     delivered: { id: 'delivered', text: 'Fire contained. The affected area is under control.' },
-    home: { id: 'home', text: 'Good work, pilot. Return to the emergency base.' },
-    landing: { id: 'landing', text: 'Base reached. Land the drone safely.' },
     complete: {
       id: 'complete',
-      text: 'Mission complete. The forest fire has been successfully contained.',
+      text: 'Mission complete. The forest fire has been successfully contained. Good work, pilot.',
     },
   },
 
+  // `r.landed` is deliberately tested on NO rung here. This mission ends over
+  // the fire, so the flag is false on every attempt including a perfect one, and
+  // a rung that asked for it would be a rung nothing could ever pass.
   ranks: [
     {
       stars: 3,
-      text: 'All 7 points, no crashes, home inside 4:30',
-      test: (r) =>
-        r.delivered && r.landed && r.points >= GOLD && r.collisions === 0 && r.timeSec <= 270,
+      text: 'All 6 points, no crashes, fire out inside 4:30',
+      test: (r) => r.delivered && r.points >= GOLD && r.collisions === 0 && r.timeSec <= 270,
     },
     {
       stars: 2,
-      text: 'Fire out and home, one crash at most',
-      test: (r) => r.delivered && r.landed && r.points >= SILVER && r.collisions <= 1,
+      text: 'Fire out, one crash at most',
+      test: (r) => r.delivered && r.points >= SILVER && r.collisions <= 1,
     },
     {
       stars: 1,
-      text: 'Put the fire out and land back at base',
-      test: (r) => r.delivered && r.landed,
+      text: 'Put the fire out',
+      test: (r) => r.delivered,
     },
   ],
 };
