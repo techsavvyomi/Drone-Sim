@@ -62,7 +62,12 @@ export function MissionViewport({ mission }: { mission: Mission }) {
     if (hour !== MISSION_HOUR) world.setTimeOfDay(MISSION_HOUR);
 
     // Missions fly a gentler stick. Only here: put it back on the way out.
-    setCommandScale(MISSION_COMMAND_SCALE);
+    //
+    // The throttle can opt out of that softening on its own — see
+    // `Mission.throttleScale`. A mission whose job is coming down onto marks
+    // wants a stick that answers, and slowing the throttle axis never made a
+    // descent gentler, only later.
+    setCommandScale(MISSION_COMMAND_SCALE, mission.throttleScale ?? MISSION_COMMAND_SCALE);
 
     return () => {
       setCommandScale(1);
@@ -71,7 +76,9 @@ export function MissionViewport({ mission }: { mission: Mission }) {
       }
       if (hour !== MISSION_HOUR) useWorldStore.getState().setTimeOfDay(hour);
     };
-  }, []);
+    // The mission is torn down and rebuilt when it changes, so this only has to
+    // re-run if the number itself does.
+  }, [mission.throttleScale]);
 
   const graphics = useSettingsStore((s) => s.settings.graphics);
   const q = qualityFor(graphics);

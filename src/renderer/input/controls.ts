@@ -47,10 +47,24 @@ export function setScripted(on: boolean): void {
 // Missions only, set by the mission view and put back on the way out. Free
 // flight and Flight School keep the full-rate sticks they were tuned against.
 let commandScale = 1;
+let throttleScale = 1;
 
-/** 1 = the normal aircraft; below 1 = softer sticks. Missions use this. */
-export function setCommandScale(scale: number): void {
+/**
+ * 1 = the normal aircraft; below 1 = softer sticks. Missions use this.
+ *
+ * THROTTLE IS ITS OWN NUMBER, and defaults to the same one so nothing changes
+ * for a caller that passes one value.
+ *
+ * Softening the sticks was meant to make a mission flyable to the metre, and on
+ * roll, pitch and yaw it does exactly that. On the throttle it does something
+ * else: what is scaled here is the RATE the keyboard's throttle axis moves at,
+ * not a limit on it, so a soft mission does not descend more gently — it takes
+ * twice as long to ASK to descend at all. Coming down onto a mark then feels
+ * like the aircraft is ignoring the stick, which is the opposite of precise.
+ */
+export function setCommandScale(scale: number, throttle: number = scale): void {
   commandScale = clamp(scale, 0.1, 1);
+  throttleScale = clamp(throttle, 0.1, 1);
 }
 
 export function isScripted(): boolean {
@@ -221,8 +235,8 @@ export function updateStick(dt: number): void {
 
   throttleCommanded = up || down;
 
-  const throttleRateUp = 0.6 * commandScale;
-  const throttleRateDown = 0.95 * commandScale;
+  const throttleRateUp = 0.6 * throttleScale;
+  const throttleRateDown = 0.95 * throttleScale;
 
   const flight = useFlightStore.getState();
   if (ALT_MANAGED.includes(flight.mode)) {
