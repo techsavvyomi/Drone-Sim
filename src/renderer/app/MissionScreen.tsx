@@ -2,7 +2,7 @@ import { useSettingsStore } from '../state/settingsStore';
 import { useMissionStore } from '../state/missionStore';
 import { MissionViewport } from '../missions/MissionViewport';
 import { MISSIONS } from '../missions';
-import { maxPointsOf } from '../missions/types';
+import { deliveryCount, maxPointsOf } from '../missions/types';
 import { playClick } from '../audio/sfx';
 
 // Top-level Missions section: the mission path when nothing is active, otherwise
@@ -103,8 +103,14 @@ export function MissionScreen() {
                     </>
                   ) : (
                     <>
-                      {maxPointsOf(m)} points · {m.route.length} checkpoints ·{' '}
-                      {Math.round(m.timeLimitSec / 60)} min
+                      {/* A mission with no rings says what it DOES have. "0
+                          checkpoints" on the card of a three-delivery mission
+                          reads as a mission with nothing in it. */}
+                      {maxPointsOf(m)} points ·{' '}
+                      {m.route.length > 0
+                        ? `${m.route.length} checkpoints`
+                        : `${deliveryCount(m)} deliveries`}{' '}
+                      · {Math.round(m.timeLimitSec / 60)} min
                     </>
                   )}
                 </span>
