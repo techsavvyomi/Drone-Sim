@@ -46,7 +46,7 @@ function result(over: Partial<MissionResult> = {}): MissionResult {
   return {
     points: maxPointsOf(M),
     maxPoints: maxPointsOf(M),
-    timeSec: 300,
+    timeSec: 400,
     collisions: 0,
     delivered: true,
     landed: true,
@@ -152,12 +152,23 @@ describe('the hub and the three destinations', () => {
     for (const deck of decks) expect(deck).toBeTypeOf('number');
     expect(decks[0]).toBeGreaterThan(0);
     expect(decks[1]).toBeGreaterThan(20);
-    expect(decks[2]).toBeGreaterThan(20);
+    expect(decks[2]).toBe(0);
     // The deck a zone declares is what the height band is measured from, so a
     // rooftop that forgot it would put the hover inside the building.
     for (const d of M.deliveries!) {
       expect(zoneGroundY(M, d.zone)).toBe(d.zone.groundY ?? M.groundY);
     }
+  });
+
+  it('TC-246 gives this mission its throttle back, and only this mission', () => {
+    // Missions fly a softened stick so the aircraft can be placed to the metre,
+    // which is right for roll, pitch and yaw. On the throttle the number scales
+    // the RATE the axis moves at rather than capping the descent, so a soft
+    // mission does not come down gently, it takes twice as long to ask. This one
+    // descends onto a mark six times.
+    expect(M.throttleScale).toBe(1);
+    expect(precisionDelivery.throttleScale).toBeUndefined();
+    expect(forestFire.throttleScale).toBeUndefined();
   });
 
   it('TC-246 keeps every rooftop hold under the aircraft ceiling', () => {
@@ -170,21 +181,44 @@ describe('the hub and the three destinations', () => {
     }
   });
 
-  it('TC-246 ramps the destinations: street, roof, tighter roof', () => {
+  it('TC-246 ramps the destinations: short street, rooftop, long street', () => {
     const [a, b, c] = M.deliveries!.map((d) => d.zone);
-    // A is on the street and nearest; both roofs are further out than it.
     const range = (zone: MissionZone) =>
       flatDist({ x: M.zones.pickup.at[0], z: M.zones.pickup.at[1] }, zone.at);
-    // Range ramps all the way: street bay, then the near roof, then the far one.
-    // It only does so because the hub moved off the spawn — from the old pad the
-    // two roofs sat within two metres of the same range.
+    // Range ramps all the way through: a short hop, then the rooftop, then the
+    // long haul to the far corner.
     expect(range(a)).toBeLessThan(range(b));
     expect(range(b)).toBeLessThan(range(c));
-    // ...and so does the approach: C is higher and smaller than B, so the last
-    // delivery is the hardest as well as the furthest.
-    expect(zoneGroundY(M, c)).toBeGreaterThan(zoneGroundY(M, b));
+    expect(range(c)).toBeGreaterThan(70);
+    // Only B is elevated — see the header of the mission file. C carries the
+    // final challenge on distance and on the smallest mark of the three.
+    expect(zoneGroundY(M, b)).toBeGreaterThan(20);
+    expect(c.radius).toBeLessThan(a.radius);
     expect(c.radius).toBeLessThan(b.radius);
-    expect(c.band.max).toBeLessThan(b.band.max);
+  });
+
+  it('TC-246 builds a platform under the one mark whose deck is not its roof', () => {
+    // The bug a pilot actually saw. The city's colliders fill each merged
+    // rectangle to the TALLEST thing in it, so a roof with a parapet is solid up
+    // to the parapet: the aircraft rests a metre above the slab, and a mark
+    // drawn where the aircraft rests hangs in the air over the roof.
+    //
+    // Neither height can move — one is what the drone stops on, the other is
+    // what the pilot sees — so the gap is filled with a delivery platform, and
+    // `padBase` is what says how far down it reaches. TC-250 measures both
+    // numbers against the model itself.
+    const [a, b, c] = M.deliveries!.map((d) => d.zone);
+    expect(b.padBase).toBeTypeOf('number');
+    expect(b.padBase!).toBeLessThan(zoneGroundY(M, b));
+    // A platform, not a tower: a four-metre plinth on a roof is a different
+    // building, and it would mean the mark had been put somewhere wrong.
+    expect(zoneGroundY(M, b) - b.padBase!).toBeLessThan(4);
+    // The street marks stand on the ground they are drawn at and say nothing.
+    expect(a.padBase).toBeUndefined();
+    expect(c.padBase).toBeUndefined();
+    // And no other mission has grown one.
+    for (const zone of allZonesOf(precisionDelivery)) expect(zone.padBase).toBeUndefined();
+    for (const zone of allZonesOf(forestFire)) expect(zone.padBase).toBeUndefined();
   });
 
   it('TC-246 lists every mark, including the ones `zones` has no room for', () => {
@@ -226,7 +260,7 @@ describe('the run index', () => {
     // anywhere testing C's roof.
     expect(dropZoneOf(M, 0).label).toBe('Bay A');
     expect(dropZoneOf(M, 1).label).toBe('Rooftop B');
-    expect(dropZoneOf(M, 2).label).toBe('Rooftop C');
+    expect(dropZoneOf(M, 2).label).toBe('Bay C');
   });
 
   it('TC-247 advances one at a time and scores one point each', () => {
@@ -293,7 +327,7 @@ describe('what the pilot is told', () => {
     expect(objectiveFor('toPickup', 'delivery', second)).toContain('Return');
     expect(objectiveFor('toPickup', 'delivery', second)).toContain('Package B');
     expect(objectiveFor('carrying', 'delivery', second)).toContain('Rooftop B');
-    expect(objectiveFor('toDrop', 'delivery', runContextOf(M, 2)!)).toContain('Rooftop C');
+    expect(objectiveFor('toDrop', 'delivery', runContextOf(M, 2)!)).toContain('Bay C');
   });
 
   it('TC-248 leaves the single-delivery wording exactly as it was', () => {
@@ -364,13 +398,22 @@ describe('the rating', () => {
   });
 
   it('TC-249 quotes the same numbers the rungs test', () => {
-    expect(M.ranks[0].text).toContain('7:00');
-    expect(M.parTimeSec).toBe(420);
+    expect(M.ranks[0].text).toContain('8:00');
+    expect(M.parTimeSec).toBe(480);
     expect(M.timeLimitSec).toBeGreaterThan(M.parTimeSec);
   });
 });
 
 describe('the coordinates', () => {
+  it('TC-250 stands every mark on the geometry it names', () => {
+    // Reads the GLB, not the colliders. Every check that reads the generated
+    // boxes agrees with them by construction, which is exactly how a mark ended
+    // up drawn a metre above the roof it was supposed to be painted on.
+    const out = execFileSync('node', ['scripts/check-roof-marks.mjs'], { encoding: 'utf8' });
+    expect(out).toContain('Every mark stands on what it says it stands on.');
+    expect(out).not.toContain('WRONG');
+  }, 120_000);
+
   it('TC-250 clears every mark and every corridor in New York City', () => {
     // The numbers in this mission are positions in a city, and nothing about
     // reading them says whether a drone can get there. The script measures them
