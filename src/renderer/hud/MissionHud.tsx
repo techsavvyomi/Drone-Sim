@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { useMissionStore, objectiveFor } from '../state/missionStore';
+import { useMissionStore, objectiveFor, runContextOf } from '../state/missionStore';
 import { useSimStore } from '../state/simStore';
 import { useFlightStore } from '../state/flightStore';
 import { resetForMission } from '../missions/reset';
@@ -148,6 +148,8 @@ export function MissionHud() {
   const result = useMissionStore((s) => s.result);
   const failReason = useMissionStore((s) => s.failReason);
   const collisions = useMissionStore((s) => s.collisions);
+  const runIndex = useMissionStore((s) => s.runIndex);
+  const deliveredCount = useMissionStore((s) => s.deliveredCount);
   const fireIntensity = useMissionStore((s) => s.fireIntensity);
   const beginFlight = useMissionStore((s) => s.beginFlight);
   const restart = useMissionStore((s) => s.restart);
@@ -191,6 +193,9 @@ export function MissionHud() {
   // The map's name comes from its own spec rather than from the mission, so a
   // renamed environment renames itself on every briefing that flies it.
   const mapName = getEnvironment(mission.envId)?.name ?? mission.envId;
+  /** The package being flown, on a multi-point delivery. Null everywhere else,
+   *  which is what leaves the single-delivery strip exactly as it was. */
+  const run = runContextOf(mission, runIndex);
   const remaining = Math.max(0, mission.timeLimitSec - elapsed);
   const lowOnTime = remaining <= 45;
 
@@ -415,7 +420,7 @@ export function MissionHud() {
         <div className="ms-strip">
           <div className="ms-obj">
             <span>OBJECTIVE</span>
-            <b>{objectiveFor(leg, mission.kind)}</b>
+            <b>{objectiveFor(leg, mission.kind, run)}</b>
           </div>
           <div className={`ms-cell payload ${payload}`}>
             <span>PAYLOAD</span>
@@ -430,10 +435,26 @@ export function MissionHud() {
                 succeeded — the banner already said that. */}
             <b>
               {payload === 'waiting' ? 'Empty' : null}
-              {payload === 'attached' ? (fire ? 'Ready' : 'On board') : null}
+              {/* Named while it is on board, on a mission that carries three of
+                  them. 'On board' answers "am I holding something"; only the
+                  name answers "which one", and on this mission that is the
+                  question the pilot is actually asking. */}
+              {payload === 'attached' ? (fire ? 'Ready' : (run?.name ?? 'On board')) : null}
               {payload === 'delivered' ? (fire ? 'Empty' : 'Delivered') : null}
             </b>
           </div>
+          {/* How far through the job. Beside the payload rather than instead of
+              the points, because it is the number this mission is about: a pilot
+              two deliveries in wants to know there is one left, and the score
+              says 3 / 4 for two different reasons. */}
+          {run && (
+            <div className="ms-cell">
+              <span>PROGRESS</span>
+              <b>
+                {deliveredCount} <i>/ {run.total} delivered</i>
+              </b>
+            </div>
+          )}
           {/* The fire, while there is one to report. It goes in beside the
               payload rather than replacing the points, because it is the thing
               the whole middle of this mission is about and the pilot should be
@@ -476,10 +497,24 @@ export function MissionHud() {
             <p className="ms-signoff">“{mission.radio.complete.text}”</p>
             <div className="ms-sheet">
               {[
-                [fire ? 'Payload collected' : 'Payload picked up', '✓', true],
-                [fire ? 'Fire suppressed' : 'Payload delivered', '✓', true],
-                ['Returned to base', '✓', true],
-                ['Safe landing', '✓', true],
+                // A multi-point delivery reports each package by name. One
+                // 'Payload delivered' tick for three separate flights would be
+                // the result card summarising away most of the mission.
+                ...(mission.deliveries
+                  ? mission.deliveries.map((d) => [`${d.name} delivered`, '✓', true] as const)
+                  : ([
+                      [fire ? 'Payload collected' : 'Payload picked up', '✓', true],
+                      [fire ? 'Fire suppressed' : 'Payload delivered', '✓', true],
+                    ] as const)),
+                // A mission that ends at the drop has no homeward leg to report.
+                // Rows that always read '✓' are noise; rows for a leg that was
+                // never flown are worse than noise.
+                ...(mission.endsAtDrop
+                  ? []
+                  : ([
+                      ['Returned to base', '✓', true],
+                      ['Safe landing', '✓', true],
+                    ] as const)),
                 [
                   'Points',
                   `${result.points} / ${result.maxPoints}`,
