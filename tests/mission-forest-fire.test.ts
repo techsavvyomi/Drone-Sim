@@ -54,13 +54,24 @@ describe('the mission as content', () => {
   });
 
   it('TC-237 sits in the list behind Precision Delivery', () => {
-    expect(MISSIONS.map((m) => m.id)).toEqual(['precision-delivery', 'forest-fire']);
-    expect(MISSIONS.map((m) => m.order)).toEqual([1, 2]);
+    // Its POSITION, not the whole list. The list grows — a third mission landed
+    // behind this one — and a test that names every mission fails on the next
+    // one being added rather than on anything about this one being wrong.
+    expect(MISSIONS[0].id).toBe('precision-delivery');
+    expect(MISSIONS[1].id).toBe('forest-fire');
+    expect(M.order).toBe(2);
+    // `MISSIONS` is sorted by `order`, and the orders are 1, 2, 3, ... with no
+    // gaps and no repeats: that is what makes the unlock chain a path.
+    expect(MISSIONS.map((m) => m.order)).toEqual(MISSIONS.map((_, i) => i + 1));
   });
 
-  it('TC-237 scores one point per ring, plus the fire and the landing', () => {
+  it('TC-237 scores one point per ring, plus the fire — and no landing', () => {
     expect(M.route).toHaveLength(5);
-    expect(maxPointsOf(M)).toBe(7);
+    // Six, not seven: this mission ends over the fire, so there is no landing
+    // to score. `endsAtDrop` is what drops the point, and it is checked here
+    // rather than on its own so the flag and the total cannot drift apart.
+    expect(M.endsAtDrop).toBe(true);
+    expect(maxPointsOf(M)).toBe(6);
     // Three stars needs every one of them, so the gold threshold and the points
     // available cannot drift apart.
     expect(M.medals.gold).toBe(maxPointsOf(M));
@@ -78,12 +89,14 @@ describe('the mission as content', () => {
       'spraying',
       'half',
       'delivered',
-      'home',
-      'landing',
       'complete',
     ]) {
       expect(M.radio[key]?.text ?? '').not.toBe('');
     }
+    // And NOT the homeward pair. The runtime never reaches those legs on a
+    // mission that ends at the drop, so a line for either is a line nobody can
+    // hear — kept out so nobody adds a return leg by writing dialogue for one.
+    for (const key of ['home', 'landing']) expect(M.radio[key]).toBeUndefined();
   });
 });
 
@@ -99,37 +112,38 @@ describe('the rings, which gate nothing', () => {
     expect(requiredCheckpoints(M).length).toBe(0);
   });
 
-  it('TC-238 still lights the next ring, or nothing would guide the crossing', () => {
-    const atBase = { x: M.zones.base.at[0], z: M.zones.base.at[1] };
-    expect(nextCheckpointOf(M, 'toDrop', {}, atBase)?.label).toBe('F1');
-    expect(nextCheckpointOf(M, 'toDrop', { [M.route[0].id]: true }, atBase)?.label).toBe('F2');
+  it('TC-238 lights the next ring in ROUTE ORDER', () => {
+    expect(nextCheckpointOf(M, 'toDrop', {})?.label).toBe('F1');
+    expect(nextCheckpointOf(M, 'toDrop', { [M.route[0].id]: true })?.label).toBe('F2');
   });
 
-  it('TC-238 drops an optional ring the drone has flown past', () => {
-    // A pilot who takes their own line through the trees must not be sent back
-    // to a ring behind them for the rest of the mission. "Past" is measured
-    // against the fire: a ring further from the fire than the drone is, is
-    // behind it.
-    const fire = M.zones.drop.at;
-    const f1 = { x: M.route[0].at[0], z: M.route[0].at[2] };
+  it('TC-238 keeps a MISSED ring lit however far past it the drone is', () => {
+    // The rule the pilot is owed: miss one and the route does not move on. A
+    // ring that vanished once you had flown past it let the chain of marks lose
+    // a link silently — you followed F1, F3, F4 and never learned F2 existed.
+    //
+    // The rings are still optional to SCORE. A pilot who wants to write one off
+    // flies on and eats the point; what they do not get is the next ring lighting
+    // up as though nothing was skipped.
+    const wellPastF1 = { x: 80, z: -30 };
+    expect(flatDist(wellPastF1, M.zones.drop.at)).toBeLessThan(
+      flatDist({ x: M.route[0].at[0], z: M.route[0].at[2] }, M.zones.drop.at),
+    );
+    expect(nextCheckpointOf(M, 'toDrop', {})?.label).toBe('F1');
 
-    // Three quarters of the way there, F1 is long behind and the guidance has
-    // moved on to the last ring.
-    const wellOut = { x: 80, z: -30 };
-    expect(flatDist(wellOut, fire)).toBeLessThan(flatDist(f1, fire));
-    expect(nextCheckpointOf(M, 'toDrop', {}, wellOut)?.label).toBe('F5');
-
-    // On the fire's doorstep every ring is behind, and the caller falls back to
-    // the mark itself.
-    const arriving = { x: 70, z: -52 };
-    expect(nextCheckpointOf(M, 'toDrop', {}, arriving)).toBeNull();
+    // And it is only ever taking the ring that moves it on — skipping four and
+    // collecting the last still leaves the four outstanding, in order.
+    const onlyLast = { [M.route[4].id]: true } as Record<string, true>;
+    expect(nextCheckpointOf(M, 'toDrop', onlyLast)?.label).toBe('F1');
   });
 
-  it('TC-238 keeps a REQUIRED ring lit however far past it the drone is', () => {
-    // The other mission's rings have to be taken, so pointing at one behind the
-    // drone is the correct answer rather than a bug.
-    const past = { x: precisionDelivery.zones.drop.at[0], z: precisionDelivery.zones.drop.at[1] };
-    expect(nextCheckpointOf(precisionDelivery, 'toDrop', {}, past)?.label).toBe('B1');
+  it('TC-238 lights nothing once every ring on the leg is taken', () => {
+    const all = Object.fromEntries(M.route.map((c) => [c.id, true])) as Record<string, true>;
+    expect(nextCheckpointOf(M, 'toDrop', all)).toBeNull();
+  });
+
+  it('TC-238 applies the same order to the delivery, whose rings are required', () => {
+    expect(nextCheckpointOf(precisionDelivery, 'toDrop', {})?.label).toBe('B1');
   });
 });
 
@@ -168,7 +182,7 @@ describe('the ground under each mark', () => {
     // more than the whole hover band is deep.
     const drop = zoneGroundY(M, M.zones.drop);
     const base = zoneGroundY(M, M.zones.base);
-    expect(Math.abs(base - drop)).toBeGreaterThan(M.zones.drop.band.max);
+    expect(Math.abs(base - drop)).toBeGreaterThan(M.zones.drop.band.max - M.zones.drop.band.min);
   });
 
   it('TC-240 leaves a flat map alone', () => {
@@ -268,9 +282,13 @@ describe('the coordinates', () => {
 // does.
 describe('what the briefing card needs from a mission', () => {
   for (const m of MISSIONS) {
-    it(`TC-241 ${m.id} carries a story, four beats and four objectives`, () => {
+    it(`TC-241 ${m.id} carries a story, its beats and an objective for each`, () => {
       expect(m.story.length).toBeGreaterThan(60);
-      expect(m.flow).toHaveLength(4);
+      // Four beats on a mission that flies home, three on one that ends at the
+      // drop: the card draws one panel per beat, so the count follows the flight
+      // rather than being fixed at four and leaving Forest Fire a "Come home"
+      // panel for a leg it does not have.
+      expect(m.flow).toHaveLength(m.endsAtDrop ? 3 : 4);
       expect(m.objectives).toHaveLength(m.flow.length);
       expect(m.mapNote).not.toBe('');
       // Every beat names a scene the card knows how to draw. A key it does not
