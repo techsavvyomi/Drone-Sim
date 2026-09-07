@@ -5,6 +5,9 @@ import { useFlightStore } from '../state/flightStore';
 import { useMissionStore, activeZone, legOf, type MissionLeg } from '../state/missionStore';
 import { dronePose } from '../sim/drone/pose';
 import {
+  deliveryCount,
+  deliveryOf,
+  dropZoneOf,
   flatDist,
   requiredCheckpoints,
   requiredLeft,
@@ -301,6 +304,17 @@ export function MissionDirector() {
     // ---- The state machine ------------------------------------------------
     let leg: MissionLeg = store.leg;
 
+    // WHICH PACKAGE, and therefore which mark.
+    //
+    // Read once a frame and used everywhere below instead of `mission.zones.drop`.
+    // A single-drop mission answers with its one zone and `run` is null, so every
+    // branch reads exactly as it did; a multi-point mission answers with the
+    // destination for the run the pilot is on, and cannot be talked into testing
+    // any other — which is the whole of the brief's "no skipping".
+    const run = deliveryOf(mission, store.runIndex);
+    const runs = deliveryCount(mission);
+    const dropZone = dropZoneOf(mission, store.runIndex);
+
     if (leg === 'toPickup') {
       const z = probeZone(mission, mission.zones.pickup);
       pickupHold.current = z.ok ? pickupHold.current + dt : 0;
@@ -321,27 +335,35 @@ export function MissionDirector() {
                 title: 'FIREFIGHTING PAYLOAD ATTACHED',
                 sub: 'Suppression tank secured under the airframe',
               }
-            : {
-                kind: 'good',
-                title: 'PAYLOAD ATTACHED',
-                sub: 'Package secured under the airframe',
-              },
+            : run
+              ? {
+                  // Named, because on this mission the pilot is carrying one of
+                  // three and the banner is the only place they are told WHICH.
+                  kind: 'good',
+                  title: `${run.name.toUpperCase()} ATTACHED`,
+                  sub: `${run.cargo} — bound for ${run.zone.label}`,
+                }
+              : {
+                  kind: 'good',
+                  title: 'PAYLOAD ATTACHED',
+                  sub: 'Package secured under the airframe',
+                },
           BANNER_SEC,
         );
-        say(mission, 'pickup');
+        say(mission, 'pickup', run?.id);
       }
     } else if (leg === 'carrying') {
-      const z = probeZone(mission, mission.zones.drop);
+      const z = probeZone(mission, dropZone);
       // Awareness, then approach, then the careful line — each once, and only
       // once, so a pilot circling the block is not told the same thing four
       // times. `playRadio` is the thing that guarantees it.
-      if (z.flat <= CALL_APPROACH) say(mission, 'approach');
-      else if (z.flat <= CALL_NEAR) say(mission, 'near');
-      else if (z.flat <= CALL_FAR) say(mission, 'far');
+      if (z.flat <= CALL_APPROACH) say(mission, 'approach', run?.id);
+      else if (z.flat <= CALL_NEAR) say(mission, 'near', run?.id);
+      else if (z.flat <= CALL_FAR) say(mission, 'far', run?.id);
 
       // Entering the zone is a change of JOB, not a score: from navigating the
       // city to positioning over a mark. That is why it gets its own leg.
-      if (z.flat <= enterRadius(mission)) {
+      if (z.flat <= enterRadius(mission, dropZone)) {
         leg = 'toDrop';
         store.setLeg(leg);
         if (!announcedDrop.current) {
@@ -355,8 +377,16 @@ export function MissionDirector() {
                 }
               : {
                   kind: 'info',
-                  title: 'DELIVERY ZONE REACHED',
-                  sub: 'Slow down, centre over the mark, then descend',
+                  title: run ? `${run.zone.label.toUpperCase()} REACHED` : 'DELIVERY ZONE REACHED',
+                  // A rooftop delivery is a HOVER, not a landing. The band
+                  // starts a third of a metre over the slab and the aircraft is
+                  // meant to stay there: touching a roof is touching a building,
+                  // which the sim counts as a collision and the rating takes
+                  // off. The wording has to say hold, not land.
+                  sub:
+                    run && run.zone.groundY !== undefined
+                      ? 'Come in over the deck, centre on the mark and hold it just above the slab'
+                      : 'Slow down, centre over the mark, then descend',
                 },
             BANNER_SEC,
           );
@@ -457,11 +487,27 @@ export function MissionDirector() {
             BANNER_SEC,
           );
           say(mission, 'delivered');
-          queued.current = { key: 'home', at: clock.current + 1.2 };
+          if (mission.endsAtDrop) {
+            // The job ended here. Straight to `complete` rather than through
+            // the return legs: `legOf` and `activeZone` both read `complete` as
+            // nothing live, so the base ring does not light for the second and a
+            // half the card is up and then get taken away unfinished.
+            //
+            // The drone is NOT disarmed. It is hovering ninety-five metres from
+            // the pad with the score already banked, and cutting the motors here
+            // would drop it out of the sky in front of the pilot for the whole
+            // dwell — on the pad that is a landed aircraft settling, over a
+            // hollow it is a crash the mission caused after saying "complete".
+            leg = 'complete';
+            store.setLeg(leg);
+            landDwell.current = LAND_DWELL;
+          } else {
+            queued.current = { key: 'home', at: clock.current + 1.2 };
+          }
         }
       }
     } else if (leg === 'toDrop') {
-      const zone = mission.zones.drop;
+      const zone = dropZone;
       const z = probeZone(mission, zone);
       // Drifting back out of the approach ring is not a failure — it puts the
       // pilot back on the navigation leg without re-announcing anything.
@@ -506,19 +552,61 @@ export function MissionDirector() {
           store.setChecks({ centred: z.centred, inBand: z.inBand, steady: z.steady, hold });
         }
         if (left === 0 && dropHold.current >= zone.hold) {
-          leg = 'delivered';
-          store.setLeg(leg);
-          store.setPayload('delivered');
-          store.takeZone('drop', 'DELIVERY');
           lastChecks.current = '';
+          dropHold.current = 0;
           store.setChecks({ centred: false, inBand: false, steady: false, hold: 0 });
           playDrop();
           playSuccess();
-          store.showBanner(
-            { kind: 'good', title: 'PAYLOAD DELIVERED', sub: 'Package is on the mark' },
-            BANNER_SEC,
-          );
-          say(mission, 'delivered');
+
+          if (run) {
+            // A MULTI-POINT DELIVERY. The package is scored on its own rather
+            // than through `takeZone`, which can only remember one drop, and the
+            // run index moves on — that index is the only thing standing between
+            // the pilot and package C, so it is advanced here and nowhere else.
+            store.takeDelivery(`DELIVERY ${run.id.toUpperCase()}`);
+            store.showBanner(
+              {
+                kind: 'good',
+                title: `${run.name.toUpperCase()} DELIVERED`,
+                sub: `${store.runIndex + 1} of ${runs} on the mark`,
+              },
+              BANNER_SEC,
+            );
+            say(mission, 'delivered', run.id);
+
+            const last = store.runIndex + 1 >= runs;
+            if (!last) {
+              // BACK TO THE HUB, not on to the next mark. The brief is explicit
+              // that the next package does not appear at the destination the
+              // last one went to — the pilot has to fly home for it, and that
+              // return is half of what the mission is teaching.
+              store.advanceRun();
+              store.rearmPickup();
+              store.setPayload('waiting');
+              pickupHold.current = 0;
+              // Both banners are per-DESTINATION, not per attempt: the next one
+              // is a different mark and has to announce itself again.
+              announcedDrop.current = false;
+              announcedGate.current = false;
+              leg = 'toPickup';
+              store.setLeg(leg);
+              queued.current = { key: `back-${run.id}`, at: clock.current + 1.2 };
+              return;
+            }
+            // The last one. The package stays delivered and the flight home is
+            // the ordinary one below.
+          } else {
+            store.takeZone('drop', 'DELIVERY');
+            store.showBanner(
+              { kind: 'good', title: 'PAYLOAD DELIVERED', sub: 'Package is on the mark' },
+              BANNER_SEC,
+            );
+            say(mission, 'delivered');
+          }
+
+          leg = 'delivered';
+          store.setLeg(leg);
+          store.setPayload('delivered');
           // Queued behind the delivery line rather than fired with it: two
           // radio calls in the same frame means the pilot reads neither.
           //
@@ -570,7 +658,7 @@ export function MissionDirector() {
         );
         landDwell.current = LAND_DWELL;
       }
-    } else if (leg === 'landing') {
+    } else if (leg === 'landing' || leg === 'complete') {
       // The card is allowed its moment before the result screen covers the view.
       landDwell.current -= dt;
       if (landDwell.current <= 0) {
@@ -585,7 +673,10 @@ export function MissionDirector() {
           timeSec: clock.current,
           collisions,
           delivered: true,
-          landed: true,
+          // Honest rather than convenient: a mission that ends at the drop was
+          // never landed, and a result that claimed otherwise would put a tick
+          // against "Safe landing" on a card for a flight still in the air.
+          landed: !mission.endsAtDrop,
         });
         return;
       }
@@ -613,8 +704,8 @@ export function MissionDirector() {
       // arrow on the ring still pointed at the mark behind it.
       const p = dronePose.position;
       const taken = useMissionStore.getState().collected;
-      const cp = nextTargetOf(mission, legOf(leg), taken, p);
-      const target: readonly [number, number, number] = cp ?? markerFor(mission, leg);
+      const cp = nextTargetOf(mission, legOf(leg), taken);
+      const target: readonly [number, number, number] = cp ?? markerFor(mission, leg, dropZone);
       const dx = target[0] - p.x;
       const dz = target[2] - p.z;
       const dy = target[1] - p.y;
@@ -647,20 +738,33 @@ export function MissionDirector() {
  * ground, so the call is made at the edge of the fire itself — which is where a
  * pilot would say they had reached it.
  */
-function enterRadius(mission: Mission): number {
-  return mission.fire ? mission.fire.breakRadius : mission.zones.drop.radius * 3;
+function enterRadius(mission: Mission, drop: MissionZone): number {
+  return mission.fire ? mission.fire.breakRadius : drop.radius * 3;
 }
 
-/** Play a Mission Control line, once per attempt. */
-function say(mission: Mission, key: string): void {
-  const line = mission.radio[key];
+/**
+ * Play a Mission Control line, once per attempt.
+ *
+ * On a multi-point delivery the same beat happens three times — collected,
+ * nearly there, delivered — and the pilot should not hear the same sentence on
+ * all three. A key suffixed with the package's id wins over the plain one when
+ * the mission has written it, so `pickup-b` is said on the second run and
+ * `pickup` on any mission that has not bothered.
+ *
+ * `playRadio` still keys on the LINE's own id, which is what keeps "once per
+ * attempt" true across the three runs: `delivered-a` and `delivered-b` are
+ * different lines and both get said, while a mission reusing one plain key gets
+ * it once, as before.
+ */
+function say(mission: Mission, key: string, runId?: string): void {
+  const line = (runId ? mission.radio[`${key}-${runId}`] : undefined) ?? mission.radio[key];
   if (!line) return;
   useMissionStore.getState().playRadio(line.id, line.text, RADIO_SEC);
 }
 
 /** Where the active marker is, in world space — what DISTANCE and the direction
  *  arrow are both measured to. */
-function markerFor(mission: Mission, leg: MissionLeg): [number, number, number] {
+function markerFor(mission: Mission, leg: MissionLeg, drop: MissionZone): [number, number, number] {
   const kind = activeZone(leg);
   if (!kind) {
     return [
@@ -669,7 +773,10 @@ function markerFor(mission: Mission, leg: MissionLeg): [number, number, number] 
       mission.zones.base.at[1],
     ];
   }
-  const zone = mission.zones[kind];
+  // The DROP is whichever destination this run is for — `mission.zones.drop` is
+  // only ever the first one, so reading it here would point the arrow and the
+  // DISTANCE readout at package A's mark for the whole flight.
+  const zone = kind === 'drop' ? drop : mission.zones[kind];
   return [zone.at[0], zoneGroundY(mission, zone) + zone.band.max * 0.5, zone.at[1]];
 }
 
