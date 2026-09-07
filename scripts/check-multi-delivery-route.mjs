@@ -50,6 +50,21 @@ const CORRIDOR_MIN = 3;
  *  metres — see `overARoof`. Comfortably wider than either roof's own slab. */
 const ROOF_SKIP = 10;
 /**
+ * Metres of deck a mark needs OUTSIDE its own ring, all the way round.
+ *
+ * The check this file was missing, and the one bug it let through that a pilot
+ * actually saw. Both rooftop marks were placed by searching for the most clear
+ * air above the slab, which is the corner furthest from the tower behind — and
+ * that corner is the roof's EDGE. A 1.8 m ring sitting a metre from the edge has
+ * most of itself hanging over the street twenty-five metres below, and reads
+ * exactly as what it is: a target floating in the air beside the building.
+ *
+ * Every other test here passed it. The deck under the centre was right, the
+ * clear air was the best on the map, and the corridor was fine — because none of
+ * them ever asked about a point that was not the centre.
+ */
+const RING_MARGIN = 0.6;
+/**
  * The aircraft's own ceiling, metres — the Guru's `maxAltitude`, which every
  * mission is flown on.
  *
@@ -208,19 +223,27 @@ function loadMission() {
     .split(/\n {2}\{\n/)
     .slice(1)
     .map((entry) => {
-      const m =
-        /bay\('([^']+)', (-?[\d.]+), (-?[\d.]+), \{ deck: (-?[\d.]+), radius: ([\d.]+), max: ([\d.]+) \}\)/.exec(
-          entry,
-        );
+      // The mark, then its options by NAME rather than by position: the option
+      // object grew a `standsOn` and a fixed-order regex silently stopped
+      // matching the entry that had it, which took the whole check down.
+      const m = /bay\('([^']+)', (-?[\d.]+), (-?[\d.]+), \{([^}]*)\}\)/.exec(entry);
       if (!m) throw new Error(`could not read a destination from:\n${entry}`);
+      const opt = (name, required = true) => {
+        const hit = new RegExp(`\\b${name}: (-?[\\d.]+)`).exec(m[4]);
+        if (!hit && required) throw new Error(`${m[1]} has no ${name}`);
+        return hit ? +hit[1] : undefined;
+      };
       const via = /via: \[([\s\S]*?)\n\s*\],/.exec(entry);
       return {
         label: m[1],
         x: +m[2],
         z: +m[3],
-        deck: +m[4],
-        radius: +m[5],
-        max: +m[6],
+        deck: opt('deck'),
+        radius: opt('radius'),
+        max: opt('max'),
+        // The visible roof a rooftop mark's platform stands on. Absent on a mark
+        // that stands on the ground it is drawn at.
+        standsOn: opt('standsOn', false),
         via: via ? points(via[1]) : [],
       };
     });
@@ -338,6 +361,45 @@ for (const d of drops) {
   // not one, however carefully its 12 cm are declared: it is still a street mark
   // and it still wants the full column from the deck up, which is where the
   // lamps and the sign arms are.
+  // The whole ring, not just the middle of it. Sampled round the perimeter at
+  // the drawn radius plus a margin, and every one of those points has to be
+  // standing on the same deck the centre declared.
+  {
+    const r = d.radius + RING_MARGIN;
+    let worstOff = 0;
+    let where = null;
+    for (let i = 0; i < 24; i++) {
+      const a = (i / 24) * Math.PI * 2;
+      const x = d.x + Math.cos(a) * r;
+      const z = d.z + Math.sin(a) * r;
+      const off = Math.abs(deck(x, z) - d.deck);
+      if (off > worstOff) {
+        worstOff = off;
+        where = [x, z];
+      }
+    }
+    note(
+      worstOff < 0.05,
+      d.label,
+      where === null || worstOff < 0.05
+        ? `ring of ${d.radius} m + ${RING_MARGIN} m margin stands wholly on the deck`
+        : `ring overhangs: [${where[0].toFixed(1)}, ${where[1].toFixed(1)}] is ${worstOff.toFixed(2)} m off the deck`,
+    );
+  }
+
+  // A mark whose deck is a STRUCTURE says what it is built on, and the platform
+  // has to have somewhere to stand. The GLB is what says whether that number is
+  // the real roof — `scripts/check-roof-marks.mjs` — but the ordering can be
+  // checked from here, and it is the half that would be a mark hanging under
+  // its own platform.
+  if (d.standsOn !== undefined) {
+    note(
+      d.standsOn < d.deck - 0.02 && d.deck - d.standsOn < 4,
+      d.label,
+      `platform stands on ${d.standsOn} m and rises ${(d.deck - d.standsOn).toFixed(2)} m to the deck`,
+    );
+  }
+
   if (d.deck <= 1) {
     const { worst, at } = column(d.x, d.z, real + 0.6, ZONE_TOP);
     line(d.label, `[${d.x}, ${d.z}] column, tightest at ${at} m`, worst, ZONE_MIN);
