@@ -218,6 +218,43 @@ export interface MissionFire {
   loseLoadAgl?: number;
 }
 
+/**
+ * One package in a MULTI-POINT delivery: what it is, and where it has to go.
+ *
+ * A mission with this list is flown as a loop rather than as a line — collect,
+ * carry, place, come back for the next one — and the loop is the whole job. It
+ * is deliberately NOT a second mission runtime: `MissionDirector` walks the same
+ * seven legs it already had, and the only thing that changed is that the
+ * delivery leg can send the pilot back to the pickup instead of home.
+ *
+ * A mission without the list is a single delivery and reads `zones.drop`, which
+ * is what Precision Delivery and Forest Fire still do.
+ */
+export interface MissionDelivery {
+  /** Short id, used for the run-specific radio keys: 'a' -> `pickup-a`. */
+  id: string;
+  /** What the HUD and the banners call it: 'Package A'. */
+  name: string;
+  /** What is inside it, for the briefing and the pickup banner. */
+  cargo: string;
+  /** Where it goes. `kind` is 'drop', and on a rooftop it carries its own
+   *  `groundY` — the height band is judged against the DECK the package is put
+   *  down on, and a roof twenty-five metres up is not the street. */
+  zone: MissionZone;
+  /**
+   * Bare waypoints for the run out to this destination, exactly as `homeVia` is
+   * for the flight back.
+   *
+   * They score nothing, draw nothing and gate nothing — the pilot picks their
+   * own line. They exist so the route check measures a corridor a drone can
+   * actually fly: over this city the straight line from the hub to either roof
+   * runs down the middle of a block, so a check on that line would be measuring
+   * a flight nobody should make and would fail on scenery the pilot was never
+   * going to hit.
+   */
+  via?: readonly (readonly [number, number])[];
+}
+
 export interface Mission {
   id: string;
   /** 1-based position in the mission list, and what the card and the in-flight
@@ -266,6 +303,34 @@ export interface Mission {
   medals: { bronze: number; silver: number; gold: number };
   /** The fire, on a suppression mission. Absent on a delivery. */
   fire?: MissionFire;
+  /**
+   * The packages, on a MULTI-POINT delivery. Absent on a single-drop mission.
+   *
+   * The order is the order they are flown, and it cannot be skipped: the runtime
+   * holds one index into this list and only ever advances it by completing the
+   * delivery it is on. `zones.drop` on such a mission is the FIRST entry's zone
+   * — the same object, not a copy — so anything that still reads `zones.drop`
+   * without asking which run is live gets the opening one rather than nothing.
+   */
+  deliveries?: readonly MissionDelivery[];
+  /**
+   * The mission ENDS at the drop mark, with no flight home and no landing.
+   *
+   * Off by default: a delivery is not finished until the aircraft is back on the
+   * pad, and the return leg is half of what the pilot is being taught. A
+   * suppression mission is a different job. The fire going out IS the outcome,
+   * and Forest Fire's brief ends there — so the run is scored the moment the
+   * last of the tank goes in, over the hollow, rather than making the pilot fly
+   * ninety-five metres back through the trunks to prove something the crossing
+   * already proved on the way out.
+   *
+   * What it changes: the `delivered` -> `returning` -> `landing` tail of the
+   * state machine is skipped, `maxPointsOf` drops the landing point, and the
+   * result carries `landed: false` honestly rather than claiming a touchdown
+   * that never happened. The base zone stays in the spec — it is still where the
+   * drone spawns and what `strayRadius` is measured from.
+   */
+  endsAtDrop?: boolean;
   /**
    * How far from the base a pilot may stray before the mission calls them back,
    * in metres, measured flat from the base zone. Optional, and unset on a
@@ -352,51 +417,41 @@ export function requiredLeft(m: Mission, collected: Record<string, true>): numbe
  * from here, so they can never disagree — one ring is lit over the city and it
  * is the one the dial is pointing at.
  *
- * The rule is ROUTE ORDER: the first ring on this leg that has not been taken.
+ * The rule is ROUTE ORDER, and it is ABSOLUTE: the first ring on this leg that
+ * has not been taken, whether or not the drone has already flown past it.
+ *
  * It was "the nearest outstanding one" while every ring was lit at once, which
  * let a pilot who skipped one be sent to whichever was now cheapest. With one
  * ring lit at a time that rule turns the route into a thing that jumps around
- * as the drone moves — the lit ball would change under the pilot mid-approach —
- * and the route was laid out as a line through the city in the first place.
+ * as the drone moves — the lit ball would change under the pilot mid-approach.
+ *
+ * There was then a middle version that dropped an OPTIONAL ring once the drone
+ * was closer to the mark than the ring was, on the theory that a pilot who took
+ * their own line should not be sent backwards. What it actually did was let the
+ * route be skipped by flying: miss F2, keep going, and F3 lights up — so the
+ * chain of marks the pilot is following silently loses a link, and the pilot
+ * never learns they missed one until the score comes up short. A ring that
+ * disappears because you flew past it is not guidance, it is a reward for
+ * ignoring it.
+ *
+ * So a missed ring STAYS lit until it is flown through. That is a real cost: it
+ * points backwards at a ring behind the drone, which on Forest Fire means the
+ * arrow can send a pilot back through the trees. That is the intended trade —
+ * the rings are still OPTIONAL TO SCORE, and a pilot who wants to write one off
+ * simply flies on and eats the point. What they no longer get is a route that
+ * quietly re-writes itself around the ring they dropped.
  */
 export function nextCheckpointOf(
   m: Mission,
   leg: 'toPickup' | 'toDrop' | 'toBase' | null,
   collected: Record<string, true>,
-  from?: { x: number; z: number },
 ): MissionCheckpoint | null {
   if (!leg) return null;
-  // Every outstanding ring on this leg, required or not. The lit ring is
-  // GUIDANCE — it is what the radar dot and the DISTANCE readout point at — and
-  // a mission whose rings are all optional (Forest Fire) would otherwise fly
-  // past a route with nothing ever lit on it.
-  //
-  // But an OPTIONAL ring the pilot has flown past has to stop being the
-  // guidance, or a pilot who chose the low line through the trees is sent back
-  // to a ring behind them for the rest of the mission while the fire burns. A
-  // required ring never drops out: it has to be taken, and pointing at it is the
-  // correct answer however far past it the drone is.
-  //
-  // "Past" is measured against the DESTINATION, not against the drone's own
-  // path: a ring is still AHEAD while it is closer to the mark than the drone
-  // is, and behind the moment it is not. Measuring against the drone instead
-  // would drop rings it is merely flying wide of.
-  const goal = m.zones[ZONE_OF_LEG[leg]].at;
-  return (
-    m.route.find((c) => {
-      if (c.leg !== leg || collected[c.id]) return false;
-      if (c.required !== false || !from) return true;
-      return flatDist({ x: c.at[0], z: c.at[2] }, goal) < flatDist(from, goal);
-    }) ?? null
-  );
+  // Required or optional makes no difference to the guidance: the lit ring is
+  // the next one in the route's own order, and a mission whose rings are all
+  // optional (Forest Fire) is a route like any other.
+  return m.route.find((c) => c.leg === leg && !collected[c.id]) ?? null;
 }
-
-/** Which mark each leg of the route is heading for. */
-const ZONE_OF_LEG: Record<'toPickup' | 'toDrop' | 'toBase', MissionZoneKind> = {
-  toPickup: 'pickup',
-  toDrop: 'drop',
-  toBase: 'base',
-};
 
 /** The same answer as a world position, for the radar and the DISTANCE
  *  readout. Null once the leg's rings are all taken, and the caller falls back
@@ -405,14 +460,13 @@ export function nextTargetOf(
   m: Mission,
   leg: 'toPickup' | 'toDrop' | 'toBase' | null,
   collected: Record<string, true>,
-  from?: { x: number; z: number },
 ): readonly [number, number, number] | null {
-  return nextCheckpointOf(m, leg, collected, from)?.at ?? null;
+  return nextCheckpointOf(m, leg, collected)?.at ?? null;
 }
 
 /**
- * Points available: every ring on the way out, plus the delivery and the
- * landing.
+ * Points available: every ring on the way out, plus the delivery, plus the
+ * landing on a mission that has one.
  *
  * The PICKUP scores nothing. It is not an achievement, it is the start of the
  * job — the mission has not begun until the package is on board, and a point
@@ -421,7 +475,47 @@ export function nextTargetOf(
  * the rings, then putting the package down, then getting home.
  */
 export function maxPointsOf(m: Mission): number {
-  return m.route.length + 2;
+  return m.route.length + deliveryCount(m) + (m.endsAtDrop ? 0 : 1);
+}
+
+/** How many packages this mission puts down. One, unless it says otherwise. */
+export function deliveryCount(m: Mission): number {
+  return m.deliveries?.length ?? 1;
+}
+
+/**
+ * The drop zone the pilot is being sent to right now.
+ *
+ * The ONE place that answers it. The Director, the marks, the radar, the
+ * DISTANCE readout and the package itself all come through here, so a
+ * multi-point mission can never have the arrow on one roof and the release test
+ * running against another. Clamped rather than allowed to run off the end: the
+ * index is advanced on the frame the last package is delivered, and for the rest
+ * of that flight home the answer should be the mark it was just put on.
+ */
+export function dropZoneOf(m: Mission, runIndex: number): MissionZone {
+  const list = m.deliveries;
+  if (!list || list.length === 0) return m.zones.drop;
+  return list[Math.min(Math.max(runIndex, 0), list.length - 1)].zone;
+}
+
+/** The package being carried on this run, or null on a single-drop mission. */
+export function deliveryOf(m: Mission, runIndex: number): MissionDelivery | null {
+  const list = m.deliveries;
+  if (!list || list.length === 0) return null;
+  return list[Math.min(Math.max(runIndex, 0), list.length - 1)];
+}
+
+/**
+ * Every ground mark the mission has, including each package's own destination.
+ *
+ * Written for the things that have to reason about ALL of them at once — the
+ * marks that are drawn, and the deck a dropped box comes to rest on. `zones` is
+ * a record of three and cannot grow, so this is the honest list.
+ */
+export function allZonesOf(m: Mission): readonly MissionZone[] {
+  const drops = m.deliveries?.map((d) => d.zone) ?? [m.zones.drop];
+  return [m.zones.pickup, ...drops, m.zones.base];
 }
 
 /** The rating an attempt earns: the best rung it passes, or one for finishing. */
