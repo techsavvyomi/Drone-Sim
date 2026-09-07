@@ -5,7 +5,7 @@ import { dronePose } from '../sim/drone/pose';
 import { useSettingsStore } from '../state/settingsStore';
 import { useMissionStore } from '../state/missionStore';
 import { getDrone } from '../plugins/registry';
-import { zoneGroundY, type Mission } from './types';
+import { allZonesOf, zoneGroundY, type Mission, type MissionDelivery } from './types';
 
 // ----------------------------------------------------------------------------
 // The package.
@@ -86,6 +86,8 @@ export function Payload({ mission }: { mission: Mission }) {
    * is the lowest thing on it, not the box face.
    */
   const belly = keepsPayload ? size * 0.549 : size * 0.504;
+
+  const deliveries = mission.deliveries;
 
   const group = useRef<THREE.Group>(null);
   /** Where the box actually is, and how fast it is falling. */
@@ -237,6 +239,19 @@ export function Payload({ mission }: { mission: Mission }) {
     g.position.copy(at.current);
   });
 
+  // A MULTI-POINT DELIVERY draws its own cargo.
+  //
+  // Three boxes rather than one, and never in the same state: some are still
+  // waiting on the hub pad, one may be under the aircraft, and the ones already
+  // placed are standing on the marks they were put on. The single box above
+  // cannot be three things, so this hands the whole job over — the hooks above
+  // have all run by here, so the early return is safe.
+  if (deliveries) {
+    return (
+      <PackageSet mission={mission} deliveries={deliveries} size={size} drop={drop} belly={belly} />
+    );
+  }
+
   // The firefighting tank. Same transform, same states, different object — and
   // it returns before the medical case's decals are built at all, so a mission
   // carrying one never pays for the other.
@@ -248,6 +263,21 @@ export function Payload({ mission }: { mission: Mission }) {
     );
   }
 
+  return (
+    <group ref={group}>
+      <MedicalCase size={size} />
+    </group>
+  );
+}
+
+/**
+ * The parcel itself, with no behaviour at all.
+ *
+ * Pulled out of `Payload` when the multi-point delivery arrived: that mission
+ * has three of these on screen at once, in three different states, and a box
+ * that carried its own motion could not be one of three.
+ */
+function MedicalCase({ size }: { size: number }) {
   const half = size / 2;
   /** How far a face decal stands off the box, so it never fights the box's own
    *  surface for depth. Small enough that the cross reads as printed on. */
@@ -255,7 +285,7 @@ export function Payload({ mission }: { mission: Mission }) {
   const arm = size * 0.52;
   const bar = size * 0.17;
   return (
-    <group ref={group}>
+    <>
       {/* The parcel. A medical supply case: white shell, red cross, which is
           what says WHAT is being carried at the one glance a pilot can spare. */}
       <mesh castShadow>
@@ -293,7 +323,7 @@ export function Payload({ mission }: { mission: Mission }) {
           ring — two circles round one object, the outer one green and the inner
           one amber, which read as a second target rather than as a shadow. The
           mark under it is doing that job already. */}
-    </group>
+    </>
   );
 }
 
@@ -383,8 +413,11 @@ const CROSS_FACES: ReadonlyArray<[[number, number, number], [number, number, num
 function deckUnder(mission: Mission, x: number, z: number): number {
   let best = mission.groundY;
   let bestD = Infinity;
-  for (const kind of ['pickup', 'drop', 'base'] as const) {
-    const zone = mission.zones[kind];
+  // Every mark, not the record of three: a multi-point delivery puts packages
+  // down on two roofs that `mission.zones` has no room to name, and a box that
+  // asked the record would settle onto the street twenty-five metres below the
+  // roof it was just placed on.
+  for (const zone of allZonesOf(mission)) {
     const d = (zone.at[0] - x) ** 2 + (zone.at[1] - z) ** 2;
     if (d < bestD) {
       bestD = d;
@@ -403,4 +436,166 @@ function anchorUnder(out: THREE.Vector3, drop: number): void {
     out.applyQuaternion(dronePose.quaternion);
     out.add(dronePose.position);
   }
+}
+
+// ----------------------------------------------------------------------------
+// Multi-point cargo.
+//
+// One component per package, and the state of each is DERIVED from the store
+// every frame rather than remembered: delivered if the mission has counted it,
+// carried if it is the live one and the drone is holding it, waiting on the pad
+// otherwise. Nothing here has a teardown of its own to get wrong, so a restart —
+// which puts `runIndex` and `deliveredCount` back to zero — puts all three boxes
+// back on the pad without this file being told.
+// ----------------------------------------------------------------------------
+
+/**
+ * Where a package that is NOT the live one stands on the hub pad, in metres
+ * from the mark.
+ *
+ * The live one always sits dead centre, because the mark is what the pilot
+ * descends onto — a package the pilot has to aim at while it stands off to one
+ * side would be a mark that lies. The others are pushed just OUTSIDE the
+ * pickup ring: close enough to read as a stack of three waiting to go, and far
+ * enough that the ring the pilot is flying into has one box in it rather than
+ * three. They moved out when the pickup circle was widened to a metre — inside
+ * it they read as three things to collect at once.
+ */
+const STANDBY: readonly (readonly [number, number])[] = [
+  [-1.15, 0.6],
+  [1.15, 0.6],
+  [0, 1.28],
+];
+
+function PackageSet({
+  mission,
+  deliveries,
+  size,
+  drop,
+  belly,
+}: {
+  mission: Mission;
+  deliveries: readonly MissionDelivery[];
+  size: number;
+  drop: number;
+  belly: number;
+}) {
+  const runIndex = useMissionStore((s) => s.runIndex);
+  const deliveredCount = useMissionStore((s) => s.deliveredCount);
+  const payload = useMissionStore((s) => s.payload);
+
+  const hub = mission.zones.pickup;
+  const hubY = zoneGroundY(mission, hub) + belly;
+
+  return (
+    <group>
+      {deliveries.map((d, i) => {
+        // Delivered is decided by the COUNT, not by this package's own flag:
+        // the store counts them in order and the order is the mission, so a box
+        // is down exactly when the mission says that many are down.
+        const placed = i < deliveredCount;
+        const carried = !placed && i === runIndex && payload === 'attached';
+        const at: [number, number, number] = placed
+          ? [d.zone.at[0], zoneGroundY(mission, d.zone) + belly, d.zone.at[1]]
+          : [
+              hub.at[0] + (i === runIndex ? 0 : STANDBY[i % STANDBY.length][0]),
+              hubY,
+              hub.at[1] + (i === runIndex ? 0 : STANDBY[i % STANDBY.length][1]),
+            ];
+        return (
+          <OnePackage
+            key={d.id}
+            size={size}
+            drop={drop}
+            belly={belly}
+            mission={mission}
+            rest={at}
+            carried={carried}
+            placed={placed}
+          />
+        );
+      })}
+    </group>
+  );
+}
+
+function OnePackage({
+  size,
+  drop,
+  belly,
+  mission,
+  rest,
+  carried,
+  placed,
+}: {
+  size: number;
+  drop: number;
+  belly: number;
+  mission: Mission;
+  rest: readonly [number, number, number];
+  carried: boolean;
+  placed: boolean;
+}) {
+  const group = useRef<THREE.Group>(null);
+  const at = useMemo(() => new THREE.Vector3(), []);
+  const from = useMemo(() => new THREE.Vector3(), []);
+  const anchor = useMemo(() => new THREE.Vector3(), []);
+  /** 0..1 through the attach pull, so the box leaps to the airframe rather than
+   *  appearing under it. The one bit of motion this component keeps. */
+  const pull = useRef(0);
+  const wasCarried = useRef(false);
+  const started = useRef(false);
+
+  useFrame(({ clock }, rawDt) => {
+    const dt = Math.min(rawDt, 0.1);
+    const g = group.current;
+    if (!g) return;
+
+    if (!started.current) {
+      started.current = true;
+      at.set(rest[0], rest[1], rest[2]);
+    }
+
+    if (carried && !wasCarried.current) {
+      pull.current = 0;
+      from.copy(at);
+    }
+    wasCarried.current = carried;
+
+    if (carried) {
+      pull.current = Math.min(1, pull.current + dt / ATTACH_SEC);
+      anchorUnder(anchor, drop);
+      const t = 1 - (1 - pull.current) * (1 - pull.current);
+      at.lerpVectors(from, anchor, t);
+      // Never through the deck — the same guard the single package carries, and
+      // it matters more here: two of these marks are on roofs, so "the ground"
+      // under a carried box changes by twenty-five metres across one flight.
+      at.y = Math.max(at.y, deckUnder(mission, at.x, at.z) + belly);
+      g.scale.setScalar(1 + Math.sin(pull.current * Math.PI) * 0.22);
+      if (dronePose.present && pull.current >= 1) g.quaternion.copy(dronePose.quaternion);
+      else g.rotation.set(0, g.rotation.y * (1 - t), 0);
+    } else if (placed) {
+      // Down, and staying down. No bob and no spin: a package that has been
+      // delivered is finished, and a box still dancing on its mark would read as
+      // one more thing to go and collect.
+      at.set(rest[0], rest[1], rest[2]);
+      g.rotation.set(0, 0, 0);
+      g.scale.setScalar(1);
+    } else {
+      // Waiting on the pad: a slow turn and a shallow bob, so a white box on a
+      // grey street is something the eye finds.
+      at.set(rest[0], rest[1] + 0.06 + Math.sin(clock.elapsedTime * 1.6) * 0.05, rest[2]);
+      g.rotation.set(0, clock.elapsedTime * 0.55, 0);
+      g.scale.setScalar(1);
+      pull.current = 0;
+    }
+
+    g.position.copy(at);
+  });
+
+  return (
+    <group ref={group}>
+      <MedicalCase size={size} />
+    </group>
+  );
 }
