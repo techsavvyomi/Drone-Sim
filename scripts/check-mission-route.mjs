@@ -68,8 +68,9 @@ const BOX =
 
 function loadBoxes() {
   const src = fs.readFileSync(COLLIDERS, 'utf8');
-  const wanted = new Set(['BUILDING_BOXES', 'PROP_BOXES']);
+  const obstacles = new Set(['BUILDING_BOXES', 'PROP_BOXES']);
   const boxes = [];
+  const surfaces = [];
   let section = null;
   for (const line of src.split('\n')) {
     const head = line.match(/^const ([A-Z_]+)\s*:/);
@@ -78,17 +79,40 @@ function loadBoxes() {
       continue;
     }
     const m = BOX.exec(line);
-    // Sidewalk plates are the ground you land on, not something you hit.
-    if (m && section && wanted.has(section)) {
-      boxes.push({ p: [+m[1], +m[2], +m[3]], h: [+m[4], +m[5], +m[6]] });
-    }
+    if (!m || !section) continue;
+    const box = { p: [+m[1], +m[2], +m[3]], h: [+m[4], +m[5], +m[6]] };
+    // Sidewalk plates are the ground you land ON, not something you hit — so
+    // they are out of the clearance list and in the surface list.
+    surfaces.push(box);
+    if (obstacles.has(section)) boxes.push(box);
   }
   if (boxes.length < 100)
     throw new Error(`only ${boxes.length} colliders parsed — has the generated format changed?`);
-  return boxes;
+  return { boxes, surfaces };
 }
 
-const boxes = loadBoxes();
+const { boxes, surfaces } = loadBoxes();
+
+/**
+ * The height of the solid surface under a point.
+ *
+ * Here because this mission declares no `groundY` on any of its zones, which
+ * means it is asserting that all three stand on the map's own ground at y = 0.
+ * That is true today and nothing was checking it. Multi-Point Delivery put a
+ * bay on a sidewalk plate 0.12 m up while declaring 0, and delivered its first
+ * package buried to the waist in the pavement with the height band 12 cm low —
+ * a mistake invisible in the diff and invisible to a clearance check, because a
+ * kerb is not an obstacle. If a zone here is ever moved onto one, this says so.
+ */
+function surfaceUnder(x, z) {
+  let top = 0;
+  for (const b of surfaces) {
+    if (Math.abs(x - b.p[0]) <= b.h[0] && Math.abs(z - b.p[2]) <= b.h[2]) {
+      top = Math.max(top, b.p[1] + b.h[1]);
+    }
+  }
+  return top;
+}
 
 /** Distance from a point to the nearest collider surface, 0 when inside one. */
 function clearance(x, y, z) {
@@ -186,6 +210,16 @@ for (const kind of ['pickup', 'drop', 'base']) {
   const z = byKind[kind];
   const { worst, at } = column(z.x, z.z);
   line(kind, `[${z.x}, ${z.z}] tightest at ${at} m`, worst, ZONE_MIN);
+  // No zone here declares a `groundY`, so every one of them is claiming to
+  // stand on the map's flat ground. Checked rather than assumed — see
+  // `surfaceUnder`.
+  const deck = surfaceUnder(z.x, z.z);
+  if (deck !== 0) {
+    failures++;
+    console.log(
+      `TIGHT  ${kind.padEnd(10)} stands on a surface at ${deck.toFixed(2)} m, but declares no groundY`,
+    );
+  }
 }
 
 console.log('\nROUTE CHECKPOINTS');
