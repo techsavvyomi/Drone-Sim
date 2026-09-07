@@ -1,7 +1,13 @@
 import { create } from 'zustand';
 import type { MissionProgress } from '@shared/types';
-import type { Mission, MissionKind, MissionResult, MissionZoneKind } from '../missions/types';
-import { maxPointsOf, rankFor } from '../missions/types';
+import type {
+  Mission,
+  MissionDelivery,
+  MissionKind,
+  MissionResult,
+  MissionZoneKind,
+} from '../missions/types';
+import { deliveryCount, maxPointsOf, rankFor } from '../missions/types';
 import { useSettingsStore } from './settingsStore';
 
 // ----------------------------------------------------------------------------
@@ -98,6 +104,19 @@ interface MissionState {
   leg: MissionLeg;
   payload: PayloadState;
 
+  /**
+   * Which package of a multi-point delivery is live, 0-based.
+   *
+   * The whole of the "no skipping" rule lives in this one number. It is advanced
+   * ONLY by completing the delivery it is on, so a pilot cannot collect B before
+   * A is down, and cannot put B on C's mark — there is no C mark being tested
+   * while the index says B. Always 0 on a single-drop mission.
+   */
+  runIndex: number;
+  /** How many packages are down. Drives the HUD's "2 / 3" and which boxes are
+   *  drawn standing on their marks rather than waiting at the hub. */
+  deliveredCount: number;
+
   /** Route checkpoint ids already scored. */
   collected: Record<string, true>;
   /** Zones already scored. */
@@ -153,6 +172,14 @@ interface MissionState {
 
   setLeg: (leg: MissionLeg) => void;
   setPayload: (payload: PayloadState) => void;
+  /** Move on to the next package. The only way `runIndex` ever changes. */
+  advanceRun: () => void;
+  /** Score one delivery of a multi-point mission and count it. */
+  takeDelivery: (label: string) => void;
+  /** Put the pickup mark back in play for the next package. `zonesTaken` is a
+   *  record of three kinds and the pickup is visited once per package, so the
+   *  flag has to be cleared rather than merely re-read. */
+  rearmPickup: () => void;
   collect: (id: string, label: string) => void;
   takeZone: (kind: MissionZoneKind, label: string, scores?: boolean) => void;
   showBanner: (b: Omit<Banner, 'id' | 'until'>, seconds: number) => void;
@@ -176,6 +203,8 @@ function freshAttempt() {
   return {
     leg: 'toPickup' as MissionLeg,
     payload: 'waiting' as PayloadState,
+    runIndex: 0,
+    deliveredCount: 0,
     collected: {} as Record<string, true>,
     zonesTaken: {} as Partial<Record<MissionZoneKind, true>>,
     points: 0,
@@ -220,6 +249,22 @@ export const useMissionStore = create<MissionState>((set, get) => ({
 
   setLeg: (leg) => set({ leg }),
   setPayload: (payload) => set({ payload }),
+
+  advanceRun: () => set((s) => ({ runIndex: s.runIndex + 1 })),
+
+  takeDelivery: (label) =>
+    set((s) => ({
+      deliveredCount: s.deliveredCount + 1,
+      points: s.points + 1,
+      pointPop: { id: nextId(), label },
+    })),
+
+  rearmPickup: () =>
+    set((s) => {
+      const zonesTaken = { ...s.zonesTaken };
+      delete zonesTaken.pickup;
+      return { zonesTaken };
+    }),
 
   collect: (id, label) =>
     set((s) =>
@@ -354,16 +399,31 @@ export function activeZone(leg: MissionLeg): MissionZoneKind | null {
  * the holding is for, so two short tables say it without either mission having
  * to carry seven strings of its own.
  */
-export function objectiveFor(leg: MissionLeg, kind: MissionKind = 'delivery'): string {
+export function objectiveFor(
+  leg: MissionLeg,
+  kind: MissionKind = 'delivery',
+  run: RunContext | null = null,
+): string {
   const fire = kind === 'suppression';
   switch (leg) {
     case 'toPickup':
+      // A multi-point delivery visits the pickup once per package, and the
+      // second visit is a different instruction from the first: the pilot is
+      // coming BACK, and the line has to say so or the objective reads as if
+      // nothing has happened since the last one.
+      if (run) {
+        return run.index === 0
+          ? `Collect ${run.name} from the logistics hub.`
+          : `Return to the logistics hub for ${run.name}.`;
+      }
       return fire ? 'Collect the firefighting payload.' : 'Fly to the pickup location.';
     case 'carrying':
+      if (run) return `Deliver ${run.name} to ${run.to}.`;
       return fire
         ? 'Reach the fire zone and suppress the fire.'
         : 'Deliver the payload to the marked location.';
     case 'toDrop':
+      if (run) return `Centre over ${run.to} and descend.`;
       return fire ? 'Hold your position over the fire.' : 'Centre over the drop mark and descend.';
     case 'delivered':
       return 'Return to base.';
@@ -374,4 +434,27 @@ export function objectiveFor(leg: MissionLeg, kind: MissionKind = 'delivery'): s
     case 'complete':
       return 'Mission complete.';
   }
+}
+
+/**
+ * The live package, for the objective line and the HUD.
+ *
+ * Null on a single-drop mission, which is what keeps every existing string
+ * exactly as it was: the multi-point wording is reached only by a mission that
+ * actually has a list of packages.
+ */
+export function runContextOf(mission: Mission | null, runIndex: number): RunContext | null {
+  const list = mission?.deliveries;
+  if (!mission || !list || list.length === 0) return null;
+  const i = Math.min(Math.max(runIndex, 0), list.length - 1);
+  const d: MissionDelivery = list[i];
+  return { name: d.name, to: d.zone.label, index: i, total: deliveryCount(mission) };
+}
+
+/** Which package the pilot is on, and where it goes. */
+export interface RunContext {
+  name: string;
+  to: string;
+  index: number;
+  total: number;
 }
