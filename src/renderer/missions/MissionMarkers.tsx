@@ -69,6 +69,55 @@ function columnTexture(): THREE.CanvasTexture {
 }
 
 /**
+ * The delivery platform a rooftop mark stands on.
+ *
+ * SCENERY, not a marker. It has no state, it never lights and it never fades:
+ * it is a structure on a roof, and it is there for the whole flight so a pilot
+ * crossing the city can see where they are going before the mark itself comes
+ * up.
+ *
+ * It exists because of how this city's colliders are made. They merge cells into
+ * rectangles and fill each one to the tallest thing inside it, so a roof with a
+ * parapet is SOLID up to the parapet — the aircraft stops a metre above the slab
+ * the pilot can see, and a mark drawn at the height the aircraft stops at hangs
+ * in mid-air over the roof. Neither number can move: the collider is what the
+ * drone rests on and the slab is what the pilot sees. So the gap gets a
+ * building. The collider was always claiming something solid was there; this is
+ * that thing, drawn.
+ *
+ * An octagon rather than a circle, and untextured: eight segments and two
+ * materials, on a map that is VRAM-bound before the mission adds anything.
+ */
+function RooftopPad({ zone, deck }: { zone: MissionZone; deck: number }) {
+  const base = zone.padBase;
+  if (base === undefined) return null;
+  const h = deck - base;
+  if (h <= 0.02) return null;
+  // Wide enough that the whole mark, and the ring's margin, land on the deck.
+  const r = zone.radius + 0.8;
+  return (
+    <group position={[zone.at[0], base, zone.at[1]]}>
+      {/* The plinth, tapered a little so it reads as built rather than as a
+          cylinder someone left on a roof. */}
+      <mesh position={[0, h / 2, 0]} castShadow receiveShadow>
+        <cylinderGeometry args={[r * 0.9, r * 0.97, h, 8]} />
+        <meshStandardMaterial color="#3d4450" roughness={0.9} metalness={0} />
+      </mesh>
+      {/* The deck itself, standing proud of the plinth: the overhang is what
+          gives the whole thing an edge against the roof behind it, which a flat
+          grey drum on grey concrete would not have. */}
+      <mesh position={[0, h - DECK_T / 2, 0]} castShadow receiveShadow>
+        <cylinderGeometry args={[r, r, DECK_T, 8]} />
+        <meshStandardMaterial color="#6b7686" roughness={0.75} metalness={0.05} />
+      </mesh>
+    </group>
+  );
+}
+
+/** Thickness of the platform's top slab, metres. */
+const DECK_T = 0.16;
+
+/**
  * One zone mark: a ring on the deck, a column of light standing in it, and — on
  * the drop only — the height band drawn as two faint hoops.
  *
@@ -300,15 +349,20 @@ export function MissionMarkers({ mission }: { mission: Mission }) {
           `mission.zones.drop` is the first entry on such a mission, so a
           single-drop mission draws exactly the one mark it always did. */}
       {(mission.deliveries ?? [{ id: 'drop', zone: mission.zones.drop }]).map((d, i) => (
-        <ZoneMark
-          key={d.id}
-          zone={d.zone}
-          groundY={zoneGroundY(mission, d.zone)}
-          live={flying && zoneKind === 'drop' && i === runIndex}
-          ready={i === runIndex ? ready : undefined}
-          column={!mission.fire}
-          xray={mission.seeThroughMarks === true}
-        />
+        <group key={d.id}>
+          {/* Drawn whether or not this destination is the live one: it is a
+              structure on a roof, and one that appeared when the pilot was sent
+              to it would be a building materialising over the city. */}
+          <RooftopPad zone={d.zone} deck={zoneGroundY(mission, d.zone)} />
+          <ZoneMark
+            zone={d.zone}
+            groundY={zoneGroundY(mission, d.zone)}
+            live={flying && zoneKind === 'drop' && i === runIndex}
+            ready={i === runIndex ? ready : undefined}
+            column={!mission.fire}
+            xray={mission.seeThroughMarks === true}
+          />
+        </group>
       ))}
     </group>
   );
