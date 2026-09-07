@@ -461,6 +461,22 @@ function anchorUnder(out: THREE.Vector3, drop: number): void {
  * three. They moved out when the pickup circle was widened to a metre — inside
  * it they read as three things to collect at once.
  */
+/**
+ * How much of the parcel's height has to be squeezed out before it counts as
+ * fully set down, metres. Roughly the box itself, so the slide is spread over
+ * the last part of a descent rather than snapping at the moment of contact.
+ */
+const SET_DOWN = 0.22;
+/**
+ * How far forward a set-down parcel ends up, metres from under the airframe.
+ *
+ * Enough to clear a Guru's 0.575 m span plus the half-box, so the two solids
+ * never share space at any attitude the aircraft can be resting at.
+ */
+const CLEAR_OUT = 0.42;
+/** No rotation, for slerping a set-down parcel flat. Built once. */
+const UPRIGHT = new THREE.Quaternion();
+
 const STANDBY: readonly (readonly [number, number])[] = [
   [-1.15, 0.6],
   [1.15, 0.6],
@@ -540,6 +556,9 @@ function OnePackage({
   const at = useMemo(() => new THREE.Vector3(), []);
   const from = useMemo(() => new THREE.Vector3(), []);
   const anchor = useMemo(() => new THREE.Vector3(), []);
+  /** Scratch for the drone's forward direction — see the set-down below. */
+  const fwd = useMemo(() => new THREE.Vector3(), []);
+  const flat = useMemo(() => new THREE.Quaternion(), []);
   /** 0..1 through the attach pull, so the box leaps to the airframe rather than
    *  appearing under it. The one bit of motion this component keeps. */
   const pull = useRef(0);
@@ -567,13 +586,50 @@ function OnePackage({
       anchorUnder(anchor, drop);
       const t = 1 - (1 - pull.current) * (1 - pull.current);
       at.lerpVectors(from, anchor, t);
-      // Never through the deck — the same guard the single package carries, and
-      // it matters more here: two of these marks are on roofs, so "the ground"
-      // under a carried box changes by twenty-five metres across one flight.
-      at.y = Math.max(at.y, deckUnder(mission, at.x, at.z) + belly);
+
+      /*
+       * IT IS SET DOWN AND SLID CLEAR, not pushed up into the aircraft.
+       *
+       * The parcel hangs 0.17 m under the airframe's origin and the drone's own
+       * body sits a few centimetres off the deck, so an aircraft resting on the
+       * ground has nowhere to put a 0.24 m box: there is not enough room under
+       * it for the thing it is carrying. The old guard simply refused to let the
+       * box go below the deck, which meant that on every throttle-down the box
+       * rode UP and swallowed the aircraft — two solid objects occupying the
+       * same space, with the drone visible inside the parcel.
+       *
+       * Neither object can move out of the way vertically, so the box moves
+       * horizontally instead. As the last of the room runs out it settles onto
+       * the deck and eases forward along the drone's own heading until it is
+       * clear of the airframe, which is what a pilot lowering a parcel to the
+       * ground actually produces. Off the deck nothing changes — it is the
+       * anchor exactly, as before — and the whole thing only happens inside the
+       * last 25 cm of a descent.
+       */
+      const floor = deckUnder(mission, at.x, at.z) + belly;
+      const squeeze = floor - at.y;
+      if (squeeze > 0) {
+        const out = Math.min(1, squeeze / SET_DOWN);
+        at.y = floor;
+        if (dronePose.present) {
+          fwd.set(0, 0, -1).applyQuaternion(dronePose.quaternion);
+          fwd.y = 0;
+          if (fwd.lengthSq() > 1e-6) at.addScaledVector(fwd.normalize(), CLEAR_OUT * out);
+        }
+        // Flat on the deck by the time it is fully set down: a parcel on the
+        // ground does not keep the aircraft's bank.
+        if (dronePose.present) {
+          flat.copy(dronePose.quaternion).slerp(UPRIGHT, out);
+          g.quaternion.copy(flat);
+        }
+      } else if (dronePose.present && pull.current >= 1) {
+        g.quaternion.copy(dronePose.quaternion);
+      }
+
       g.scale.setScalar(1 + Math.sin(pull.current * Math.PI) * 0.22);
-      if (dronePose.present && pull.current >= 1) g.quaternion.copy(dronePose.quaternion);
-      else g.rotation.set(0, g.rotation.y * (1 - t), 0);
+      if (squeeze <= 0 && !(dronePose.present && pull.current >= 1)) {
+        g.rotation.set(0, g.rotation.y * (1 - t), 0);
+      }
     } else if (placed) {
       // Down, and staying down. No bob and no spin: a package that has been
       // delivered is finished, and a box still dancing on its mark would read as
