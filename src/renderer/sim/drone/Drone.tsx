@@ -187,22 +187,24 @@ function autoThrust(
   takeoffAlt: number,
 ): number {
   /*
-   * Landing comes down at 1.6 m/s and FLARES to 0.45 m/s in the last metre.
+   * Landing comes down at 3 m/s and FLARES to 0.45 m/s in the last two metres.
    *
    * It was a flat 0.4 m/s from wherever the aircraft happened to be. That is the
    * right speed to touch down at and the wrong speed to spend twenty-five metres
    * at: a rooftop delivery leaves the drone high, and the pilot then watched an
    * auto-land for the better part of a minute with nothing to do.
    *
-   * The flare is what keeps the gentleness where it is actually worth having.
-   * The rate is a function of height, so the descent slows the whole way in and
-   * arrives at the deck at the same speed it always did — the settle test
+   * The flare is what keeps the gentleness where it is actually worth having,
+   * and it is what lets the descent be this quick: 3 m/s is a real rate of sink
+   * and would be a hard arrival flown into the ground. The rate is a function of
+   * height, so the descent slows the whole way in and arrives at the deck at the
+   * same speed it always did — the settle test
    * downstream (|vertical| < 0.22 m/s) is unchanged and still passes on its own.
    */
   const climbRate =
     auto === 'takeoff'
       ? clamp(0.9 * (takeoffAlt - altitude), -0.8, 1.2)
-      : -clamp(0.45 + 0.55 * (altitude - 0.6), 0.45, 1.6);
+      : -clamp(0.45 + 1.2 * (altitude - 0.6), 0.45, 3);
   return hoverThrust + mass * 4.0 * (climbRate - verticalSpeed);
 }
 
