@@ -25,14 +25,29 @@ const MODEL_SCALE = 1;
 const APRON_HALF = 25;
 const SPAWN_POS: [number, number, number] = [0, 0.024, 30];
 
-// 6 North-South building strip boundaries
+/*
+ * Six north-south strips, and they MUST TILE THE MAP.
+ *
+ * They were six islands with five gaps between them — -88..-78, -38..-32,
+ * -6..6, 34..38, 80..88 — and a strip mesh keeps only what falls inside a
+ * strip. Everything standing in a gap was therefore deleted from the visual
+ * (`parent.remove(m)` below) while its collider, generated from the GLB and
+ * knowing nothing about strips, stayed exactly where it was. Those bands are
+ * the avenues, so what vanished was the street furniture along them: the
+ * railing beside the trees on the -37 sidewalk, which is on the line a pilot
+ * flies from the logistics hub to Bay A, was an invisible wall to crash into.
+ *
+ * Half-open [min, max) and edge to edge, so every triangle lands in exactly one
+ * strip and none lands in none. The ends run past the map so nothing outside
+ * the last boundary is lost either.
+ */
 const STRIP_X_BOUNDS: Array<[number, number]> = [
-  [-124, -88], // Strip 1: Far West
-  [-78, -38], // Strip 2: Mid West
-  [-32, -6], // Strip 3: Central West
-  [6, 34], // Strip 4: Central East
-  [38, 80], // Strip 5: Mid East
-  [88, 124], // Strip 6: Far East
+  [-Infinity, -88], // Strip 1: Far West
+  [-88, -38], // Strip 2: Mid West
+  [-38, -6], // Strip 3: Central West
+  [-6, 34], // Strip 4: Central East
+  [34, 80], // Strip 5: Mid East
+  [80, Infinity], // Strip 6: Far East
 ];
 
 function extractSubGeometry(
@@ -46,11 +61,20 @@ function extractSubGeometry(
   if (!posAttr) return null;
 
   const vertCount = posAttr.count;
-  const inStrip = new Uint8Array(vertCount);
-  for (let v = 0; v < vertCount; v++) {
-    const wx = posAttr.getX(v) + worldOffsetX;
-    if (wx >= stripXMin && wx <= stripXMax) inStrip[v] = 1;
-  }
+
+  /*
+   * A triangle belongs to the strip its CENTRE is in, and to that one only.
+   *
+   * The test used to be "all three vertices inside", which drops every triangle
+   * that straddles a boundary — a hole in a wall or a road exactly on the seam,
+   * with the collider still there. Judging the centre keeps the triangle whole,
+   * puts it in one strip and only one (the bands are half-open), and costs a
+   * span of at most one triangle in the culling bounds.
+   */
+  const inStrip = (x0: number, x1: number, x2: number) => {
+    const cx = (x0 + x1 + x2) / 3 + worldOffsetX;
+    return cx >= stripXMin && cx < stripXMax;
+  };
 
   if (indexAttr) {
     const srcIdx = indexAttr.array as Uint16Array | Uint32Array;
@@ -60,7 +84,7 @@ function extractSubGeometry(
       const i0 = srcIdx[t * 3],
         i1 = srcIdx[t * 3 + 1],
         i2 = srcIdx[t * 3 + 2];
-      if (inStrip[i0] && inStrip[i1] && inStrip[i2]) {
+      if (inStrip(posAttr.getX(i0), posAttr.getX(i1), posAttr.getX(i2))) {
         newIndices.push(i0, i1, i2);
       }
     }
@@ -102,8 +126,7 @@ function extractSubGeometry(
     const newPositions: number[] = [];
     for (let t = 0; t < triCount; t++) {
       const b = t * 9;
-      const cx = (positions[b] + positions[b + 3] + positions[b + 6]) / 3 + worldOffsetX;
-      if (cx >= stripXMin && cx <= stripXMax) {
+      if (inStrip(positions[b], positions[b + 3], positions[b + 6])) {
         for (let k = 0; k < 9; k++) newPositions.push(positions[b + k]);
       }
     }
