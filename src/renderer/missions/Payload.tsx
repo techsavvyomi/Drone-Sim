@@ -100,6 +100,8 @@ export function Payload({ mission }: { mission: Mission }) {
   const from = useRef(new THREE.Vector3());
   /** Scratch, so the frame loop never allocates. */
   const anchor = useMemo(() => new THREE.Vector3(), []);
+  const fwd = useMemo(() => new THREE.Vector3(), []);
+  const flat = useMemo(() => new THREE.Quaternion(), []);
 
   const rest = useMemo(
     () =>
@@ -192,24 +194,52 @@ export function Payload({ mission }: { mission: Mission }) {
         // No chase, no lean, nothing that can be left behind by a fast run.
         anchorUnder(anchor, drop);
         at.current.copy(anchor);
-        // ...but never through the deck.
-        //
-        // The load hangs 0.30 m under the airframe's origin and the drone's
-        // collider is 0.024 m deep, so an aircraft sitting on the road has its
-        // slung load a quarter of a metre INSIDE it: the tank was buried to its
-        // waist in the dirt on every take-off and every landing. Nothing in the
-        // physics can fix that — the tank is drawn, not simulated, and the body
-        // that rests on the ground is the airframe's.
-        //
-        // So the load rides up the last few centimetres instead. Off the deck it
-        // is the anchor exactly, as before; near the ground it stops falling and
-        // the drone settles the rest of the way onto it, which is what a slung
-        // load does anyway.
-        at.current.y = Math.max(
-          at.current.y,
-          deckUnder(mission, at.current.x, at.current.z) + belly,
-        );
-        if (dronePose.present) g.quaternion.copy(dronePose.quaternion);
+
+        /*
+         * IT IS SET DOWN AND SLID CLEAR, not pushed up into the aircraft.
+         *
+         * This is the multi-point delivery's set-down, brought back to the
+         * single-package missions it was first needed on — see `PackageSet`
+         * below for the long version.
+         *
+         * The old guard here only refused to let the box go below the deck. That
+         * is half the answer: neither object can move out of the way VERTICALLY,
+         * so on every throttle-down the box rode up and swallowed the aircraft.
+         * Nothing was see-through about it — the shell is opaque — the drone was
+         * simply inside the box, poking out through its faces.
+         *
+         * So the box moves horizontally instead. As the last of the room runs
+         * out it settles onto the deck and eases forward along the drone's own
+         * heading until it is clear of the airframe, coming flat as it goes: a
+         * parcel on the ground does not keep the aircraft's bank. Off the deck
+         * nothing changes — it is the anchor exactly, as before — and the whole
+         * thing only happens inside the last 25 cm of a descent.
+         *
+         * MAX_SQUEEZE matters as much as the slide. `deckUnder` answers with the
+         * NEAREST zone's deck, so without a cap a mission whose marks sit at
+         * different heights would hoist the parcel off the aircraft mid-flight
+         * to meet a "floor" belonging somewhere else.
+         */
+        {
+          const floor = deckUnder(mission, at.current.x, at.current.z) + belly;
+          const squeeze = floor - at.current.y;
+          const setDown = squeeze > 0 && squeeze < MAX_SQUEEZE;
+          if (setDown) {
+            const out = Math.min(1, squeeze / SET_DOWN);
+            at.current.y = floor;
+            if (dronePose.present) {
+              fwd.set(0, 0, -1).applyQuaternion(dronePose.quaternion);
+              fwd.y = 0;
+              if (fwd.lengthSq() > 1e-6) {
+                at.current.addScaledVector(fwd.normalize(), CLEAR_OUT * out);
+              }
+              flat.copy(dronePose.quaternion).slerp(UPRIGHT, out);
+              g.quaternion.copy(flat);
+            }
+          } else if (dronePose.present) {
+            g.quaternion.copy(dronePose.quaternion);
+          }
+        }
         break;
       }
       case 'falling': {
