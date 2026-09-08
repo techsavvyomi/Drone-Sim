@@ -64,8 +64,21 @@ let throttleScale = 1;
  */
 export function setCommandScale(scale: number, throttle: number = scale): void {
   commandScale = clamp(scale, 0.1, 1);
-  throttleScale = clamp(throttle, 0.1, 1);
+  // The throttle is allowed ABOVE 1, and the sticks are not.
+  //
+  // Roll, pitch and yaw at more than the aircraft's own rate would be a
+  // different aircraft. The throttle is not a rate here at all — it is how fast
+  // the axis TRAVELS — so a number over 1 does not make the drone descend faster
+  // than it can, it makes the pilot able to ask sooner. On a mission that comes
+  // down onto a mark six times, being able to ask sooner is the whole of what
+  // "responsive" means.
+  throttleScale = clamp(throttle, 0.1, THROTTLE_SCALE_MAX);
 }
+
+/** How far past the aircraft's own throttle rate a mission may go. Twice is a
+ *  stick that reaches the bottom in a third of a second — brisk, and still a
+ *  travel rather than a jump. */
+const THROTTLE_SCALE_MAX = 2;
 
 export function isScripted(): boolean {
   return scripted;
@@ -215,9 +228,16 @@ export function updateStick(dt: number): void {
 
   // Hand control to whichever device moved last.
   if (consumeGamepadActivity()) activeSource = 'gamepad';
-  else if (up || down || pressed.has(CODE.rollLeft) || pressed.has(CODE.rollRight) ||
-           pressed.has(CODE.pitchFwd) || pressed.has(CODE.pitchBack) ||
-           pressed.has(CODE.yawLeft) || pressed.has(CODE.yawRight)) {
+  else if (
+    up ||
+    down ||
+    pressed.has(CODE.rollLeft) ||
+    pressed.has(CODE.rollRight) ||
+    pressed.has(CODE.pitchFwd) ||
+    pressed.has(CODE.pitchBack) ||
+    pressed.has(CODE.yawLeft) ||
+    pressed.has(CODE.yawRight)
+  ) {
     activeSource = 'keyboard';
   }
 

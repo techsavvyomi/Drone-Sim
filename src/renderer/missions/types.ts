@@ -329,7 +329,7 @@ export interface Mission {
   /** The fire, on a suppression mission. Absent on a delivery. */
   fire?: MissionFire;
   /**
-   * How much of the THROTTLE this mission gives the pilot, 0.1 to 1.
+   * How much of the THROTTLE this mission gives the pilot, 0.1 to 2.
    *
    * Missions fly a softened stick (`MISSION_COMMAND_SCALE`) so the aircraft can
    * be placed to the metre. That is right for roll, pitch and yaw. On the
@@ -338,6 +338,11 @@ export interface Mission {
    * takes twice as long to ask. A mission that spends its time descending onto
    * marks — three collections and three placements — reads that as an aircraft
    * ignoring the stick.
+   *
+   * Above 1 is allowed, and only here: the sticks are capped at the aircraft's
+   * own rate because more would be a different aircraft, but the throttle number
+   * is how fast the AXIS travels rather than how fast the drone descends. Asking
+   * sooner is not flying faster.
    *
    * Unset means "the same as the sticks", which is what every mission did before
    * this existed and what Precision Delivery and Forest Fire still do.
