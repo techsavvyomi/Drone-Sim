@@ -111,7 +111,7 @@ const LEG_1: MissionCheckpoint[] = [];
 
 /** Leg 2, the carry: the whole length of the WEST avenue north, east along the
  *  top of the city, then the whole length of the EAST avenue south and out to
- *  the bottom corner. All fourteen rings are here, and every one of them is
+ *  the bottom corner. All thirteen rings are here, and every one of them is
  *  required before the package will release: the pilot is carrying from the
  *  first of them to the last.
  *
@@ -145,25 +145,17 @@ const LEG_2 = [
   cp('B10', 29.5, 14, 12.8, 'toDrop'),
   cp('B11', 28.5, 14, 38, 'toDrop'),
   cp('B12', 27.5, 14, 63.5, 'toDrop'),
-  // The last two before the drop, and the same story as the bend: the drop sits
-  // off the avenue in the far corner, and the straight line to it clips the
-  // block on the way out.
+  // B13 is the LAST ring, and there is no B14.
+  //
+  // There used to be one out at [52, 95], on the argument that the drop sits off
+  // the avenue in the far corner and the straight line to it clips the block on
+  // the way out. It does not: `check-mission-route` samples the corridor every
+  // half metre and B13 to the drop is clear the whole way. What the extra ring
+  // actually did was send the pilot PAST the mark and back, and it was the last
+  // thing the route asked for before the delivery — so the run ended on a detour.
+  //
+  // After B13 the drop is simply there, down and to the right, in sight.
   cp('B13', 30.5, 14, 84.8, 'toDrop'),
-  // B14 sits four metres further along the corner than it did, at x = 52.
-  //
-  // At 50 it was set well to the right of the drop from the pilot's seat, so
-  // the last thing the route asked for pulled AWAY from the mark it was leading
-  // to: the ball hung out over the corner while the drop ring sat down and
-  // left, and the final turn was a correction rather than an approach.
-  //
-  // It does not go all the way to the drop's own x. The ball is 3 m across the
-  // radius, and at x = 55 its edge reaches the drop ring — two markers in one
-  // place, which reads as a second target rather than as the last gate before
-  // the first (the same reason the box lost the halo it used to wear). At 52 it
-  // is 4.2 m out: clearly the mark before the drop, clearly lined up with it.
-  //
-  // `check-mission-route` passes with more room than before, 5.7 m against 5.3.
-  cp('B14', 52, 11.5, 95, 'toDrop'),
 ];
 
 /**
@@ -187,12 +179,12 @@ const HOME_VIA: readonly (readonly [number, number])[] = [
  *
  *  They are close together now, and they have to be: every ring is required, so
  *  a package that came off at all was released by a pilot who had taken all
- *  fourteen. Delivering is 15 and landing is 16 — there is no such thing as a
+ *  thirteen. Delivering is 14 and landing is 15 — there is no such thing as a
  *  finished run scoring less. What separates a three-star delivery from a
  *  one-star one is therefore the FLYING: whether it was done cleanly and
  *  whether it was done in time. */
-const GOLD = 16;
-const SILVER = 15;
+const GOLD = 15;
+const SILVER = 14;
 
 export const precisionDelivery: Mission = {
   id: 'precision-delivery',
@@ -210,7 +202,7 @@ export const precisionDelivery: Mission = {
     'A medical package is waiting at a logistics station a few blocks west of the pad. It has to be across the city inside eight minutes, and the streets are not going to do it. You are the pilot.',
   flow: [
     { label: 'Collect', note: 'Line up over the box, then descend', art: 'collect' },
-    { label: 'Fly', note: 'Take all fourteen rings', art: 'city' },
+    { label: 'Fly', note: 'Take all thirteen rings', art: 'city' },
     { label: 'Deliver', note: 'Hold still on the yellow mark', art: 'deliver' },
     { label: 'Come home', note: 'Land back on the pad', art: 'land' },
   ],
@@ -221,7 +213,7 @@ export const precisionDelivery: Mission = {
   // mark", which was sending pilots to the wrong end of the city.
   objectives: [
     'Collect the medical package from the pickup mark.',
-    'Carry it through all fourteen rings across the city.',
+    'Carry it through all thirteen rings across the city.',
     'Deliver it by holding still over the yellow mark.',
     'Return to the pad you started from and land.',
   ],
@@ -229,7 +221,7 @@ export const precisionDelivery: Mission = {
   timeLimitSec: 480,
   parTimeSec: 300,
   groundY: 0,
-  medals: { bronze: 15, silver: SILVER, gold: GOLD },
+  medals: { bronze: 14, silver: SILVER, gold: GOLD },
   routeAltitude: ALT,
   route: [...LEG_1, ...LEG_2],
   homeVia: HOME_VIA,
@@ -336,12 +328,12 @@ export const precisionDelivery: Mission = {
     complete: { id: 'complete', text: 'Mission complete. That was a clean flight.' },
   },
 
-  // The full 16 first, then the flying. A pilot who bounced off two buildings on
+  // The full 15 first, then the flying. A pilot who bounced off two buildings on
   // the way has not flown a three-star delivery even with every point in hand.
   ranks: [
     {
       stars: 3,
-      text: 'All 16 points, no crashes, home inside 5:00',
+      text: 'All 15 points, no crashes, home inside 5:00',
       test: (r) =>
         r.delivered && r.landed && r.points >= GOLD && r.collisions === 0 && r.timeSec <= 300,
     },

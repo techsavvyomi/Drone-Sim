@@ -47,24 +47,28 @@ function result(over: Partial<MissionResult> = {}): MissionResult {
 
 describe('the scoring model', () => {
   it('TC-223 is one point per ring, plus the delivery and the landing', () => {
-    // Fourteen rings, all of them on the way out and all of them required, then
-    // 15 for putting the package down and 16 for getting home. The PICKUP
+    // Thirteen rings, all of them on the way out and all of them required, then
+    // 14 for putting the package down and 15 for getting home. The PICKUP
     // scores nothing: it is the start of the job, not an achievement.
-    expect(M.route).toHaveLength(14);
+    //
+    // It was fourteen until the last ring came out. That one sat past the drop
+    // in the far corner, so the route's final demand led AWAY from the mark it
+    // was gating; the corridor from B13 to the drop is clear without it.
+    expect(M.route).toHaveLength(13);
     expect(maxPointsOf(M)).toBe(M.route.length + 2);
-    expect(maxPointsOf(M)).toBe(16);
+    expect(maxPointsOf(M)).toBe(15);
   });
 
   it('TC-223 spreads the route over the way out and the whole city', () => {
     const on = (leg: string) => M.route.filter((c) => c.leg === leg).length;
 
-    // All fourteen on the CARRY. None on the run to the package — the first
+    // All thirteen on the CARRY. None on the run to the package — the first
     // leg's only job is to reach the box, and a ring before the pickup put a
     // target on the radar for a delivery the pilot was not yet flying. None
     // coming home either: a ring on the return leg cannot gate the release,
     // because the package has already gone by the time it is reached.
     expect(on('toPickup')).toBe(0);
-    expect(on('toDrop')).toBe(14);
+    expect(on('toDrop')).toBe(13);
     expect(on('toBase')).toBe(0);
 
     // A route that stayed in one quarter of the map would pass every other test
@@ -109,12 +113,12 @@ describe('the scoring model', () => {
   });
 
   it('TC-224 rates a flight on points, collisions and time', () => {
-    expect(rankFor(M.ranks, result({ points: 16, timeSec: 200 }))).toBe(3);
-    expect(rankFor(M.ranks, result({ points: 16, timeSec: 200, collisions: 1 }))).toBe(2);
-    expect(rankFor(M.ranks, result({ points: 16, timeSec: 460 }))).toBe(2);
+    expect(rankFor(M.ranks, result({ points: 15, timeSec: 200 }))).toBe(3);
+    expect(rankFor(M.ranks, result({ points: 15, timeSec: 200, collisions: 1 }))).toBe(2);
+    expect(rankFor(M.ranks, result({ points: 15, timeSec: 460 }))).toBe(2);
     // Delivered and home but a ring short of the full sheet cannot happen while
     // the gate holds; if it ever does, it is not a three-star flight.
-    expect(rankFor(M.ranks, result({ points: 15, timeSec: 200 }))).toBe(2);
+    expect(rankFor(M.ranks, result({ points: 14, timeSec: 200 }))).toBe(2);
     expect(rankFor(M.ranks, result({ points: 4, collisions: 3 }))).toBe(1);
   });
 
@@ -129,8 +133,8 @@ describe('the scoring model', () => {
     // Two places said "14 points" once, and one of them was going to drift.
     const spec = toMissionSpec(M);
 
-    expect(spec.medalThresholds.gold).toBe(16);
-    expect(spec.medalThresholds.silver).toBe(15);
+    expect(spec.medalThresholds.gold).toBe(15);
+    expect(spec.medalThresholds.silver).toBe(14);
     const fast = { timeSec: 200 };
     expect(rankFor(M.ranks, result({ ...fast, points: spec.medalThresholds.gold }))).toBe(3);
     expect(rankFor(M.ranks, result({ ...fast, points: spec.medalThresholds.gold - 1 }))).toBe(2);
@@ -225,7 +229,7 @@ describe('the route has to be flown before the package will release', () => {
     // ALL of them. Every ring is on the way out, so "collect the rings, then
     // deliver" is a rule with no exceptions — which is what it has to be for a
     // pilot to be able to act on it.
-    expect(required).toHaveLength(14);
+    expect(required).toHaveLength(13);
     expect(required).toHaveLength(M.route.length);
     expect(required.every((c) => c.leg !== 'toBase')).toBe(true);
   });
@@ -236,8 +240,8 @@ describe('the route has to be flown before the package will release', () => {
     const some = { [required[0].id]: true as const, [required[1].id]: true as const };
     const all = Object.fromEntries(required.map((c) => [c.id, true as const]));
 
-    expect(requiredLeft(M, none)).toBe(14);
-    expect(requiredLeft(M, some)).toBe(12);
+    expect(requiredLeft(M, none)).toBe(13);
+    expect(requiredLeft(M, some)).toBe(11);
     expect(requiredLeft(M, all)).toBe(0);
   });
 
@@ -547,7 +551,7 @@ describe('the mission end to end', () => {
     // Briefing: nothing scored, nothing lit, the clock not running.
     expect(store().phase).toBe('briefing');
     expect(store().points).toBe(0);
-    expect(store().maxPoints).toBe(16);
+    expect(store().maxPoints).toBe(15);
 
     store().beginFlight();
     expect(store().phase).toBe('flying');
@@ -582,7 +586,7 @@ describe('the mission end to end', () => {
     store().setLeg('delivered');
     expect(store().payload).toBe('delivered');
     expect(activeZone(store().leg)).toBe('base');
-    // 15: all fourteen rings plus the delivery.
+    // 14: all thirteen rings plus the delivery.
     expect(store().points).toBe(leg1.length + carry.length + 1);
     expect(store().points).toBe(maxPointsOf(M) - 1);
 
