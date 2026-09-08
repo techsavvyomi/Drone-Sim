@@ -113,12 +113,17 @@ const MAJOR_IMPACT = 4.5;
  * MODE allows, arrived above the crash line through no fault of their own, and
  * lost the drone for flying it exactly as the aircraft was built to fly.
  *
- * 4.2 sits clear of every airframe's capped rate — the fastest is the racer at
- * 3.5 m/s — so a descent the mode is managing can never destroy the aircraft. What still can is a real dive: in
+ * 6 sits clear of the fastest descent any mode will fly — the bottom of the
+ * throttle is capped at 5 m/s, see `maxDescentRate` — so a descent the mode is
+ * managing can never destroy the aircraft. What still can is a real dive: in
  * the manual modes the sink is not capped at all, and a drone falling out of
  * the sky passes this on the way down.
+ *
+ * It was 4.2 against a 2.6 m/s cap. Both moved together when the commanded
+ * descent was let off its leash: the margin between them is the point, not
+ * either number on its own.
  */
-const FLOOR_CRASH = 4.2;
+const FLOOR_CRASH = 6;
 /** Walls / furniture — only crash on a clear fast hit. Slow/medium bumps must not flip. */
 const WALL_CRASH_SPEED = 3.2;
 /**

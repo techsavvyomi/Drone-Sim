@@ -169,13 +169,15 @@ const IDLE_COLLECTIVE = 0.05;
  * height is asking to get down, and the aircraft can do better than that
  * without being in any danger.
  *
- * The ceiling on "better" is the floor. `Drone.tsx` writes the airframe off at
- * 4.2 m/s of arrival (FLOOR_CRASH), so the cap is twice the climb rate held
- * under 3.6 — brisk on every airframe, and still enough margin that a descent
- * flown all the way into the ground is a firm landing rather than a wreck.
+ * The ceiling on "better" is the floor. `Drone.tsx` writes the airframe off on
+ * arrival at FLOOR_CRASH, and the rule there is that a descent the MODE is
+ * managing must never be able to destroy the aircraft — so the two numbers move
+ * together. The cap is twice the climb rate held under 5, and the crash line
+ * sits a metre a second above it: a stick held all the way down is a fast,
+ * deliberate arrival, and it is still a landing.
  */
 function maxDescentRate(maxClimbRate: number): number {
-  return Math.min(maxClimbRate * 2, 3.6);
+  return Math.min(maxClimbRate * 2, 5);
 }
 
 export class FlightController {
