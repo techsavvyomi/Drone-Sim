@@ -149,7 +149,21 @@ const LEG_2 = [
   // off the avenue in the far corner, and the straight line to it clips the
   // block on the way out.
   cp('B13', 30.5, 14, 84.8, 'toDrop'),
-  cp('B14', 50, 11.5, 95, 'toDrop'),
+  // B14 sits four metres further along the corner than it did, at x = 52.
+  //
+  // At 50 it was set well to the right of the drop from the pilot's seat, so
+  // the last thing the route asked for pulled AWAY from the mark it was leading
+  // to: the ball hung out over the corner while the drop ring sat down and
+  // left, and the final turn was a correction rather than an approach.
+  //
+  // It does not go all the way to the drop's own x. The ball is 3 m across the
+  // radius, and at x = 55 its edge reaches the drop ring — two markers in one
+  // place, which reads as a second target rather than as the last gate before
+  // the first (the same reason the box lost the halo it used to wear). At 52 it
+  // is 4.2 m out: clearly the mark before the drop, clearly lined up with it.
+  //
+  // `check-mission-route` passes with more room than before, 5.7 m against 5.3.
+  cp('B14', 52, 11.5, 95, 'toDrop'),
 ];
 
 /**
