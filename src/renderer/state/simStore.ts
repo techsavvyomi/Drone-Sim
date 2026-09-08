@@ -37,6 +37,17 @@ interface SimState extends TelemetrySample {
   tick: number;
   simTime: number;
   fps: number;
+  /**
+   * What the renderer actually did on the last frame — draw calls, triangles and
+   * the resolution scale it is currently running at.
+   *
+   * Published beside the frame rate because "High stutters and Medium does not"
+   * is not something the frame rate alone can explain: the two presets differ in
+   * PIXELS and in passes, not in what is being drawn, and telling those apart by
+   * changing settings and watching one number is guesswork. These are the three
+   * that say which of the two it is.
+   */
+  perf: { calls: number; tris: number; dpr: number };
   resetToken: number;
   /** See `setSpawnLift`. Read by the drone's reset effect. */
   spawnLift: number;
@@ -46,6 +57,7 @@ interface SimState extends TelemetrySample {
   setTelemetry: (sample: TelemetrySample) => void;
   setClock: (tick: number, simTime: number) => void;
   setFps: (fps: number) => void;
+  setPerf: (perf: { calls: number; tris: number; dpr: number }) => void;
   requestReset: () => void;
   /** Height above the pad the next reset should place the drone at, in metres.
    *
@@ -101,6 +113,7 @@ export const useSimStore = create<SimState>((set) => ({
   tick: 0,
   simTime: 0,
   fps: 0,
+  perf: { calls: 0, tris: 0, dpr: 1 },
   resetToken: 0,
   spawnLift: 0,
   takeoffAlt: DEFAULT_TAKEOFF_ALT,
@@ -108,6 +121,7 @@ export const useSimStore = create<SimState>((set) => ({
   setTelemetry: (sample) => set(sample),
   setClock: (tick, simTime) => set({ tick, simTime }),
   setFps: (fps) => set({ fps }),
+  setPerf: (perf) => set({ perf }),
   requestReset: () => set((s) => ({ resetToken: s.resetToken + 1, tick: 0, simTime: 0 })),
   setSpawnLift: (spawnLift) => set({ spawnLift }),
   setTakeoffAlt: (takeoffAlt) => set({ takeoffAlt }),

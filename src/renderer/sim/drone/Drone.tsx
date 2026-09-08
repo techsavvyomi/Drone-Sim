@@ -1195,6 +1195,15 @@ export function Drone({ spec, spawn, bounds, outdoor = false, groundY }: DronePr
     f.elapsed += delta;
     if (f.elapsed >= 0.5) {
       useSimStore.getState().setFps(Math.round(f.frames / f.elapsed));
+      // Sampled on the same half-second as the frame rate, and only then: the
+      // counters are read every frame by three.js anyway, but pushing them into
+      // the store is a React render, and the status bar does not need sixty of
+      // those a second to answer what it is being asked.
+      useSimStore.getState().setPerf({
+        calls: _state.gl.info.render.calls,
+        tris: _state.gl.info.render.triangles,
+        dpr: Math.round(_state.gl.getPixelRatio() * 100) / 100,
+      });
       f.frames = 0;
       f.elapsed = 0;
     }
