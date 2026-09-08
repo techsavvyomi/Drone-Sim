@@ -238,7 +238,6 @@ function ZoneMark({
   const group = useRef<THREE.Group>(null);
   const ring = useRef<THREE.Mesh>(null);
   const column = useRef<THREE.Mesh>(null);
-  const beam = useRef<THREE.Mesh>(null);
   const lit = useRef(0);
 
   const base = useMemo(() => new THREE.Color(ZONE_COLOR[zone.kind]), [zone.kind]);
@@ -249,14 +248,10 @@ function ZoneMark({
   const colR = Math.max(zone.radius, 1.2);
   const tex = columnTexture();
 
-  // A mark on a roof gets a shaft of light hanging UNDER it, from the deck down
-  // to the foot of the platform.
-  //
-  // Everything the mission gave the pilot about where to go was flat — a bearing
-  // arrow, a top-down radar, a ring drawn on the deck itself — so a drop on a
-  // roof looked exactly like a drop on the street until they were over it. The
-  // ring cannot help: it is painted on the one surface a pilot at street level
-  // cannot see. This can, because it reaches down to where they are looking.
+  // A mark on a roof is picked up from further out — the reveal below — but it
+  // is lit the same way a street mark is: one column standing ON the deck. It
+  // used to also hang a shaft of light under the platform, and the two together
+  // read as the mark leaking through the roof in both directions.
   const drop = zone.padBase !== undefined ? groundY - zone.padBase : 0;
   const raised = drop > RAISED_MIN;
   const reveal = raised ? REVEAL_RAISED : REVEAL;
@@ -303,18 +298,6 @@ function ZoneMark({
       colMat.opacity = t * fade * punch * (0.3 + 0.16 * pulse);
       colMat.depthTest = !xray || flat > REVEAL * 0.9;
     }
-
-    // The hanging shaft. It does NOT take the column's distance fade — that
-    // fade exists to get the column out of the way once the pilot is on top of
-    // the mark, and this one's whole job is to be seen from far off. It does
-    // fade out on close approach, when the deck is in view and the beam would
-    // only be standing between the drone and the ring it is landing in.
-    const beamMat = beam.current?.material as THREE.MeshBasicMaterial | undefined;
-    if (beamMat) {
-      beamMat.color.copy(tint);
-      const close = Math.min(1, Math.max(0, flat - colR * 2.5) / (colR * 3));
-      beamMat.opacity = t * close * (0.26 + 0.14 * pulse);
-    }
   });
 
   return (
@@ -330,24 +313,6 @@ function ZoneMark({
           toneMapped={false}
         />
       </mesh>
-
-      {/* The shaft under a rooftop mark. Rotated a half turn so the column
-          texture's solid end lands at the DECK and it fades toward the street:
-          the light belongs to the mark above, not to the pavement below it. */}
-      {raised && (
-        <mesh ref={beam} position={[0, -drop / 2, 0]} rotation={[Math.PI, 0, 0]} renderOrder={3}>
-          <cylinderGeometry args={[colR * 0.8, colR * 0.62, drop, 24, 1, true]} />
-          <meshBasicMaterial
-            map={tex}
-            transparent
-            depthWrite={false}
-            depthTest={false}
-            blending={THREE.AdditiveBlending}
-            side={THREE.DoubleSide}
-            toneMapped={false}
-          />
-        </mesh>
-      )}
 
       {/* Soft column pointer for standard ground marks */}
       {withColumn && (

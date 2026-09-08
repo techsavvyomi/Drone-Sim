@@ -90,7 +90,6 @@ function Gltf({ spec, idleSpin = 0 }: { spec: DroneSpec; idleSpin?: number }) {
     return root;
   }, [scene]);
 
-
   // ---- Make the real propellers spin ----
   // Built in a layout effect, NOT inside the useMemo that clones the model.
   // Under StrictMode the memo factory runs twice, and <primitive> cannot swap
@@ -210,9 +209,7 @@ function Gltf({ spec, idleSpin = 0 }: { spec: DroneSpec; idleSpin?: number }) {
       propHubs.synthetic = false;
       propHubs.propRadius = 0;
       const byMotor = [...found].sort((a, b) => a.motor - b.motor);
-      propHubs.positions = byMotor.map((f) =>
-        f.pivot.position.clone().applyMatrix4(root.matrix),
-      );
+      propHubs.positions = byMotor.map((f) => f.pivot.position.clone().applyMatrix4(root.matrix));
       propHubs.ready = true;
 
       // Keep a clonable copy of the real propeller for crash debris. Taken from
@@ -357,8 +354,16 @@ function Gltf({ spec, idleSpin = 0 }: { spec: DroneSpec; idleSpin?: number }) {
       // reads as propellers that are always spinning, which is exactly what it
       // looks like — so the disc is hidden and Propellers draws solid stand-in
       // blades in its place until the motors actually turn.
+      // Published for EVERY airframe, not only the blur ones.
+      //
+      // It used to be written inside the branch below, so a CAD-path drone left
+      // it at zero and `Propellers` had to read the raw motor command instead —
+      // an undamped number that drops the instant the stick does. That is what
+      // blinked the blur discs off during a descent while the rotors were
+      // plainly still turning: the command had gone, the propellers had not.
+      propHubs.spin[r.motor] = rpm.current[i];
+
       if (blurProps) {
-        propHubs.spin[r.motor] = rpm.current[i];
         r.pivot.rotation.y += dir * rpm.current[i] * BLUR_REV_PER_SEC * TAU * dt;
         const smear = blurMix(rpm.current[i]);
         r.blades.forEach((m) => {
@@ -424,7 +429,10 @@ function Gltf({ spec, idleSpin = 0 }: { spec: DroneSpec; idleSpin?: number }) {
 }
 
 /** Renders `fallback` if the model subtree throws (missing/corrupt asset). */
-class ModelBoundary extends Component<{ fallback: ReactNode; children: ReactNode }, { failed: boolean }> {
+class ModelBoundary extends Component<
+  { fallback: ReactNode; children: ReactNode },
+  { failed: boolean }
+> {
   state = { failed: false };
 
   static getDerivedStateFromError() {

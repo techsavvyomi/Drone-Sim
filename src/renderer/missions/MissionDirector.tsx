@@ -331,11 +331,27 @@ export function MissionDirector() {
     if (leg === 'toPickup') {
       const z = probeZone(mission, mission.zones.pickup);
       pickupHold.current = z.ok ? pickupHold.current + dt : 0;
+      // Collecting the package asks for the same hover the drop does — centred,
+      // in the band, steady — so the pilot is shown the same three conditions
+      // here rather than being left to guess why the latch will not close.
+      // Quantised and key-guarded exactly as the drop's are, for the same
+      // reason: the bar moves in 5% steps, not once a frame.
+      {
+        const hold =
+          Math.round(Math.min(1, pickupHold.current / mission.zones.pickup.hold) * 20) / 20;
+        const key = `${z.centred}${z.inBand}${z.steady}${hold}`;
+        if (key !== lastChecks.current) {
+          lastChecks.current = key;
+          store.setChecks({ centred: z.centred, inBand: z.inBand, steady: z.steady, hold });
+        }
+      }
       if (pickupHold.current >= mission.zones.pickup.hold) {
         leg = 'carrying';
         store.setLeg(leg);
         store.setPayload('attached');
         store.takeZone('pickup', 'PICKUP', false);
+        lastChecks.current = '';
+        store.setChecks({ centred: false, inBand: false, steady: false, hold: 0 });
         playLatch();
         // What was attached is not the same object on the two missions, and the
         // banner is the only place the pilot is told what they now carry. A

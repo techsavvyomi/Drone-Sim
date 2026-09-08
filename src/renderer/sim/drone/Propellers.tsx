@@ -25,7 +25,6 @@ function BlurDiscs({ spec }: { spec: DroneSpec }) {
   const group = useRef<THREE.Group>(null);
 
   useFrame(() => {
-    const { motors } = useSimStore.getState();
     const status = useFlightStore.getState().status();
     const live = status === 'armed' || status === 'flying';
     const synthetic = propHubs.synthetic;
@@ -53,9 +52,18 @@ function BlurDiscs({ spec }: { spec: DroneSpec }) {
     for (let i = 0; i < 4; i++) {
       const m = mats.current[i];
       if (!m) continue;
+      // THE DAMPED ROTOR SPEED, not the motor command.
+      //
+      // `motors[i]` is what the mixer is asking for this instant, and it falls
+      // the moment the stick does. Propellers do not: they spool down over a
+      // second or two, which is exactly what `DroneModel` damps and publishes
+      // here. Read off the command, the discs blinked out partway through a
+      // descent and came back when the throttle came back up, over rotors that
+      // had never stopped turning.
+      const spin = propHubs.spin[i] ?? 0;
       if (synthetic) {
         // Dark motion smear that matches black props — only at higher RPM.
-        const v = live ? Math.min(1, Math.max(0, motors[i] - 0.25) * 1.6) : 0;
+        const v = live ? Math.min(1, Math.max(0, spin - 0.25) * 1.6) : 0;
         m.opacity = v * 0.35;
         m.color.set('#1c1c1c');
         m.depthTest = false;
@@ -65,7 +73,12 @@ function BlurDiscs({ spec }: { spec: DroneSpec }) {
         // sizeScale'd model like the Guru those are 0.34 m across, which is the
         // white wash. The ramp now spans the whole usable throttle band and
         // tops out well short of opaque.
-        const v = live ? Math.min(1, Math.max(0, motors[i] - 0.15) * 1.1) : 0;
+        //
+        // The 0.15 foot is back down to 0.08, where it was. Raising it was what
+        // let a descent take the discs out entirely rather than merely thinning
+        // them: a turning rotor always smears, and the number this reads is now
+        // the damped rotor speed, which does not visit zero on a stick movement.
+        const v = live ? Math.min(1, Math.max(0, spin - 0.08) * 1.2) : 0;
         m.opacity = v * 0.3;
         m.color.set('#b9c8db');
         m.depthTest = true;

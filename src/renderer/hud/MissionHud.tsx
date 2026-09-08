@@ -131,8 +131,10 @@ function TargetPointerHud() {
       // The label is the expensive half — it touches the DOM's text — so it is
       // only written when it actually changes, which at metre resolution is a
       // few times a second rather than sixty.
-      const up = t.climb >= CLIMB_DEADBAND ? ' ▲' : t.climb <= -CLIMB_DEADBAND ? ' ▼' : '';
-      const text = `${Math.round(t.distance)} m${up}`;
+      // Distance only. The pointer is already ON the mark in the picture, so a
+      // climb chevron beside the number was saying, in text, what the pilot can
+      // see: the pin is above or below them.
+      const text = `${Math.round(t.distance)} m`;
       if (text !== lastText && label.current) {
         lastText = text;
         label.current.textContent = text;
@@ -162,18 +164,25 @@ function TargetPointerHud() {
  * bar that refuses to fill is the worst thing this HUD could show; naming the
  * checkpoints still owed turns it from a bug into an instruction.
  */
-function DeliveryChecklist({ fire }: { fire: boolean }) {
+function DeliveryChecklist({ fire, pickup }: { fire: boolean; pickup?: boolean }) {
   const checks = useMissionStore((s) => s.checks);
   const gate = useMissionStore((s) => s.gate);
   const suppressing = useMissionStore((s) => s.suppressing);
   // A mission with no required rings has nothing to be blocked ON, so the route
-  // row is left off rather than shown as a permanent 0/0 tick.
-  const gated = gate.total > 0;
+  // row is left off rather than shown as a permanent 0/0 tick. The rings gate
+  // the RELEASE, never the collection, so the row is off on the pickup as well.
+  const gated = gate.total > 0 && !pickup;
   const blocked = gate.left > 0;
   return (
     <div className={`ms-checks ${blocked ? 'blocked' : ''}`}>
       <span className="ms-checks-head">
-        {fire ? (suppressing ? 'SUPPRESSING' : 'SUPPRESSION CONDITIONS') : 'RELEASE CONDITIONS'}
+        {pickup
+          ? 'PICKUP CONDITIONS'
+          : fire
+            ? suppressing
+              ? 'SUPPRESSING'
+              : 'SUPPRESSION CONDITIONS'
+            : 'RELEASE CONDITIONS'}
       </span>
       {gated && (
         <span className={blocked ? 'miss' : 'ok'}>
@@ -181,7 +190,8 @@ function DeliveryChecklist({ fire }: { fire: boolean }) {
         </span>
       )}
       <span className={checks.centred ? 'ok' : ''}>
-        {checks.centred ? '✓' : '•'} {fire ? 'Over the fire' : 'Centred'}
+        {checks.centred ? '✓' : '•'}{' '}
+        {pickup ? 'Over the package' : fire ? 'Over the fire' : 'Centred'}
       </span>
       <span className={checks.inBand ? 'ok' : ''}>{checks.inBand ? '✓' : '•'} Height</span>
       <span className={checks.steady ? 'ok' : ''}>{checks.steady ? '✓' : '•'} Steady</span>
@@ -520,6 +530,10 @@ export function MissionHud() {
       {flying && <TargetPointerHud />}
 
       {flying && leg === 'toDrop' && <DeliveryChecklist fire={fire} />}
+
+      {/* The same card on the collection: the latch asks for the same hover the
+          release does, and the pilot was being told so only at the drop. */}
+      {flying && leg === 'toPickup' && <DeliveryChecklist fire={fire} pickup />}
 
       {/* Mission Control. Along the bottom, above the strip, so it never covers
           the horizon the pilot is flying against. */}
