@@ -95,12 +95,23 @@ function RooftopPad({ zone, deck }: { zone: MissionZone; deck: number }) {
   if (h <= 0.02) return null;
   // Wide enough that the whole mark, and the ring's margin, land on the deck.
   const r = zone.radius + 0.8;
+  // The plinth's own height: up to the underside of the slab, plus a little
+  // buried in it so no two faces are ever level with each other.
+  const plinth = Math.max(h - DECK_T + PAD_BITE, 0.02);
   return (
     <group position={[zone.at[0], base, zone.at[1]]}>
       {/* The plinth, tapered a little so it reads as built rather than as a
-          cylinder someone left on a roof. */}
-      <mesh position={[0, h / 2, 0]} castShadow>
-        <cylinderGeometry args={[r * 0.9, r * 0.97, h, 8]} />
+          cylinder someone left on a roof.
+
+          It stops UNDER the deck slab and pushes a few centimetres up into it.
+          Both meshes used to reach exactly the platform's top, which put the
+          plinth's top cap and the deck's top cap on the same plane — and two
+          coplanar faces are a depth fight, which is what covered the deck in
+          banded grey patches from every angle. The give-away was the shape of
+          the mess: it stopped at an octagon INSIDE the deck's own edge, because
+          that is exactly where the plinth's cap ended. */}
+      <mesh position={[0, plinth / 2, 0]} castShadow>
+        <cylinderGeometry args={[r * 0.9, r * 0.97, plinth, 8]} />
         <meshStandardMaterial
           color={PAD_STONE}
           emissive={PAD_LIFT}
@@ -145,6 +156,15 @@ const DECK_T = 0.16;
  * goes dark because the tower next door is between it and the sun is a landmark
  * that disappears at exactly the hour this mission is flown.
  */
+/**
+ * How far the plinth is buried in the deck slab above it, metres.
+ *
+ * Small, and it only has to be non-zero. Two meshes that meet exactly are two
+ * coplanar faces, and a depth buffer cannot choose between them — the surface
+ * then flickers between the two materials in bands as the camera moves, which is
+ * what a pilot reads as a platform covered in dirty patches.
+ */
+const PAD_BITE = 0.04;
 const PAD_STONE = '#a09883';
 const PAD_TOP = '#cdc4ad';
 const PAD_LIFT = '#4a4335';
