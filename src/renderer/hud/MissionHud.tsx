@@ -248,6 +248,7 @@ export function MissionHud() {
   const mission = useMissionStore((s) => s.mission);
   const phase = useMissionStore((s) => s.phase);
   const leg = useMissionStore((s) => s.leg);
+  const atPickup = useMissionStore((s) => s.atPickup);
   const payload = useMissionStore((s) => s.payload);
   const points = useMissionStore((s) => s.points);
   const maxPoints = useMissionStore((s) => s.maxPoints);
@@ -533,7 +534,7 @@ export function MissionHud() {
 
       {/* The same card on the collection: the latch asks for the same hover the
           release does, and the pilot was being told so only at the drop. */}
-      {flying && leg === 'toPickup' && <DeliveryChecklist fire={fire} pickup />}
+      {flying && leg === 'toPickup' && atPickup && <DeliveryChecklist fire={fire} pickup />}
 
       {/* Mission Control. Along the bottom, above the strip, so it never covers
           the horizon the pilot is flying against. */}

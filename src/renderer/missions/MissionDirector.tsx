@@ -336,7 +336,18 @@ export function MissionDirector() {
       // here rather than being left to guess why the latch will not close.
       // Quantised and key-guarded exactly as the drop's are, for the same
       // reason: the bar moves in 5% steps, not once a frame.
-      {
+      // The card is for a pilot who has ARRIVED. The collection leg begins at
+      // take-off, so it only goes up inside the same approach ring the drop
+      // uses — otherwise it hangs there from the pad, ticking Height and Steady
+      // for a drone that has not left it.
+      const nearPickup = z.flat <= mission.zones.pickup.radius * 3;
+      if (nearPickup !== useMissionStore.getState().atPickup) store.setAtPickup(nearPickup);
+      if (!nearPickup) {
+        if (lastChecks.current !== '') {
+          lastChecks.current = '';
+          store.setChecks({ centred: false, inBand: false, steady: false, hold: 0 });
+        }
+      } else {
         const hold =
           Math.round(Math.min(1, pickupHold.current / mission.zones.pickup.hold) * 20) / 20;
         const key = `${z.centred}${z.inBand}${z.steady}${hold}`;
@@ -350,6 +361,7 @@ export function MissionDirector() {
         store.setLeg(leg);
         store.setPayload('attached');
         store.takeZone('pickup', 'PICKUP', false);
+        store.setAtPickup(false);
         lastChecks.current = '';
         store.setChecks({ centred: false, inBand: false, steady: false, hold: 0 });
         playLatch();

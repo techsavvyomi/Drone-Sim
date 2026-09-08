@@ -151,6 +151,11 @@ interface MissionState {
    *  0 is straight ahead, positive to the right. */
   bearing: number;
   checks: DeliveryChecks;
+  /** Whether the drone is close enough to the pickup for its conditions card to
+   *  mean anything. The collection leg starts at take-off, so without this the
+   *  card sits on screen from the pad — ticking Height and Steady for a drone
+   *  parked twenty-five metres from the package it has not gone to yet. */
+  atPickup: boolean;
   /** Checkpoints still to be taken before the package will release, and how
    *  many there were to begin with. Published by the Director so the HUD can
    *  say why a delivery that looks correct is not firing. */
@@ -205,6 +210,7 @@ interface MissionState {
     climb: number;
   }) => void;
   setChecks: (checks: DeliveryChecks) => void;
+  setAtPickup: (atPickup: boolean) => void;
   setGate: (gate: { left: number; total: number }) => void;
   setFire: (fire: { fireIntensity: number; suppressing: boolean }) => void;
   setElapsed: (elapsed: number) => void;
@@ -234,6 +240,7 @@ function freshAttempt() {
     climb: 0,
     bearing: 0,
     checks: NO_CHECKS,
+    atPickup: false,
     gate: { left: 0, total: 0 },
     collisions: 0,
     // A fresh attempt is a fire burning at full. It has to be reset here with
@@ -326,6 +333,7 @@ export const useMissionStore = create<MissionState>((set, get) => ({
 
   setFlightData: (d) => set(d),
   setChecks: (checks) => set({ checks }),
+  setAtPickup: (atPickup) => set({ atPickup }),
   setGate: (gate) => set({ gate }),
   setFire: (fire) => set(fire),
   setElapsed: (elapsed) => set({ elapsed }),
