@@ -9,12 +9,8 @@ import { dronePose } from '../src/renderer/sim/drone/pose';
 // #16-19. Test names carry the id of the manual case they replace, from
 // docs/test-cases.csv.
 //
-// `flightStore` keeps two lockout timestamps OUTSIDE the store
-// (`takeoffStartedAt`, `landHoldUntil`) and reads them through
-// `performance.now()`. Nothing resets them between tests, so the clock is faked
-// once and wound forward before each test instead — far enough that any lockout
-// left by the previous test has expired. Production code is deliberately not
-// given a reset hook just to suit the tests.
+// The clock is faked so a test can put time between two presses; nothing in
+// `flightStore` gates a command on elapsed time any more.
 
 const INITIAL = { ...useFlightStore.getState() };
 
@@ -154,27 +150,29 @@ describe('auto take-off and landing', () => {
     expect(useFlightStore.getState().auto).toBe('land');
   });
 
-  it('TC-035 a take-off cannot be started for a moment after landing', () => {
+  it('Space lands soon after a take-off has handed back, however many times it is pressed', () => {
+    // The old four second no-land window was re-armed by every press inside it,
+    // so a pilot tapping Space over the pad got climb commands and never a
+    // landing. Once the sequence is over, height decides — nothing else.
     useFlightStore.getState().toggleArm();
-    hoverAt(4);
     useFlightStore.getState().requestTakeoffLand();
-    // Touched down, motors still running: the relaunch lockout is open.
-    useFlightStore.setState({ auto: 'manual', onGround: true });
-    dronePose.position.set(0, 0, 0);
+    hoverAt(5);
+    useFlightStore.setState({ auto: 'manual' });
+    vi.advanceTimersByTime(500);
 
     useFlightStore.getState().requestTakeoffLand();
 
-    expect(useFlightStore.getState().auto).toBe('manual');
+    expect(useFlightStore.getState().auto).toBe('land');
   });
 
-  it('TC-035 the take-off works again once the relaunch lockout has passed', () => {
+  it('TC-035 the take-off answers at once after a landing', () => {
     useFlightStore.getState().toggleArm();
     hoverAt(4);
     useFlightStore.getState().requestTakeoffLand();
+    // Touched down, motors still running.
     useFlightStore.setState({ auto: 'manual', onGround: true });
     dronePose.position.set(0, 0, 0);
 
-    vi.advanceTimersByTime(2_000);
     useFlightStore.getState().requestTakeoffLand();
 
     expect(useFlightStore.getState().auto).toBe('takeoff');

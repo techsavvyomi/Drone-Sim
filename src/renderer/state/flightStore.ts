@@ -9,15 +9,6 @@ export type DroneStatus = 'disarmed' | 'armed' | 'flying' | 'crashed';
 
 /** Below this, Space means takeoff — above it, Space means land. */
 const TAKEOFF_ALT_GATE = 1.2;
-/** After starting takeoff, ignore Space→land for this long (ms). */
-const LAND_LOCKOUT_MS = 4000;
-/** After a landing starts or finishes, ignore Space→takeoff (ms). */
-const RELAUNCH_LOCKOUT_MS = 1800;
-
-/** Wall-clock when takeoff last started — blocks accidental land. */
-let takeoffStartedAt = 0;
-/** Wall-clock when land last started/finished — blocks accidental takeoff. */
-let landHoldUntil = 0;
 
 interface FlightState {
   armed: boolean;
@@ -123,10 +114,7 @@ export const useFlightStore = create<FlightState>((set, get) => ({
       if (!s.armed && s.batteryLocked) return s;
       return { armed: !s.armed, auto: 'manual' };
     }),
-  disarm: () => {
-    if (get().auto === 'land') landHoldUntil = performance.now() + RELAUNCH_LOCKOUT_MS;
-    set({ armed: false, auto: 'manual' });
-  },
+  disarm: () => set({ armed: false, auto: 'manual' }),
   setMode: (mode) => set((s) => (s.lowBattery ? s : { mode })),
   cycleMode: () =>
     set((s) => {
@@ -147,24 +135,29 @@ export const useFlightStore = create<FlightState>((set, get) => ({
     if (auto === 'takeoff') return;
     // Already landing — a second Space must not climb out near the floor.
     if (auto === 'land') return;
-    if (performance.now() < landHoldUntil) return;
 
     const alt = dronePose.present ? dronePose.position.y : 0;
     // Spawns near/on ground clearance so onGround can be false initially;
     // treat near-ground as takeoff, not land.
     const nearGround = onGround || alt < TAKEOFF_ALT_GATE;
-    const landLocked = performance.now() - takeoffStartedAt < LAND_LOCKOUT_MS;
 
-    if (nearGround || landLocked) {
+    // Height is the ONLY thing that decides which of the two this key means.
+    //
+    // There used to be two timed lockouts here — four seconds in which a
+    // take-off could not be turned into a landing, and nearly two after a
+    // landing in which the aircraft refused to go back up. Both were a key that
+    // did nothing, with nothing on screen saying why, and the first re-armed
+    // itself on every press so a pilot tapping Space never landed at all.
+    // Neither is needed: the sequences themselves are already protected, since
+    // `auto` swallows Space for the whole of a climb-out or a descent. Once one
+    // has handed back, the pilot's press is answered at once.
+    if (nearGround) {
       // Arming is a deliberate, separate action. A takeoff command must never
       // arm the aircraft on the pilot's behalf — a disarmed airframe stays put,
       // exactly as it would on real hardware.
       if (!armed) return;
-      // Still in the takeoff window — climb (or re-issue takeoff), never land.
-      takeoffStartedAt = performance.now();
       set({ auto: 'takeoff' });
     } else if (armed) {
-      landHoldUntil = performance.now() + RELAUNCH_LOCKOUT_MS;
       set({ auto: 'land' });
     }
   },
