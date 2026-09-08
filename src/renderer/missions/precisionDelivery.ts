@@ -235,13 +235,27 @@ export const precisionDelivery: Mission = {
       // still generous enough to catch a pilot easing past overhead; a metre
       // puts the airframe genuinely down beside the box, and the hold below
       // means it has stopped there rather than dipped through.
-      // Directly OVER the box, not merely near it. 2 m of radius is a drone
-      // span and a half in every direction: a pilot who came down anywhere in
-      // the neighbourhood had the package jump up to them, which is why it read
-      // as picking itself up. 0.6 m is the box plus a little, so the airframe
-      // has to be lined up on it and then flown down onto it.
-      radius: 0.6,
-      band: { min: 0, max: 0.9 },
+      // Beside the box counts, not only on top of it.
+      //
+      // 0.6 m of radius under a 0.9 m ceiling is the box plus a little, and it
+      // was tuned against the opposite complaint: at 2 m the package jumped up
+      // to anyone who came down in the neighbourhood, which read as picking
+      // itself up. That correction went too far. The Guru is flown at 2.5x
+      // scale here, so most of a 0.6 m circle is under the airframe itself —
+      // the pilot has to put the aircraft in a space barely wider than the
+      // aircraft, and then hold it there, and the mission's opening beat became
+      // its hardest.
+      //
+      // These are the numbers the multi-point delivery already settled on for
+      // the same test, for the same reason (see `multiPointDelivery`): the
+      // pilot still has to come down out of the cruise and stop over the pad,
+      // but at chest height beside the box rather than sitting on it.
+      //
+      // What is NOT relaxed is the rest of the test — still centred, still
+      // slowed, still held for most of a second. A fly-past collects nothing,
+      // which is what the tight version was really protecting.
+      radius: 1.4,
+      band: { min: 0, max: 2 },
       // Still the gentler of the two tests — the strict one is the DROP, which
       // is tighter on every axis — but a fly-through no longer counts: the
       // drone has to be slowed and settled, not merely passing low.

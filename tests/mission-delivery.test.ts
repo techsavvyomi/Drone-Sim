@@ -152,8 +152,16 @@ describe('the delivery is the strict one', () => {
     // two are different jobs: the drop is a placement on a painted mark a couple
     // of metres across, and the pickup is a grab onto a box the size of a hand.
     // The pickup's is therefore the tighter of the two.
+    //
+    // The ceiling is 1.5 rather than the 0.8 it was written at. 0.8 was pinning
+    // one tuning pass rather than an invariant: at 2.5x scale most of a 0.6 m
+    // circle sits under the airframe, so the pilot had to place the aircraft in
+    // a space barely wider than the aircraft and hold it there, and the
+    // mission's opening beat became its hardest. What has to stay true is that
+    // the pickup is still the tighter of the two and still small enough to be a
+    // place rather than a neighbourhood — not any one number it was set to.
     expect(pickup.radius).toBeLessThan(drop.radius);
-    expect(pickup.radius).toBeLessThanOrEqual(0.8);
+    expect(pickup.radius).toBeLessThanOrEqual(1.5);
   });
 
   it('TC-228 makes the pickup a descent onto the mark, not a fly-over', () => {
