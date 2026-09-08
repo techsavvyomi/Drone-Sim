@@ -61,7 +61,7 @@ const CEILING = 30;
 const TOL = 0.15;
 /** How much wider than its ring a mark's platform is drawn — must match
  *  `RooftopPad` in MissionMarkers. */
-const PAD_MARGIN = 0.8;
+const PAD_MARGIN = 0.4;
 
 // ---- The model --------------------------------------------------------------
 
@@ -238,7 +238,9 @@ if (process.argv.includes('--sites')) {
   process.exit(0);
 }
 
-console.log(`\nRooftop marks against the model — ${tris.length} building triangles under ${CEILING} m\n`);
+console.log(
+  `\nRooftop marks against the model — ${tris.length} building triangles under ${CEILING} m\n`,
+);
 
 for (const d of loadMarks()) {
   if (d.standsOn === undefined) {

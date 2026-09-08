@@ -93,8 +93,15 @@ function RooftopPad({ zone, deck }: { zone: MissionZone; deck: number }) {
   if (base === undefined) return null;
   const h = deck - base;
   if (h <= 0.02) return null;
-  // Wide enough that the whole mark, and the ring's margin, land on the deck.
-  const r = zone.radius + 0.8;
+  // Wide enough that the whole mark lands on the deck, and no wider.
+  //
+  // It was 0.8 m of margin, which is a generous apron and was fine while there
+  // was one rooftop. The second one is on a smaller slab: the widest platform
+  // whose footprint stays on ONE roof height there is 1.5 m, and a platform that
+  // ran onto the step behind it would put its deck level with real roof
+  // geometry — the same coplanar depth fight the plinth already had to be moved
+  // out of. The apron gave way, because the mark cannot.
+  const r = zone.radius + PAD_MARGIN;
   // The plinth's own height: up to the underside of the slab, plus a little
   // buried in it so no two faces are ever level with each other.
   const plinth = Math.max(h - DECK_T + PAD_BITE, 0.02);
@@ -165,6 +172,8 @@ const DECK_T = 0.16;
  * what a pilot reads as a platform covered in dirty patches.
  */
 const PAD_BITE = 0.04;
+/** How far the platform's deck reaches past the mark drawn on it, metres. */
+const PAD_MARGIN = 0.4;
 const PAD_STONE = '#a09883';
 const PAD_TOP = '#cdc4ad';
 const PAD_LIFT = '#4a4335';

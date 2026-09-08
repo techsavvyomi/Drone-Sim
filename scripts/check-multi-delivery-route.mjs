@@ -65,6 +65,20 @@ const ROOF_SKIP = 10;
  */
 const RING_MARGIN = 0.6;
 /**
+ * The same margin for a mark that is drawn on a PLATFORM — which is narrower,
+ * and deliberately.
+ *
+ * A street or bare-roof mark is painted straight onto the collider, so the deck
+ * has to reach well past it. A platform mark is painted onto a structure this
+ * app draws, whose own footprint is measured against the model by
+ * `check-roof-marks.mjs` — a stricter test than this one, because it uses the
+ * real geometry. What is left for this check is the part it can actually see:
+ * that the aircraft has level collider under the whole of the circle it has to
+ * hover inside, plus the platform's apron. Must match `PAD_MARGIN` in
+ * `MissionMarkers`.
+ */
+const PAD_MARGIN = 0.4;
+/**
  * The aircraft's own ceiling, metres — the Guru's `maxAltitude`, which every
  * mission is flown on.
  *
@@ -365,7 +379,8 @@ for (const d of drops) {
   // the drawn radius plus a margin, and every one of those points has to be
   // standing on the same deck the centre declared.
   {
-    const r = d.radius + RING_MARGIN;
+    const margin = d.standsOn === undefined ? RING_MARGIN : PAD_MARGIN;
+    const r = d.radius + margin;
     let worstOff = 0;
     let where = null;
     for (let i = 0; i < 24; i++) {
@@ -382,7 +397,7 @@ for (const d of drops) {
       worstOff < 0.05,
       d.label,
       where === null || worstOff < 0.05
-        ? `ring of ${d.radius} m + ${RING_MARGIN} m margin stands wholly on the deck`
+        ? `ring of ${d.radius} m + ${margin} m margin stands wholly on the deck`
         : `ring overhangs: [${where[0].toFixed(1)}, ${where[1].toFixed(1)}] is ${worstOff.toFixed(2)} m off the deck`,
     );
   }
