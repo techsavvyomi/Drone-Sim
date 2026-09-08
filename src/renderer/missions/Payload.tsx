@@ -450,18 +450,6 @@ function anchorUnder(out: THREE.Vector3, drop: number): void {
 // ----------------------------------------------------------------------------
 
 /**
- * Where a package that is NOT the live one stands on the hub pad, in metres
- * from the mark.
- *
- * The live one always sits dead centre, because the mark is what the pilot
- * descends onto — a package the pilot has to aim at while it stands off to one
- * side would be a mark that lies. The others are pushed just OUTSIDE the
- * pickup ring: close enough to read as a stack of three waiting to go, and far
- * enough that the ring the pilot is flying into has one box in it rather than
- * three. They moved out when the pickup circle was widened to a metre — inside
- * it they read as three things to collect at once.
- */
-/**
  * How much of the parcel's height has to be squeezed out before it counts as
  * fully set down, metres. Roughly the box itself, so the slide is spread over
  * the last part of a descent rather than snapping at the moment of contact.
@@ -474,13 +462,46 @@ const SET_DOWN = 0.22;
  * never share space at any attitude the aircraft can be resting at.
  */
 const CLEAR_OUT = 0.42;
+/**
+ * The largest gap the set-down will act on, metres.
+ *
+ * `deckUnder` answers with the nearest ZONE's declared deck, which is exact at
+ * the places the aircraft is ever low and meaningless everywhere else. A mission
+ * with a rooftop made that visible: carrying the package out to Rooftop B, the
+ * nearest zone flips to the roof somewhere over the city and the "floor" under
+ * the parcel jumps from the road to twenty-five metres. The guard then dutifully
+ * lifted the box to a deck it was nowhere near — the parcel left the aircraft,
+ * hung in the air, and snapped back on once the drone had climbed past the roof.
+ *
+ * A real set-down is small. The load hangs 0.17 m under the airframe and the
+ * body rests centimetres off the deck, so the most that is ever squeezed out is
+ * about a quarter of a metre. Anything bigger than this is not a landing — it is
+ * a deck reading that belongs somewhere else, and the right answer is to ignore
+ * it and keep carrying.
+ */
+const MAX_SQUEEZE = 0.6;
 /** No rotation, for slerping a set-down parcel flat. Built once. */
 const UPRIGHT = new THREE.Quaternion();
 
+/**
+ * Where a package that is NOT the live one stands on the hub pad, in metres
+ * from the mark.
+ *
+ * The live one always sits dead centre, because the mark is what the pilot
+ * descends onto — a package the pilot has to aim at while it stands off to one
+ * side would be a mark that lies.
+ *
+ * The others stand INSIDE the ring with it. They were pushed outside it once, on
+ * the theory that a ring with three boxes in it reads as three things to
+ * collect. What it actually read as was two parcels dumped on the road beside
+ * the pad, with the mark apparently missing most of its cargo. The hub is a
+ * depot and the ring is its footprint, so everything waiting to go stands in it.
+ * Every offset here is inside the 1 m pickup circle with the half-box to spare.
+ */
 const STANDBY: readonly (readonly [number, number])[] = [
-  [-1.15, 0.6],
-  [1.15, 0.6],
-  [0, 1.28],
+  [-0.58, 0.44],
+  [0.58, 0.44],
+  [0, 0.66],
 ];
 
 function PackageSet({
@@ -608,7 +629,8 @@ function OnePackage({
        */
       const floor = deckUnder(mission, at.x, at.z) + belly;
       const squeeze = floor - at.y;
-      if (squeeze > 0) {
+      const setDown = squeeze > 0 && squeeze < MAX_SQUEEZE;
+      if (setDown) {
         const out = Math.min(1, squeeze / SET_DOWN);
         at.y = floor;
         if (dronePose.present) {
@@ -627,7 +649,7 @@ function OnePackage({
       }
 
       g.scale.setScalar(1 + Math.sin(pull.current * Math.PI) * 0.22);
-      if (squeeze <= 0 && !(dronePose.present && pull.current >= 1)) {
+      if (!setDown && !(dronePose.present && pull.current >= 1)) {
         g.rotation.set(0, g.rotation.y * (1 - t), 0);
       }
     } else if (placed) {
