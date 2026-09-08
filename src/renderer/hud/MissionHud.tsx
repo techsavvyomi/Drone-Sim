@@ -121,11 +121,11 @@ function TargetPointerHud() {
         lastOff = t.offscreen;
         el.classList.toggle('off', t.offscreen);
       }
-      // The chevron turns only when clamped. On screen it stays upright and the
-      // pointer reads as a pin stuck in the target rather than as an arrow that
-      // happens to be sitting on it.
+      // Clamped, the chevron turns to point off the edge at where the mark is.
+      // On screen it points straight down, at the mark under it, so it reads as
+      // a pin dropped on the target rather than an arrow leading away from it.
       if (glyph.current) {
-        glyph.current.style.transform = `rotate(${t.offscreen ? t.angle : 0}deg)`;
+        glyph.current.style.transform = `rotate(${t.offscreen ? t.angle : 180}deg)`;
       }
 
       // The label is the expensive half — it touches the DOM's text — so it is

@@ -460,7 +460,22 @@ function deckUnder(mission: Mission, x: number, z: number): number {
   // asked the record would settle onto the street twenty-five metres below the
   // roof it was just placed on.
   for (const zone of allZonesOf(mission)) {
-    const d = (zone.at[0] - x) ** 2 + (zone.at[1] - z) ** 2;
+    const d = Math.hypot(zone.at[0] - x, zone.at[1] - z);
+    // ONLY A DECK THE AIRCRAFT IS ACTUALLY OVER.
+    //
+    // This used to answer with the nearest zone's deck from anywhere on the map,
+    // and a rooftop mark is 25 m up. So the "floor" under a drone crossing the
+    // city was a roof it was nowhere near, and every climb or descent through
+    // that height put the parcel inside the set-down: the box pinned itself to
+    // the deck plane, which is ABOVE the aircraft when the aircraft is under it,
+    // and snapped back the moment the drone passed through. That is the box
+    // jumping over the drone and re-attaching, and MAX_SQUEEZE could not stop it
+    // — it caps how far the parcel is lifted, not whether the lift makes sense.
+    //
+    // A set-down only means anything over the mark being set down on, so a deck
+    // out of reach horizontally is not a floor at all. Outside every zone the
+    // answer is the street, which is what is really under the drone there.
+    if (d > zone.radius + DECK_REACH) continue;
     if (d < bestD) {
       bestD = d;
       best = zoneGroundY(mission, zone);
@@ -468,6 +483,16 @@ function deckUnder(mission: Mission, x: number, z: number): number {
   }
   return best;
 }
+
+/**
+ * How far outside a zone's own radius its deck still counts as the floor,
+ * metres.
+ *
+ * It has to cover the parcel's slide clear of the airframe (`CLEAR_OUT`) plus
+ * the aircraft's own span, or a box set down at the edge of the mark would find
+ * the street under it halfway through the slide and drop the rest of the way.
+ */
+const DECK_REACH = 1.5;
 
 /** The point directly under the airframe the parcel hangs from. Taken from the
  *  drone's own transform, so it follows roll and pitch instead of floating flat
