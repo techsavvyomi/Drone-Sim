@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { useSimStore } from '../state/simStore';
 import { useFlightStore } from '../state/flightStore';
+import { targetMark } from './targetScreen';
 import { useMissionStore, activeZone, legOf, type MissionLeg } from '../state/missionStore';
 import { dronePose } from '../sim/drone/pose';
 import {
@@ -222,10 +223,22 @@ export function MissionDirector() {
     // above has already bumped it.
   }, [phase]);
 
+  // The in-picture pointer has nothing to point at once the flight is over, and
+  // the singleton it reads outlives this component. Cleared on the way out so a
+  // result card is not sitting behind a chevron aimed at the last drop.
+  useEffect(() => {
+    return () => {
+      targetMark.active = false;
+    };
+  }, []);
+
   useFrame((_, rawDt) => {
     const store = useMissionStore.getState();
     const mission = store.mission;
-    if (!mission || store.phase !== 'flying') return;
+    if (!mission || store.phase !== 'flying') {
+      targetMark.active = false;
+      return;
+    }
 
     // A frame lost to a shader compile or a window drag must not push a whole
     // hold through in one step — every timer below is fed from this.
@@ -713,9 +726,17 @@ export function MissionDirector() {
       // The map's heading is -yaw (see the compass), so the target's world
       // bearing plus yaw is where it sits across the pilot's own view.
       const bearing = wrapPi(Math.atan2(dx, -dz) + sim.yaw);
+      // The same point the arrow and the radar use, handed to the in-picture
+      // pointer. It is published here rather than recomputed there so all four
+      // instruments can never disagree about where the pilot is being sent.
+      targetMark.at.set(target[0], target[1], target[2]);
+      targetMark.active = true;
       store.setFlightData({
         distance: Math.hypot(dx, dy, dz),
         altitude: p.y - mission.groundY,
+        // `dy` was already here, spent on the 3-D distance and discarded. It is
+        // the only thing on the HUD that can say the target is on a ROOF.
+        climb: dy,
         bearing,
       });
       store.setElapsed(Math.round(clock.current * 10) / 10);

@@ -136,6 +136,17 @@ interface MissionState {
   /** Metres to the active marker, in 3-D. */
   distance: number;
   altitude: number;
+  /**
+   * How far the active marker sits ABOVE the drone, in metres. Negative is
+   * below.
+   *
+   * The Director already had this number — it is the `dy` the 3-D distance is
+   * built from — and threw it away. Everything the pilot was given about where
+   * to go was flat: a bearing arrow, a top-down radar, and an ALTITUDE cell
+   * reading the DRONE's own height. On a mission whose drop is on a roof
+   * twenty-five metres up, none of the three ever said so.
+   */
+  climb: number;
   /** Bearing to the active marker relative to the drone's nose, radians.
    *  0 is straight ahead, positive to the right. */
   bearing: number;
@@ -187,7 +198,12 @@ interface MissionState {
   /** Play a Mission Control line once. Returns false if it has already run. */
   playRadio: (key: string, text: string, seconds: number) => boolean;
   clearRadio: () => void;
-  setFlightData: (d: { distance: number; altitude: number; bearing: number }) => void;
+  setFlightData: (d: {
+    distance: number;
+    altitude: number;
+    bearing: number;
+    climb: number;
+  }) => void;
   setChecks: (checks: DeliveryChecks) => void;
   setGate: (gate: { left: number; total: number }) => void;
   setFire: (fire: { fireIntensity: number; suppressing: boolean }) => void;
@@ -215,6 +231,7 @@ function freshAttempt() {
     elapsed: 0,
     distance: 0,
     altitude: 0,
+    climb: 0,
     bearing: 0,
     checks: NO_CHECKS,
     gate: { left: 0, total: 0 },

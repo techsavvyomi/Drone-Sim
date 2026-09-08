@@ -12,6 +12,7 @@ import { setCommandScale } from '../input/controls';
 import { MissionHud } from '../hud/MissionHud';
 import { MissionDirector } from './MissionDirector';
 import { MissionMarkers } from './MissionMarkers';
+import { TargetPointer } from './TargetPointer';
 import { FireZone } from './FireZone';
 import { Spray } from './Spray';
 import { Payload } from './Payload';
@@ -109,6 +110,10 @@ export function MissionViewport({ mission }: { mission: Mission }) {
           {mission.fire && <Spray />}
           <Payload mission={mission} />
           <MissionDirector />
+          {/* Projects the Director's target into screen space every frame, for
+              the chevron the HUD draws over it. Inside the Canvas because that
+              is where the camera is. */}
+          <TargetPointer />
           <SceneReady onReady={onReady} />
         </Canvas>
       </SceneBoundary>

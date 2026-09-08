@@ -4700,6 +4700,92 @@ button {
   font-variant-numeric: tabular-nums;
 }
 
+/* How far UP the marker is. Only drawn when there is a real height difference,
+   and deliberately its own colour rather than the arrow's: the arrow answers
+   "which way do I turn", this answers "and it is not on this level" — the one
+   thing a bearing and a top-down radar can never say. */
+.ms-climb {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 800;
+  font-style: normal;
+  letter-spacing: 0.02em;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.ms-climb.up {
+  color: #7bf3b4;
+  background: rgba(55, 224, 138, 0.16);
+  box-shadow: inset 0 0 0 1px rgba(55, 224, 138, 0.3);
+}
+.ms-climb.down {
+  color: #ffd98a;
+  background: rgba(255, 207, 77, 0.16);
+  box-shadow: inset 0 0 0 1px rgba(255, 207, 77, 0.3);
+}
+
+/* The in-picture target pointer. Positioned by the projector inside the Canvas,
+   which writes an absolute pixel transform every frame — so it takes no layout
+   of its own beyond sitting at the canvas origin. It must never eat a click:
+   the whole overlay is decoration over a flight. */
+.ms-pointer {
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  will-change: transform;
+  z-index: 3;
+}
+.ms-pointer-glyph {
+  display: block;
+  width: 30px;
+  height: 30px;
+  line-height: 0;
+}
+.ms-pointer-glyph svg {
+  width: 100%;
+  height: 100%;
+  fill: #37e08a;
+  filter: drop-shadow(0 0 6px rgba(55, 224, 138, 0.75)) drop-shadow(0 1px 2px rgba(0, 0, 0, 0.6));
+}
+.ms-pointer-dist {
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: #eafff4;
+  background: rgba(6, 20, 14, 0.62);
+  box-shadow: inset 0 0 0 1px rgba(55, 224, 138, 0.34);
+  white-space: nowrap;
+}
+/* Clamped to the edge: the target is out of the picture, and the pointer says
+   so in the same amber the strip's arrow uses when the mark is behind you. */
+.ms-pointer.off .ms-pointer-glyph svg {
+  fill: var(--warn);
+  filter: drop-shadow(0 0 6px rgba(255, 176, 60, 0.7)) drop-shadow(0 1px 2px rgba(0, 0, 0, 0.6));
+}
+.ms-pointer.off .ms-pointer-dist {
+  color: #fff3dc;
+  background: rgba(28, 18, 4, 0.66);
+  box-shadow: inset 0 0 0 1px rgba(255, 176, 60, 0.38);
+}
+/* A pointer clamped to the TOP edge is the rooftop case, and its label would sit
+   above the arrow and off the screen. Put the label under it instead. */
+.ms-pointer.off {
+  flex-direction: column-reverse;
+}
+
 /* ---- Transients ---------------------------------------------------------- */
 
 .ms-banner {

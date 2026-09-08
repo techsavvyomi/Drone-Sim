@@ -9,6 +9,7 @@ import { useModalKeyLock } from '../input/useModalKeyLock';
 import { MissionMap } from './MissionMap';
 import { MissionHero, StepArt, missionImage } from './MissionArt';
 import { getEnvironment } from '../plugins/registry';
+import { targetScreen } from '../missions/targetScreen';
 
 // ----------------------------------------------------------------------------
 // The mission overlay.
@@ -25,6 +26,11 @@ import { getEnvironment } from '../plugins/registry';
 /** Beyond this the target is behind the pilot and the arrow says so. */
 const OFF_SCREEN_DEG = 42;
 
+/** Height difference, in metres, under which the marker counts as being on the
+ *  pilot's own level and the climb chip stays off. Roughly a storey: less than
+ *  that is trim, not a destination on another deck. */
+const CLIMB_DEADBAND = 3;
+
 function clock(sec: number): string {
   const s = Math.max(0, Math.floor(sec));
   return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
@@ -38,15 +44,111 @@ function clock(sec: number): string {
  * where the drone is looking. What never changes is which way the pilot has to
  * turn, so that is what it draws.
  */
-function TargetArrow({ bearing, distance }: { bearing: number; distance: number }) {
+function TargetArrow({
+  bearing,
+  distance,
+  climb,
+}: {
+  bearing: number;
+  distance: number;
+  climb: number;
+}) {
   const deg = bearing * RAD2DEG;
   const off = Math.abs(deg) > OFF_SCREEN_DEG;
+  // Below CLIMB_DEADBAND the marker is on the pilot's own level and saying so
+  // every frame would just be a number twitching in the corner. Above it, the
+  // target is somewhere the flat arrow cannot point — a roof, or a street the
+  // drone is flying over — and that is the whole reason this chip exists.
+  const vertical = Math.abs(climb) >= CLIMB_DEADBAND;
   return (
     <div className={`ms-arrow ${off ? 'off' : ''}`} title="Direction to the active marker">
       <svg viewBox="0 0 24 24" style={{ transform: `rotate(${deg}deg)` }}>
         <path d="M12 2 L19 20 L12 15.6 L5 20 Z" />
       </svg>
       <b>{distance < 1000 ? `${Math.round(distance)} m` : `${(distance / 1000).toFixed(1)} km`}</b>
+      {vertical && (
+        <i
+          className={`ms-climb ${climb > 0 ? 'up' : 'down'}`}
+          title={
+            climb > 0
+              ? 'The marker is ABOVE you — climb this far'
+              : 'The marker is BELOW you — descend this far'
+          }
+        >
+          {climb > 0 ? '▲' : '▼'} {Math.round(Math.abs(climb))} m
+        </i>
+      )}
+    </div>
+  );
+}
+
+/**
+ * The pointer that rides ON the target, in the picture.
+ *
+ * The strip answers "which way" and "how far", and the climb chip answers "not
+ * on this level". None of them can answer WHERE — a rooftop fifty metres down
+ * the street is a place in the view, and a pilot looking at the city was being
+ * handed three numbers in a corner instead of a mark on the building.
+ *
+ * Driven off `targetScreen`, a module singleton the Canvas writes every frame,
+ * and updated here on its own rAF rather than through state: this moves with the
+ * camera, and a store write per frame would re-render the whole overlay at frame
+ * rate for a HUD that is otherwise published at 10 Hz.
+ */
+function TargetPointerHud() {
+  const host = useRef<HTMLDivElement>(null);
+  const label = useRef<HTMLElement>(null);
+  const glyph = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    let raf = 0;
+    let lastText = '';
+    let lastOff: boolean | null = null;
+    const tick = () => {
+      raf = requestAnimationFrame(tick);
+      const el = host.current;
+      if (!el) return;
+      const t = targetScreen;
+      if (!t.visible) {
+        el.style.opacity = '0';
+        return;
+      }
+      el.style.opacity = '1';
+      el.style.transform = `translate3d(${t.x}px, ${t.y}px, 0) translate(-50%, -50%)`;
+
+      if (t.offscreen !== lastOff) {
+        lastOff = t.offscreen;
+        el.classList.toggle('off', t.offscreen);
+      }
+      // The chevron turns only when clamped. On screen it stays upright and the
+      // pointer reads as a pin stuck in the target rather than as an arrow that
+      // happens to be sitting on it.
+      if (glyph.current) {
+        glyph.current.style.transform = `rotate(${t.offscreen ? t.angle : 0}deg)`;
+      }
+
+      // The label is the expensive half — it touches the DOM's text — so it is
+      // only written when it actually changes, which at metre resolution is a
+      // few times a second rather than sixty.
+      const up = t.climb >= CLIMB_DEADBAND ? ' ▲' : t.climb <= -CLIMB_DEADBAND ? ' ▼' : '';
+      const text = `${Math.round(t.distance)} m${up}`;
+      if (text !== lastText && label.current) {
+        lastText = text;
+        label.current.textContent = text;
+      }
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+
+  return (
+    <div className="ms-pointer" ref={host} aria-hidden="true">
+      <i className="ms-pointer-glyph" ref={glyph}>
+        <svg viewBox="0 0 24 24">
+          <path d="M12 2 L19 20 L12 15.6 L5 20 Z" />
+        </svg>
+      </i>
+      <b className="ms-pointer-dist" ref={label} />
     </div>
   );
 }
@@ -140,6 +242,7 @@ export function MissionHud() {
   const maxPoints = useMissionStore((s) => s.maxPoints);
   const distance = useMissionStore((s) => s.distance);
   const altitude = useMissionStore((s) => s.altitude);
+  const climb = useMissionStore((s) => s.climb);
   const bearing = useMissionStore((s) => s.bearing);
   const elapsed = useMissionStore((s) => s.elapsed);
   const banner = useMissionStore((s) => s.banner);
@@ -399,6 +502,8 @@ export function MissionHud() {
         </div>
       )}
 
+      {flying && <TargetPointerHud />}
+
       {flying && leg === 'toDrop' && <DeliveryChecklist fire={fire} />}
 
       {/* Mission Control. Along the bottom, above the strip, so it never covers
@@ -473,7 +578,7 @@ export function MissionHud() {
           </div>
           <div className="ms-cell">
             <span>DISTANCE</span>
-            <TargetArrow bearing={bearing} distance={distance} />
+            <TargetArrow bearing={bearing} distance={distance} climb={climb} />
           </div>
           <div className="ms-cell">
             <span>ALTITUDE</span>
