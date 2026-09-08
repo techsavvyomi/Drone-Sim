@@ -138,6 +138,11 @@ export function FlightScene({ envIdOverride }: { envIdOverride?: string } = {}) 
           Rapier's `contactSkin` kills the sink outright but rests the drone
           visibly floating above the ground, so it is deliberately not used. */}
       <Physics
+        /* Collider wireframes, off unless asked for: run
+           `localStorage.debugColliders = 1` in the devtools console and reload.
+           It is the only way to tell an invisible collider apart from a visible
+           obstacle the pilot did not notice. */
+        debug={typeof localStorage !== 'undefined' && localStorage.debugColliders === '1'}
         timeStep={SIM_DT}
         interpolate
         paused={paused}

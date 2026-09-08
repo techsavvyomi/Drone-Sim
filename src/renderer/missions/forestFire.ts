@@ -160,6 +160,7 @@ export const forestFire: Mission = {
     { label: 'Collect', note: 'Descend onto the tank on the road', art: 'collect' },
     { label: 'Cross', note: 'Weave out through the trees', art: 'forest' },
     { label: 'Suppress', note: 'Hold your position until the fire is out', art: 'suppress' },
+    { label: 'Extinguish', note: 'The fire goes out beneath you', art: 'suppress' },
   ],
   objectives: [
     'Collect the suppression tank at the emergency station.',

@@ -284,12 +284,15 @@ describe('what the briefing card needs from a mission', () => {
   for (const m of MISSIONS) {
     it(`TC-241 ${m.id} carries a story, its beats and an objective for each`, () => {
       expect(m.story.length).toBeGreaterThan(60);
-      // Four beats on a mission that flies home, three on one that ends at the
-      // drop: the card draws one panel per beat, so the count follows the flight
-      // rather than being fixed at four and leaving Forest Fire a "Come home"
-      // panel for a leg it does not have.
-      expect(m.flow).toHaveLength(m.endsAtDrop ? 3 : 4);
-      expect(m.objectives).toHaveLength(m.flow.length);
+      // Four beats on every mission. It used to be three on one that ends at
+      // the drop, so that Forest Fire was not given a "Come home" panel for a
+      // leg it does not have — but the beats are what the card DRAWS, not the
+      // legs it flies, and a suppression run has a fourth picture worth showing
+      // (the fire going out) even though nothing flies home after it.
+      expect(m.flow).toHaveLength(4);
+      // The objectives are their own list and no longer march with the beats:
+      // a mission may draw a beat it does not set an objective for.
+      expect(m.objectives.length).toBeGreaterThanOrEqual(3);
       expect(m.mapNote).not.toBe('');
       // Every beat names a scene the card knows how to draw. A key it does not
       // know renders an empty box.
