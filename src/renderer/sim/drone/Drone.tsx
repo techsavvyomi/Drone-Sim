@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef } from 'react';
-import { useFrame } from '@react-three/fiber';
+import { useFrame, useThree } from '@react-three/fiber';
 import {
   CuboidCollider,
   RigidBody,
@@ -254,6 +254,8 @@ export function Drone({ spec, spawn, bounds, outdoor = false, groundY }: DronePr
   const simTime = useRef(0);
   const flightTime = useRef(0);
   const fpsAccum = useRef({ frames: 0, elapsed: 0 });
+  /** Last full frame's renderer counters — see the read in the frame loop. */
+  const perfInfo = useRef({ calls: 0, tris: 0 }).current;
   const prevMode = useRef<FlightMode | null>(null);
   // Throttle position when the running auto sequence took over, so a deliberate
   // stick move can be told apart from where the stick simply happens to rest.
@@ -1190,6 +1192,23 @@ export function Drone({ spec, spawn, bounds, outdoor = false, groundY }: DronePr
       }
     }
 
+    // WHAT THE RENDERER DID, and why it is not simply read off `gl.info`.
+    //
+    // three.js resets those counters on every `render()` call, and with the post
+    // chain mounted the LAST render of a frame is the composer's final
+    // fullscreen pass — one draw call and two triangles. Read straight, the
+    // status bar reported `calls: 1 · tris: 1` on every scene in the app, which
+    // is the composer's output quad and nothing about the city at all.
+    //
+    // So the reset is taken over: `autoReset` is off (see the effect below), the
+    // counters accumulate across every pass of a frame, and they are read HERE —
+    // at the top of the next frame, before anything has drawn — and then cleared
+    // by hand. What is reported is therefore the whole of the previous frame.
+    const info = _state.gl.info;
+    perfInfo.calls = info.render.calls;
+    perfInfo.tris = info.render.triangles;
+    info.reset();
+
     const f = fpsAccum.current;
     f.frames += 1;
     f.elapsed += delta;
@@ -1200,14 +1219,25 @@ export function Drone({ spec, spawn, bounds, outdoor = false, groundY }: DronePr
       // the store is a React render, and the status bar does not need sixty of
       // those a second to answer what it is being asked.
       useSimStore.getState().setPerf({
-        calls: _state.gl.info.render.calls,
-        tris: _state.gl.info.render.triangles,
+        calls: perfInfo.calls,
+        tris: perfInfo.tris,
         dpr: Math.round(_state.gl.getPixelRatio() * 100) / 100,
       });
       f.frames = 0;
       f.elapsed = 0;
     }
   });
+
+  // three.js clears `gl.info` on every render() call, which with the post chain
+  // means the numbers left standing belong to the composer's output quad. The
+  // frame loop resets them itself instead — see the read there.
+  const gl = useThree((s) => s.gl);
+  useEffect(() => {
+    gl.info.autoReset = false;
+    return () => {
+      gl.info.autoReset = true;
+    };
+  }, [gl]);
 
   useEffect(() => resetStick, []);
 
