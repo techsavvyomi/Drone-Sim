@@ -124,6 +124,26 @@ export function Payload({ mission }: { mission: Mission }) {
     // which puts `payload` back to 'waiting' — puts the box back on its mark
     // with no teardown of its own to get wrong.
     const carrying = payload === 'attached';
+    // A SPENT TANK STAYS ON THE AIRCRAFT.
+    //
+    // It is bolted to the airframe, not slung on a hook: a fire crew comes back
+    // with an empty tank, they do not drop it in the woods.
+    //
+    // What made it fall was that nothing told the pilot the job was finished, so
+    // an empty tank hanging under them looked exactly like a full one. That is a
+    // READOUT problem and it is now answered twice over: the strip's PAYLOAD
+    // cell reads 'Empty' the moment the fire is out, and `spent` drains the tank
+    // to grey under the aircraft, where the pilot is already looking. Neither
+    // needed the tank on the ground.
+    //
+    // And the flight it was protecting does not exist: the suppression mission
+    // sets `endsAtDrop`, so there IS no leg home to carry an empty tank down —
+    // the attempt is scored over the fire. What the drop actually bought was a
+    // tank falling out of the aircraft at the moment of the mission's climax.
+    //
+    // A delivery is the opposite and is unchanged: a parcel is dropped off
+    // BECAUSE being put down at the mark is the whole job.
+    const held = carrying || (keepsPayload && payload === 'delivered');
     const wrecked = phase === 'failed';
 
     if (payload === 'waiting' && motion.current !== 'waiting') {
@@ -131,16 +151,11 @@ export function Payload({ mission }: { mission: Mission }) {
       at.current.copy(rest);
       fall.current = 0;
       pull.current = 0;
-    } else if (
-      carrying &&
-      !wrecked &&
-      motion.current !== 'attaching' &&
-      motion.current !== 'carried'
-    ) {
+    } else if (held && !wrecked && motion.current !== 'attaching' && motion.current !== 'carried') {
       motion.current = 'attaching';
       pull.current = 0;
       from.current.copy(at.current);
-    } else if (carrying && wrecked && motion.current !== 'falling' && motion.current !== 'down') {
+    } else if (held && wrecked && motion.current !== 'falling' && motion.current !== 'down') {
       // The aircraft is wrecked, so the package it was holding comes down with
       // it. This is the brief's "payload lost" made visible: there is no state
       // for it, there is a box on the street.
@@ -148,16 +163,13 @@ export function Payload({ mission }: { mission: Mission }) {
       fall.current = 0;
     } else if (
       payload === 'delivered' &&
+      !keepsPayload &&
       motion.current !== 'falling' &&
       motion.current !== 'down'
     ) {
-      // Delivered means PUT DOWN, on both missions. The tank used to stay slung
-      // once the fire was out, on the reasoning that a tank is emptied rather
-      // than dropped — but the pilot then flew home with an empty tank still
-      // hanging under them, and nothing on the aircraft ever said the job was
-      // finished. It comes off over the fire like the package comes off on the
-      // mark: it falls, it lands, and it is drawn `spent` from that moment, so
-      // what is left on the ground is a used tank at the place it was used.
+      // Delivered means PUT DOWN — on a DELIVERY. The parcel comes off on the
+      // mark because being left there is the job. A suppression mission never
+      // reaches here: see `held` above.
       motion.current = 'falling';
       fall.current = 0;
     }
