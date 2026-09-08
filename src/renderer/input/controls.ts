@@ -164,15 +164,27 @@ export function isThrottleDown(): boolean {
 // How fast throttle ramps while W/S held (full range per ~1.6s), and how snappy
 // the self-centering sticks are.
 // Slower ramp = finer resolution around the hover point (~50% stick).
-const STICK_LAMBDA = 14;
+// 22 gives a ~45 ms time constant: full deflection inside a tenth of a second,
+// which is a stick being moved rather than a value being animated. At 14 the
+// same movement took 165 ms to reach 90%, and that delay — sitting in FRONT of
+// the flight controller, so nothing downstream could recover it — was what read
+// as the aircraft ignoring the keys. The ease is kept, not removed: stepping the
+// axis instantly makes the rate PID chase a discontinuity and the drone snaps.
+const STICK_LAMBDA = 22;
 /** Spring-return rate for the throttle in the spring-centred modes (~200 ms). */
 const THROTTLE_CENTER_LAMBDA = 15;
 /**
  * Expo applied to the keyboard attitude sticks: gentle around centre for fine
  * corrections (less twitchy), full authority at the ends (not sluggish). 0 =
  * linear, 1 = fully cubic.
+ *
+ * 0.6 compounded with the ease rather than complementing it. A key is a switch,
+ * so the stick spends its whole travel passing THROUGH the soft centre on its
+ * way out, where the gain was 0.4x — the aircraft did nothing for the first part
+ * of every input. 0.35 keeps the fine centre a keyboard needs without stalling
+ * the start of the movement.
  */
-const KEYBOARD_EXPO = 0.6;
+const KEYBOARD_EXPO = 0.35;
 
 function expo(x: number, e: number): number {
   return x * (e * x * x + (1 - e));
@@ -255,8 +267,11 @@ export function updateStick(dt: number): void {
 
   throttleCommanded = up || down;
 
-  const throttleRateUp = 0.6 * throttleScale;
-  const throttleRateDown = 0.95 * throttleScale;
+  // Full travel in ~1.2 s up / 0.9 s down. This is how fast the pilot can ASK,
+  // not how fast the aircraft climbs — the climb and descent rates live in the
+  // flight controller and are untouched here.
+  const throttleRateUp = 0.85 * throttleScale;
+  const throttleRateDown = 1.15 * throttleScale;
 
   const flight = useFlightStore.getState();
   if (ALT_MANAGED.includes(flight.mode)) {
