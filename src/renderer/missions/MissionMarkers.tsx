@@ -99,16 +99,28 @@ function RooftopPad({ zone, deck }: { zone: MissionZone; deck: number }) {
     <group position={[zone.at[0], base, zone.at[1]]}>
       {/* The plinth, tapered a little so it reads as built rather than as a
           cylinder someone left on a roof. */}
-      <mesh position={[0, h / 2, 0]} castShadow receiveShadow>
+      <mesh position={[0, h / 2, 0]} castShadow>
         <cylinderGeometry args={[r * 0.9, r * 0.97, h, 8]} />
-        <meshStandardMaterial color="#3d4450" roughness={0.9} metalness={0} />
+        <meshStandardMaterial
+          color={PAD_STONE}
+          emissive={PAD_LIFT}
+          emissiveIntensity={0.22}
+          roughness={0.88}
+          metalness={0}
+        />
       </mesh>
       {/* The deck itself, standing proud of the plinth: the overhang is what
           gives the whole thing an edge against the roof behind it, which a flat
-          grey drum on grey concrete would not have. */}
-      <mesh position={[0, h - DECK_T / 2, 0]} castShadow receiveShadow>
+          drum on grey concrete would not have. */}
+      <mesh position={[0, h - DECK_T / 2, 0]} castShadow>
         <cylinderGeometry args={[r, r, DECK_T, 8]} />
-        <meshStandardMaterial color="#6b7686" roughness={0.75} metalness={0.05} />
+        <meshStandardMaterial
+          color={PAD_TOP}
+          emissive={PAD_LIFT}
+          emissiveIntensity={0.34}
+          roughness={0.8}
+          metalness={0}
+        />
       </mesh>
     </group>
   );
@@ -116,6 +128,26 @@ function RooftopPad({ zone, deck }: { zone: MissionZone; deck: number }) {
 
 /** Thickness of the platform's top slab, metres. */
 const DECK_T = 0.16;
+/**
+ * The platform's stone, and why it is not simply "concrete grey".
+ *
+ * A mission is flown at the blue half hour and this thing stands on a roof
+ * twenty-five metres up, so nothing but sky is bouncing light back onto it. The
+ * first pass was a cool slate that took its colour from exactly that — it came
+ * out as a dark shape the same value as the roof it was standing on, which is
+ * the one thing the platform must never be: the pilot is looking for it from
+ * across the city.
+ *
+ * Warm stone reads against a blue evening the way cool grey cannot, the top
+ * course is lighter than the plinth so the deck has an edge of its own, and a
+ * little emissive keeps both off the floor of the exposure rather than
+ * brightening the scene. It also stops RECEIVING shadow: a landing platform that
+ * goes dark because the tower next door is between it and the sun is a landmark
+ * that disappears at exactly the hour this mission is flown.
+ */
+const PAD_STONE = '#a09883';
+const PAD_TOP = '#cdc4ad';
+const PAD_LIFT = '#4a4335';
 
 /**
  * One zone mark: a ring on the deck, a column of light standing in it, and — on
