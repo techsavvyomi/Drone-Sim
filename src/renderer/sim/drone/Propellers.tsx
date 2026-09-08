@@ -60,9 +60,14 @@ function BlurDiscs({ spec }: { spec: DroneSpec }) {
         m.color.set('#1c1c1c');
         m.depthTest = false;
       } else {
-        const v = live ? Math.min(1, Math.max(0, motors[i] - 0.08) * 2.2) : 0;
-        m.opacity = v * 0.55;
-        m.color.set('#dce8f7');
+        // The old (m - 0.08) * 2.2 saturated by a third throttle, so an
+        // airframe simply hovering drew four discs at full strength — and on a
+        // sizeScale'd model like the Guru those are 0.34 m across, which is the
+        // white wash. The ramp now spans the whole usable throttle band and
+        // tops out well short of opaque.
+        const v = live ? Math.min(1, Math.max(0, motors[i] - 0.15) * 1.1) : 0;
+        m.opacity = v * 0.3;
+        m.color.set('#b9c8db');
         m.depthTest = true;
       }
       m.visible = m.opacity > 0.02;
