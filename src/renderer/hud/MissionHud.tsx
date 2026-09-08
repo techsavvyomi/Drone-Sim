@@ -9,6 +9,7 @@ import { useModalKeyLock } from '../input/useModalKeyLock';
 import { MissionMap } from './MissionMap';
 import { MissionHero, StepArt, missionImage } from './MissionArt';
 import { getEnvironment } from '../plugins/registry';
+import { MISSIONS } from '../missions';
 import { targetScreen } from '../missions/targetScreen';
 
 // ----------------------------------------------------------------------------
@@ -255,6 +256,7 @@ export function MissionHud() {
   const deliveredCount = useMissionStore((s) => s.deliveredCount);
   const fireIntensity = useMissionStore((s) => s.fireIntensity);
   const beginFlight = useMissionStore((s) => s.beginFlight);
+  const start = useMissionStore((s) => s.start);
   const restart = useMissionStore((s) => s.restart);
   const exit = useMissionStore((s) => s.exit);
 
@@ -301,6 +303,19 @@ export function MissionHud() {
   const run = runContextOf(mission, runIndex);
   const remaining = Math.max(0, mission.timeLimitSec - elapsed);
   const lowOnTime = remaining <= 45;
+
+  /**
+   * The next mission on the list, if this was not the last one.
+   *
+   * Only ever offered from the COMPLETE card. `finish` has already recorded the
+   * result by the time this card is on screen, so the one behind it is unlocked
+   * — but a pilot who failed has unlocked nothing, and a "next" button on the
+   * failure card would be an invitation to skip the mission they just lost.
+   */
+  const nextMission = (() => {
+    const i = MISSIONS.findIndex((m) => m.id === mission.id);
+    return i >= 0 ? (MISSIONS[i + 1] ?? null) : null;
+  })();
 
   /** Put the drone back on the pad AND the mission back to the start. The
    *  Director notices the sim's reset token move and tears the attempt down;
@@ -639,7 +654,31 @@ export function MissionHud() {
               ))}
             </div>
             <div className="ms-actions">
-              <button className="ms-btn primary" onClick={flyAgain}>
+              {/* The next mission leads, and 'Fly it again' steps back to being
+                  the alternative.
+                  
+                  A pilot who has just been told the flight was clean is being
+                  asked what to do next, and the card's answer was "do that
+                  again" or "go back to a list and find it yourself". The list
+                  is still there for picking a different one; this is the one
+                  they are most likely to want. */}
+              {nextMission && (
+                <button
+                  className="ms-btn primary"
+                  onClick={() => {
+                    playClick();
+                    // `start` loads the mission and opens its BRIEFING rather
+                    // than launching it. The next mission is a different map, a
+                    // different job and a different rubric, and dropping the
+                    // pilot into it mid-air with none of that read would be a
+                    // worse welcome than the list they came from.
+                    start(nextMission);
+                  }}
+                >
+                  Next mission ›
+                </button>
+              )}
+              <button className={`ms-btn ${nextMission ? '' : 'primary'}`} onClick={flyAgain}>
                 ↻ Fly it again
               </button>
               <button

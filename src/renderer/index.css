@@ -5505,6 +5505,10 @@ button {
 .ms-actions {
   display: flex;
   justify-content: center;
+  /* Three buttons since the result card gained "Next mission", and the card is
+     sized to the briefing rather than to this row — wrap rather than push a
+     button off the edge on a narrow window. */
+  flex-wrap: wrap;
   gap: 10px;
 }
 .ms-btn {

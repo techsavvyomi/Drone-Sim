@@ -39,7 +39,13 @@ export function MissionScreen() {
   const start = useMissionStore((s) => s.start);
   const progress = useSettingsStore((s) => s.settings.missions.missions);
 
-  if (mission) return <MissionViewport mission={mission} />;
+  // Keyed on the mission, so moving from one to the next is a genuine remount.
+  //
+  // Until the result card grew a "Next mission" button this could only ever go
+  // null -> mission, which mounts fresh anyway. Mission -> mission does not:
+  // React would reuse the tree, and the Director's setup, the scene's
+  // environment and the aircraft's spawn all run mount-only.
+  if (mission) return <MissionViewport key={mission.id} mission={mission} />;
 
   const flown = MISSIONS.filter((m) => progress[m.id]?.completed).length;
   const stars = MISSIONS.reduce((sum, m) => sum + (progress[m.id]?.stars ?? 0), 0);
