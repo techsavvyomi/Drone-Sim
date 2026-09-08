@@ -41,6 +41,16 @@ const ZONE_COLOR: Record<MissionZoneKind, string> = {
   drop: '#ffcf4d',
   base: '#37e08a',
 };
+/**
+ * How brightly a mark that is NOT the live one but still has business with the
+ * pilot burns: the hub, while packages are still standing on it.
+ *
+ * Low, and it never pulses. The rule that only one mark is live is what makes a
+ * mission readable, and this does not break it — a third of the light and no
+ * beat is a place remembered, not a place being sent to.
+ */
+const STANDBY = 0.34;
+
 /** What the drop mark turns as the release conditions come good — the single
  *  clearest answer to "am I positioned correctly" the mission can give, and it
  *  is in the world rather than on the HUD, where the pilot is already looking. */
@@ -190,6 +200,7 @@ function ZoneMark({
   zone,
   groundY,
   live,
+  standby = false,
   ready,
   column: withColumn = true,
   xray = false,
@@ -197,6 +208,9 @@ function ZoneMark({
   zone: MissionZone;
   groundY: number;
   live: boolean;
+  /** Not the mark being flown to, but still worth seeing: kept dimly alight,
+   *  unpulsed. */
+  standby?: boolean;
   /** 0..1 of the release conditions met — drop zone only. Colours the mark. */
   ready?: number;
   /** Draw the column of light. Off over fire where smoke and flame provide natural landmark. */
@@ -225,8 +239,15 @@ function ZoneMark({
 
     const near = flat <= REVEAL;
     const step = Math.min(dt, 0.1) / FADE;
+    // Where this mark's light is heading: full for the one being flown to, a
+    // third for one that is merely still standing there, out otherwise. The
+    // fade itself is unchanged, so a mark dropping from live to standby eases
+    // down at the same rate the drop mark comes up.
+    const target = near ? (live ? 1 : standby ? STANDBY : 0) : 0;
     const t = (lit.current =
-      live && near ? Math.min(1, lit.current + step) : Math.max(0, lit.current - step));
+      lit.current < target
+        ? Math.min(target, lit.current + step)
+        : Math.max(target, lit.current - step));
 
     if (group.current) {
       group.current.visible = t > 0.002;
@@ -333,6 +354,11 @@ export function MissionMarkers({ mission }: { mission: Mission }) {
   // it is telling them a delivery is about to happen that cannot: they hold a
   // perfect hover over a locked door and nothing fires. It stays in its own
   // colour until the gate is actually open.
+  // Packages still standing on the hub pad: everything after the one being
+  // flown. Zero on a single-drop mission, which is what keeps its pickup mark
+  // going dark the moment the package is aboard.
+  const waitingAtHub = mission.deliveries ? mission.deliveries.length - runIndex - 1 : 0;
+
   const locked = gate.left > 0;
   const ready = locked
     ? 0
@@ -394,6 +420,13 @@ export function MissionMarkers({ mission }: { mission: Mission }) {
           zone={mission.zones[kind]}
           groundY={zoneGroundY(mission, mission.zones[kind])}
           live={flying && zoneKind === kind}
+          /* The hub goes on burning while packages are still on it.
+             It used to go out the moment the drone lifted the first one, which
+             left two boxes sitting on an unlit pad — the pilot is coming back
+             here twice, and the place they are coming back to was the one thing
+             on the map with no light on it. Only on a multi-delivery, only
+             while something is still waiting, and never on the pad itself. */
+          standby={kind === 'pickup' && flying && zoneKind !== 'pickup' && waitingAtHub > 0}
           xray={mission.seeThroughMarks === true}
         />
       ))}
