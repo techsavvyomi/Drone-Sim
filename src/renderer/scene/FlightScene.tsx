@@ -15,6 +15,7 @@ import { RotorWash } from './RotorWash';
 import { PropDebris } from './PropDebris';
 import { LocalEnvironment } from './LocalEnvironment';
 import { PostFX } from './PostFX';
+import { AdaptiveResolution } from './AdaptiveResolution';
 import { DroneAudio } from '../audio/DroneAudio';
 
 // The Fly view's 3D contents: sky + lighting for the selected time of day, the
@@ -171,6 +172,9 @@ export function FlightScene({ envIdOverride }: { envIdOverride?: string } = {}) 
       {cameraMode === 'orbit' && <OrbitCamera spec={spec} env={env} />}
 
       <PostFX />
+      {/* Last, and inside the Canvas: it watches the frames the whole tree above
+          it produces and walks the resolution down when they stop arriving. */}
+      <AdaptiveResolution />
     </>
   );
 }

@@ -24,7 +24,19 @@ export const QUALITY: Record<
   // costs far more perceived quality per frame gained than turning shadows off.
   low: { dpr: [1, 1], shadows: false, msaa: false },
   medium: { dpr: [1, 1], shadows: true, msaa: false },
-  high: { dpr: [1, 1.5], shadows: true, msaa: true },
+  // MSAA is deliberately OFF here, and it is not an oversight.
+  //
+  // High runs the post-processing chain, and `EffectComposer` is mounted with
+  // `multisampling={0}`: the scene is rendered into the composer's own target,
+  // and all the WebGL context's `antialias` can touch is the default framebuffer
+  // — which by then receives nothing but the composer's final fullscreen pass.
+  // So it anti-aliased nothing while still forcing a multisampled framebuffer to
+  // be allocated and resolved every frame. SMAA, inside the chain, is what has
+  // actually been smoothing High's edges all along.
+  //
+  // The dpr entry is a CEILING rather than a fixed scale — see
+  // `AdaptiveResolution`, which walks it down when the frames do not arrive.
+  high: { dpr: [1, 1.5], shadows: true, msaa: false },
 };
 
 export function qualityFor(preset: GraphicsPreset | undefined) {
