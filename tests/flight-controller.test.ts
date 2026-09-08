@@ -375,8 +375,13 @@ describe('crash thresholds against the airframes', () => {
     const rates = droneSrc.flatMap((s) =>
       [...s.matchAll(/maxClimbRate: ([\d.]+)/g)].map((m) => Number(m[1])),
     );
-    // The default in `flightController` when a plugin does not set one.
-    const fastest = Math.max(1.8, ...rates);
+    // The default in `flightController` when a plugin does not set one, and
+    // what the bottom of the stick is actually allowed to sink at — twice the
+    // climb rate under its own ceiling, so it is that ceiling the crash line
+    // has to clear.
+    const fcSrc = readFileSync('src/renderer/sim/control/flightController.ts', 'utf8');
+    const ceiling = Number(/Math\.min\(maxClimbRate \* 2, ([\d.]+)\)/.exec(fcSrc)?.[1]);
+    const fastest = Math.min(Math.max(1.8, ...rates) * 2, ceiling);
 
     expect(fastest).toBeGreaterThan(0);
     expect(constant('FLOOR_CRASH')).toBeGreaterThan(fastest);
@@ -394,13 +399,17 @@ describe('crash thresholds against the airframes', () => {
     expect(crashSrc).not.toContain('landingUnderPower');
   });
 
-  it('TC-238 caps a commanded descent at the airframe’s own rate', () => {
+  it('TC-238 caps a commanded descent below the floor’s crash line', () => {
     // Full stick asks for twice the rate on the way UP, and that is deliberate.
-    // Down is capped at the plain rate: the floor is at the bottom of a descent,
-    // and 2x put the Guru at 5.2 m/s from a stick the pilot thought was gentle.
+    // Down has its own cap, because the floor is at the bottom of a descent:
+    // twice the climb rate, held under a ceiling that stays clear of
+    // FLOOR_CRASH. It was the plain climb rate, which was safe and slow — a
+    // pilot holding the throttle down is asking to get down.
     const src = readFileSync('src/renderer/sim/control/flightController.ts', 'utf8');
-    expect(src).toContain(
-      'Math.max(stick * 2 * this.config.maxClimbRate, -this.config.maxClimbRate)',
-    );
+    expect(src).toContain('-maxDescentRate(this.config.maxClimbRate)');
+
+    const ceiling = Number(/Math\.min\(maxClimbRate \* 2, ([\d.]+)\)/.exec(src)?.[1]);
+    expect(ceiling).toBeGreaterThan(0);
+    expect(constant('FLOOR_CRASH')).toBeGreaterThan(ceiling);
   });
 });

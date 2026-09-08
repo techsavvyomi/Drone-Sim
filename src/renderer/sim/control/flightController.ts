@@ -161,6 +161,23 @@ const THRUST_CUTOFF = 1e-4;
  */
 const IDLE_COLLECTIVE = 0.05;
 
+/**
+ * The fastest the bottom of the stick may sink, in m/s.
+ *
+ * The descent was capped at the plain `maxClimbRate` — 2.6 m/s on the Guru —
+ * which is a safe rate and a slow one: a pilot holding the throttle down from
+ * height is asking to get down, and the aircraft can do better than that
+ * without being in any danger.
+ *
+ * The ceiling on "better" is the floor. `Drone.tsx` writes the airframe off at
+ * 4.2 m/s of arrival (FLOOR_CRASH), so the cap is twice the climb rate held
+ * under 3.6 — brisk on every airframe, and still enough margin that a descent
+ * flown all the way into the ground is a firm landing rather than a wreck.
+ */
+function maxDescentRate(maxClimbRate: number): number {
+  return Math.min(maxClimbRate * 2, 3.6);
+}
+
 export class FlightController {
   private rollRate: PidController;
   private pitchRate: PidController;
@@ -563,7 +580,10 @@ export class FlightController {
       // Coming down is not the same manoeuvre as going up — the floor is at the
       // bottom of it — and a descent nobody asked to be that fast arrived at the
       // deck fast enough to write the aircraft off.
-      climbSp = Math.max(stick * 2 * this.config.maxClimbRate, -this.config.maxClimbRate);
+      climbSp = Math.max(
+        stick * 2 * this.config.maxClimbRate,
+        -maxDescentRate(this.config.maxClimbRate),
+      );
       this.targetAltitude = alt; // follow the stick, resume holding on release
     } else {
       climbSp = clamp(
