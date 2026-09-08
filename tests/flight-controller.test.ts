@@ -109,30 +109,70 @@ describe('the ESC idle', () => {
   });
 });
 
+describe('the bottom of the throttle in Altitude Hold', () => {
+  const collective = (out: { motorThrusts: number[] }) =>
+    out.motorThrusts.reduce((s, t) => s + t, 0);
+
+  it('TC-401 is a powered descent, not a motor cut', () => {
+    // It used to return zero thrust, so a pilot asking to come down from height
+    // got a free fall and arrived past the crash threshold.
+    const fc = new FlightController(spec);
+    const out = fc.update(
+      sticks({ throttle: 0 }),
+      'altitude-hold',
+      state({ position: [0, 30, 0], velocityWorld: [0, -2.6, 0] }),
+      1 / 60,
+    );
+    expect(collective(out)).toBeGreaterThan(0);
+  });
+
+  it('TC-401 pushes back once the sink passes the airframe rate', () => {
+    // Already falling faster than the mode allows: the controller must be
+    // making MORE than hover thrust to arrest it, which is what keeps the
+    // descent under FLOOR_CRASH however long the drop is.
+    const fc = new FlightController(spec);
+    const hover = spec.mass * 9.81;
+    const out = fc.update(
+      sticks({ throttle: 0 }),
+      'altitude-hold',
+      state({ position: [0, 30, 0], velocityWorld: [0, -6, 0] }),
+      1 / 60,
+    );
+    expect(collective(out)).toBeGreaterThan(hover);
+  });
+
+  it('TC-401 still stops the motors once the drone is down', () => {
+    const fc = new FlightController(spec);
+    const out = fc.update(
+      sticks({ throttle: 0 }),
+      'altitude-hold',
+      state({ position: [0, 0.05, 0], onGround: true, contactState: 'SUPPORTED' }),
+      1 / 60,
+    );
+    expect(collective(out)).toBe(0);
+  });
+});
+
 describe('re-arming after the motors were cut in the air', () => {
   // `targetAltitude` is the one piece of controller state that outlives a disarm.
   // `Drone.tsx` calls `captureAltitude()` on the arm transition for exactly this
   // reason; these lock the two halves of that contract.
 
-  /** Hold 3 m for a second, then chop the throttle and descend to 1.2 m. */
+  /**
+   * Hold 3 m for a second, then stop calling the controller — the pilot has
+   * disarmed in the air and the drone drops the rest of the way to 1.2 m with
+   * nothing running.
+   *
+   * The descent used to be flown here with the throttle chopped, back when the
+   * bottom of the stick cut the motors and left `targetAltitude` untouched.
+   * That is no longer a way to strand the target: a throttle held down is a
+   * commanded descent now, and a commanded descent follows the aircraft down.
+   * A disarm is, which is the case `captureAltitude` was written for.
+   */
   function cutInTheAir(fc: FlightController) {
     for (let i = 0; i < 60; i++) {
       fc.update(sticks({ throttle: 0.5 }), 'altitude-hold', state(), 1 / 60);
     }
-    let alt = 3;
-    for (let i = 0; i < 60; i++) {
-      fc.update(
-        sticks({ throttle: 0 }),
-        'altitude-hold',
-        state({ position: [0, alt, 0], velocityWorld: [0, -1.2, 0] }),
-        1 / 60,
-        undefined,
-        true,
-      );
-      alt -= 1.2 / 60;
-    }
-    // The pilot disarms here: the controller stops being called while the drone
-    // drops the rest of the way.
   }
 
   const collective = (out: { motorThrusts: number[] }) =>

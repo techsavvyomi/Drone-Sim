@@ -522,11 +522,25 @@ export class FlightController {
     const alt = state.position[1];
     const vz = state.velocityWorld[1];
 
-    // Throttle stick pulled all the way down (<= 0.08): user wants to cut throttle / land immediately.
-    if (input.throttle <= 0.08) {
-      return 0;
-    }
-
+    /*
+     * A THROTTLE HELD ALL THE WAY DOWN IS A DESCENT, NOT A MOTOR CUT.
+     *
+     * It used to return 0 — the motors stopped dead and the aircraft fell. From
+     * a hover that is barely noticed; from thirty metres up it is a free fall
+     * that arrives at the ground well past FLOOR_CRASH and writes the drone off,
+     * and the pilot did nothing worse than ask to come down.
+     *
+     * No flight controller does this. In an altitude mode the bottom of the
+     * stick is the fastest descent the mode will fly, and the motors keep
+     * running to hold that rate; cutting them is what a DISARM is for. Below,
+     * the stick already commands a rate capped at `maxClimbRate` — 2.6 m/s on
+     * the Guru, and every airframe's cap is under the crash threshold — so
+     * simply letting the bottom of the stick fall through to it is both the
+     * real behaviour and a descent that cannot destroy the aircraft.
+     *
+     * On the ground it still means stopped: the `onGround` test below sees a
+     * stick that is not commanding a climb and returns 0.
+     */
     // Throttle stick above/below centre commands climb rate; centred = hold.
     const stick = clamp(input.throttle, 0, 1) - 0.5;
     const stickActive = Math.abs(stick) > STICK_DEADBAND;
@@ -559,10 +573,20 @@ export class FlightController {
       );
     }
 
-    // When descending with stick pulled down (e.g. stick < -0.15), smoothly taper thrust toward 0
-    const descentTaper = stick < -0.15 ? clamp((input.throttle - 0.08) / 0.27, 0, 1) : 1;
+    /*
+     * The descent used to be TAPERED as well as rate-limited: the deeper the
+     * stick, the more of the computed thrust was thrown away, reaching zero at
+     * the bottom. That is the same motor cut by a gentler route — the rate
+     * limiter above would ask for lift and the taper would refuse to provide
+     * it — so the aircraft accelerated downward through the cap it was supposed
+     * to be held at.
+     *
+     * The rate limit is the whole control now. What comes out is whatever
+     * thrust holds the commanded rate, which at the bottom of the stick is a
+     * brisk, powered descent with the props still turning, and on the ground is
+     * nothing at all.
+     */
     const accel = clamp(this.config.climbP * (climbSp - vz), -9.8, 8);
-    const rawThrust = (state.mass * Math.max(0, GRAVITY + accel)) / tiltCos;
-    return rawThrust * descentTaper;
+    return (state.mass * Math.max(0, GRAVITY + accel)) / tiltCos;
   }
 }
