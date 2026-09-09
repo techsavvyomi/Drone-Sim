@@ -5524,6 +5524,15 @@ button {
     border-color 0.15s ease,
     background 0.15s ease;
 }
+/* No focus ring on the briefing's Launch button, and the footer carries the
+   cue instead.
+   
+   The button is focused on open so that Enter presses it (see MissionHud), and
+   the first pass drew a ring so the pilot could see why the key worked. On a
+   button that is already the one filled, accented and twice the width of its
+   neighbours, that ring said nothing the button was not already saying — it just
+   put a second outline around the loudest thing on the card. The footer's
+   "Enter to launch" is the cue; this is only decoration around it. */
 .ms-btn:hover {
   color: var(--text);
   border-color: var(--accent);

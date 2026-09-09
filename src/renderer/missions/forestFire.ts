@@ -230,15 +230,28 @@ export const forestFire: Mission = {
       kind: 'drop',
       at: [76, -56],
       label: 'Fire zone',
-      // Generous radius covering the fire area so getting near the fire starts
-      // suppression immediately.
+      // Generous radius covering the fire area, so finding the fire is not the
+      // hard part — HOLDING over it is. Being inside this circle is necessary
+      // and nowhere near sufficient: see the speed limits below.
       radius: 6.5,
       // Broad vertical band 5 to 16 m over the floor of the hollow (-7.5 m to
-      // +3.5 m in world Y): starts spraying as soon as the drone approaches
-      // above or inside the hollow without forcing extreme low descent.
+      // +3.5 m in world Y): the pilot may sit anywhere in eleven metres of it
+      // rather than being forced into an extreme low descent over flame.
       band: { min: 5, max: 16 },
-      maxGroundSpeed: 2.2,
-      maxVerticalSpeed: 1.8,
+      // WHAT COUNTS AS HELD STILL, and why it is not the 2.2 / 1.8 it was.
+      //
+      // Those were set to let suppression start "as soon as the drone
+      // approaches", and they do — 2.2 m/s across the ground is a brisk pass,
+      // not a hover, and 1.8 m/s of vertical is a fast descent. The tank came on
+      // while the aircraft was still moving, so the one thing the pilot is asked
+      // to do here, HOLD A POSITION, was not actually what turned the spray on.
+      //
+      // These are the delivery drop's numbers, which is the right comparison: a
+      // hover over a mark is a hover over a mark, and the fire's zone is already
+      // far more forgiving than the delivery's on the two axes that matter to a
+      // pilot arriving — a 6.5 m radius against 1.8, and an eleven metre band.
+      maxGroundSpeed: 0.9,
+      maxVerticalSpeed: 0.8,
       // Unused on a suppression mission: what the hold is measured against is
       // `fire.suppressSec`, which is ten times longer and survives an
       // interruption. Left at zero rather than duplicated, so there is only ever

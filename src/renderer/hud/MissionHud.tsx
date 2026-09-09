@@ -296,6 +296,28 @@ export function MissionHud() {
   // drone from behind the briefing the pilot had not read yet. One ref for all
   // three, which are never on screen together.
   const cardRef = useRef<HTMLDivElement>(null);
+  /**
+   * ENTER LAUNCHES THE MISSION, and it does it by being the focused button
+   * rather than by listening for a key.
+   *
+   * The briefing holds a modal key lock, and that lock swallows Enter on
+   * purpose: Enter is the ARM key, and it used to arm the drone from behind a
+   * briefing the pilot had not read yet. A second listener racing the lock would
+   * be re-opening exactly that hole.
+   *
+   * But the lock already draws the distinction this needs. It stops PROPAGATION
+   * for every key, always — nothing in the flight controls ever sees one — and
+   * only prevents the DEFAULT ACTION when focus is off the card. With focus on
+   * one of the card's own buttons, Enter pressing that button is left alone,
+   * because that is what the pilot is asking for. So the whole feature is: put
+   * the focus where the answer is.
+   */
+  const launchRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (phase !== 'briefing') return;
+    // After the commit, so the button the ref points at actually exists.
+    launchRef.current?.focus();
+  }, [phase]);
   // The landing leg counts as "not being flown" too. It is the two seconds
   // between the wheels settling and the result card appearing, the attempt is
   // already scored, and a throttle press in there put the drone back in the air
@@ -486,6 +508,7 @@ export function MissionHud() {
                 ‹ Back
               </button>
               <button
+                ref={launchRef}
                 className="ms-btn primary wide"
                 onClick={() => {
                   playClick();
@@ -503,7 +526,10 @@ export function MissionHud() {
                 ▶ Launch Mission
               </button>
               <span className="ms-brief-hint">
-                Press <kbd>Esc</kbd> to leave
+                {/* Enter is named first because it is now the one that starts
+                    the flight, and a key that does something has to be findable
+                    before the key that backs out of it. */}
+                <kbd>Enter</kbd> to launch · <kbd>Esc</kbd> to leave
               </span>
             </footer>
           </div>

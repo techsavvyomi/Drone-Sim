@@ -129,6 +129,16 @@ export function MissionDirector() {
   /** Whether the tank was spraying last frame, so INTERRUPTED is announced on
    *  the edge rather than every frame the drone is off the mark. */
   const spraying = useRef(false);
+  /**
+   * How long the aircraft has been continuously within the fire zone's limits.
+   *
+   * The speed test is an INSTANT: a drone oscillating around a hover dips under
+   * the limits for a frame at every turning point, so a pilot still fighting the
+   * aircraft got the tank switching on and off underneath them. What the mission
+   * asks for is a position HELD, and holding is something you can only measure
+   * over time.
+   */
+  const steadyFor = useRef(0);
   /** Counts down the SAFE LANDING card before the result screen. */
   const landDwell = useRef(0);
   /** `flightStore.touches` when the attempt began — it is a running total. */
@@ -175,6 +185,7 @@ export function MissionDirector() {
     landDwell.current = 0;
     suppressed.current = 0;
     spraying.current = false;
+    steadyFor.current = 0;
     publishAt.current = 0;
     queued.current = null;
     lastChecks.current = '';
@@ -452,6 +463,7 @@ export function MissionDirector() {
       if (z.flat > fire.breakRadius * LEAVE_HYSTERESIS) {
         lastChecks.current = '';
         spraying.current = false;
+        steadyFor.current = 0;
         store.setLeg('carrying');
         store.setChecks({ centred: false, inBand: false, steady: false, hold: 0 });
         // The tank has to be shut off HERE and not left to the publish below:
@@ -478,7 +490,14 @@ export function MissionDirector() {
         store.fail('payload');
         return;
       } else {
-        const on = z.ok;
+        // Steady for long enough to mean it, and the CHECKLIST agrees.
+        //
+        // The dwell is folded into the tick rather than sitting behind it: three
+        // green ticks over a bar that refuses to fill is the worst thing this
+        // HUD can show, so 'Steady' lights at the same instant the tank does.
+        steadyFor.current = z.steady ? steadyFor.current + dt : 0;
+        const settled = steadyFor.current >= STEADY_ARM_SEC;
+        const on = z.centred && z.inBand && settled;
         suppressed.current = on
           ? Math.min(fire.suppressSec, suppressed.current + dt)
           : suppressed.current;
@@ -505,10 +524,10 @@ export function MissionDirector() {
         if (done >= 0.5) say(mission, 'half');
 
         const hold = Math.round(Math.min(1, done) * 20) / 20;
-        const key = `${z.centred}${z.inBand}${z.steady}${hold}${on}`;
+        const key = `${z.centred}${z.inBand}${settled}${hold}${on}`;
         if (key !== lastChecks.current) {
           lastChecks.current = key;
-          store.setChecks({ centred: z.centred, inBand: z.inBand, steady: z.steady, hold });
+          store.setChecks({ centred: z.centred, inBand: z.inBand, steady: settled, hold });
           store.setFire({ fireIntensity: 1 - hold, suppressing: on && hold < 1 });
         }
 
@@ -519,6 +538,7 @@ export function MissionDirector() {
           store.takeZone('drop', 'FIRE CONTAINED');
           lastChecks.current = '';
           spraying.current = false;
+          steadyFor.current = 0;
           store.setChecks({ centred: false, inBand: false, steady: false, hold: 0 });
           store.setFire({ fireIntensity: 0, suppressing: false });
           playDrop();
@@ -828,6 +848,17 @@ function markerFor(mission: Mission, leg: MissionLeg, drop: MissionZone): [numbe
   const zone = kind === 'drop' ? drop : mission.zones[kind];
   return [zone.at[0], zoneGroundY(mission, zone) + zone.band.max * 0.5, zone.at[1]];
 }
+
+/**
+ * How long the aircraft has to stay inside the fire zone's speed limits before
+ * the tank opens, seconds.
+ *
+ * Long enough that a drone crossing its own hover cannot buy it at a turning
+ * point, short enough that a pilot who HAS settled is not left waiting and
+ * wondering what else the mission wants. It is deliberately far shorter than the
+ * ten second hold it gates: this is "you have stopped", not "you have held".
+ */
+const STEADY_ARM_SEC = 0.5;
 
 /** Wrap an angle to -pi..pi. */
 function wrapPi(a: number): number {

@@ -235,6 +235,32 @@ export function Payload({ mission }: { mission: Mission }) {
         {
           const floor = deckUnder(mission, at.current.x, at.current.z) + belly;
           const squeeze = floor - at.current.y;
+          // A BOLTED TANK IS NEVER SET DOWN, so it never takes the slide.
+          //
+          // The set-down exists because a parcel and the aircraft cannot share
+          // the last few centimetres over a mark, and the parcel is the one that
+          // may move: it settles on the deck and slides clear. A suppression tank
+          // may not. It is part of the aircraft, it is carried home spent, and
+          // there is no moment in the mission when putting it on the ground is
+          // the right answer.
+          //
+          // Left ungated, the guard fired the instant the drone rested on the
+          // road at the emergency station: `floor` there is the road plus the
+          // tank's own belly, which is ABOVE the airframe's origin, so the tank
+          // was teleported up and sat on top of the propellers.
+          //
+          // What it still gets is a lift out of the tarmac — a tank hanging
+          // under a landed drone has its nozzle through the road — but capped
+          // below the aircraft's own origin, so it can tuck into the belly and
+          // no further. Slung under, never over.
+          if (keepsPayload) {
+            if (squeeze > 0 && squeeze < MAX_SQUEEZE && dronePose.present) {
+              const ceiling = dronePose.position.y - drop * 0.35;
+              at.current.y = Math.max(at.current.y, Math.min(floor, ceiling));
+            }
+            if (dronePose.present) g.quaternion.copy(dronePose.quaternion);
+            break;
+          }
           const setDown = squeeze > 0 && squeeze < MAX_SQUEEZE;
           if (setDown) {
             const out = Math.min(1, squeeze / SET_DOWN);
