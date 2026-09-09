@@ -32,6 +32,22 @@ import { useSettingsStore } from '../state/settingsStore';
  */
 const FLOOR = 1;
 
+/**
+ * How many times the resolution may be changed before it is left alone.
+ *
+ * Resizing the drawing buffer costs a long frame — the whole point of the
+ * `flipflops` guard below — but that guard only stops the hunt once the monitor
+ * has changed DIRECTION three times. A machine whose frame rate sags steadily
+ * never changes direction: it just steps down, 1.5 -> 1.2 -> 1.15 -> 1.0, and
+ * every one of those steps is a hitch the pilot feels while flying. Measured
+ * over New York, four resizes in a single session.
+ *
+ * Four steps is already more than enough to find the right resolution — from
+ * the 1.5 ceiling to the floor is one step if it is needed badly, and the
+ * budget only exists to stop a slow drift from resizing forever.
+ */
+const MAX_CHANGES = 4;
+
 export function AdaptiveResolution() {
   const setDpr = useThree((s) => s.setDpr);
   const graphics = useSettingsStore((s) => s.settings.graphics);
@@ -40,14 +56,20 @@ export function AdaptiveResolution() {
    *  buffer — reallocating it is itself a dropped frame. */
   const applied = useRef(-1);
 
-  /** Set once the monitor gives up: the machine is below the floor and there is
+  /** Set once the monitor gives up, or once the change budget is spent: there is
    *  nothing left to give, so stop touching the drawing buffer at all. */
   const settled = useRef(false);
+
+  /** Resizes spent so far — see `MAX_CHANGES`. */
+  const changes = useRef(0);
 
   const apply = (next: number) => {
     if (Math.abs(next - applied.current) < 0.05) return;
     applied.current = next;
     setDpr(next);
+    // The first call is the initial settle onto a resolution rather than a
+    // correction, so it is not charged against the budget.
+    if (changes.current++ >= MAX_CHANGES) settled.current = true;
   };
 
   return (

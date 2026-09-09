@@ -2,6 +2,7 @@ import { Component, Suspense, useLayoutEffect, useMemo, useRef, type ReactNode }
 import { useFrame } from '@react-three/fiber';
 import { useGLTF } from '@react-three/drei';
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { DroneSpec } from '@shared/types';
 import { DEG2RAD } from '../mathx';
 import { DroneMesh } from './DroneMesh';
@@ -64,6 +65,114 @@ function demetallise(m: THREE.Material): void {
   std.metalness = 0.15;
 }
 
+
+/**
+ * Collapse the airframe's static meshes into one draw call per material.
+ *
+ * The CAD exports arrive as hundreds of separate parts — the Pluto Guru is 528
+ * meshes sharing just 51 materials — and every one of them is a draw call, then
+ * a SECOND draw call in the sun's shadow pass. Measured over New York on High
+ * that was ~1050 of the frame's ~1690 calls: the drone cost more to submit than
+ * the entire city (44 meshes), and the frame was bound on submitting them, not
+ * on drawing them. Halving the resolution from dpr 1.5 to 1.0 — 2.25x fewer
+ * pixels — moved 18 fps to 21, which is what "not fill-rate bound" looks like.
+ *
+ * Merging by material is safe here because these parts never move relative to
+ * one another: the airframe is rigid, and physics uses the RigidBody's box
+ * collider, never this geometry. Each part's transform is baked into the merged
+ * vertices, so the result sits exactly where the parts did.
+ *
+ * Deliberately NOT merged:
+ * - anything under a `PROP_` node. The propellers are the one part that moves
+ *   on its own, and `useLayoutEffect` below re-parents each to a spin pivot and
+ *   clones its materials to fade the blades. Merging them would weld the rotors
+ *   to the airframe.
+ * - skinned and instanced meshes, and anything with morph targets, whose
+ *   vertices are not fixed in the geometry to begin with.
+ */
+function mergeStaticParts(root: THREE.Object3D): void {
+  root.updateMatrixWorld(true);
+  const rootInverse = new THREE.Matrix4().copy(root.matrixWorld).invert();
+
+  const parts: THREE.Mesh[] = [];
+  root.traverse((o) => {
+    const mesh = o as THREE.Mesh;
+    if (!mesh.isMesh) return;
+    if ((mesh as THREE.SkinnedMesh).isSkinnedMesh) return;
+    if ((mesh as THREE.InstancedMesh).isInstancedMesh) return;
+    if (mesh.morphTargetInfluences?.length) return;
+    // Multi-material meshes draw once per group anyway; leave them alone rather
+    // than trying to split them apart.
+    if (Array.isArray(mesh.material) || !mesh.material) return;
+    for (let p: THREE.Object3D | null = o; p; p = p.parent) {
+      if (p.name.startsWith('PROP_')) return;
+    }
+    parts.push(mesh);
+  });
+
+  // Grouped by material AND by whether the geometry is indexed: mergeGeometries
+  // refuses a mix, and converting the odd one out to non-indexed would cost more
+  // vertices than the merge saves calls.
+  const groups = new Map<string, THREE.Mesh[]>();
+  for (const mesh of parts) {
+    const material = mesh.material as THREE.Material;
+    const key = `${material.uuid}|${mesh.geometry.getIndex() ? 'i' : 'n'}`;
+    const group = groups.get(key);
+    if (group) group.push(mesh);
+    else groups.set(key, [mesh]);
+  }
+
+  for (const group of groups.values()) {
+    if (group.length < 2) continue;
+
+    // mergeGeometries needs every input to carry the SAME attributes, so the
+    // merge is done over the intersection of what the group has in common. A
+    // part missing `uv` would otherwise abort the whole group.
+    let shared: string[] = Object.keys(group[0].geometry.attributes);
+    for (const mesh of group) {
+      const has = mesh.geometry.attributes;
+      shared = shared.filter((name) => name in has);
+    }
+    if (!shared.includes('position')) continue;
+
+    const baked: THREE.BufferGeometry[] = [];
+    for (const mesh of group) {
+      const geometry = mesh.geometry.clone();
+      for (const name of Object.keys(geometry.attributes)) {
+        if (!shared.includes(name)) geometry.deleteAttribute(name);
+      }
+      geometry.morphAttributes = {};
+      geometry.clearGroups();
+      // Into the root's frame, so the merged mesh can sit on the root at
+      // identity and land where the separate parts did.
+      mesh.updateWorldMatrix(true, false);
+      geometry.applyMatrix4(rootInverse.clone().multiply(mesh.matrixWorld));
+      baked.push(geometry);
+    }
+
+    const merged = mergeGeometries(baked, false);
+    baked.forEach((g) => g.dispose());
+    // Null on any mismatch the checks above did not catch. Leave the parts as
+    // they are rather than dropping them from the airframe.
+    if (!merged) continue;
+
+    const mesh = new THREE.Mesh(merged, group[0].material);
+    mesh.name = `${group[0].name}_merged`;
+    mesh.castShadow = group[0].castShadow;
+    mesh.receiveShadow = group[0].receiveShadow;
+    mesh.matrixAutoUpdate = false;
+    mesh.updateMatrix();
+    root.add(mesh);
+
+    for (const part of group) {
+      part.removeFromParent();
+      part.geometry.dispose();
+    }
+  }
+
+  root.updateMatrixWorld(true);
+}
+
 function Gltf({ spec, idleSpin = 0 }: { spec: DroneSpec; idleSpin?: number }) {
   const { scene } = useGLTF(spec.model!);
   const rotors = useRef<PropRotor[]>([]);
@@ -86,6 +195,10 @@ function Gltf({ spec, idleSpin = 0 }: { spec: DroneSpec; idleSpin?: number }) {
         (Array.isArray(mat) ? mat : mat ? [mat] : []).forEach(demetallise);
       }
     });
+
+    // After the per-mesh material work above, so the merge groups by the
+    // materials the airframe actually ends up drawing with.
+    mergeStaticParts(root);
 
     return root;
   }, [scene]);
