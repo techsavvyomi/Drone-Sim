@@ -4791,7 +4791,9 @@ button {
 .ms-banner {
   position: absolute;
   left: 50%;
-  top: 20%;
+  /* Clear of `.ms-checks`, which now occupies the top centre. At 20% these two
+     overlapped on a short window. */
+  top: 30%;
   transform: translateX(-50%);
   display: flex;
   flex-direction: column;
@@ -4953,14 +4955,23 @@ button {
 
 /* The release checklist. Only up while the drone is inside the delivery zone,
    which is the one moment the pilot needs to know exactly which of the three
-   conditions is still missing. */
+   conditions is still missing.
+
+   Top centre, under the badge/timer row. It used to sit against the right edge,
+   vertically centred, and that is the one place on the screen a pilot never
+   looks: the eye is on the aircraft in the middle of the frame, so the
+   conditions the whole hover is being judged against were read only after
+   something had already gone wrong. The top row is a badge on the left and the
+   numbers on the right with nothing between them, so the middle of it is free
+   and sits directly above where the drone is being flown. */
 .ms-checks {
   position: absolute;
-  right: 18px;
-  top: 50%;
-  transform: translateY(-50%);
+  left: 50%;
+  top: 72px;
+  transform: translateX(-50%);
   display: flex;
   flex-direction: column;
+  align-items: center;
   gap: 6px;
   padding: 12px 16px;
   background: rgba(9, 14, 22, 0.8);
