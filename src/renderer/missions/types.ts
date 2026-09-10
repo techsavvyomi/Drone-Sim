@@ -404,6 +404,15 @@ export interface Mission {
   parTimeSec: number;
   /** The flat ground height of this map — zones are drawn and judged from it. */
   groundY: number;
+  /**
+   * How high the aircraft may fly on this mission, metres. Omitted on every
+   * mission that is happy with the airframe's own limit.
+   *
+   * It can only ever RAISE the ceiling — `FlightScene` ignores a value below
+   * the drone's own — because a mission that quietly clipped the aircraft's
+   * envelope would be a mission the pilot cannot tell from a broken drone.
+   */
+  ceiling?: number;
   /** Height the route checkpoints hang at, for the marker and the HUD. */
   routeAltitude: number;
   /** Points needed for each rating. The SAME numbers the rungs below test, so
@@ -705,6 +714,22 @@ export function rankFor(ranks: readonly MissionRank[], r: MissionResult): 1 | 2 
  */
 export function zoneGroundY(m: Mission, zone: MissionZone): number {
   return zone.groundY ?? m.groundY;
+}
+
+/**
+ * How tall the beacon's plume stands at a given site, metres.
+ *
+ * A RULE rather than a second number to keep in step with the first. The plume
+ * has to finish below the hover the pilot is about to hold, or the mission ends
+ * with the aircraft inside its own smoke — and on the rooftop site the whole
+ * hover band is 3.5 m tall, because the deck is already 25 m up and the
+ * aircraft's ceiling is 30. Tying the plume to the band means the roof gets a
+ * short flare and the streets keep their full column without either being
+ * written down twice.
+ */
+export function beaconHeightFor(m: Mission, zone: MissionZone): number {
+  const wanted = m.search?.beaconHeight ?? 10;
+  return Math.min(wanted, zone.band.min * 0.8);
 }
 
 /** Horizontal distance between a point and a ground mark, in metres. */

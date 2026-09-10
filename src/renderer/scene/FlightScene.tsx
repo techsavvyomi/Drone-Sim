@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { Physics } from '@react-three/rapier';
 import { Grid, Sky, Stars } from '@react-three/drei';
 import { useSettingsStore } from '../state/settingsStore';
@@ -24,7 +25,10 @@ import { DroneAudio } from '../audio/DroneAudio';
 //
 // `envIdOverride` lets callers (e.g. Flight School) force a specific environment
 // without changing the pilot's saved selection; the Fly view passes nothing.
-export function FlightScene({ envIdOverride }: { envIdOverride?: string } = {}) {
+export function FlightScene({
+  envIdOverride,
+  ceilingOverride,
+}: { envIdOverride?: string; ceilingOverride?: number } = {}) {
   const droneId = useSettingsStore((s) => s.settings.selectedDroneId);
   const selectedEnvId = useSettingsStore((s) => s.settings.selectedEnvironmentId);
   const envId = envIdOverride ?? selectedEnvId;
@@ -36,7 +40,29 @@ export function FlightScene({ envIdOverride }: { envIdOverride?: string } = {}) 
   const graphics = useSettingsStore((s) => s.settings.graphics);
   const hud = useSettingsStore((s) => s.settings.hud);
 
-  const spec = getDrone(droneId);
+  const base = getDrone(droneId);
+  /*
+   * A CEILING the scene can raise, and only a scene can.
+   *
+   * The airframe's `maxAltitude` is a property of the aircraft — the Guru's 30 m
+   * is what the real one does, it is what the drone picker shows, and three
+   * missions are designed against it. Search & Rescue needs the pilot on the
+   * rooftops, which on this city means 45 m and up, so it asks for a taller
+   * limit for the length of one mission.
+   *
+   * Done as a prop rather than a store flag on purpose: it is applied while the
+   * scene renders, so the flight controller is built with the right ceiling
+   * once. Set from an effect it would arrive a frame late and rebuild the
+   * controller — and the controller holds the PID state, so rebuilding it in
+   * flight is a stutter with no visible cause.
+   */
+  const spec = useMemo(
+    () =>
+      base && ceilingOverride && ceilingOverride > base.maxAltitude
+        ? { ...base, maxAltitude: ceilingOverride }
+        : base,
+    [base, ceilingOverride],
+  );
   const env = getEnvironment(envId);
 
   if (!spec || !env) return null;

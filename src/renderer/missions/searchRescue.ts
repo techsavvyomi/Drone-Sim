@@ -44,25 +44,50 @@ const BASE: readonly [number, number] = [0, 29];
  * 6.01 m of clear air around its column, so 4.5 m leaves the zone entirely
  * inside the space the drone can actually occupy.
  */
-function rescueZone(site: { id: string; at: readonly [number, number] }): MissionZone {
+function rescueZone(site: {
+  id: string;
+  at: readonly [number, number];
+  roof: number;
+}): MissionZone {
   return {
     kind: 'drop',
     at: site.at,
     label: 'Rescue zone',
-    radius: 4.5,
+    /* Three and a half, where a street site had four and a half. A roof is a
+     * slab with edges: the sweep that placed these accepted only roof that is
+     * flat out to 4.5 m, so a wider ring would hang off the side of the building
+     * it is drawn on. */
+    radius: 3.5,
     /*
-     * WELL ABOVE THE STREET, and not by preference.
+     * The roof the PILOT SEES, not the collider deck.
      *
-     * This city's lamps, signs and traffic lights top out at 10.5 m and the
-     * sites sit in corridors 11 to 13 m wide. A band that let the pilot hover at
-     * six metres would be asking them to hold a position among the furniture, in
-     * a canyon, at the one moment they are looking down rather than ahead.
-     *
-     * The top of the band is under the Guru's 30 m ceiling with room to spare —
-     * a band that reached the ceiling would be a hover fighting the aircraft's
-     * own limiter.
+     * The colliders fill a building to the tallest thing in each cell, so a roof
+     * with a parapet is solid up to the parapet — a mark drawn at that height
+     * hangs a metre or two above the slab, and that is precisely what it looked
+     * like in flight: a rescue ring floating over the roof it belongs to. The
+     * band starts four metres up, which clears every parapet here, so nothing
+     * asks the aircraft to be somewhere it cannot go.
      */
-    band: { min: 12, max: 22 },
+    groundY: site.roof,
+    /* A roof is a slab with a lip, not a road: 3 cm of lift z-fights the deck it
+     * is drawn on. The same number Multi-Point Delivery lifts its rooftop ring
+     * by, and for the same reason. */
+    ringLift: 0.09,
+    /*
+     * FOUR TO NINE METRES ABOVE THE DECK, and the ceiling sizes it.
+     *
+     * Measured from the roof the casualty is lying on, not from the street, so
+     * the same band works on the 25 m deck and on the 48 m ones. There is no
+     * street furniture up here to clear — that is what forced the old 12 m floor
+     * when the sites were in canyons — so the only question is how low a hover
+     * still reads as being OVER someone, and four metres does.
+     *
+     * The top is what the mission's 60 m ceiling pays for. The highest deck is
+     * 47.86, so nine metres puts the top of the hover at 56.9 — three clear of
+     * the limiter. A band that reached the ceiling would be a hover fighting the
+     * aircraft's own air-brake.
+     */
+    band: { min: 4, max: 9 },
     /* The delivery drop's limits, not the fire's original 2.2. Forest Fire's own
      * amendment record is explicit about why: 2.2 m/s is a brisk pass, not a
      * hover, and this mission asks for a position HELD. */
@@ -89,18 +114,18 @@ export const searchRescue: Mission = {
   kind: 'search',
   envId: 'new-york',
   blurb:
-    'A distress signal somewhere in the city and no GPS fix. Fly to the red search zone, find the casualty by eye, and confirm the rescue location.',
+    'A distress signal from a rooftop somewhere in the city, and no GPS fix. Fly to the red search zone, find the casualty by eye, and confirm the rescue location.',
   story:
-    'A distress signal was received somewhere in this sector, but it is too weak to place. The best we can do is narrow it to an area — the red zone on your map. There is no position to fly to inside it and there will not be one. Get there, search it, find the casualty, and hold over them long enough for the coordinates to lock.',
+    'A distress signal was received from a rooftop somewhere in this sector, but it is too weak to place. The best we can do is narrow it to an area — the red zone on your map. There is no position to fly to inside it and there will not be one. Get up over the roofline, search the zone, find the casualty, and hold over them long enough for the coordinates to lock.',
   flow: [
     { label: 'Read', note: 'A red zone, no marker', art: 'collect' },
-    { label: 'Search', note: 'Fly the zone and look', art: 'city' },
+    { label: 'Search', note: 'Over the roofs, and look', art: 'city' },
     { label: 'Confirm', note: 'Hold the hover for 5 s', art: 'deliver' },
     { label: 'Come home', note: 'Land back on the pad', art: 'land' },
   ],
   objectives: [
     'Find the red search zone on the map — it is the only thing that says where to go.',
-    'Fly into the zone and search it by eye until the emergency signal is picked up.',
+    'Climb above the rooftops and search the zone by eye until the emergency signal is picked up.',
     'Close on the beacon and hold your position over the rescue zone for five seconds.',
     'Fly back to base and land on the pad.',
   ],
@@ -118,12 +143,28 @@ export const searchRescue: Mission = {
   timeLimitSec: 480,
   parTimeSec: 240,
   groundY: 0,
+  /*
+   * SIXTY METRES, against the Guru's own thirty.
+   *
+   * The casualties are on roofs, and this city's roofs start at 45 m: on the
+   * stock airframe all but one of them is somewhere the aircraft cannot get
+   * above at all. Sixty is the lowest limit at which four roofs exist that are
+   * flat, clear overhead, and far enough apart to be four separate searches —
+   * the highest deck plus its hover band comes to 56.9, and the remaining three
+   * metres are the air-brake's.
+   *
+   * It is scoped to this mission and it only ever raises: the drone picker still
+   * says 30 m, because 30 m is still what the aircraft does. Flying a rescue
+   * over the rooftops is the exception the briefing sells, not a quiet upgrade
+   * to the Guru.
+   */
+  ceiling: 60,
   medals: { bronze: 1, silver: 2, gold: GOLD },
   /* Nothing hangs at this height — the mission has no route — but the field is
-   * required and is what the briefing quotes as a sensible search altitude. The
-   * map's own note is why it is 18: the street grid is open through 14 to 20 m
-   * and narrows to 2.5 m by 12. */
-  routeAltitude: 18,
+   * required and is what the briefing quotes as a sensible search altitude.
+   * Fifty puts the pilot just over the roofline the casualties are on, which is
+   * the height the whole search is flown at. */
+  routeAltitude: 50,
   /*
    * NO CHECKPOINTS, and this is the one mission where that is a design decision
    * rather than an omission. A ring is an answer. Even one ring, even an
@@ -144,20 +185,23 @@ export const searchRescue: Mission = {
   search: {
     sites: SITES,
     /*
-     * TWENTY-SIX METRES to first detection, and it came DOWN from forty.
+     * EIGHTEEN METRES to first detection — down from forty, then twenty-six.
      *
-     * Forty metres is about three blocks on this map, which meant the HUD
-     * announced the casualty while the pilot was still a street away and had not
-     * yet seen anything — so the mission's own instrument was doing the finding
-     * and the beacon was arriving afterwards as confirmation. That is exactly
-     * backwards: this mission exists to teach a pilot to look OUT of the window.
+     * Forty was about three blocks, and the HUD announced the casualty while
+     * the pilot was still a street away and had seen nothing: the instrument
+     * did the finding and the beacon arrived as confirmation, which is exactly
+     * backwards for a mission about looking OUT of the window. Twenty-six fixed
+     * that, and then became the floor under the red zone: a zone no wider than
+     * the detect range announces the casualty the moment it is entered, so the
+     * circle is the answer rather than the search. Shrinking the zone meant
+     * shrinking this with it.
      *
-     * Twenty-six is inside the block the beacon is on. The pilot sees the smoke,
-     * turns towards it, and the readout catches up and agrees — which is the
-     * order the two are meant to happen in. The beacon is drawn out to 220 m
-     * against this, so seeing it first is not luck, it is guaranteed.
+     * Eighteen is the street the beacon stands in. The pilot sees the smoke,
+     * turns towards it, and the readout agrees — the order the two are meant to
+     * happen in. The beacon is drawn out to 220 m, so seeing it first is
+     * guaranteed, and it is still comfortably wider than the 7 m confirmation.
      */
-    detectRadius: 26,
+    detectRadius: 18,
     /*
      * EIGHT METRES to confirmation — deliberately wider than the rescue zone's
      * own 4.5.
@@ -174,28 +218,29 @@ export const searchRescue: Mission = {
      * smoke already is reads as smoke, not as a marker. */
     beaconHeight: 10,
     /*
-     * FORTY-FIVE METRES of red zone — about a sixth of the city.
+     * TWENTY-TWO METRES of red zone — down from forty-five, then thirty-two.
      *
-     * The number is set from the two ways it can be wrong. Too tight and the
-     * pilot sees the whole circle from its edge, so the zone IS the answer and
-     * the mission is a marker with a red border. Too wide and it has narrowed
-     * nothing: a third of the map is what the pilot would have swept anyway.
+     * Forty-five was set when the map was a sketch of nine grey blocks, and a
+     * zone had to be wide for the search to take any time. On a map that shows
+     * every roof, tree and sidewalk, anything that size read as most of the
+     * city painted red.
      *
-     * Ninety metres across is three or four blocks of this city. The pilot
-     * flies to it, drops among the buildings, and has a real search in front of
-     * them — one that fits inside the four minute par with time to fly it
-     * properly rather than to rush it.
+     * It has a hard floor, which is the detect radius: see above. Twenty-two
+     * leaves four metres past the eighteen at which the signal is heard, so the
+     * pilot enters the zone before the HUD says anything and has to look.
      */
-    zoneRadius: 45,
+    zoneRadius: 22,
     /*
-     * TWENTY-FIVE METRES, three above the hover band's own ceiling of 22.
+     * TWENTY-FIVE METRES ABOVE THE CASUALTY'S OWN DECK, against a hover band
+     * that tops out at nine.
      *
-     * The number is the band's top plus enough room that a pilot settling into
-     * the hover from above is never dropped out of range mid-descent — losing
-     * the signal on the way DOWN to the casualty would read as a fault. Above
-     * it the drone is over the roofline with the whole sector in view, and the
-     * mission stops answering: at that height finding someone is not searching,
-     * it is climbing until everything is inside the radius.
+     * Well clear of the band, so a pilot settling into the hover from above is
+     * never dropped out of range mid-descent — losing the signal on the way DOWN
+     * to the casualty would read as a fault. What it still catches is the low
+     * roof: its deck is 25 m and the mission's ceiling is 60, so a pilot
+     * cruising at fifty over the whole city is 25 m above it and hears nothing.
+     * On the three high decks the ceiling gets there first and this never fires,
+     * which is the right way round — it is a backstop, not the rule.
      */
     maxDetectAgl: 25,
   },
@@ -242,14 +287,14 @@ export const searchRescue: Mission = {
   radio: {
     start: {
       id: 'sr-start',
-      text: 'Pilot, we have an emergency. A distress signal somewhere in this sector, and the GPS fix is too weak to place it. Your drone is our only way to search.',
+      text: 'Pilot, we have an emergency. Someone is stranded on a rooftop in this sector, and the GPS fix is too weak to place them. Your drone is our only way to search.',
     },
     /* Never played by name — `radio` is an open record and nothing calls for
      * this key. It is the line the briefing quotes, kept beside the others so
      * the mission's voice lives in one place. */
     zone: {
       id: 'sr-zone',
-      text: 'The red zone on your map is as close as we can place it. Get inside it and start looking.',
+      text: 'The red zone on your map is as close as we can place it. Climb above the roofline, get inside it, and start looking. You are cleared to sixty metres.',
     },
     /* Said once, the first time the signal is heard at all. The percentage on
      * the strip carries it from here — a second radio line at 60% would be

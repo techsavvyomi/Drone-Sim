@@ -42,6 +42,19 @@ const SITE_MIN = 5;
 const BAND_MIN = 12;
 const BAND_MAX = 22;
 /**
+ * The rooftop band, measured from each site's deck rather than from the street,
+ * and the ceiling it has to fit under.
+ *
+ * On this mission the ceiling is the binding constraint rather than a
+ * comfortable margin — the highest deck is 47.9 m and the limit is 60 — so it is
+ * checked here rather than trusted.
+ */
+const ROOF_BAND_MIN = 4;
+const ROOF_BAND_MAX = 9;
+/** The mission's own ceiling, from `searchRescue.ts` — NOT the Guru's 30 m. The
+ *  whole reason four rooftop sites exist is that the mission raises it. */
+const CEILING = 60;
+/**
  * The column is checked from ONE metre, not from the band's floor.
  *
  * The pilot descends into the band and climbs out of it, and this city's lamps,
@@ -50,9 +63,16 @@ const BAND_MAX = 22;
  */
 const COLUMN_FLOOR = 1;
 
-/** How far apart two sites must be to be two searches. One hover must never see
- *  two of them, and 70 m is comfortably past what is readable down a street. */
-const MIN_SEPARATION = 70;
+/**
+ * How far apart two sites must be to be two searches, metres.
+ *
+ * Seventy while the sites were down streets, where it meant one hover could
+ * never take in two. On a rooftop that rule is meaningless — from 45 m up the
+ * pilot sees most of the city — and the thing that has to stay true instead is
+ * that one red zone can never hold two sites. That is asserted directly below;
+ * this is the floor that leaves it room.
+ */
+const MIN_SEPARATION = 50;
 /** How far a site must be from the base pad. Close enough and the pilot finds it
  *  on the way up rather than by searching. */
 const MIN_FROM_BASE = 45;
@@ -88,10 +108,16 @@ function loadSites() {
   const src = fs.readFileSync(SITES, 'utf8');
   const sites = [];
   const re =
-    /id: '([abcd])',\s*\n\s*at: \[(-?[\d.]+), (-?[\d.]+)\],\s*\n\s*landmarkHeight: ([\d.]+),/g;
+    /id: '([abcd])',\s*\n\s*at: \[(-?[\d.]+), (-?[\d.]+)\],\s*\n\s*roof: ([\d.]+),\s*\n\s*deck: ([\d.]+),\s*\n\s*landmarkHeight: ([\d.]+),/g;
   let m;
   while ((m = re.exec(src))) {
-    sites.push({ id: m[1], at: [+m[2], +m[3]], landmarkHeight: +m[4] });
+    sites.push({
+      id: m[1],
+      at: [+m[2], +m[3]],
+      roof: +m[4],
+      deck: +m[5],
+      landmarkHeight: +m[6],
+    });
   }
   // One site per compass direction. The count is asserted rather than inferred
   // so that a site silently failing to parse — a reformat, a renamed field —
@@ -147,14 +173,29 @@ console.log(`Search & Rescue — ${sites.length} candidate sites, ${boxes.length
 
 for (const s of sites) {
   const [x, z] = s.at;
-  const hover = column(boxes, x, z, BAND_MIN, BAND_MAX);
-  const whole = column(boxes, x, z, COLUMN_FLOOR, BAND_MAX);
+  const roof = s.roof > 0;
+  // Everything is measured from the site's own DECK. On the roof site a column
+  // started at the street would run through the building the casualty is lying
+  // on and report no clear air at all.
+  // Bands from the VISIBLE roof — where the mark is drawn — and the column from
+  // the collider deck, which is the parapet and the lowest the aircraft can be.
+  const bandLo = s.roof + (roof ? ROOF_BAND_MIN : BAND_MIN);
+  const bandHi = s.roof + (roof ? ROOF_BAND_MAX : BAND_MAX);
+  const floor = roof ? s.deck + 0.5 : COLUMN_FLOOR;
+  const hover = column(boxes, x, z, bandLo, bandHi);
+  const whole = column(boxes, x, z, floor, bandHi);
   const fromBase = Math.hypot(x - BASE[0], z - BASE[1]);
   const tall = tallestNear(boxes, x, z, 30);
 
-  console.log(`site ${s.id.toUpperCase()}  [${x}, ${z}]`);
-  console.log(`  hover band ${BAND_MIN}-${BAND_MAX} m : ${hover.clear.toFixed(2)} m clear`);
-  console.log(`  full column ${COLUMN_FLOOR}-${BAND_MAX} m: ${whole.clear.toFixed(2)} m clear`);
+  console.log(
+    `site ${s.id.toUpperCase()}  [${x}, ${z}]  ${roof ? `roof ${s.roof} m, parapet ${s.deck} m` : 'street'}`,
+  );
+  console.log(
+    `  hover band ${bandLo.toFixed(1)}-${bandHi.toFixed(1)} m : ${hover.clear.toFixed(2)} m clear`,
+  );
+  console.log(
+    `  full column ${floor.toFixed(1)}-${bandHi.toFixed(1)} m: ${whole.clear.toFixed(2)} m clear`,
+  );
   console.log(`  from base            : ${fromBase.toFixed(1)} m`);
   console.log(`  tallest within 30 m  : ${tall.toFixed(1)} m (placed against ${s.landmarkHeight})`);
   if (verbose && whole.box) console.log(`  nearest solid        : ${JSON.stringify(whole.box)}`);
@@ -163,6 +204,19 @@ for (const s of sites) {
     fail(`site ${s.id}: ${whole.clear.toFixed(2)} m of clear column, needs ${SITE_MIN}`);
   if (fromBase < MIN_FROM_BASE)
     fail(`site ${s.id}: ${fromBase.toFixed(1)} m from base, needs ${MIN_FROM_BASE}`);
+  // The rooftop's whole reason for having its own band: the top of it has to
+  // stay under the aircraft's limiter, or the hover cannot be flown at all.
+  if (bandHi >= CEILING)
+    fail(`site ${s.id}: hover band reaches ${bandHi.toFixed(1)} m, the ceiling is ${CEILING}`);
+  // The mark is drawn on the roof the pilot sees, which sits under the collider
+  // parapet. That is only honest while the hover it asks for starts ABOVE the
+  // parapet — otherwise the bottom of the band is inside the building.
+  if (roof && bandLo <= s.deck)
+    fail(
+      `site ${s.id}: hover band starts at ${bandLo.toFixed(2)} m, under the ${s.deck} m parapet`,
+    );
+  if (roof && s.deck < s.roof)
+    fail(`site ${s.id}: collider deck ${s.deck} is below the visible roof ${s.roof}`);
   // Nothing quotes this number on screen any more, but it is what makes a site
   // a PLACE — somewhere a pilot flying the red zone recognises as worth a second
   // look — rather than a coordinate on an empty street. A collider regeneration
@@ -193,7 +247,7 @@ for (let i = 0; i < sites.length; i++) {
 // unrecoverable state — a pilot who searches the circle honestly and completely
 // finds no one. `searchZone.ts` guarantees both; this asserts the numbers those
 // guarantees rest on are still true of the map that actually exists.
-const ZONE_RADIUS = 45;
+const ZONE_RADIUS = 22;
 const OFFSET_FRACTION = 0.55;
 const PLAN = 'src/renderer/scene/environment/NewYorkPlan.ts';
 const planSrc = fs.readFileSync(PLAN, 'utf8');
@@ -211,6 +265,17 @@ console.log(`map bounds: ${bounds.minX}..${bounds.maxX} x ${bounds.minZ}..${boun
 // The clamp that keeps a zone on the map can only move its centre; if that move
 // is ever larger than the offset, it can push the circle off its own site.
 const OFFSET = ZONE_RADIUS * OFFSET_FRACTION;
+// One red zone must never hold two sites. The furthest a zone can reach from its
+// own site is the offset plus the radius; any other site has to be beyond that.
+for (let i = 0; i < sites.length; i++)
+  for (let j = 0; j < sites.length; j++) {
+    if (i === j) continue;
+    const d = Math.hypot(sites[i].at[0] - sites[j].at[0], sites[i].at[1] - sites[j].at[1]);
+    if (d <= OFFSET + ZONE_RADIUS)
+      fail(
+        `site ${sites[j].id} is ${d.toFixed(1)} m from ${sites[i].id} — inside the ${(OFFSET + ZONE_RADIUS).toFixed(1)} m a zone round ${sites[i].id} can reach`,
+      );
+  }
 const keep = ZONE_RADIUS - OFFSET;
 const room = {
   x: [bounds.minX + keep, bounds.maxX - keep],

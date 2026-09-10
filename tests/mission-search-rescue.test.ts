@@ -6,7 +6,7 @@ import { forestFire } from '../src/renderer/missions/forestFire';
 import { multiPointDelivery } from '../src/renderer/missions/multiPointDelivery';
 import { MISSIONS } from '../src/renderer/missions';
 import { SEARCH_SITES, pickSearchSite } from '../src/renderer/missions/searchRescueSites';
-import { zoneFor, planMargin } from '../src/renderer/missions/searchZone';
+import { zoneFor } from '../src/renderer/missions/searchZone';
 import { NYC_PLAN_BOUNDS } from '../src/renderer/scene/environment/NewYorkPlan';
 import {
   allZonesOf,
@@ -15,6 +15,7 @@ import {
   rescueZoneOf,
   searchSiteOf,
   toMissionSpec,
+  beaconHeightFor,
 } from '../src/renderer/missions/types';
 import type { MissionResult } from '../src/renderer/missions/types';
 import {
@@ -43,10 +44,13 @@ import { DEFAULT_SETTINGS } from '../src/shared/types';
 
 const M = searchRescue;
 
-/** The Guru's ceiling. Every mission is flown on the Guru — see
- *  `MissionViewport` — and this city's roofs start at 45 m, which is why all
- *  four sites are at street level. */
-const CEILING = 30;
+/** The Guru's own ceiling. Every mission is flown on the Guru — see
+ *  `MissionViewport` — and this city's roofs start at 45 m, so on the stock
+ *  airframe there is exactly one reachable roof in the whole city. */
+const GURU_CEILING = 30;
+/** What this mission flies at, which is the only reason four rooftop sites can
+ *  exist. `FlightScene` applies it for the length of the mission. */
+const CEILING = searchRescue.ceiling!;
 
 function result(over: Partial<MissionResult> = {}): MissionResult {
   return {
@@ -145,25 +149,51 @@ describe('the no-guidance rule', () => {
 });
 
 describe('the four sites', () => {
-  it('TC-402 puts every site at street level, under the Guru ceiling', () => {
+  it('TC-402 keeps every site reachable under the mission ceiling', () => {
     for (const site of M.search!.sites) {
-      // The band, not just the mark: a hover the aircraft cannot climb to is a
-      // mission that cannot be finished, and nothing in a typecheck sees it.
-      expect(site.zone.band.max).toBeLessThan(CEILING);
-      expect(site.zone.groundY ?? M.groundY).toBe(0);
+      // The band measured from the site's own DECK, not just the mark: a hover
+      // the aircraft cannot climb to is a mission that cannot be finished, and
+      // nothing in a typecheck sees it. Every deck here is a roof, so this is
+      // the assertion the whole band was sized by.
+      const deck = site.zone.groundY ?? M.groundY;
+      expect(deck + site.zone.band.max).toBeLessThan(CEILING);
     }
   });
 
-  it('TC-402 clears this city street furniture with the hover band', () => {
-    // Lamps, signs and traffic lights top out at 10.5 m here. A band that let
-    // the pilot hover at six metres would ask them to hold a position among the
-    // furniture, in a canyon, while looking down.
-    for (const site of M.search!.sites) expect(site.zone.band.min).toBeGreaterThan(10.5);
+  it('TC-402 puts every casualty on a roof', () => {
+    // A search always flown down a street teaches a habit, and a pilot with the
+    // habit stops looking up. Every site is a rooftop, and the mission's zones
+    // agree with the site list about which deck each one is.
+    for (const s of SEARCH_SITES) expect(s.roof).toBeGreaterThan(0);
+    for (let i = 0; i < SEARCH_SITES.length; i++)
+      expect(M.search!.sites[i].zone.groundY ?? M.groundY).toBe(SEARCH_SITES[i].roof);
+  });
+
+  it('TC-402 raises the ceiling for itself, and only upwards', () => {
+    // The rooftops are only reachable because of this, and it is the one thing
+    // on the mission that changes what the aircraft can do. A mission allowed to
+    // LOWER the ceiling would be indistinguishable from a broken drone, so
+    // `FlightScene` ignores anything under the airframe's own — this asserts the
+    // mission never asks it to.
+    expect(CEILING).toBeGreaterThan(GURU_CEILING);
+    // The highest deck plus its hover still has to fit, with the air-brake's
+    // margin left over.
+    const highest = Math.max(...SEARCH_SITES.map((s) => s.roof));
+    expect(highest + M.search!.sites[0].zone.band.max).toBeLessThan(CEILING);
+  });
+
+  it('TC-402 holds the hover clear of the deck it is over', () => {
+    // The old floor was 12 m, forced by street furniture topping out at 10.5 in
+    // the canyons the sites used to sit in. On a roof there is nothing to clear
+    // and the ceiling is tight, so the only question left is how low a hover
+    // still reads as being OVER someone rather than on top of them.
+    for (const site of M.search!.sites) expect(site.zone.band.min).toBeGreaterThanOrEqual(3);
   });
 
   it('TC-402 keeps the rescue zone inside the clear air each site has', () => {
-    // The tightest site has 6.01 m of clear column. A zone whose edge is inside
-    // a facade is a hover the pilot is asked to hold in a wall.
+    // The tightest site has 5.83 m of clear column. A zone whose edge is inside a
+    // facade — or hanging off the side of the roof — is a hover the pilot is
+    // asked to hold in a wall.
     const tightest = Math.min(...SEARCH_SITES.map((s) => s.clearance));
     for (const site of M.search!.sites) expect(site.zone.radius).toBeLessThan(tightest);
   });
@@ -181,7 +211,33 @@ describe('the four sites', () => {
     const at = SEARCH_SITES.map((s) => s.at);
     for (let i = 0; i < at.length; i++)
       for (let j = i + 1; j < at.length; j++)
-        expect(Math.hypot(at[i][0] - at[j][0], at[i][1] - at[j][1])).toBeGreaterThanOrEqual(70);
+        expect(Math.hypot(at[i][0] - at[j][0], at[i][1] - at[j][1])).toBeGreaterThanOrEqual(50);
+  });
+
+  it('TC-402 never lets one red zone hold two sites', () => {
+    // The rule that replaced "seventy metres apart" when the sites went up onto
+    // the roofs. A zone reaches at most its radius plus the offset from its own
+    // site; every other site has to be further than that, or a pilot could
+    // search one circle and pass over two candidate roofs.
+    const R = M.search!.zoneRadius;
+    const reach = R + R * 0.55;
+    for (const a of SEARCH_SITES)
+      for (const b of SEARCH_SITES) {
+        if (a === b) continue;
+        expect(Math.hypot(a.at[0] - b.at[0], a.at[1] - b.at[1])).toBeGreaterThan(reach);
+      }
+  });
+
+  it('TC-402 draws the mark on the roof the pilot sees, below a band that clears the parapet', () => {
+    // The mark used to be drawn at the collider deck — the parapet — and hung a
+    // metre or two over the visible slab. Drawn on the slab, it is only honest
+    // while the hover it asks for still starts above the parapet.
+    for (let i = 0; i < SEARCH_SITES.length; i++) {
+      const s = SEARCH_SITES[i];
+      const zone = M.search!.sites[i].zone;
+      expect(s.deck).toBeGreaterThanOrEqual(s.roof);
+      expect(s.roof + zone.band.min).toBeGreaterThan(s.deck);
+    }
   });
 
   it('TC-402 counts every site zone as a mark of the mission', () => {
@@ -304,18 +360,23 @@ describe('the search roof', () => {
 });
 
 describe('where the arrow points', () => {
-  it('TC-411 has a rescue band the old marker height fell out of', () => {
-    // The marker the arrow, the pointer and the climb chip all read used to sit
-    // at half the band's CEILING. For every zone that opens at the ground that
-    // is the middle of the band, and every zone did — until a hover was asked
-    // for 12 m up a street canyon. This asserts the trap is real, so that a
-    // future edit which reintroduces `band.max * 0.5` fails here rather than in
-    // the one place it is only visible by flying: half of 22 is 11, a metre
-    // below the floor the Height row is simultaneously asking for.
-    const band = searchRescue.search!.sites[0].zone.band;
-    expect(band.max * 0.5).toBeLessThan(band.min);
-    expect((band.min + band.max) / 2).toBeGreaterThanOrEqual(band.min);
-    expect((band.min + band.max) / 2).toBeLessThanOrEqual(band.max);
+  it('TC-411 aims the marker inside every site band', () => {
+    // The marker the arrow, the in-picture pointer and the climb chip all read
+    // sits at the MIDDLE of the band. It used to sit at half the band's ceiling,
+    // which is the same thing only for a band that opens at the deck — and when
+    // the rescue hover was 12-22 m up a canyon, half of 22 was 11: a metre below
+    // the floor the Height row was asking for, so the arrow said descend while
+    // the checklist said climb.
+    //
+    // The rooftop band no longer reproduces that trap, which is exactly why the
+    // rule is asserted rather than the old arithmetic: the next band to change
+    // must not have to rediscover it.
+    for (const site of searchRescue.search!.sites) {
+      const band = site.zone.band;
+      const mid = (band.min + band.max) / 2;
+      expect(mid).toBeGreaterThanOrEqual(band.min);
+      expect(mid).toBeLessThanOrEqual(band.max);
+    }
   });
 });
 
@@ -353,18 +414,19 @@ describe('the red zone', () => {
     expect(total / n).toBeGreaterThan(R * 0.2);
   });
 
-  it('TC-405 keeps every possible zone inside the drawn map', () => {
-    // The map is drawn to the city plus `planMargin`. A zone that reaches past
-    // that is clipped by its own frame, which reads as a drawing error and
-    // hides part of the area the pilot is being asked to search.
-    const m = planMargin(R);
+  it('TC-405 keeps every possible zone centred over the city', () => {
+    // The map scrolls with the aircraft, so there is no frame for a zone to be
+    // clipped by — what can still go wrong is a circle drawn over empty ground
+    // off the edge of the city, inviting the pilot to search nothing. Two of
+    // the sites stand on the streets that ring the blocks, so the circle may
+    // overhang the building bounds; its centre may not leave them.
     for (const site of SEARCH_SITES) {
       for (let i = 0; i < 300; i++) {
         const z = zoneFor(site.at, R);
-        expect(z.at[0] - R).toBeGreaterThanOrEqual(NYC_PLAN_BOUNDS.minX - m - 1e-9);
-        expect(z.at[0] + R).toBeLessThanOrEqual(NYC_PLAN_BOUNDS.maxX + m + 1e-9);
-        expect(z.at[1] - R).toBeGreaterThanOrEqual(NYC_PLAN_BOUNDS.minZ - m - 1e-9);
-        expect(z.at[1] + R).toBeLessThanOrEqual(NYC_PLAN_BOUNDS.maxZ + m + 1e-9);
+        expect(z.at[0]).toBeGreaterThanOrEqual(NYC_PLAN_BOUNDS.minX);
+        expect(z.at[0]).toBeLessThanOrEqual(NYC_PLAN_BOUNDS.maxX);
+        expect(z.at[1]).toBeGreaterThanOrEqual(NYC_PLAN_BOUNDS.minZ);
+        expect(z.at[1]).toBeLessThanOrEqual(NYC_PLAN_BOUNDS.maxZ);
       }
     }
   });
@@ -424,7 +486,7 @@ describe('the signal', () => {
     // pilot must see the beacon and then have the readout agree, never the other
     // way round: a detect radius wide enough to announce the casualty from a
     // street away makes the HUD the thing that found them.
-    expect(search.detectRadius).toBe(26);
+    expect(search.detectRadius).toBe(18);
     // Confirmation is wider than the zone itself, so the mark appears as the
     // pilot arrives rather than at the instant they are already inside it.
     expect(search.confirmRadius).toBeGreaterThan(M.search!.sites[0].zone.radius);
@@ -435,8 +497,11 @@ describe('the signal', () => {
     // The pilot holds ABOVE the smoke rather than inside it. The forest's fire
     // column was removed for exactly this: warm translucent haze where real
     // smoke already is reads as smoke, not as a marker.
+    // Per site, through the rule that sizes it: the rooftop hover is 1.2 m off
+    // the deck, so a 10 m column there would put the aircraft inside its own
+    // smoke at the moment the mission is won.
     for (const site of M.search!.sites)
-      expect(M.search!.beaconHeight).toBeLessThanOrEqual(site.zone.band.min);
+      expect(beaconHeightFor(M, site.zone)).toBeLessThanOrEqual(site.zone.band.min);
   });
 });
 

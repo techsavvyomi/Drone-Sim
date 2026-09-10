@@ -197,44 +197,63 @@ function DeliveryChecklist({
   // the RELEASE, never the collection, so the row is off on the pickup as well.
   const gated = gate.total > 0 && !pickup;
   const blocked = gate.left > 0;
+  const title = rescue
+    ? 'RESCUE CONFIRMATION'
+    : pickup
+      ? 'PICKUP CONDITIONS'
+      : fire
+        ? suppressing
+          ? 'SUPPRESSING'
+          : 'SUPPRESSION CONDITIONS'
+        : 'RELEASE CONDITIONS';
+  // Every condition met and the bar filling. Worth its own class: the card is
+  // read out of the corner of the eye while the pilot is flying the hover, and
+  // "everything is right, keep doing that" is the one state it has to be able to
+  // say without being read.
+  const armed = !blocked && checks.centred && checks.inBand && checks.steady;
   return (
-    <div className={`ms-checks ${blocked ? 'blocked' : ''}`}>
+    <div className={`ms-checks ${blocked ? 'blocked' : ''} ${armed ? 'armed' : ''}`}>
       <span className="ms-checks-head">
-        {rescue
-          ? 'RESCUE CONFIRMATION'
-          : pickup
-            ? 'PICKUP CONDITIONS'
-            : fire
-              ? suppressing
-                ? 'SUPPRESSING'
-                : 'SUPPRESSION CONDITIONS'
-              : 'RELEASE CONDITIONS'}
+        {title}
+        {/* The hold, as a number, beside the title rather than under the bar.
+            A bar answers "nearly" and a pilot holding a five second hover wants
+            "how much longer". */}
+        {checks.hold > 0 && <em>{Math.round(checks.hold * 100)}%</em>}
       </span>
       {gated && (
-        <span className={blocked ? 'miss' : 'ok'}>
-          {blocked ? '✕' : '✓'} Route {gate.total - gate.left}/{gate.total}
+        <span className={`ms-check ${blocked ? 'miss' : 'ok'}`}>
+          <i />
+          <b>Route</b>
+          <em>
+            {gate.total - gate.left}/{gate.total}
+          </em>
         </span>
       )}
-      <span className={checks.centred ? 'ok' : ''}>
-        {checks.centred ? '✓' : '•'}{' '}
-        {rescue
-          ? 'Over the casualty'
-          : pickup
-            ? 'Over the package'
-            : fire
-              ? 'Over the fire'
-              : 'Centred'}
+      <span className={`ms-check ${checks.centred ? 'ok' : ''}`}>
+        <i />
+        <b>
+          {rescue
+            ? 'Over the casualty'
+            : pickup
+              ? 'Over the package'
+              : fire
+                ? 'Over the fire'
+                : 'Centred'}
+        </b>
       </span>
-      <span className={checks.inBand ? 'ok' : ''}>
-        {checks.inBand ? '✓' : '•'} Height
+      <span className={`ms-check ${checks.inBand ? 'ok' : ''}`}>
+        <i />
+        <b>Height</b>
         {band && (
-          <i className="ms-checks-band">
-            {' '}
+          <em>
             {band.min}–{band.max} m
-          </i>
+          </em>
         )}
       </span>
-      <span className={checks.steady ? 'ok' : ''}>{checks.steady ? '✓' : '•'} Steady</span>
+      <span className={`ms-check ${checks.steady ? 'ok' : ''}`}>
+        <i />
+        <b>Steady</b>
+      </span>
       <span className="ms-checks-bar">
         <i style={{ width: `${checks.hold * 100}%` }} />
       </span>

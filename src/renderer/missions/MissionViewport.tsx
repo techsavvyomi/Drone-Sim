@@ -101,7 +101,7 @@ export function MissionViewport({ mission }: { mission: Mission }) {
           }}
           camera={{ position: [8, 5, 9], fov: 60, near: 0.15, far: 700 }}
         >
-          <FlightScene envIdOverride={mission.envId} />
+          <FlightScene envIdOverride={mission.envId} ceilingOverride={mission.ceiling} />
           <MissionMarkers mission={mission} />
           {/* Only a suppression mission carries these, and they mount with the
               mission rather than with the leg: a fire that appeared when the

@@ -1,7 +1,16 @@
 import { useEffect, useRef } from 'react';
 import { dronePose } from '../sim/drone/pose';
 import { useMissionStore } from '../state/missionStore';
-import { NYC_PLAN } from '../scene/environment/NewYorkPlan';
+import {
+  NYC_EDGES,
+  NYC_GRASS,
+  NYC_LANES,
+  NYC_PLAN_TALLEST,
+  NYC_PROPS,
+  NYC_ROOFS,
+  NYC_TREES,
+  NYC_WALKS,
+} from '../scene/environment/NewYorkPlan';
 import type { Mission } from '../missions/types';
 
 // ----------------------------------------------------------------------------
@@ -32,9 +41,14 @@ import type { Mission } from '../missions/types';
 //
 // It is DRAWN, not photographed. A baked picture of the city was tried and is
 // the wrong thing twice over: it is a second copy of the map that can fall out
-// of step with the real one, and at 150 pixels across a photograph of a city is
-// noise. Blocks merged out of the colliders are the same shape the drone
-// actually collides with, and they read at this size.
+// of step with the real one, and at this size a photograph of a city is noise.
+//
+// What it draws is every ROOF, shaded by height, with a dark line wherever one
+// roof steps to another — rebuilt from the colliders by
+// `generate-nyc-plan.mjs`. An earlier version fused each block into a single
+// grey silhouette, and the city came out as nine blobs: a search area with
+// nothing in it to search. A block of this city is a dozen buildings, and the
+// search is harder and more honest when the map says so.
 //
 // It carries NO compass and no N/E/S/W. The sector clues those served are gone,
 // and on a north-up plan of a city the pilot is looking at, they were labelling
@@ -46,10 +60,10 @@ import type { Mission } from '../missions/types';
 // second for a map that has scrolled two pixels.
 // ----------------------------------------------------------------------------
 
-/** Across the dial, in CSS pixels. A little larger than the 132 px radar it
- *  replaces, and no more: a map that takes a fifth of the screen is competing
- *  with the window the pilot is supposed to be searching out of. */
-const SIZE = 152;
+/** Across the dial, in CSS pixels. Smaller than the 132 px radar it replaces:
+ *  the map is glanced at, and every pixel of it is a pixel of the window the
+ *  pilot is supposed to be searching out of. */
+const SIZE = 120;
 /** Breathing room inside the rim, so a shape at the edge of the frame is still
  *  drawn rather than sliced by it. */
 const PAD = 7;
@@ -57,17 +71,56 @@ const PAD = 7;
 /**
  * How far the map sees from the aircraft, metres.
  *
- * The one number that decides whether this is a plan or a texture. At 85 m the
- * disc holds about two blocks in every direction — enough that a street the
- * pilot has swept is recognisably that street, and enough that the 45 m red
- * zone fits inside the frame with its surroundings rather than filling it.
- * Wider and the blocks stop being distinguishable, which is the failure the
- * whole-city version had; tighter and the pilot loses the context they navigate
- * into the zone by.
+ * The one number that decides whether this is a plan or a texture, and it came
+ * down with the dial: shrinking the frame without shrinking the reach would
+ * have shrunk every block with it, which is the failure this map was rebuilt to
+ * fix. 66 m keeps the scale the 152 px dial had. That holds a block and a half
+ * in every direction — enough that a street the pilot has swept is
+ * recognisably that street. The 22 m red zone takes about a third of the disc once
+ * the drone is inside it, which is the right moment for it to: that is when the
+ * pilot is searching it. Wider and the blocks stop being distinguishable, which
+ * is the failure the whole-city version had; tighter and the pilot loses the
+ * context they navigate into the zone by.
  */
-const REACH_M = 85;
+const REACH_M = 66;
 
-const CITY = 'rgba(226, 232, 240, 0.3)';
+/**
+ * Roofs shade from dark to light with height.
+ *
+ * This is what turns a block back into buildings. Seen from straight above,
+ * every roof is the same flat shape; what tells a tower from the four-storey
+ * block beside it is that it is taller, and a light ramp says taller without a
+ * number. Kept low in contrast overall so the red zone is still the loudest
+ * thing on the dial.
+ */
+const ROOF_LOW = [70, 78, 90];
+const ROOF_HIGH = [196, 205, 216];
+/** The line where one roof steps to another. Dark, and thin enough that a block
+ *  of twelve buildings reads as twelve rather than as a grid. */
+const EDGE = 'rgba(6, 10, 17, 0.75)';
+
+/*
+ * The ground, in the order it is laid: asphalt under everything, then paint,
+ * sidewalks, grass, canopies, and the props standing on top. Muted, all of it —
+ * the ground is context, and the two things on this dial that have to be found
+ * at a glance are the aircraft and the red zone.
+ */
+const ROAD = '#1b1f26';
+const LANE = 'rgba(214, 180, 90, 0.45)';
+const WALK = '#3a3f48';
+const GRASS = '#3f5c34';
+const TREE = 'rgba(60, 104, 52, 0.85)';
+const PROP = 'rgba(150, 160, 172, 0.7)';
+/**
+ * The mesh: a faint grid, one line every ten metres, laid over the ground.
+ *
+ * It does two jobs. It gives the map a scale — ten metres is a cell, so the
+ * pilot can judge how far a street runs without a number — and it shows the
+ * map MOVING when the drone flies down a long road where nothing else on the
+ * dial changes, which otherwise reads as the map having frozen.
+ */
+const GRID = 'rgba(148, 163, 184, 0.07)';
+const GRID_M = 10;
 const ZONE_LINE = '#ff4d4d';
 const ZONE_FILL = 'rgba(255, 77, 77, 0.16)';
 const DRONE = '#e2e8f0';
@@ -115,16 +168,78 @@ export function MissionCityMap({ mission }: { mission: Mission }) {
       const sx = (x: number) => ox + x * k;
       const sz = (z: number) => oz + z * k;
 
-      ctx.fillStyle = CITY;
-      for (const [bx, bz, bw, bd] of NYC_PLAN) {
-        const x = sx(bx);
-        const y = sz(bz);
-        const w = bw * k;
-        const d = bd * k;
-        // Off the disc entirely: skipped rather than clipped, because at this
-        // zoom most of the city is off it most of the time.
+      // --- The ground ----------------------------------------------------------
+      ctx.fillStyle = ROAD;
+      ctx.fillRect(0, 0, SIZE, SIZE);
+      const rects = (list: readonly number[], colour: string) => {
+        ctx.fillStyle = colour;
+        for (let i = 0; i < list.length; i += 4) {
+          const x = sx(list[i]);
+          const y = sz(list[i + 1]);
+          const w = list[i + 2] * k;
+          const d = list[i + 3] * k;
+          if (x + w < 0 || y + d < 0 || x > SIZE || y > SIZE) continue;
+          ctx.fillRect(x, y, w, d);
+        }
+      };
+      rects(NYC_WALKS, WALK);
+      rects(NYC_LANES, LANE);
+      rects(NYC_GRASS, GRASS);
+
+      // The grid, in world metres so it scrolls with the city rather than
+      // sitting still over it.
+      ctx.strokeStyle = GRID;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      const g = GRID_M * k;
+      for (let x = ((ox % g) + g) % g; x < SIZE; x += g) {
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, SIZE);
+      }
+      for (let y = ((oz % g) + g) % g; y < SIZE; y += g) {
+        ctx.moveTo(0, y);
+        ctx.lineTo(SIZE, y);
+      }
+      ctx.stroke();
+
+      // Roofs first, then the edges over them. Off the disc entirely is skipped
+      // rather than clipped: at this zoom most of the city is off it most of
+      // the time, and there are well over a thousand roofs.
+      for (let i = 0; i < NYC_ROOFS.length; i += 5) {
+        const x = sx(NYC_ROOFS[i]);
+        const y = sz(NYC_ROOFS[i + 1]);
+        const w = NYC_ROOFS[i + 2] * k;
+        const d = NYC_ROOFS[i + 3] * k;
         if (x + w < 0 || y + d < 0 || x > SIZE || y > SIZE) continue;
-        ctx.fillRect(x, y, w, d);
+        ctx.fillStyle = roofColour(NYC_ROOFS[i + 4]);
+        // Half a pixel of overdraw each way, so neighbouring roofs of the same
+        // shade meet instead of leaving a hairline of background between them.
+        ctx.fillRect(x - 0.25, y - 0.25, w + 0.5, d + 0.5);
+      }
+      ctx.strokeStyle = EDGE;
+      ctx.lineWidth = 0.7;
+      ctx.beginPath();
+      for (let i = 0; i < NYC_EDGES.length; i += 4) {
+        const x1 = sx(NYC_EDGES[i]);
+        const y1 = sz(NYC_EDGES[i + 1]);
+        const x2 = sx(NYC_EDGES[i + 2]);
+        const y2 = sz(NYC_EDGES[i + 3]);
+        if (Math.max(x1, x2) < 0 || Math.max(y1, y2) < 0) continue;
+        if (Math.min(x1, x2) > SIZE || Math.min(y1, y2) > SIZE) continue;
+        ctx.moveTo(x1, y1);
+        ctx.lineTo(x2, y2);
+      }
+      ctx.stroke();
+
+      // Canopies over the roofs they overhang, and props over everything: seen
+      // from above a tree covers the sidewalk and a lamp stands clear of both.
+      rects(NYC_TREES, TREE);
+      ctx.fillStyle = PROP;
+      for (let i = 0; i < NYC_PROPS.length; i += 2) {
+        const x = sx(NYC_PROPS[i]);
+        const y = sz(NYC_PROPS[i + 1]);
+        if (x < 0 || y < 0 || x > SIZE || y > SIZE) continue;
+        ctx.fillRect(x - 0.5, y - 0.5, 1, 1);
       }
 
       // --- The red zone ------------------------------------------------------
@@ -209,4 +324,21 @@ export function MissionCityMap({ mission }: { mission: Mission }) {
       <canvas ref={canvas} style={{ width: SIZE, height: SIZE }} />
     </div>
   );
+}
+
+/** A roof's shade, cached per whole metre — there are only ever ~120 distinct
+ *  heights, and building a colour string for every roof every frame would be
+ *  a thousand small allocations a frame for the same few answers. */
+const shades = new Map<number, string>();
+function roofColour(h: number): string {
+  let c = shades.get(h);
+  if (c) return c;
+  // Square root rather than linear: most of this city is under 40 m and a
+  // linear ramp spends its whole range on the few towers, leaving every
+  // ordinary block the same dark grey.
+  const f = Math.sqrt(Math.min(1, Math.max(0, h / NYC_PLAN_TALLEST)));
+  const ch = (i: number) => Math.round(ROOF_LOW[i] + (ROOF_HIGH[i] - ROOF_LOW[i]) * f);
+  c = `rgb(${ch(0)}, ${ch(1)}, ${ch(2)})`;
+  shades.set(h, c);
+  return c;
 }

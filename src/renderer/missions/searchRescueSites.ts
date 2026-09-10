@@ -23,8 +23,30 @@
 
 export interface SearchSite {
   id: 'a' | 'b' | 'c' | 'd';
-  /** Where the casualty is, world metres, on the street. */
+  /** Where the casualty is, world metres. */
   at: readonly [number, number];
+  /**
+   * The roof the pilot SEES, metres. Where the casualty lies, where the mark is
+   * drawn, and what every band here is measured from.
+   *
+   * Read off the GLB rather than off the colliders, and the difference is the
+   * whole reason this field exists. The colliders rasterise a building to the
+   * tallest thing in each cell, so a roof with a parapet is solid up to the
+   * PARAPET — see `deck`. A mark drawn at that height floats a metre or two over
+   * the slab, which is exactly what it looked like in flight: a rescue ring
+   * hanging in the air above the roof it was supposed to be on.
+   */
+  roof: number;
+  /**
+   * The collider deck, metres: the height the aircraft would rest at, which is
+   * the parapet rather than the slab.
+   *
+   * Nothing is drawn at this height. It is here so `check-search-sites.mjs` can
+   * assert the thing that actually matters — that the hover band, measured from
+   * the visible roof, still starts above the parapet, or the pilot would be
+   * asked to hold a position inside the building.
+   */
+  deck: number;
   /**
    * Height of the TALLEST building within 30 m, metres, measured off the
    * colliders.
@@ -39,49 +61,73 @@ export interface SearchSite {
    * collider regeneration has left a site standing beside nothing.
    */
   landmarkHeight: number;
-  /** Metres of clear air all round the hover column, 1 m to 22 m. The rescue
-   *  zone's radius has to live inside this. */
+  /** Metres of clear air all round the hover column, from just above `deck` to
+   *  the top of the hover band. The rescue zone's radius has to live inside
+   *  this. */
   clearance: number;
 }
 
 /**
- * The four sites, spread one to a quarter of the map.
+ * The four sites. Every one of them is a ROOFTOP.
  *
- * No pair is within 70 m of another, so one hover can never see two of them,
- * and each is at least 45 m from the base pad at [0, 29]. All four are at
- * STREET level: the Guru tops out at 30 m, this city's reachable roof decks are
- * the same three in the same north-west corner, and separated search locations
- * cannot be made out of them. §3 of the mission doc records that as a
- * constraint of the aircraft rather than a design choice.
+ * Each is at least 45 m from the base pad at [0, 29] — the pad stays on the
+ * street, so every attempt starts with a climb — and no pair is within 50 m of
+ * another.
  *
- * The west site moved out from [-61, 32] when the south one was added: at the
- * old position the two were 60 m apart, close enough down an open street for
- * one hover to take in both, which would have made two red zones one search.
+ * FIFTY, where the street sites needed seventy. The old rule was "one hover can
+ * never see two of them", which a rooftop makes meaningless: from 45 m up the
+ * pilot can see most of the city. What has to stay true is that one red zone can
+ * never hold two sites, and the zone is 44 m across — a circle centred at most
+ * 12.1 m from its own site reaches 34.1 m, which leaves 15.9 m of daylight
+ * before the nearest other. Only the live site carries a beacon in any case, so
+ * the other three are indistinguishable from the rest of the skyline.
+ *
+ * Rooftops cost the mission its own ceiling. The Guru's `maxAltitude` is 30 m
+ * and this city's roofs start at 45, so on the stock airframe there is exactly
+ * ONE reachable roof in the whole city. Four only exist above 60 m, which is why
+ * the mission raises the ceiling for its own length (`Mission.ceiling`) and why
+ * that is a mission field rather than a change to the aircraft.
+ *
+ * All four were swept out of the GLB and the colliders together, never chosen by
+ * eye: the VISIBLE roof flat to within 0.6 m out to 4.5 m — wider than the
+ * rescue ring, so no part of the mark hangs off the edge — clear air through the
+ * hover band above, 45 m from base, and the set of four with the widest smallest
+ * separation the city allows.
  */
 export const SEARCH_SITES: readonly SearchSite[] = [
   {
     id: 'a',
-    at: [-31, -86],
-    landmarkHeight: 99.5,
-    clearance: 6.83,
+    at: [-44, -12],
+    roof: 45.11,
+    deck: 45.68,
+    landmarkHeight: 72.5,
+    clearance: 5.83,
   },
   {
     id: 'b',
-    at: [29, -30],
-    landmarkHeight: 84.9,
-    clearance: 8.49,
+    at: [61, -12],
+    roof: 45.62,
+    deck: 47.34,
+    landmarkHeight: 60.5,
+    clearance: 10.05,
   },
   {
     id: 'c',
-    at: [-84, 32],
-    landmarkHeight: 93.8,
-    clearance: 5.7,
+    at: [97, 48],
+    roof: 48.12,
+    deck: 48.88,
+    landmarkHeight: 57.7,
+    clearance: 6,
   },
+  /* The low one, and the only site that would still be reachable if the mission
+   * ever gave the ceiling back. */
   {
     id: 'd',
-    at: [-32, 85],
-    landmarkHeight: 91.1,
-    clearance: 7.38,
+    at: [47, 48],
+    roof: 33.16,
+    deck: 34.56,
+    landmarkHeight: 58.3,
+    clearance: 10.82,
   },
 ] as const;
 

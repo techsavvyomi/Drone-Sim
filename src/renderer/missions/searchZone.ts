@@ -62,12 +62,12 @@ export function zoneFor(
   /*
    * Two clamps, and the order matters.
    *
-   * The first keeps the circle on the drawn map, allowing it to overhang the
-   * city's own footprint by the offset — the map is drawn with exactly that
-   * much margin, so no zone is ever clipped by the frame. Two of the four sites
-   * sit a few metres outside the building bounds, on the streets that run round
-   * the edge of the city, so some overhang is not avoidable and pretending
-   * otherwise is what would push a circle off its own casualty.
+   * The first keeps the circle over the city, allowing it to overhang the
+   * building footprint by the offset — a zone hanging out over empty ground
+   * invites the pilot to search nothing. Two of the four sites sit a few metres
+   * outside the building bounds, on the streets that ring the city, so some
+   * overhang is not avoidable, and pretending otherwise is what would push a
+   * circle off its own casualty.
    *
    * The second is the guarantee: whatever the first did, the centre ends up
    * within the offset of the site. A pilot who searches the circle completely
@@ -85,14 +85,6 @@ export function zoneFor(
     at: [clamp(onMap[0], at[0] - span, at[0] + span), clamp(onMap[1], at[1] - span, at[1] + span)],
     radius,
   };
-}
-
-/**
- * How much wider than the city the map has to be drawn for no zone ever to be
- * clipped by its own frame. Read by `MissionCityMap`, so the two cannot drift.
- */
-export function planMargin(radius: number): number {
-  return radius * OFFSET_FRACTION;
 }
 
 function clamp(v: number, lo: number, hi: number): number {

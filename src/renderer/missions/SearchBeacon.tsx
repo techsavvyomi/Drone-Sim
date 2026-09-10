@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
 import { dronePose } from '../sim/drone/pose';
 import type { Mission } from './types';
+import { beaconHeightFor, zoneGroundY } from './types';
 
 // ----------------------------------------------------------------------------
 // The emergency beacon at the live search site.
@@ -83,7 +84,9 @@ export function SearchBeacon({ mission, siteIndex }: { mission: Mission; siteInd
 
   const search = mission.search;
   const site = search?.sites[Math.min(Math.max(siteIndex, 0), search.sites.length - 1)];
-  const beaconHeight = search?.beaconHeight ?? 10;
+  // Measured against the site's own hover band, so the rooftop's short flare
+  // and the streets' full column both come out of one rule.
+  const beaconHeight = site ? beaconHeightFor(mission, site.zone) : (search?.beaconHeight ?? 10);
 
   const tex = useMemo(() => dotTexture(), []);
 
@@ -148,7 +151,7 @@ export function SearchBeacon({ mission, siteIndex }: { mission: Mission; siteInd
   if (!site) return null;
 
   return (
-    <group ref={group} position={[site.at[0], mission.groundY, site.at[1]]}>
+    <group ref={group} position={[site.at[0], zoneGroundY(mission, site.zone), site.at[1]]}>
       {/* The pool of red on the road. Drawn flat, just clear of the surface, and
           it is the part that answers "exactly where" once the pilot is directly
           overhead and every vertical thing here is edge-on to them. */}

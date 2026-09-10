@@ -4971,60 +4971,154 @@ button {
   transform: translateX(-50%);
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  padding: 12px 16px;
-  background: rgba(9, 14, 22, 0.8);
+  gap: 7px;
+  padding: 11px 14px 12px;
+  /* A FIXED width, not a shrink-to-fit box. The rows change text as the mission
+     moves — 'Over the casualty' is half as wide again as 'Centred' — and a card
+     that resized around them twitched in the top centre of the screen while the
+     pilot was trying to hold a hover against it. */
+  width: 218px;
+  background: linear-gradient(rgba(13, 19, 29, 0.9), rgba(9, 14, 22, 0.88));
   border: 1px solid var(--line);
-  border-radius: 8px;
-  backdrop-filter: blur(6px);
+  border-radius: 10px;
+  box-shadow:
+    0 10px 26px rgba(3, 6, 12, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(8px);
   font-size: 12px;
   color: var(--text-dim);
-  min-width: 150px;
+  animation: ms-banner-in 0.26s cubic-bezier(0.22, 1.2, 0.36, 1) both;
 }
-.ms-checks-head {
-  font-size: 9px;
-  letter-spacing: 0.18em;
-  color: var(--warn);
-}
-.ms-checks span.ok {
-  color: var(--good);
-  font-weight: 700;
-}
-.ms-checks span.miss {
-  color: var(--bad);
-  font-weight: 700;
+/* Everything met. The card says so with its own edge rather than with a fourth
+   line of text — it is read out of the corner of the eye, mid-hover. */
+.ms-checks.armed {
+  border-color: rgba(55, 224, 138, 0.5);
+  box-shadow:
+    0 10px 26px rgba(3, 6, 12, 0.45),
+    0 0 0 1px rgba(55, 224, 138, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 .ms-checks.blocked {
   border-color: rgba(255, 92, 92, 0.5);
 }
-/* The band the Height row is asking for. Quieter than the row itself and it
-   stays quiet once the row goes green — by then it is a number the pilot has
-   already satisfied, not an instruction. */
-.ms-checks-band {
+.ms-checks-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  color: var(--warn);
+}
+.ms-checks.armed .ms-checks-head {
+  color: var(--good);
+}
+/* The hold, as a number. Tabular figures so the percentage does not shuffle the
+   title sideways as it counts up. */
+.ms-checks-head em {
   font-style: normal;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+  opacity: 0.85;
+}
+
+/* One condition. Three columns — mark, label, value — so the labels start on the
+   same pixel whether or not their mark is ticked. The old rows put a glyph
+   inline with the text, and every tick shifted its own label. */
+.ms-check {
+  display: grid;
+  grid-template-columns: 14px 1fr auto;
+  align-items: center;
+  gap: 9px;
+  line-height: 1.25;
+}
+.ms-check b {
   font-weight: 600;
-  opacity: 0.6;
+  color: var(--text-dim);
 }
-.ms-checks span.ok .ms-checks-band {
-  opacity: 0.45;
+.ms-check.ok b {
+  color: var(--good);
+  font-weight: 700;
 }
+.ms-check.miss b {
+  color: var(--bad);
+  font-weight: 700;
+}
+/* The value on the right: the height band, or the rings still owed. Quieter than
+   the label, and quieter again once the row is green — by then it is a number
+   the pilot has satisfied rather than one they are chasing. */
+.ms-check em {
+  font-style: normal;
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.62;
+}
+.ms-check.ok em {
+  opacity: 0.5;
+}
+/* The mark itself: an empty ring that fills and takes a tick. A ring reads as
+   'not yet' rather than as 'nothing', which a bare dot does not. */
+.ms-check i {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(148, 163, 184, 0.4);
+  display: grid;
+  place-items: center;
+  font-style: normal;
+  font-size: 9px;
+  font-weight: 900;
+  line-height: 1;
+  color: transparent;
+  transition:
+    background 0.14s ease,
+    border-color 0.14s ease;
+}
+.ms-check.ok i {
+  border-color: var(--good);
+  background: var(--good);
+  color: #06131b;
+}
+.ms-check.ok i::after {
+  content: '✓';
+}
+.ms-check.miss i {
+  border-color: var(--bad);
+  background: var(--bad);
+  color: #1b0606;
+}
+.ms-check.miss i::after {
+  content: '✕';
+}
+
 .ms-checks-note {
-  margin-top: 2px;
+  margin-top: 1px;
   font-size: 10.5px;
   line-height: 1.35;
   color: var(--bad);
 }
+/* The hold bar. Full width of the card — as a centred flex item it used to
+   collapse to the width of its own contents, which is nothing, so the one
+   element that shows progress was invisible. */
 .ms-checks-bar {
-  height: 4px;
-  border-radius: 2px;
-  background: rgba(255, 255, 255, 0.08);
+  align-self: stretch;
+  height: 5px;
+  margin-top: 2px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.07);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04);
   overflow: hidden;
 }
 .ms-checks-bar i {
   display: block;
   height: 100%;
-  background: var(--good);
+  border-radius: 3px;
+  background: linear-gradient(90deg, rgba(55, 224, 138, 0.75), var(--good));
+  box-shadow: 0 0 8px rgba(55, 224, 138, 0.45);
   transition: width 0.12s linear;
 }
 
