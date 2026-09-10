@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { dronePose } from '../sim/drone/pose';
-import { useMissionStore, legOf, activeZone } from '../state/missionStore';
-import { requiredCheckpoints, nextTargetOf, dropZoneOf } from '../missions/types';
+import { useMissionStore, legOf, activeZone, guidanceHidden } from '../state/missionStore';
+import { requiredCheckpoints, nextTargetOf, dropZoneOf, rescueZoneOf } from '../missions/types';
 import type { Mission } from '../missions/types';
 
 // ----------------------------------------------------------------------------
@@ -58,11 +58,19 @@ export function MissionMap({ mission }: { mission: Mission }) {
     leg: useMissionStore.getState().leg,
     collected: useMissionStore.getState().collected,
     runIndex: useMissionStore.getState().runIndex,
+    siteIndex: useMissionStore.getState().siteIndex,
+    located: useMissionStore.getState().located,
   });
   useEffect(
     () =>
       useMissionStore.subscribe((s) => {
-        state.current = { leg: s.leg, collected: s.collected, runIndex: s.runIndex };
+        state.current = {
+          leg: s.leg,
+          collected: s.collected,
+          runIndex: s.runIndex,
+          siteIndex: s.siteIndex,
+          located: s.located,
+        };
       }),
     [],
   );
@@ -73,9 +81,19 @@ export function MissionMap({ mission }: { mission: Mission }) {
   // times. `dropZoneOf` is the same call the Director and the world marks use.
   const zonesFor = useMemo(
     () =>
-      (runIndex: number): readonly Zone[] => [
+      (runIndex: number, siteIndex: number): readonly Zone[] => [
         { at: mission.zones.pickup.at, color: PICKUP, kind: 'pickup' },
-        { at: dropZoneOf(mission, runIndex).at, color: DROP, kind: 'drop' },
+        {
+          // A search mission's middle mark is whichever SITE this attempt drew,
+          // not whichever package a run is on. It is only ever drawn after the
+          // casualty has been found — see the guidance gate below — but it is
+          // resolved correctly here so that the dial can never, under any future
+          // change, be handed the first site's position for the live one.
+          at: (mission.search ? rescueZoneOf(mission, siteIndex) : dropZoneOf(mission, runIndex))
+            .at,
+          color: DROP,
+          kind: 'drop',
+        },
         { at: mission.zones.base.at, color: BASE, kind: 'base' },
       ],
     [mission],
@@ -114,10 +132,19 @@ export function MissionMap({ mission }: { mission: Mission }) {
       ctx.arc(half, half, half - 0.5, 0, Math.PI * 2);
       ctx.clip();
 
-      const { leg, collected, runIndex } = state.current;
-      const zones = zonesFor(runIndex);
+      const { leg, collected, runIndex, siteIndex, located } = state.current;
+      const zones = zonesFor(runIndex, siteIndex);
       const liveLeg = legOf(leg as never);
-      const here = activeZone(leg as never);
+      // NOTHING is a target while the search is on.
+      //
+      // The dial keeps its compass, its rim and the aircraft in the middle —
+      // that is not guidance, it is the pilot's own position, and a searching
+      // pilot needs it more than anyone: it is how they know which streets they
+      // have already covered. What it loses is the one dot that answers "where
+      // now", because on this mission nothing is entitled to answer that until
+      // the casualty has been found.
+      const hidden = guidanceHidden(mission, located);
+      const here = hidden ? null : activeZone(leg as never);
       const owed = mission.route.filter((c) => required.has(c.id) && !collected[c.id]);
 
       const q = dronePose.quaternion;
@@ -162,6 +189,7 @@ export function MissionMap({ mission }: { mission: Mission }) {
         ctx.fill();
         ctx.restore();
       }
+
       ctx.restore();
 
       /** Pull a point back onto the rim rather than losing it off the edge. A
@@ -182,7 +210,7 @@ export function MissionMap({ mission }: { mission: Mission }) {
       // readout come from the same call: the nearest checkpoint this leg still
       // owes, and once they are all taken the mark itself. The dial and the
       // arrow point the same way because they are the same point.
-      const cp = nextTargetOf(mission, liveLeg, collected);
+      const cp = hidden ? null : nextTargetOf(mission, liveLeg, collected);
       const zone = zones.find((z) => z.kind === here);
       const at = cp
         ? { x: sx(cp[0]), y: sz(cp[2]) }

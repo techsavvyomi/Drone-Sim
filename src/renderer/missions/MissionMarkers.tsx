@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
 import { CheckpointSphere } from '../scene/CheckpointSphere';
 import { useMissionStore, activeZone, legOf } from '../state/missionStore';
+import { SearchBeacon } from './SearchBeacon';
 import { playCollect } from '../audio/sfx';
 import { nextCheckpointOf, zoneGroundY } from './types';
 import type { Mission, MissionZone, MissionZoneKind } from './types';
@@ -350,6 +351,8 @@ export function MissionMarkers({ mission }: { mission: Mission }) {
   const collect = useMissionStore((s) => s.collect);
   const gate = useMissionStore((s) => s.gate);
   const runIndex = useMissionStore((s) => s.runIndex);
+  const siteIndex = useMissionStore((s) => s.siteIndex);
+  const located = useMissionStore((s) => s.located);
 
   const liveLeg = legOf(leg);
   const zoneKind = activeZone(leg);
@@ -455,6 +458,14 @@ export function MissionMarkers({ mission }: { mission: Mission }) {
         />
       ))}
 
+      {/* The beacon, on a search mission.
+
+          Mounted for the whole flight and culled by distance in its own frame
+          loop rather than mounted when the pilot gets close: building a mesh and
+          a light while the drone is flying costs a frame, and this one would
+          cost it at the exact moment the pilot has just spotted something. */}
+      {mission.search && <SearchBeacon mission={mission} siteIndex={siteIndex} />}
+
       {/* The destinations.
 
           Every one of them is mounted for the whole flight and all but one is
@@ -465,8 +476,20 @@ export function MissionMarkers({ mission }: { mission: Mission }) {
           nothing on screen ever suggested they would.
 
           `mission.zones.drop` is the first entry on such a mission, so a
-          single-drop mission draws exactly the one mark it always did. */}
-      {(mission.deliveries ?? [{ id: 'drop', zone: mission.zones.drop }]).map((d, i) => (
+          single-drop mission draws exactly the one mark it always did.
+
+          On a SEARCH mission these are the candidate rescue zones, one per
+          compass direction, and `live` carries an extra condition that exists nowhere else: `located`.
+          Without it a mark would light the moment the leg said 'drop', which on
+          this mission is the moment the pilot finds the casualty — correct — but
+          `activeZone` is not the only route to that leg, and the rule this
+          mission is built on deserves the belt as well as the braces. Before the
+          casualty is found, none of the three is lit and the two decoys are
+          indistinguishable from the real one. */}
+      {(
+        mission.deliveries ??
+        mission.search?.sites ?? [{ id: 'drop', zone: mission.zones.drop }]
+      ).map((d, i) => (
         <group key={d.id}>
           {/* Drawn whether or not this destination is the live one: it is a
               structure on a roof, and one that appeared when the pilot was sent
@@ -475,8 +498,13 @@ export function MissionMarkers({ mission }: { mission: Mission }) {
           <ZoneMark
             zone={d.zone}
             groundY={zoneGroundY(mission, d.zone)}
-            live={flying && zoneKind === 'drop' && i === runIndex}
-            ready={i === runIndex ? ready : undefined}
+            live={
+              flying &&
+              zoneKind === 'drop' &&
+              i === (mission.search ? siteIndex : runIndex) &&
+              (!mission.hideGuidanceUntilFound || located)
+            }
+            ready={i === (mission.search ? siteIndex : runIndex) ? ready : undefined}
             column={!mission.fire}
             xray={mission.seeThroughMarks === true}
           />

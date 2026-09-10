@@ -4998,6 +4998,17 @@ button {
 .ms-checks.blocked {
   border-color: rgba(255, 92, 92, 0.5);
 }
+/* The band the Height row is asking for. Quieter than the row itself and it
+   stays quiet once the row goes green — by then it is a number the pilot has
+   already satisfied, not an instruction. */
+.ms-checks-band {
+  font-style: normal;
+  font-weight: 600;
+  opacity: 0.6;
+}
+.ms-checks span.ok .ms-checks-band {
+  opacity: 0.45;
+}
 .ms-checks-note {
   margin-top: 2px;
   font-size: 10.5px;
@@ -5589,4 +5600,44 @@ button {
 .ms-map canvas {
   display: block;
   border-radius: 50%;
+}
+
+/* ---- Search & Rescue: the city map --------------------------------------- */
+/* Where the radar dial sits on every other mission, and round like it. The plan
+   inside is scaled to its own diagonal, so the city keeps its corners even
+   though the frame has none. */
+.ms-citymap {
+  position: absolute;
+  top: 72px;
+  right: 14px;
+  padding: 6px;
+  border-radius: 50%;
+  background: rgba(10, 14, 22, 0.78);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  pointer-events: none;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.ms-citymap canvas {
+  display: block;
+  border-radius: 50%;
+}
+/* Inside the disc rather than under it: a caption below a circle in a round box
+   has to sit in the padding, and there is none to spare. Without it the map
+   shows an urgent-looking shape and never names it, and a pilot who skimmed the
+   briefing has no way to learn that the circle is the search area rather than
+   somewhere to keep out of. */
+.ms-citymap-foot {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 16px;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-align: center;
+  color: var(--bad);
+  opacity: 0.85;
 }

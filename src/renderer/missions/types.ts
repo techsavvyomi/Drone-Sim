@@ -204,7 +204,91 @@ export interface RadioLine {
  * right height and stopped. What differs is how long, and what the holding is
  * FOR.
  */
-export type MissionKind = 'delivery' | 'suppression';
+export type MissionKind = 'delivery' | 'suppression' | 'search';
+
+/**
+ * One of the places the casualty can be, on a SEARCH mission.
+ *
+ * Three are authored and exactly one is live per attempt, chosen when the
+ * attempt arms. The other two are ordinary city: no beacon, no signal, nothing
+ * to find. That is what stops the mission being memorised — and it is why the
+ * live one is an INDEX held in the store rather than a field on the mission,
+ * the same way a multi-point delivery's live package is.
+ *
+ * Where the pilot is told to look is NOT here either. It is the RED ZONE, drawn
+ * round whichever site is live and held in the store for the attempt — see
+ * `searchZone.ts`. No string in the mission names a position.
+ */
+export interface MissionSearchSite {
+  /** Short id, for the run-specific radio keys and the tests. */
+  id: string;
+  /** Where the casualty is, world metres. */
+  at: readonly [number, number];
+  /** The rescue zone, revealed only once the signal is confirmed. `kind` is
+   *  'drop': it is the middle of the mission, and giving it a fourth zone kind
+   *  would mean two marks describing one hover. */
+  zone: MissionZone;
+}
+
+/**
+ * The search, on a search mission.
+ *
+ * Only the numbers the runtime needs. Where the casualty is, is one of `sites`;
+ * how the pilot is told they are close, is the three radii below.
+ */
+export interface MissionSearch {
+  /** The candidate locations, one per compass direction. One is live per
+   *  attempt. */
+  sites: readonly MissionSearchSite[];
+  /**
+   * Metres at which the signal is first heard at all, and the outer edge of the
+   * readout.
+   *
+   * Beyond this the HUD says NOTHING — not a weak reading, not a zero. A signal
+   * cell sitting at 0% across the whole map is a cell the pilot learns to
+   * ignore, and worse, one they can fly a grid against: watch for it to leave
+   * zero and you have a detector that works at any range.
+   */
+  detectRadius: number;
+  /** Metres at which the location is CONFIRMED and the rescue zone is revealed.
+   *  The pilot has to have flown to it, not merely near it. */
+  confirmRadius: number;
+  /** Height above the deck the beacon's smoke and light stand to, metres. What
+   *  makes the site findable by eye rather than by the readout. */
+  beaconHeight: number;
+  /**
+   * How wide the RED ZONE is, metres.
+   *
+   * The search area drawn on the map, and the only thing the pilot is told
+   * about where the casualty is. It replaced four written clues: a paragraph
+   * describing a place is a reading test to be solved while flying, and a
+   * circle is the same information in the language the map already speaks.
+   *
+   * Sized so that flying to it is not the mission. A zone the pilot can see
+   * across in one hover is a marker with a wide border; one that covers a third
+   * of the city has narrowed nothing. See `searchZone.ts` for where inside it
+   * the casualty falls.
+   */
+  zoneRadius: number;
+  /**
+   * The highest the aircraft may be, metres above the deck, for the signal to
+   * be heard or the casualty confirmed at all.
+   *
+   * Both radii are FLAT — horizontal distance to the site, altitude ignored —
+   * because a search is a search of the ground and a pilot who has drifted two
+   * metres up should not lose the reading. But flat with no ceiling means a
+   * pilot at the aircraft's 30 m limit, looking down on the whole city from
+   * above every roof, gets the same detection as one threading the street the
+   * casualty is actually in. That is the opposite of what this mission teaches:
+   * it turns "search the sector by eye" into "climb until everything is in
+   * range".
+   *
+   * So the search has a roof, and it sits just above the confirmation hover's
+   * own band — high enough that arriving from above is normal flying, low
+   * enough that the pilot has to come down among the buildings to find anyone.
+   */
+  maxDetectAgl: number;
+}
 
 /**
  * The fire, for a suppression mission.
@@ -328,6 +412,24 @@ export interface Mission {
   medals: { bronze: number; silver: number; gold: number };
   /** The fire, on a suppression mission. Absent on a delivery. */
   fire?: MissionFire;
+  /** The search, on a search mission. Absent on every other kind. */
+  search?: MissionSearch;
+  /**
+   * Hide every piece of target guidance until the mission says the target has
+   * been FOUND.
+   *
+   * A flag rather than an absence, and that is the whole reason it exists. The
+   * marks, the radar dot, the DISTANCE readout and the in-picture pointer are
+   * all drawn by DEFAULT — a mission that simply declines to fill in a
+   * destination gets them pointing at whatever the shared runtime falls back to,
+   * and the next change to any of those four components quietly restores the
+   * guidance with nothing failing. An absence cannot be tested. This can, and
+   * TC-401 does.
+   *
+   * Off everywhere but Search & Rescue, which is the only mission whose job is
+   * to work out where the destination is.
+   */
+  hideGuidanceUntilFound?: boolean;
   /**
    * How much of the THROTTLE this mission gives the pilot, 0.1 to 2.
    *
@@ -427,7 +529,7 @@ export function toMissionSpec(m: Mission): MissionSpec {
   return {
     id: m.id,
     name: m.name,
-    type: m.kind === 'suppression' ? 'rescue' : 'delivery',
+    type: m.kind === 'delivery' ? 'delivery' : 'rescue',
     description: m.blurb,
     medalThresholds: m.medals,
   };
@@ -523,6 +625,28 @@ export function maxPointsOf(m: Mission): number {
   return m.route.length + deliveryCount(m) + (m.endsAtDrop ? 0 : 1);
 }
 
+/**
+ * The rescue zone the pilot is being judged against right now.
+ *
+ * The same shape of answer `dropZoneOf` gives a multi-point delivery, and for
+ * the same reason: the mission holds the candidates, the store holds which one
+ * is live, and everything that draws or tests a mark comes through here so no
+ * two of them can disagree about which site the attempt is on.
+ *
+ * A mission with no `search` answers with its ordinary drop, so this is safe to
+ * call anywhere.
+ */
+export function rescueZoneOf(m: Mission, siteIndex: number): MissionZone {
+  return searchSiteOf(m, siteIndex)?.zone ?? m.zones.drop;
+}
+
+/** The live site, or null on a mission that is not a search. */
+export function searchSiteOf(m: Mission, siteIndex: number): MissionSearchSite | null {
+  const list = m.search?.sites;
+  if (!list || list.length === 0) return null;
+  return list[Math.min(Math.max(siteIndex, 0), list.length - 1)];
+}
+
 /** How many packages this mission puts down. One, unless it says otherwise. */
 export function deliveryCount(m: Mission): number {
   return m.deliveries?.length ?? 1;
@@ -559,7 +683,8 @@ export function deliveryOf(m: Mission, runIndex: number): MissionDelivery | null
  * a record of three and cannot grow, so this is the honest list.
  */
 export function allZonesOf(m: Mission): readonly MissionZone[] {
-  const drops = m.deliveries?.map((d) => d.zone) ?? [m.zones.drop];
+  const drops = m.deliveries?.map((d) => d.zone) ??
+    m.search?.sites.map((s) => s.zone) ?? [m.zones.drop];
   return [m.zones.pickup, ...drops, m.zones.base];
 }
 

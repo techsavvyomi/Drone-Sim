@@ -8,6 +8,7 @@ import type {
   MissionZoneKind,
 } from '../missions/types';
 import { deliveryCount, maxPointsOf, rankFor } from '../missions/types';
+import { zoneFor, type SearchZone } from '../missions/searchZone';
 import { useSettingsStore } from './settingsStore';
 
 // ----------------------------------------------------------------------------
@@ -37,9 +38,28 @@ export type MissionPhase = 'briefing' | 'flying' | 'complete' | 'failed';
  * the drone enters the delivery zone and the job changes from navigating to
  * positioning. `delivered` is the flight home, `returning` is being over the pad
  * with the landing still to do, `landing` is the touchdown settling.
+ *
+ * A SEARCH mission puts two legs in front of that tail instead of the first
+ * three:
+ *
+ * searching -> confirming -> delivered -> returning -> landing -> complete
+ *
+ * `searching` is the whole of the new part — no destination exists yet as far
+ * as anything on screen is concerned. `confirming` is the five second hover
+ * once the casualty has been found. From there it is an ordinary flight home,
+ * deliberately: the search is over, and making the pilot find their way back as
+ * well would be testing the same thing twice with a timer running.
  */
 export type MissionLeg =
-  'toPickup' | 'carrying' | 'toDrop' | 'delivered' | 'returning' | 'landing' | 'complete';
+  | 'searching'
+  | 'confirming'
+  | 'toPickup'
+  | 'carrying'
+  | 'toDrop'
+  | 'delivered'
+  | 'returning'
+  | 'landing'
+  | 'complete';
 
 export type PayloadState = 'waiting' | 'attached' | 'delivered';
 
@@ -117,6 +137,40 @@ interface MissionState {
    *  drawn standing on their marks rather than waiting at the hub. */
   deliveredCount: number;
 
+  /**
+   * Which of a search mission's candidate locations is live, 0-based.
+   *
+   * Chosen at random when the attempt arms and never touched again, so it is
+   * the one number that makes the mission unmemorisable. Always 0 on every
+   * other mission, where nothing reads it.
+   */
+  siteIndex: number;
+  /**
+   * The RED ZONE: the search area drawn on the map, world metres.
+   *
+   * Drawn once with the site and then fixed for the attempt — a circle that
+   * moved would be the app searching on the pilot's behalf. Null on every
+   * mission that is not a search, where nothing reads it.
+   */
+  searchZone: SearchZone | null;
+  /**
+   * How strong the emergency signal is, 0 to 1. Search missions only.
+   *
+   * Zero means BOTH "nothing heard" and "nothing to hear" — the HUD does not
+   * distinguish them, and must not: a cell reading 0% across the whole map is a
+   * detector that works at any range, because a pilot can fly a grid and watch
+   * for it to leave zero. Outside the detect radius the cell is not drawn.
+   */
+  signal: number;
+  /**
+   * Whether the casualty has been FOUND.
+   *
+   * The single gate on every piece of target guidance in the app. False for the
+   * whole search and true from the confirmation onwards; nothing else sets it,
+   * and a restart puts it back.
+   */
+  located: boolean;
+
   /** Route checkpoint ids already scored. */
   collected: Record<string, true>;
   /** Zones already scored. */
@@ -187,6 +241,10 @@ interface MissionState {
   exit: () => void;
 
   setLeg: (leg: MissionLeg) => void;
+  /** Signal strength, published by the Director at the HUD's rate. */
+  setSignal: (signal: number) => void;
+  /** The casualty is found. One way only — nothing puts it back but a restart. */
+  setLocated: () => void;
   setPayload: (payload: PayloadState) => void;
   /** Move on to the next package. The only way `runIndex` ever changes. */
   advanceRun: () => void;
@@ -221,9 +279,17 @@ interface MissionState {
 
 /** The parts of an attempt that a restart wipes. Kept in one place so a new
  *  field cannot be added to the store and forgotten by the teardown. */
-function freshAttempt() {
+function freshAttempt(mission: Mission | null) {
   return {
-    leg: 'toPickup' as MissionLeg,
+    // A search mission opens on its own leg. Every other mission opens on the
+    // run to the pickup, which is what all three existing ones do.
+    leg: (mission?.kind === 'search' ? 'searching' : 'toPickup') as MissionLeg,
+    // WHICH SITE, decided here and only here. It is re-rolled on every attempt
+    // — including a restart — so a pilot who failed at site B is not handed
+    // site B again to fly from memory.
+    ...pickSearch(mission),
+    signal: 0,
+    located: false,
     payload: 'waiting' as PayloadState,
     runIndex: 0,
     deliveredCount: 0,
@@ -253,6 +319,59 @@ function freshAttempt() {
   };
 }
 
+/**
+ * Which site the LAST attempt drew, so the next one can refuse to repeat it.
+ *
+ * Module scope rather than store state on purpose: it has to outlive the
+ * attempt it describes, and `freshAttempt` exists to wipe everything the store
+ * holds. A restart clears the run; it must not clear the memory of what the run
+ * was, or the whole point of this is lost on the one path that needs it most.
+ */
+let lastSiteIndex = -1;
+
+/**
+ * One of the mission's search sites at random, never the one just flown.
+ *
+ * Plain random over four sites means one attempt in four hands the pilot the
+ * position they have this moment finished searching, and a pilot who is handed
+ * the same casualty twice does not search at all — they fly straight there,
+ * which is the one thing this mission is built to prevent. So the draw is over
+ * the OTHER sites: every start is somewhere new.
+ *
+ * With four sites that still leaves three possibilities each time, so the
+ * sequence is not a rotation the pilot can learn either.
+ */
+function pickSiteIndex(mission: Mission | null): number {
+  const n = mission?.search?.sites.length ?? 0;
+  if (n <= 0) return 0;
+  // With one site there is nothing to avoid; with two the "other" is forced.
+  if (n === 1) return 0;
+  const choices = [];
+  for (let i = 0; i < n; i++) if (i !== lastSiteIndex) choices.push(i);
+  const next = choices[Math.floor(Math.random() * choices.length)] ?? 0;
+  lastSiteIndex = next;
+  return next;
+}
+
+/**
+ * The site and the red zone around it, drawn together.
+ *
+ * Together rather than in two fields, because a zone that does not contain its
+ * own site is the mission's one unrecoverable state: the pilot searches the
+ * circle honestly and completely, and nobody is in it. Deriving the second from
+ * the first at the single moment the first is chosen is what makes that
+ * impossible to express.
+ */
+function pickSearch(mission: Mission | null): { siteIndex: number; searchZone: SearchZone | null } {
+  const siteIndex = pickSiteIndex(mission);
+  const search = mission?.search;
+  const site = search?.sites[siteIndex];
+  return {
+    siteIndex,
+    searchZone: search && site ? zoneFor(site.at, search.zoneRadius) : null,
+  };
+}
+
 let seq = 0;
 const nextId = () => ++seq;
 
@@ -260,18 +379,20 @@ export const useMissionStore = create<MissionState>((set, get) => ({
   mission: null,
   phase: 'briefing',
   maxPoints: 0,
-  ...freshAttempt(),
+  ...freshAttempt(null),
 
   start: (mission) =>
-    set({ mission, phase: 'briefing', maxPoints: maxPointsOf(mission), ...freshAttempt() }),
+    set({ mission, phase: 'briefing', maxPoints: maxPointsOf(mission), ...freshAttempt(mission) }),
 
-  beginFlight: () => set({ phase: 'flying', ...freshAttempt() }),
+  beginFlight: () => set((s) => ({ phase: 'flying', ...freshAttempt(s.mission) })),
 
-  restart: () => set({ phase: 'flying', ...freshAttempt() }),
+  restart: () => set((s) => ({ phase: 'flying', ...freshAttempt(s.mission) })),
 
-  exit: () => set({ mission: null, phase: 'briefing', maxPoints: 0, ...freshAttempt() }),
+  exit: () => set({ mission: null, phase: 'briefing', maxPoints: 0, ...freshAttempt(null) }),
 
   setLeg: (leg) => set({ leg }),
+  setSignal: (signal) => set({ signal }),
+  setLocated: () => set({ located: true }),
   setPayload: (payload) => set({ payload }),
 
   advanceRun: () => set((s) => ({ runIndex: s.runIndex + 1 })),
@@ -405,15 +526,40 @@ export function legOf(leg: MissionLeg): 'toPickup' | 'toDrop' | 'toBase' | null 
   if (leg === 'toPickup') return 'toPickup';
   if (leg === 'carrying' || leg === 'toDrop') return 'toDrop';
   if (leg === 'delivered' || leg === 'returning') return 'toBase';
+  // 'searching' and 'confirming' answer null: a search mission declares no
+  // route at all, and a leg with no rings on it must not fall through to
+  // another leg's.
   return null;
 }
 
 /** Which zone the pilot is being sent to right now, or null once home. */
 export function activeZone(leg: MissionLeg): MissionZoneKind | null {
+  // NOTHING is live while the pilot is searching. This is the first of the two
+  // halves of the no-guidance rule and the one that does most of the work: the
+  // lit mark, the radar's dot and the DISTANCE readout all ask this question,
+  // and all three go quiet on one answer.
+  if (leg === 'searching') return null;
+  if (leg === 'confirming') return 'drop';
   if (leg === 'toPickup') return 'pickup';
   if (leg === 'carrying' || leg === 'toDrop') return 'drop';
   if (leg === 'delivered' || leg === 'returning' || leg === 'landing') return 'base';
   return null;
+}
+
+/**
+ * Whether every piece of target guidance is suppressed this frame.
+ *
+ * The OTHER half of the no-guidance rule, and the half that is a flag rather
+ * than an absence. `activeZone` going null is what silences the mark and the
+ * dot; this is what the HUD, the map and the in-picture pointer read to know
+ * that the silence is DELIBERATE rather than a leg between two marks.
+ *
+ * Written as one exported function so there is exactly one answer for all four
+ * consumers, and so a test can assert it — see TC-401. A mission that does not
+ * declare `hideGuidanceUntilFound` can never reach it.
+ */
+export function guidanceHidden(mission: Mission | null, located: boolean): boolean {
+  return mission?.hideGuidanceUntilFound === true && !located;
 }
 
 /**
@@ -431,6 +577,10 @@ export function objectiveFor(
 ): string {
   const fire = kind === 'suppression';
   switch (leg) {
+    case 'searching':
+      return 'Search the city for the emergency signal.';
+    case 'confirming':
+      return 'Hold your position over the rescue zone.';
     case 'toPickup':
       // A multi-point delivery visits the pickup once per package, and the
       // second visit is a different instruction from the first: the pilot is

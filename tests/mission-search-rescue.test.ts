@@ -1,0 +1,474 @@
+import { execFileSync } from 'node:child_process';
+import { beforeEach, describe, expect, it } from 'vitest';
+import { searchRescue } from '../src/renderer/missions/searchRescue';
+import { precisionDelivery } from '../src/renderer/missions/precisionDelivery';
+import { forestFire } from '../src/renderer/missions/forestFire';
+import { multiPointDelivery } from '../src/renderer/missions/multiPointDelivery';
+import { MISSIONS } from '../src/renderer/missions';
+import { SEARCH_SITES, pickSearchSite } from '../src/renderer/missions/searchRescueSites';
+import { zoneFor, planMargin } from '../src/renderer/missions/searchZone';
+import { NYC_PLAN_BOUNDS } from '../src/renderer/scene/environment/NewYorkPlan';
+import {
+  allZonesOf,
+  maxPointsOf,
+  rankFor,
+  rescueZoneOf,
+  searchSiteOf,
+  toMissionSpec,
+} from '../src/renderer/missions/types';
+import type { MissionResult } from '../src/renderer/missions/types';
+import {
+  activeZone,
+  guidanceHidden,
+  legOf,
+  objectiveFor,
+  useMissionStore,
+} from '../src/renderer/state/missionStore';
+import { useSettingsStore } from '../src/renderer/state/settingsStore';
+import { DEFAULT_SETTINGS } from '../src/shared/types';
+
+// Search & Rescue: the no-guidance rule, the four sites, and the red zone.
+//
+// Nothing here flies the drone — the runtime needs a canvas and a physics world.
+// What is tested is the half of the mission a pilot cannot check by flying it
+// once: that NOTHING on screen can give the answer away before the casualty is
+// found, that all four sites are places the aircraft can reach, and that the
+// red zone is drawn round whichever site is actually in play.
+//
+// The first of those is why most of this file exists. The rule is a REMOVAL, and
+// a removal is the thing a later change to a shared component silently undoes:
+// the marks, the radar, the readout and the pointer are drawn by default by a
+// runtime three other missions are built on, and none of them would fail if the
+// guidance came back.
+
+const M = searchRescue;
+
+/** The Guru's ceiling. Every mission is flown on the Guru — see
+ *  `MissionViewport` — and this city's roofs start at 45 m, which is why all
+ *  four sites are at street level. */
+const CEILING = 30;
+
+function result(over: Partial<MissionResult> = {}): MissionResult {
+  return {
+    points: maxPointsOf(M),
+    maxPoints: maxPointsOf(M),
+    timeSec: 200,
+    collisions: 0,
+    delivered: true,
+    landed: true,
+    ...over,
+  };
+}
+
+describe('the shape of the mission', () => {
+  it('TC-400 is a search with one site per direction and no route at all', () => {
+    expect(M.kind).toBe('search');
+    expect(M.search?.sites).toHaveLength(4);
+    // A ring is an answer. Even one, even an optional one, would tell the pilot
+    // which third of the map to fly to before they had seen the red zone.
+    expect(M.route).toHaveLength(0);
+    expect(M.homeVia).toHaveLength(0);
+  });
+
+  it('TC-400 is the fourth mission and unlocks behind the third', () => {
+    expect(M.order).toBe(4);
+    expect(MISSIONS.map((m) => m.id)).toEqual([
+      precisionDelivery.id,
+      forestFire.id,
+      multiPointDelivery.id,
+      searchRescue.id,
+    ]);
+  });
+
+  it('TC-400 registers as a rescue in the plugin index', () => {
+    expect(toMissionSpec(M).type).toBe('rescue');
+  });
+
+  it('TC-400 scores the rescue and the landing, and nothing else', () => {
+    // Two points: confirming the location, and getting the aircraft home. A
+    // search has no rings to collect and nothing to pick up.
+    expect(maxPointsOf(M)).toBe(2);
+    expect(M.medals.gold).toBe(2);
+  });
+
+  it('TC-400 declares no stray radius', () => {
+    // Flying the wrong part of the map IS this mission. A recall banner would be
+    // the app quietly narrowing the search.
+    expect(M.strayRadius).toBeUndefined();
+  });
+});
+
+describe('the no-guidance rule', () => {
+  it('TC-401 declares the flag rather than relying on an absence', () => {
+    expect(M.hideGuidanceUntilFound).toBe(true);
+    // And ONLY this mission. If a future mission wants it, it says so.
+    for (const other of [precisionDelivery, forestFire, multiPointDelivery])
+      expect(other.hideGuidanceUntilFound).toBeUndefined();
+  });
+
+  it('TC-401 hides guidance for the whole search and reveals it on the find', () => {
+    expect(guidanceHidden(M, false)).toBe(true);
+    expect(guidanceHidden(M, true)).toBe(false);
+  });
+
+  it('TC-401 can never hide guidance on a mission that has not asked for it', () => {
+    // The gate is the mission's flag first and `located` second, so a store that
+    // somehow reported `located: false` on a delivery cannot blank its HUD.
+    for (const other of [precisionDelivery, forestFire, multiPointDelivery]) {
+      expect(guidanceHidden(other, false)).toBe(false);
+      expect(guidanceHidden(other, true)).toBe(false);
+    }
+    expect(guidanceHidden(null, false)).toBe(false);
+  });
+
+  it('TC-401 leaves no zone live while the pilot is searching', () => {
+    // This is what silences the lit mark in the world, the radar's dot and the
+    // DISTANCE readout: all three ask `activeZone`, and all three go quiet on
+    // one answer.
+    expect(activeZone('searching')).toBeNull();
+    // And no checkpoint leg either, so nothing falls through to another leg's
+    // rings on a mission that declares none.
+    expect(legOf('searching')).toBeNull();
+    expect(legOf('confirming')).toBeNull();
+  });
+
+  it('TC-401 makes the rescue zone live only once the hold has begun', () => {
+    expect(activeZone('confirming')).toBe('drop');
+  });
+
+  it('TC-401 gives the search its own objective line', () => {
+    expect(objectiveFor('searching', 'search')).toMatch(/search/i);
+    expect(objectiveFor('confirming', 'search')).toMatch(/hold/i);
+    // And the tail is the shared one, unchanged.
+    expect(objectiveFor('delivered', 'search')).toBe('Return to base.');
+  });
+});
+
+describe('the four sites', () => {
+  it('TC-402 puts every site at street level, under the Guru ceiling', () => {
+    for (const site of M.search!.sites) {
+      // The band, not just the mark: a hover the aircraft cannot climb to is a
+      // mission that cannot be finished, and nothing in a typecheck sees it.
+      expect(site.zone.band.max).toBeLessThan(CEILING);
+      expect(site.zone.groundY ?? M.groundY).toBe(0);
+    }
+  });
+
+  it('TC-402 clears this city street furniture with the hover band', () => {
+    // Lamps, signs and traffic lights top out at 10.5 m here. A band that let
+    // the pilot hover at six metres would ask them to hold a position among the
+    // furniture, in a canyon, while looking down.
+    for (const site of M.search!.sites) expect(site.zone.band.min).toBeGreaterThan(10.5);
+  });
+
+  it('TC-402 keeps the rescue zone inside the clear air each site has', () => {
+    // The tightest site has 6.01 m of clear column. A zone whose edge is inside
+    // a facade is a hover the pilot is asked to hold in a wall.
+    const tightest = Math.min(...SEARCH_SITES.map((s) => s.clearance));
+    for (const site of M.search!.sites) expect(site.zone.radius).toBeLessThan(tightest);
+  });
+
+  it('TC-402 asks for a five second hold that a drift resets', () => {
+    for (const site of M.search!.sites) {
+      expect(site.zone.hold).toBe(5);
+      // The delivery drop's limits, not the fire's original 2.2 m/s — that is a
+      // brisk pass, not a hover, and this mission asks for a position held.
+      expect(site.zone.maxGroundSpeed).toBeLessThanOrEqual(0.9);
+    }
+  });
+
+  it('TC-402 keeps all four sites apart', () => {
+    const at = SEARCH_SITES.map((s) => s.at);
+    for (let i = 0; i < at.length; i++)
+      for (let j = i + 1; j < at.length; j++)
+        expect(Math.hypot(at[i][0] - at[j][0], at[i][1] - at[j][1])).toBeGreaterThanOrEqual(70);
+  });
+
+  it('TC-402 counts every site zone as a mark of the mission', () => {
+    // `allZonesOf` is what the marks and the dropped-payload deck read. A search
+    // mission that reported only `zones.drop` would draw one of its three.
+    const zones = allZonesOf(M);
+    for (const site of M.search!.sites) expect(zones).toContain(site.zone);
+  });
+});
+
+describe('which site is live', () => {
+  it('TC-403 resolves the live site rather than the first one', () => {
+    for (let i = 0; i < M.search!.sites.length; i++) {
+      expect(rescueZoneOf(M, i)).toBe(M.search!.sites[i].zone);
+      expect(searchSiteOf(M, i)?.id).toBe(M.search!.sites[i].id);
+    }
+  });
+
+  it('TC-403 clamps an index off either end rather than answering nothing', () => {
+    expect(rescueZoneOf(M, -1)).toBe(M.search!.sites[0].zone);
+    expect(rescueZoneOf(M, 99)).toBe(M.search!.sites[M.search!.sites.length - 1].zone);
+  });
+
+  it('TC-403 answers the ordinary drop on a mission that is not a search', () => {
+    expect(rescueZoneOf(precisionDelivery, 0)).toBe(precisionDelivery.zones.drop);
+    expect(searchSiteOf(precisionDelivery, 0)).toBeNull();
+  });
+
+  it('TC-403 keeps zones.drop pointing at the first site, not at nothing', () => {
+    // Anything that still reads `zones.drop` without asking which site is live
+    // gets a real zone rather than undefined.
+    expect(M.zones.drop).toBe(M.search!.sites[0].zone);
+  });
+});
+
+describe('the attempt', () => {
+  beforeEach(() => {
+    useSettingsStore.setState({ settings: structuredClone(DEFAULT_SETTINGS) });
+    useMissionStore.getState().exit();
+  });
+
+  it('TC-404 opens on the search leg with nothing found', () => {
+    useMissionStore.getState().start(M);
+    const s = useMissionStore.getState();
+    expect(s.leg).toBe('searching');
+    expect(s.located).toBe(false);
+    expect(s.signal).toBe(0);
+  });
+
+  it('TC-404 opens the other missions on their own first leg, unchanged', () => {
+    useMissionStore.getState().start(precisionDelivery);
+    expect(useMissionStore.getState().leg).toBe('toPickup');
+  });
+
+  it('TC-404 re-rolls the site on every attempt, including a restart', () => {
+    // A pilot who failed at site B must not be handed site B again to fly from
+    // memory. Sampled rather than asserted once: the draw is random, so what is
+    // tested is that all three come up.
+    const seen = new Set<number>();
+    for (let i = 0; i < 200; i++) {
+      useMissionStore.getState().start(M);
+      seen.add(useMissionStore.getState().siteIndex);
+      useMissionStore.getState().restart();
+      seen.add(useMissionStore.getState().siteIndex);
+    }
+    expect([...seen].sort()).toEqual([0, 1, 2, 3]);
+  });
+
+  it('TC-404 never hands the same site twice in a row', () => {
+    // The stronger half of the rule above. A plain random draw over four sites
+    // repeats one attempt in three, and a pilot handed the position they have
+    // just finished searching does not search — they fly straight to it.
+    let prev = -1;
+    for (let i = 0; i < 300; i++) {
+      useMissionStore.getState().start(M);
+      const now = useMissionStore.getState().siteIndex;
+      expect(now).not.toBe(prev);
+      prev = now;
+      useMissionStore.getState().restart();
+      const after = useMissionStore.getState().siteIndex;
+      expect(after).not.toBe(prev);
+      prev = after;
+    }
+  });
+
+  it('TC-404 puts `located` back on a restart', () => {
+    useMissionStore.getState().start(M);
+    useMissionStore.getState().setLocated();
+    useMissionStore.getState().setSignal(1);
+    expect(useMissionStore.getState().located).toBe(true);
+    useMissionStore.getState().restart();
+    expect(useMissionStore.getState().located).toBe(false);
+    expect(useMissionStore.getState().signal).toBe(0);
+    expect(useMissionStore.getState().leg).toBe('searching');
+  });
+
+  it('TC-404 leaves every other mission with siteIndex 0 and nothing reading it', () => {
+    useMissionStore.getState().start(forestFire);
+    expect(useMissionStore.getState().siteIndex).toBe(0);
+  });
+});
+
+describe('the search roof', () => {
+  const search = searchRescue.search!;
+
+  it('TC-409 keeps the detect roof above the confirmation hover band', () => {
+    // The roof has to clear the band the pilot is then asked to hold in, or the
+    // mission would drop the signal during the descent it just demanded — the
+    // pilot would watch the casualty they had found un-find itself.
+    const band = search.sites[0].zone.band;
+    expect(search.maxDetectAgl).toBeGreaterThan(band.max);
+  });
+
+  it('TC-410 keeps the detect roof below the aircraft ceiling', () => {
+    // The whole point: at the Guru's 30 m limit the pilot is over every roof
+    // with the sector spread out below, and a flat radius with no roof would
+    // hand them the casualty for climbing rather than for searching.
+    expect(search.maxDetectAgl).toBeLessThan(30);
+  });
+});
+
+describe('where the arrow points', () => {
+  it('TC-411 has a rescue band the old marker height fell out of', () => {
+    // The marker the arrow, the pointer and the climb chip all read used to sit
+    // at half the band's CEILING. For every zone that opens at the ground that
+    // is the middle of the band, and every zone did — until a hover was asked
+    // for 12 m up a street canyon. This asserts the trap is real, so that a
+    // future edit which reintroduces `band.max * 0.5` fails here rather than in
+    // the one place it is only visible by flying: half of 22 is 11, a metre
+    // below the floor the Height row is simultaneously asking for.
+    const band = searchRescue.search!.sites[0].zone.band;
+    expect(band.max * 0.5).toBeLessThan(band.min);
+    expect((band.min + band.max) / 2).toBeGreaterThanOrEqual(band.min);
+    expect((band.min + band.max) / 2).toBeLessThanOrEqual(band.max);
+  });
+});
+
+describe('the red zone', () => {
+  const R = M.search!.zoneRadius;
+
+  it('TC-405 draws a zone that always contains its own casualty', () => {
+    // The mission's one unrecoverable state: a pilot searches the circle
+    // honestly and completely and nobody is in it. Sampled hard across every
+    // site, because the placement is random and clamped twice — the guarantee
+    // lives in the interaction between those clamps, not in either of them.
+    for (const site of SEARCH_SITES) {
+      for (let i = 0; i < 500; i++) {
+        const z = zoneFor(site.at, R);
+        const d = Math.hypot(z.at[0] - site.at[0], z.at[1] - site.at[1]);
+        expect(d, `site ${site.id} at ${z.at}`).toBeLessThan(R);
+      }
+    }
+  });
+
+  it('TC-405 never centres the zone on the casualty', () => {
+    // A circle centred on the answer is a marker with a wide border: the pilot
+    // flies to the middle of it and is done, having searched nothing. Sampled
+    // for the average rather than asserted per draw — a single draw is allowed
+    // to land near the middle, the DISTRIBUTION is what must not.
+    const site = SEARCH_SITES[1];
+    let total = 0;
+    const n = 2000;
+    for (let i = 0; i < n; i++) {
+      const z = zoneFor(site.at, R);
+      total += Math.hypot(z.at[0] - site.at[0], z.at[1] - site.at[1]);
+    }
+    // Uniform over a disc of radius 0.55R averages 2/3 of it. Well clear of the
+    // centre, and comfortably short of the rim.
+    expect(total / n).toBeGreaterThan(R * 0.2);
+  });
+
+  it('TC-405 keeps every possible zone inside the drawn map', () => {
+    // The map is drawn to the city plus `planMargin`. A zone that reaches past
+    // that is clipped by its own frame, which reads as a drawing error and
+    // hides part of the area the pilot is being asked to search.
+    const m = planMargin(R);
+    for (const site of SEARCH_SITES) {
+      for (let i = 0; i < 300; i++) {
+        const z = zoneFor(site.at, R);
+        expect(z.at[0] - R).toBeGreaterThanOrEqual(NYC_PLAN_BOUNDS.minX - m - 1e-9);
+        expect(z.at[0] + R).toBeLessThanOrEqual(NYC_PLAN_BOUNDS.maxX + m + 1e-9);
+        expect(z.at[1] - R).toBeGreaterThanOrEqual(NYC_PLAN_BOUNDS.minZ - m - 1e-9);
+        expect(z.at[1] + R).toBeLessThanOrEqual(NYC_PLAN_BOUNDS.maxZ + m + 1e-9);
+      }
+    }
+  });
+
+  it('TC-405 gives the store a zone the moment a search attempt arms', () => {
+    // The map is the mission's whole answer to 'where do I go'. A search
+    // attempt that armed without one would leave the pilot with a plan of the
+    // city and nothing on it.
+    for (let i = 0; i < 20; i++) {
+      useMissionStore.getState().start(M);
+      const st = useMissionStore.getState();
+      const site = M.search!.sites[st.siteIndex];
+      expect(st.searchZone).not.toBeNull();
+      const d = Math.hypot(st.searchZone!.at[0] - site.at[0], st.searchZone!.at[1] - site.at[1]);
+      expect(d).toBeLessThan(st.searchZone!.radius);
+    }
+  });
+
+  it('TC-405 leaves every other mission without a zone', () => {
+    useMissionStore.getState().start(forestFire);
+    expect(useMissionStore.getState().searchZone).toBeNull();
+  });
+
+  it('TC-405 lines the mission sites up with the site module', () => {
+    // If they ever drift, the red zone is drawn round site B and the beacon is
+    // put at site A — which no other test in this file could see.
+    expect(M.search!.sites.map((s) => s.id)).toEqual(SEARCH_SITES.map((s) => s.id));
+    for (let i = 0; i < SEARCH_SITES.length; i++)
+      expect(M.search!.sites[i].at).toEqual(SEARCH_SITES[i].at);
+  });
+
+  it('TC-405 picks each site from the random draw', () => {
+    expect(pickSearchSite(() => 0).id).toBe(SEARCH_SITES[0].id);
+    // Indexed off the length rather than written as 0.5, so adding a site does
+    // not silently turn this into an assertion about a different one.
+    expect(pickSearchSite(() => 1 / SEARCH_SITES.length).id).toBe(SEARCH_SITES[1].id);
+    expect(pickSearchSite(() => 0.999).id).toBe(SEARCH_SITES[SEARCH_SITES.length - 1].id);
+  });
+
+  it('TC-405 keeps the zone big enough to search and small enough to narrow', () => {
+    // Both failure modes in one place. A zone the pilot can see across from its
+    // edge is a marker; one that covers a third of the city has narrowed
+    // nothing over sweeping the whole thing.
+    expect(R).toBeGreaterThan(M.search!.detectRadius);
+    const city = Math.max(
+      NYC_PLAN_BOUNDS.maxX - NYC_PLAN_BOUNDS.minX,
+      NYC_PLAN_BOUNDS.maxZ - NYC_PLAN_BOUNDS.minZ,
+    );
+    expect(R * 2).toBeLessThan(city / 2);
+  });
+});
+
+describe('the signal', () => {
+  it('TC-406 hears nothing until well inside the map', () => {
+    const search = M.search!;
+    // Deliberately SHORT, and shorter than the beacon is visible from. The
+    // pilot must see the beacon and then have the readout agree, never the other
+    // way round: a detect radius wide enough to announce the casualty from a
+    // street away makes the HUD the thing that found them.
+    expect(search.detectRadius).toBe(26);
+    // Confirmation is wider than the zone itself, so the mark appears as the
+    // pilot arrives rather than at the instant they are already inside it.
+    expect(search.confirmRadius).toBeGreaterThan(M.search!.sites[0].zone.radius);
+    expect(search.confirmRadius).toBeLessThan(search.detectRadius);
+  });
+
+  it('TC-406 keeps the beacon plume under the hover band', () => {
+    // The pilot holds ABOVE the smoke rather than inside it. The forest's fire
+    // column was removed for exactly this: warm translucent haze where real
+    // smoke already is reads as smoke, not as a marker.
+    for (const site of M.search!.sites)
+      expect(M.search!.beaconHeight).toBeLessThanOrEqual(site.zone.band.min);
+  });
+});
+
+describe('the rating', () => {
+  it('TC-407 needs the rescue confirmed and the drone home for the top star', () => {
+    expect(rankFor(M.ranks, result())).toBe(3);
+    expect(rankFor(M.ranks, result({ collisions: 1 }))).toBe(2);
+    expect(rankFor(M.ranks, result({ timeSec: 400 }))).toBe(2);
+    expect(rankFor(M.ranks, result({ landed: false }))).toBe(1);
+  });
+
+  it('TC-407 quotes the same numbers the rungs test', () => {
+    expect(M.ranks[0].text).toContain('4:00');
+    expect(M.parTimeSec).toBe(240);
+  });
+
+  it('TC-407 rates on time rather than on a distance the pilot could not know', () => {
+    // There is deliberately no "search efficiency" rung: measured against the
+    // distance to the target it punishes the pilot for not knowing the answer,
+    // which is the whole mission.
+    const wandered = result({ timeSec: 239 });
+    expect(rankFor(M.ranks, wandered)).toBe(3);
+  });
+});
+
+describe('the geometry', () => {
+  it('TC-408 clears every site against the generated New York colliders', () => {
+    // The script is the measurement; this is what makes it run in CI. A site
+    // that has drifted into a building is invisible in every other way on this
+    // mission — there is no marker to notice hanging in a wall.
+    const out = execFileSync('node', ['scripts/check-search-sites.mjs'], { encoding: 'utf8' });
+    expect(out).toContain('OK — all 4 sites are flyable and distinct');
+    expect(out).not.toContain('FAIL');
+  });
+});

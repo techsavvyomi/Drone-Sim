@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { useMissionStore, objectiveFor, runContextOf } from '../state/missionStore';
+import { useMissionStore, guidanceHidden, objectiveFor, runContextOf } from '../state/missionStore';
+import { rescueZoneOf } from '../missions/types';
 import { useSimStore } from '../state/simStore';
 import { useFlightStore } from '../state/flightStore';
 import { resetForMission } from '../missions/reset';
@@ -7,6 +8,7 @@ import { playClick, playStar, playSuccess } from '../audio/sfx';
 import { RAD2DEG } from '../sim/mathx';
 import { useModalKeyLock } from '../input/useModalKeyLock';
 import { MissionMap } from './MissionMap';
+import { MissionCityMap } from './MissionCityMap';
 import { MissionHero, StepArt, missionImage } from './MissionArt';
 import { getEnvironment } from '../plugins/registry';
 import { MISSIONS } from '../missions';
@@ -164,7 +166,29 @@ function TargetPointerHud() {
  * bar that refuses to fill is the worst thing this HUD could show; naming the
  * checkpoints still owed turns it from a bug into an instruction.
  */
-function DeliveryChecklist({ fire, pickup }: { fire: boolean; pickup?: boolean }) {
+function DeliveryChecklist({
+  fire,
+  pickup,
+  rescue,
+  band,
+}: {
+  fire: boolean;
+  pickup?: boolean;
+  /**
+   * The height the row is actually asking for, metres above the deck.
+   *
+   * 'Height' with a dot beside it names the failing condition and not the fix.
+   * On a delivery that is survivable — the band opens at the ground, so 'lower'
+   * is the only direction there is. The rescue hover is 12 to 22 m up a canyon,
+   * where 'Height' unticked is equally consistent with too high and too low,
+   * and the pilot has no way to tell which. The numbers say it in a glance.
+   */
+  band?: { min: number; max: number };
+  /** The five second hover that confirms a rescue location. The same three
+   *  conditions and the same bar — what changes is only what the holding is
+   *  FOR, so it gets the wording rather than a second component. */
+  rescue?: boolean;
+}) {
   const checks = useMissionStore((s) => s.checks);
   const gate = useMissionStore((s) => s.gate);
   const suppressing = useMissionStore((s) => s.suppressing);
@@ -176,13 +200,15 @@ function DeliveryChecklist({ fire, pickup }: { fire: boolean; pickup?: boolean }
   return (
     <div className={`ms-checks ${blocked ? 'blocked' : ''}`}>
       <span className="ms-checks-head">
-        {pickup
-          ? 'PICKUP CONDITIONS'
-          : fire
-            ? suppressing
-              ? 'SUPPRESSING'
-              : 'SUPPRESSION CONDITIONS'
-            : 'RELEASE CONDITIONS'}
+        {rescue
+          ? 'RESCUE CONFIRMATION'
+          : pickup
+            ? 'PICKUP CONDITIONS'
+            : fire
+              ? suppressing
+                ? 'SUPPRESSING'
+                : 'SUPPRESSION CONDITIONS'
+              : 'RELEASE CONDITIONS'}
       </span>
       {gated && (
         <span className={blocked ? 'miss' : 'ok'}>
@@ -191,9 +217,23 @@ function DeliveryChecklist({ fire, pickup }: { fire: boolean; pickup?: boolean }
       )}
       <span className={checks.centred ? 'ok' : ''}>
         {checks.centred ? '✓' : '•'}{' '}
-        {pickup ? 'Over the package' : fire ? 'Over the fire' : 'Centred'}
+        {rescue
+          ? 'Over the casualty'
+          : pickup
+            ? 'Over the package'
+            : fire
+              ? 'Over the fire'
+              : 'Centred'}
       </span>
-      <span className={checks.inBand ? 'ok' : ''}>{checks.inBand ? '✓' : '•'} Height</span>
+      <span className={checks.inBand ? 'ok' : ''}>
+        {checks.inBand ? '✓' : '•'} Height
+        {band && (
+          <i className="ms-checks-band">
+            {' '}
+            {band.min}–{band.max} m
+          </i>
+        )}
+      </span>
       <span className={checks.steady ? 'ok' : ''}>{checks.steady ? '✓' : '•'} Steady</span>
       <span className="ms-checks-bar">
         <i style={{ width: `${checks.hold * 100}%` }} />
@@ -201,6 +241,11 @@ function DeliveryChecklist({ fire, pickup }: { fire: boolean; pickup?: boolean }
       {blocked && (
         <span className="ms-checks-note">
           The package will not release: collect all the pink rings first
+        </span>
+      )}
+      {rescue && checks.hold > 0 && checks.hold < 1 && (
+        <span className="ms-checks-note">
+          Hold it. Drift out of the zone and the confirmation starts again
         </span>
       )}
       {fire && !suppressing && checks.hold > 0 && checks.hold < 1 && (
@@ -266,6 +311,9 @@ export function MissionHud() {
   const runIndex = useMissionStore((s) => s.runIndex);
   const deliveredCount = useMissionStore((s) => s.deliveredCount);
   const fireIntensity = useMissionStore((s) => s.fireIntensity);
+  const siteIndex = useMissionStore((s) => s.siteIndex);
+  const located = useMissionStore((s) => s.located);
+  const signal = useMissionStore((s) => s.signal);
   const beginFlight = useMissionStore((s) => s.beginFlight);
   const start = useMissionStore((s) => s.start);
   const restart = useMissionStore((s) => s.restart);
@@ -328,6 +376,9 @@ export function MissionHud() {
 
   const flying = phase === 'flying';
   const fire = !!mission.fire;
+  /** Every piece of target guidance is off while this is true — see the store.
+   *  One answer, read by the strip here and by the map and the pointer. */
+  const hidden = guidanceHidden(mission, located);
   // The map's name comes from its own spec rather than from the mission, so a
   // renamed environment renames itself on every briefing that flies it.
   const mapName = getEnvironment(mission.envId)?.name ?? mission.envId;
@@ -558,6 +609,11 @@ export function MissionHud() {
 
       {flying && leg === 'toDrop' && <DeliveryChecklist fire={fire} />}
 
+      {/* The five second hover that confirms the rescue location. */}
+      {flying && leg === 'confirming' && (
+        <DeliveryChecklist fire={false} rescue band={rescueZoneOf(mission, siteIndex).band} />
+      )}
+
       {/* The same card on the collection: the latch asks for the same hover the
           release does, and the pilot was being told so only at the drop. */}
       {flying && leg === 'toPickup' && atPickup && <DeliveryChecklist fire={fire} pickup />}
@@ -575,7 +631,12 @@ export function MissionHud() {
           corner dial — the half of "where am I going" that the chase camera
           cannot answer over a city, and the reason the guidance in the world
           can afford to be quiet. */}
-      {flying && <MissionMap mission={mission} />}
+      {/* A search mission gets a MAP — the whole city, north up, with the red
+          zone on it. Every other mission gets the drone-centred radar, which
+          answers 'where now' with one dot and has nothing to say when the whole
+          point is that nothing may answer that. */}
+      {flying &&
+        (mission.search ? <MissionCityMap mission={mission} /> : <MissionMap mission={mission} />)}
 
       {flying && (
         <div className="ms-strip">
@@ -583,7 +644,10 @@ export function MissionHud() {
             <span>OBJECTIVE</span>
             <b>{objectiveFor(leg, mission.kind, run)}</b>
           </div>
-          <div className={`ms-cell payload ${payload}`}>
+          {/* PAYLOAD, on a mission that has one. A search mission would read
+              'Empty' for the whole flight, which is a cell reporting the absence
+              of a thing that was never part of the job. */}
+          <div className={`ms-cell payload ${payload}`} hidden={mission.kind === 'search'}>
             <span>PAYLOAD</span>
             {/* One word each, with the state's colour carried by the dot the
                 stylesheet puts in front of them. The emoji and the tick that
@@ -632,10 +696,26 @@ export function MissionHud() {
               {points} <i>/ {maxPoints}</i>
             </b>
           </div>
-          <div className="ms-cell">
-            <span>DISTANCE</span>
-            <TargetArrow bearing={bearing} distance={distance} climb={climb} />
-          </div>
+          {/* DISTANCE, or the SIGNAL that replaces it.
+
+              Replaced rather than hidden, and rather than sitting beside it. The
+              distance cell is the pilot's answer to "where now", and on a search
+              mission the honest answer is "we do not know, but you are this warm"
+              — two cells would let the pilot read the one that was switched off.
+              Below the detect radius the cell says nothing at all: a signal
+              reading 0% across the whole map is a detector that works at any
+              range, because it can be flown against as a grid. */}
+          {hidden ? (
+            <div className={`ms-cell ${signal > 0 ? 'warn' : ''}`}>
+              <span>SIGNAL</span>
+              <b>{signal > 0 ? `${Math.round(signal * 100)}%` : '— — —'}</b>
+            </div>
+          ) : (
+            <div className="ms-cell">
+              <span>DISTANCE</span>
+              <TargetArrow bearing={bearing} distance={distance} climb={climb} />
+            </div>
+          )}
           <div className="ms-cell">
             <span>ALTITUDE</span>
             <b>{Math.round(altitude)} m</b>
@@ -663,10 +743,19 @@ export function MissionHud() {
                 // the result card summarising away most of the mission.
                 ...(mission.deliveries
                   ? mission.deliveries.map((d) => [`${d.name} delivered`, '✓', true] as const)
-                  : ([
-                      [fire ? 'Payload collected' : 'Payload picked up', '✓', true],
-                      [fire ? 'Fire suppressed' : 'Payload delivered', '✓', true],
-                    ] as const)),
+                  : mission.kind === 'search'
+                    ? // A search reports what it actually did, and none of it is
+                      // a payload: nothing was picked up and nothing was put
+                      // down. The rows are the mission's own beats.
+                      ([
+                        ['Emergency signal found', '✓', true],
+                        ['Location confirmed', '✓', true],
+                        ['Rescue coordinates sent', '✓', true],
+                      ] as const)
+                    : ([
+                        [fire ? 'Payload collected' : 'Payload picked up', '✓', true],
+                        [fire ? 'Fire suppressed' : 'Payload delivered', '✓', true],
+                      ] as const)),
                 // A mission that ends at the drop has no homeward leg to report.
                 // Rows that always read '✓' are noise; rows for a leg that was
                 // never flown are worse than noise.

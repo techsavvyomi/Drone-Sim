@@ -3,7 +3,13 @@ import { useFrame } from '@react-three/fiber';
 import { useSimStore } from '../state/simStore';
 import { useFlightStore } from '../state/flightStore';
 import { targetMark } from './targetScreen';
-import { useMissionStore, activeZone, legOf, type MissionLeg } from '../state/missionStore';
+import {
+  useMissionStore,
+  activeZone,
+  guidanceHidden,
+  legOf,
+  type MissionLeg,
+} from '../state/missionStore';
 import { dronePose } from '../sim/drone/pose';
 import {
   deliveryCount,
@@ -13,6 +19,7 @@ import {
   requiredCheckpoints,
   requiredLeft,
   nextTargetOf,
+  rescueZoneOf,
   zoneGroundY,
   type Mission,
   type MissionZone,
@@ -139,6 +146,10 @@ export function MissionDirector() {
    * over time.
    */
   const steadyFor = useRef(0);
+  /** Whether the pilot has been told, this attempt, that they are searching from
+   *  above the roofline. Once: a banner that re-fired on every climb would be
+   *  nagging a pilot who has understood it and is transiting. */
+  const warnedHigh = useRef(false);
   /** Counts down the SAFE LANDING card before the result screen. */
   const landDwell = useRef(0);
   /** `flightStore.touches` when the attempt began — it is a running total. */
@@ -169,6 +180,18 @@ export function MissionDirector() {
    *  as often as the flying requires. */
   const announcedDrop = useRef(false);
 
+  /** Seconds of unbroken hover served over the rescue zone, on a search mission.
+   *
+   *  Unlike the fire's `suppressed` this DOES reset when the pilot drifts off,
+   *  and the difference is the hold's length. Ten seconds that reset on every
+   *  correction is a hold nobody finishes; five is short enough that a reset is
+   *  a retry rather than a punishment, and the brief asks for the interruption
+   *  explicitly — holding a position accurately is the skill being tested. */
+  const rescueHold = useRef(0);
+  /** Whether the hold was filling last frame, so INTERRUPTED is said on the edge
+   *  rather than on every frame the drone is off the mark. */
+  const holding = useRef(false);
+
   /** Seconds spent outside the mission area, and the clock time the last recall
    *  banner was shown at. Both reset the moment the drone is back inside. */
   const strayFor = useRef(0);
@@ -185,7 +208,10 @@ export function MissionDirector() {
     landDwell.current = 0;
     suppressed.current = 0;
     spraying.current = false;
+    rescueHold.current = 0;
+    holding.current = false;
     steadyFor.current = 0;
+    warnedHigh.current = false;
     publishAt.current = 0;
     queued.current = null;
     lastChecks.current = '';
@@ -337,9 +363,168 @@ export function MissionDirector() {
     // any other — which is the whole of the brief's "no skipping".
     const run = deliveryOf(mission, store.runIndex);
     const runs = deliveryCount(mission);
-    const dropZone = dropZoneOf(mission, store.runIndex);
+    // The mark in the middle of the mission: whichever package this run is for,
+    // or — on a search — whichever site this attempt drew. Both are an index
+    // into a list held by the store, and reading `zones.drop` instead would send
+    // the arrow at the first entry for the whole flight.
+    const dropZone = mission.search
+      ? rescueZoneOf(mission, store.siteIndex)
+      : dropZoneOf(mission, store.runIndex);
 
-    if (leg === 'toPickup') {
+    if (leg === 'searching' && mission.search) {
+      // ---- The search ------------------------------------------------------
+      //
+      // The only leg in the app with no destination. Nothing is lit, nothing is
+      // pointed at, and the one thing the pilot is given is how STRONG the
+      // signal is — never which way it lies. `activeZone('searching')` answers
+      // null, which is what silences the mark, the radar dot and the readout;
+      // this branch is what fills the silence with something useful.
+      const search = mission.search;
+      const site = search.sites[Math.min(store.siteIndex, search.sites.length - 1)];
+      const flat = flatDist(dronePose.position, site.at);
+
+      // Zero outside the detect radius, and zero MEANS "not drawn" — see the
+      // store's note. A signal cell sitting at 0% across the whole map is a
+      // detector that works at any range: a pilot flies a grid, watches for it
+      // to leave zero, and has triangulated the casualty without ever looking
+      // out of the window.
+      //
+      // Inside it, a continuous ramp rather than steps, for the same reason.
+      // A stepped readout is a compass — fly a heading, wait for the jump, turn
+      // — and what this mission is teaching is to fly towards the thing you can
+      // see.
+      // TOO HIGH TO SEARCH.
+      //
+      // Both radii are flat, so without this a pilot who simply climbs to the
+      // aircraft's ceiling is above every roof with the sector spread out below
+      // and picks the casualty up the moment they pass overhead — no streets
+      // flown, no zone searched. The roof turns "search the zone" back into
+      // something done among the buildings: over it the detector is silent and
+      // nothing can be confirmed, at any horizontal distance.
+      const agl = dronePose.position.y - zoneGroundY(mission, site.zone);
+      const searchable = agl <= search.maxDetectAgl;
+
+      // The roof is only a fair rule if the pilot is told it exists. Silence
+      // above it is indistinguishable from a search in the wrong street, and
+      // the one thing they would never guess is that the fix is to descend.
+      if (!searchable && !warnedHigh.current) {
+        warnedHigh.current = true;
+        store.showBanner(
+          {
+            kind: 'warn',
+            title: 'TOO HIGH TO SEARCH',
+            sub: 'Come down below the rooftops — you cannot pick the signal up from here',
+          },
+          BANNER_SEC,
+        );
+      }
+
+      const span = Math.max(1e-3, search.detectRadius - search.confirmRadius);
+      const signal =
+        !searchable || flat >= search.detectRadius
+          ? 0
+          : Math.min(1, (search.detectRadius - flat) / span);
+      if (signal > 0) {
+        // Said once, on the first detection. From here the number carries it.
+        if (say(mission, 'detected')) {
+          store.showBanner(
+            {
+              kind: 'warn',
+              title: 'WEAK EMERGENCY SIGNAL DETECTED',
+              sub: 'You are within range. Slow down and search visually',
+            },
+            BANNER_SEC,
+          );
+          playWhoosh();
+        }
+      }
+
+      if (searchable && flat <= search.confirmRadius) {
+        // FOUND. This is the only place `located` is ever set, and setting it is
+        // what restores every piece of guidance in the app — the mark appears,
+        // the dot comes back, the readout starts answering. It cannot be
+        // reached from anywhere but here.
+        leg = 'confirming';
+        store.setLeg(leg);
+        store.setLocated();
+        store.setSignal(1);
+        rescueHold.current = 0;
+        holding.current = false;
+        lastChecks.current = '';
+        playSuccess();
+        store.showBanner(
+          {
+            kind: 'good',
+            title: 'CASUALTY LOCATED',
+            sub: 'Hold your position over the rescue zone',
+          },
+          BANNER_SEC,
+        );
+        say(mission, 'located');
+      }
+    } else if (leg === 'confirming' && mission.search) {
+      // ---- The confirmation hover -------------------------------------------
+      //
+      // From here the mission is a placement task the pilot already knows how to
+      // fly, and it is judged by the same `probeZone` the other three use. What
+      // is different is only the reset: drift out and the bar goes back to zero.
+      const zone = rescueZoneOf(mission, store.siteIndex);
+      const z = probeZone(mission, zone);
+
+      // The same dwell the fire uses, and for the same reason: the speed test is
+      // an INSTANT, and a drone oscillating around a hover dips under any limit
+      // for a frame at every turning point. 'Steady' has to mean held.
+      steadyFor.current = z.steady ? steadyFor.current + dt : 0;
+      const settled = steadyFor.current >= STEADY_ARM_SEC;
+      const on = z.centred && z.inBand && settled;
+      rescueHold.current = on ? rescueHold.current + dt : 0;
+
+      // INTERRUPTED, on the edge only — a banner per frame would be the screen.
+      // Only once the hold had actually started: a pilot still flying into the
+      // zone has not been interrupted, they have not begun.
+      if (holding.current && !on && rescueHold.current === 0) {
+        store.showBanner(
+          {
+            kind: 'warn',
+            title: 'RESCUE CONFIRMATION INTERRUPTED',
+            sub: 'Get back over the zone and hold it steady',
+          },
+          BANNER_SEC,
+        );
+        playFail();
+      }
+      holding.current = on;
+
+      const hold = Math.round(Math.min(1, rescueHold.current / zone.hold) * 20) / 20;
+      const key = `${z.centred}${z.inBand}${settled}${hold}`;
+      if (key !== lastChecks.current) {
+        lastChecks.current = key;
+        store.setChecks({ centred: z.centred, inBand: z.inBand, steady: settled, hold });
+      }
+
+      if (rescueHold.current >= zone.hold) {
+        leg = 'delivered';
+        store.setLeg(leg);
+        store.takeZone('drop', 'RESCUE CONFIRMED');
+        rescueHold.current = 0;
+        holding.current = false;
+        steadyFor.current = 0;
+        lastChecks.current = '';
+        store.setChecks({ centred: false, inBand: false, steady: false, hold: 0 });
+        playDrop();
+        playSuccess();
+        store.showBanner(
+          {
+            kind: 'good',
+            title: 'RESCUE LOCATION CONFIRMED',
+            sub: 'Coordinates sent to the emergency team',
+          },
+          BANNER_SEC,
+        );
+        say(mission, 'delivered');
+        queued.current = { key: 'home', at: clock.current + 1.2 };
+      }
+    } else if (leg === 'toPickup') {
       const z = probeZone(mission, mission.zones.pickup);
       pickupHold.current = z.ok ? pickupHold.current + dt : 0;
       // Collecting the package asks for the same hover the drop does — centred,
@@ -759,6 +944,41 @@ export function MissionDirector() {
     if (publishAt.current <= 0) {
       publishAt.current = 1 / PUBLISH_HZ;
       const sim = useSimStore.getState();
+      const p0 = dronePose.position;
+
+      // ---- The search publishes something else entirely ---------------------
+      //
+      // Not a quieter version of the same numbers — a DIFFERENT number. Distance
+      // and bearing to the casualty are exactly the answer the mission exists to
+      // withhold, so they are never computed here, let alone published and
+      // hidden by the HUD: a value in the store is a value one careless render
+      // puts on screen.
+      //
+      // `targetMark.active` goes false with them, which is what empties the
+      // in-picture pointer. It reads a module singleton the Canvas writes every
+      // frame and knows nothing about missions, so this is the only place that
+      // can silence it.
+      if (guidanceHidden(mission, store.located)) {
+        const search = mission.search;
+        const site = search?.sites[Math.min(store.siteIndex, search.sites.length - 1)];
+        const flat = site ? flatDist(p0, site.at) : Infinity;
+        const span = search ? Math.max(1e-3, search.detectRadius - search.confirmRadius) : 1;
+        targetMark.active = false;
+        store.setSignal(
+          !search || flat >= search.detectRadius
+            ? 0
+            : Math.min(1, (search.detectRadius - flat) / span),
+        );
+        store.setFlightData({
+          distance: 0,
+          altitude: p0.y - mission.groundY,
+          climb: 0,
+          bearing: 0,
+        });
+        store.setElapsed(Math.round(clock.current * 10) / 10);
+        store.setCollisions(collisions);
+        return;
+      }
       // The ring's arrow, the DISTANCE readout and the radar dot are all this
       // one point — see `nextTargetOf`. They used to be worked out separately
       // and could disagree: the dial sent the pilot at a checkpoint while the
@@ -777,14 +997,32 @@ export function MissionDirector() {
       // The same point the arrow and the radar use, handed to the in-picture
       // pointer. It is published here rather than recomputed there so all four
       // instruments can never disagree about where the pilot is being sent.
+      /*
+       * THE POINTER GOES OUT THE MOMENT THE CASUALTY IS FOUND.
+       *
+       * Everything else on this leg is judged by the checklist — over the
+       * casualty, height, steady — and the pointer answers a question that has
+       * already been answered: the pilot is there, that is why the checklist is
+       * on screen. Worse than redundant, it disagreed. The marker sits in the
+       * middle of the 12-22 m band, so a pilot holding a perfectly good hover
+       * at 12 m had three green ticks and a yellow arrow telling them to climb
+       * four metres. One of the two had to go, and it is not the thing that
+       * decides whether the mission is passed.
+       *
+       * The flat DISTANCE readout stays: drifting out of the zone restarts the
+       * hold, so how far off centre the aircraft is remains worth knowing. What
+       * goes with the pointer is the CLIMB chip, for the same reason — the band
+       * is on the checklist now, in metres.
+       */
+      const confirming = leg === 'confirming';
       targetMark.at.set(target[0], target[1], target[2]);
-      targetMark.active = true;
+      targetMark.active = !confirming;
       store.setFlightData({
-        distance: Math.hypot(dx, dy, dz),
+        distance: confirming ? Math.hypot(dx, dz) : Math.hypot(dx, dy, dz),
         altitude: p.y - mission.groundY,
         // `dy` was already here, spent on the 3-D distance and discarded. It is
         // the only thing on the HUD that can say the target is on a ROOF.
-        climb: dy,
+        climb: confirming ? 0 : dy,
         bearing,
       });
       store.setElapsed(Math.round(clock.current * 10) / 10);
@@ -825,10 +1063,14 @@ function enterRadius(mission: Mission, drop: MissionZone): number {
  * different lines and both get said, while a mission reusing one plain key gets
  * it once, as before.
  */
-function say(mission: Mission, key: string, runId?: string): void {
+function say(mission: Mission, key: string, runId?: string): boolean {
   const line = (runId ? mission.radio[`${key}-${runId}`] : undefined) ?? mission.radio[key];
-  if (!line) return;
-  useMissionStore.getState().playRadio(line.id, line.text, RADIO_SEC);
+  if (!line) return false;
+  // The answer is passed on rather than dropped: `playRadio` already knows
+  // whether this is the FIRST time a line has been played, and the search needs
+  // exactly that — the detection banner goes up with the call that announces it
+  // and never again, without a second ref tracking the same fact.
+  return useMissionStore.getState().playRadio(line.id, line.text, RADIO_SEC);
 }
 
 /** Where the active marker is, in world space — what DISTANCE and the direction
@@ -846,7 +1088,16 @@ function markerFor(mission: Mission, leg: MissionLeg, drop: MissionZone): [numbe
   // only ever the first one, so reading it here would point the arrow and the
   // DISTANCE readout at package A's mark for the whole flight.
   const zone = kind === 'drop' ? drop : mission.zones[kind];
-  return [zone.at[0], zoneGroundY(mission, zone) + zone.band.max * 0.5, zone.at[1]];
+  // The MIDDLE OF THE BAND, not half its ceiling.
+  //
+  // Half the ceiling is the same thing for every zone that opens at the ground,
+  // which is all of them until a zone is held ABOVE something. The rescue hover
+  // is 12 to 22 m up a street canyon, and half of 22 is 11 — a metre BELOW the
+  // floor of the band the checklist is asking for. So the arrow told the pilot
+  // to descend at the exact moment they needed to climb, and it did it while
+  // the Height row sat unticked saying otherwise.
+  const mid = (zone.band.min + zone.band.max) / 2;
+  return [zone.at[0], zoneGroundY(mission, zone) + mid, zone.at[1]];
 }
 
 /**
