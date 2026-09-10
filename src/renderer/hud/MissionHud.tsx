@@ -397,7 +397,7 @@ export function MissionHud() {
   const fire = !!mission.fire;
   /** Every piece of target guidance is off while this is true — see the store.
    *  One answer, read by the strip here and by the map and the pointer. */
-  const hidden = guidanceHidden(mission, located);
+  const hidden = guidanceHidden(mission, located, leg);
   // The map's name comes from its own spec rather than from the mission, so a
   // renamed environment renames itself on every briefing that flies it.
   const mapName = getEnvironment(mission.envId)?.name ?? mission.envId;
@@ -663,10 +663,9 @@ export function MissionHud() {
             <span>OBJECTIVE</span>
             <b>{objectiveFor(leg, mission.kind, run)}</b>
           </div>
-          {/* PAYLOAD, on a mission that has one. A search mission would read
-              'Empty' for the whole flight, which is a cell reporting the absence
-              of a thing that was never part of the job. */}
-          <div className={`ms-cell payload ${payload}`} hidden={mission.kind === 'search'}>
+          {/* PAYLOAD. Every mission carries something, the search included — its
+              food box. */}
+          <div className={`ms-cell payload ${payload}`}>
             <span>PAYLOAD</span>
             {/* One word each, with the state's colour carried by the dot the
                 stylesheet puts in front of them. The emoji and the tick that
@@ -763,13 +762,11 @@ export function MissionHud() {
                 ...(mission.deliveries
                   ? mission.deliveries.map((d) => [`${d.name} delivered`, '✓', true] as const)
                   : mission.kind === 'search'
-                    ? // A search reports what it actually did, and none of it is
-                      // a payload: nothing was picked up and nothing was put
-                      // down. The rows are the mission's own beats.
+                    ? // A search reports its own beats: the box, the find, the drop.
                       ([
-                        ['Emergency signal found', '✓', true],
-                        ['Location confirmed', '✓', true],
-                        ['Rescue coordinates sent', '✓', true],
+                        ['Food box collected', '✓', true],
+                        ['Person found', '✓', true],
+                        ['Food box delivered', '✓', true],
                       ] as const)
                     : ([
                         [fire ? 'Payload collected' : 'Payload picked up', '✓', true],

@@ -143,7 +143,7 @@ export function MissionMap({ mission }: { mission: Mission }) {
       // have already covered. What it loses is the one dot that answers "where
       // now", because on this mission nothing is entitled to answer that until
       // the casualty has been found.
-      const hidden = guidanceHidden(mission, located);
+      const hidden = guidanceHidden(mission, located, leg as never);
       const here = hidden ? null : activeZone(leg as never);
       const owed = mission.route.filter((c) => required.has(c.id) && !collected[c.id]);
 

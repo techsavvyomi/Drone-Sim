@@ -93,7 +93,9 @@ function rescueZone(site: {
      * hover, and this mission asks for a position HELD. */
     maxGroundSpeed: 0.9,
     maxVerticalSpeed: 0.8,
-    hold: 5,
+    /* Two seconds, down from five: the search is the mission, and once the
+     * pilot is over the person a long hold is a wait, not a skill. */
+    hold: 2,
   };
 }
 
@@ -103,8 +105,13 @@ const SITES: readonly MissionSearchSite[] = SEARCH_SITES.map((s) => ({
   zone: rescueZone(s),
 }));
 
-/** Points: confirming the rescue location, and getting the aircraft home. */
+/** Points: the food box delivered, and the drone landed home. Collecting the box
+ *  scores nothing on its own, as on every delivery. */
 const GOLD = 2;
+
+/** Where the food box waits. Mission 3's hub: off the spawn, which is 3 m from
+ *  the base pad, so the pilot is never armed already standing on the pickup. */
+const PICKUP: readonly [number, number] = [-25, 29];
 
 export const searchRescue: Mission = {
   id: 'search-rescue',
@@ -114,19 +121,19 @@ export const searchRescue: Mission = {
   kind: 'search',
   envId: 'new-york',
   blurb:
-    'A distress signal from a rooftop somewhere in the city, and no GPS fix. Fly to the red search zone, find the casualty by eye, and confirm the rescue location.',
+    'Someone is stranded on a rooftop with no food, and there is no GPS fix. Collect a food box, find them inside the red search zone, drop it to them, and land back at base.',
   story:
-    'A distress signal was received from a rooftop somewhere in this sector, but it is too weak to place. The best we can do is narrow it to an area — the red zone on your map. There is no position to fly to inside it and there will not be one. Get up over the roofline, search the zone, find the casualty, and hold over them long enough for the coordinates to lock.',
+    'A person is stranded on a rooftop somewhere in this sector and has had nothing to eat. Their signal is too weak to place — the best we can do is the red zone on your map. Collect the food box from the pickup pad, get up over the roofline, search the zone until you find them, and hold a steady hover over them so the box comes down beside them. Then bring the drone home and land.',
   flow: [
-    { label: 'Read', note: 'A red zone, no marker', art: 'collect' },
-    { label: 'Search', note: 'Over the roofs, and look', art: 'city' },
-    { label: 'Confirm', note: 'Hold the hover for 5 s', art: 'deliver' },
+    { label: 'Pick up', note: 'The food box', art: 'collect' },
+    { label: 'Search', note: 'A person on a roof', art: 'city' },
+    { label: 'Deliver', note: 'Hover over them for 2 s', art: 'deliver' },
     { label: 'Come home', note: 'Land back on the pad', art: 'land' },
   ],
   objectives: [
-    'Find the red search zone on the map — it is the only thing that says where to go.',
-    'Climb above the rooftops and search the zone by eye until the emergency signal is picked up.',
-    'Close on the beacon and hold your position over the rescue zone for five seconds.',
+    'Fly to the pickup pad and collect the food box.',
+    'Climb above the rooftops and search the red zone by eye for the person on the roof.',
+    'Hold a steady hover over them for two seconds to drop the food box.',
     'Fly back to base and land on the pad.',
   ],
   mapNote: 'The city, and the red search zone. No marker, no route',
@@ -159,7 +166,7 @@ export const searchRescue: Mission = {
    * to the Guru.
    */
   ceiling: 60,
-  medals: { bronze: 1, silver: 2, gold: GOLD },
+  medals: { bronze: 1, silver: GOLD, gold: GOLD },
   /* Nothing hangs at this height — the mission has no route — but the field is
    * required and is what the briefing quotes as a sensible search altitude.
    * Fifty puts the pilot just over the roofline the casualties are on, which is
@@ -246,23 +253,17 @@ export const searchRescue: Mission = {
   },
   homeVia: [],
   /*
-   * THE PICKUP IS THE BASE PAD, and it is never live.
-   *
-   * `zones` is a record of three kinds and cannot grow, but this mission has
-   * nothing to collect: the pilot launches empty and lands empty. The state
-   * machine never enters `toPickup` on a search mission — `freshAttempt` opens
-   * on `searching` — so nothing ever tests or draws this zone. It is filled with
-   * the pad rather than with a plausible-looking street corner precisely so that
-   * if something ever DID reach it, the pilot would be sent somewhere harmless
-   * and obvious rather than to a mark invented to satisfy a type.
+   * THE FOOD BOX waits on a pickup pad off the spawn, with its ring, and the
+   * attempt opens flying to it. Mission 3's collection numbers: a 1 m circle
+   * and a 2 m band, so a fly-past collects nothing but a placed hover does.
    */
   zones: {
     pickup: {
       kind: 'pickup',
-      at: BASE,
-      label: 'Base pad',
-      radius: 2.5,
-      band: { min: 0, max: 3 },
+      at: PICKUP,
+      label: 'Supply pickup',
+      radius: 1,
+      band: { min: 0, max: 2 },
       maxGroundSpeed: 1.1,
       maxVerticalSpeed: 1,
       hold: 0.8,
@@ -287,7 +288,11 @@ export const searchRescue: Mission = {
   radio: {
     start: {
       id: 'sr-start',
-      text: 'Pilot, we have an emergency. Someone is stranded on a rooftop in this sector, and the GPS fix is too weak to place them. Your drone is our only way to search.',
+      text: 'Pilot, someone is stranded on a rooftop in this sector with no food, and the GPS fix is too weak to place them. Collect the food box from the pickup pad first.',
+    },
+    pickup: {
+      id: 'sr-pickup',
+      text: 'Food box on board. Now search the red zone on your map — look for someone on a roof.',
     },
     /* Never played by name — `radio` is an open record and nothing calls for
      * this key. It is the line the briefing quotes, kept beside the others so
@@ -305,13 +310,13 @@ export const searchRescue: Mission = {
     },
     located: {
       id: 'sr-located',
-      text: 'That is them. Get over the rescue zone and hold it there while the coordinates lock.',
+      text: 'That is them. Get over them and hold a steady hover — the box will come down beside them.',
     },
     delivered: {
       id: 'sr-confirmed',
-      text: 'Rescue location confirmed. The emergency team has the coordinates. Good work, pilot.',
+      text: 'Food box delivered. That will keep them going until the ground team gets there. Good work, pilot.',
     },
-    home: { id: 'sr-home', text: 'Nothing more you can do here. Return to base.' },
+    home: { id: 'sr-home', text: 'Nothing more you can do up there. Return to base and land.' },
     landing: { id: 'sr-landing', text: 'The pad is right below you. Bring it down gently.' },
     complete: {
       id: 'sr-complete',
@@ -333,15 +338,15 @@ export const searchRescue: Mission = {
   ranks: [
     {
       stars: 3,
-      text: 'Rescue confirmed and home, no collisions, inside 4:00',
+      text: 'Food delivered and home, no collisions, inside 4:00',
       test: (r) =>
         r.delivered && r.landed && r.points >= GOLD && r.collisions === 0 && r.timeSec <= 240,
     },
     {
       stars: 2,
-      text: 'Rescue confirmed and home, one collision at most',
+      text: 'Food delivered and home, one collision at most',
       test: (r) => r.delivered && r.landed && r.points >= GOLD && r.collisions <= 1,
     },
-    { stars: 1, text: 'Find the casualty and land back at base', test: (r) => r.delivered },
+    { stars: 1, text: 'Get the food box to them', test: (r) => r.delivered },
   ],
 };

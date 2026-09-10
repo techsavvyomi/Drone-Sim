@@ -88,11 +88,18 @@ describe('the shape of the mission', () => {
     expect(toMissionSpec(M).type).toBe('rescue');
   });
 
-  it('TC-400 scores the rescue and the landing, and nothing else', () => {
-    // Two points: confirming the location, and getting the aircraft home. A
-    // search has no rings to collect and nothing to pick up.
+  it('TC-400 scores the food drop and the landing, and nothing else', () => {
+    // Two points: the food box delivered, and the drone landed home. Collecting
+    // the box scores nothing on its own, as on every delivery.
+    expect(M.endsAtDrop).toBeUndefined();
     expect(maxPointsOf(M)).toBe(2);
     expect(M.medals.gold).toBe(2);
+  });
+
+  it('TC-400 keeps the food box pickup off the spawn and away from the base pad', () => {
+    const [px, pz] = M.zones.pickup.at;
+    const [bx, bz] = M.zones.base.at;
+    expect(Math.hypot(px - bx, pz - bz)).toBeGreaterThanOrEqual(12);
   });
 
   it('TC-400 declares no stray radius', () => {
@@ -198,9 +205,9 @@ describe('the four sites', () => {
     for (const site of M.search!.sites) expect(site.zone.radius).toBeLessThan(tightest);
   });
 
-  it('TC-402 asks for a five second hold that a drift resets', () => {
+  it('TC-402 asks for a two second hold that a drift resets', () => {
     for (const site of M.search!.sites) {
-      expect(site.zone.hold).toBe(5);
+      expect(site.zone.hold).toBe(2);
       // The delivery drop's limits, not the fire's original 2.2 m/s — that is a
       // brisk pass, not a hover, and this mission asks for a position held.
       expect(site.zone.maxGroundSpeed).toBeLessThanOrEqual(0.9);
@@ -279,12 +286,16 @@ describe('the attempt', () => {
     useMissionStore.getState().exit();
   });
 
-  it('TC-404 opens on the search leg with nothing found', () => {
+  it('TC-404 opens on the run to the food box with nothing found', () => {
     useMissionStore.getState().start(M);
     const s = useMissionStore.getState();
-    expect(s.leg).toBe('searching');
+    expect(s.leg).toBe('toPickup');
     expect(s.located).toBe(false);
     expect(s.signal).toBe(0);
+    // Guided to the box like any collection; silent only once searching.
+    expect(guidanceHidden(M, false, 'toPickup')).toBe(false);
+    expect(guidanceHidden(M, false, 'searching')).toBe(true);
+    expect(guidanceHidden(M, true, 'confirming')).toBe(false);
   });
 
   it('TC-404 opens the other missions on their own first leg, unchanged', () => {
@@ -331,7 +342,7 @@ describe('the attempt', () => {
     useMissionStore.getState().restart();
     expect(useMissionStore.getState().located).toBe(false);
     expect(useMissionStore.getState().signal).toBe(0);
-    expect(useMissionStore.getState().leg).toBe('searching');
+    expect(useMissionStore.getState().leg).toBe('toPickup');
   });
 
   it('TC-404 leaves every other mission with siteIndex 0 and nothing reading it', () => {
@@ -506,7 +517,7 @@ describe('the signal', () => {
 });
 
 describe('the rating', () => {
-  it('TC-407 needs the rescue confirmed and the drone home for the top star', () => {
+  it('TC-407 needs the food delivered and the drone home for the top star', () => {
     expect(rankFor(M.ranks, result())).toBe(3);
     expect(rankFor(M.ranks, result({ collisions: 1 }))).toBe(2);
     expect(rankFor(M.ranks, result({ timeSec: 400 }))).toBe(2);

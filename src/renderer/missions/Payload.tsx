@@ -331,10 +331,62 @@ export function Payload({ mission }: { mission: Mission }) {
     );
   }
 
+  // The search mission's supply drop: a food box rather than a medical case.
+  if (mission.kind === 'search') {
+    return (
+      <group ref={group}>
+        <FoodBox size={size} />
+      </group>
+    );
+  }
+
   return (
     <group ref={group}>
       <MedicalCase size={size} />
     </group>
+  );
+}
+
+/**
+ * A cardboard food box: kraft shell, packing tape over the lid and down two
+ * sides, and a white label with a green band on the other two. No behaviour —
+ * `Payload` moves it exactly as it moves the medical case.
+ */
+function FoodBox({ size }: { size: number }) {
+  const half = size / 2;
+  const skin = size * 0.004;
+  const tape = size * 0.22;
+  return (
+    <>
+      <mesh castShadow>
+        <boxGeometry args={[size, size, size]} />
+        <meshStandardMaterial color="#b8864f" roughness={0.92} metalness={0} />
+      </mesh>
+      {/* Tape: over the lid, and down the front and back. */}
+      <mesh position={[0, half + skin, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <planeGeometry args={[tape, size]} />
+        <meshStandardMaterial color="#d8c39a" roughness={0.45} />
+      </mesh>
+      {[1, -1].map((s) => (
+        <mesh key={s} position={[0, 0, s * (half + skin)]} rotation={[0, s > 0 ? 0 : Math.PI, 0]}>
+          <planeGeometry args={[tape, size]} />
+          <meshStandardMaterial color="#d8c39a" roughness={0.45} />
+        </mesh>
+      ))}
+      {/* Labels on the two sides the tape leaves bare. */}
+      {[1, -1].map((s) => (
+        <group key={s} position={[s * (half + skin), 0, 0]} rotation={[0, (s * Math.PI) / 2, 0]}>
+          <mesh>
+            <planeGeometry args={[size * 0.6, size * 0.38]} />
+            <meshStandardMaterial color="#f1eee6" roughness={0.8} />
+          </mesh>
+          <mesh position={[0, size * 0.09, skin]}>
+            <planeGeometry args={[size * 0.6, size * 0.1]} />
+            <meshBasicMaterial color="#2f9e44" toneMapped={false} />
+          </mesh>
+        </group>
+      ))}
+    </>
   );
 }
 

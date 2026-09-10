@@ -12,6 +12,7 @@ import { setCommandScale } from '../input/controls';
 import { MissionHud } from '../hud/MissionHud';
 import { MissionDirector } from './MissionDirector';
 import { MissionMarkers } from './MissionMarkers';
+import { CasualtyCollider } from './CasualtyCollider';
 import { TargetPointer } from './TargetPointer';
 import { FireZone } from './FireZone';
 import { Spray } from './Spray';
@@ -101,24 +102,20 @@ export function MissionViewport({ mission }: { mission: Mission }) {
           }}
           camera={{ position: [8, 5, 9], fov: 60, near: 0.15, far: 700 }}
         >
-          <FlightScene envIdOverride={mission.envId} ceilingOverride={mission.ceiling} />
+          <FlightScene envIdOverride={mission.envId} ceilingOverride={mission.ceiling}>
+            {/* The person on the roof is solid. Inside the scene because that is
+                where `<Physics>` is. */}
+            {mission.search && <CasualtyCollider mission={mission} />}
+          </FlightScene>
           <MissionMarkers mission={mission} />
           {/* Only a suppression mission carries these, and they mount with the
               mission rather than with the leg: a fire that appeared when the
               pilot arrived would be a fire nobody could see on the way. */}
           {mission.fire && <FireZone mission={mission} />}
           {mission.fire && <Spray />}
-          {/* A SEARCH mission carries nothing, so it draws nothing.
-
-              `Payload` opens every mission by standing its cargo on the pickup
-              mark, which on a search mission is the base pad the drone launches
-              from — so a medical case was sitting on the road in front of the
-              pilot for a job that has no package, no pickup and no delivery.
-              The mission never enters `toPickup`, so nothing would ever have
-              come to collect it either: it was scenery that looked like an
-              objective, on the one mission whose whole difficulty is working
-              out what is and is not an objective. */}
-          {mission.kind !== 'search' && <Payload mission={mission} />}
+          {/* Every mission carries something now — the search carries a food box
+              to the person on the roof. */}
+          <Payload mission={mission} />
           <MissionDirector />
           {/* Projects the Director's target into screen space every frame, for
               the chevron the HUD draws over it. Inside the Canvas because that

@@ -281,9 +281,9 @@ interface MissionState {
  *  field cannot be added to the store and forgotten by the teardown. */
 function freshAttempt(mission: Mission | null) {
   return {
-    // A search mission opens on its own leg. Every other mission opens on the
-    // run to the pickup, which is what all three existing ones do.
-    leg: (mission?.kind === 'search' ? 'searching' : 'toPickup') as MissionLeg,
+    // Every mission opens on the run to the pickup — the search too, which now
+    // collects a food box before it goes looking for the person it is for.
+    leg: 'toPickup' as MissionLeg,
     // WHICH SITE, decided here and only here. It is re-rolled on every attempt
     // — including a restart — so a pilot who failed at site B is not handed
     // site B again to fly from memory.
@@ -558,8 +558,15 @@ export function activeZone(leg: MissionLeg): MissionZoneKind | null {
  * consumers, and so a test can assert it — see TC-401. A mission that does not
  * declare `hideGuidanceUntilFound` can never reach it.
  */
-export function guidanceHidden(mission: Mission | null, located: boolean): boolean {
-  return mission?.hideGuidanceUntilFound === true && !located;
+export function guidanceHidden(
+  mission: Mission | null,
+  located: boolean,
+  leg: MissionLeg = 'searching',
+): boolean {
+  // The run to the PICKUP is ordinary flying: the food box is on a marked pad
+  // and the pilot is guided to it like any other collection. Only the search
+  // that follows is silent.
+  return mission?.hideGuidanceUntilFound === true && !located && leg !== 'toPickup';
 }
 
 /**
@@ -578,10 +585,11 @@ export function objectiveFor(
   const fire = kind === 'suppression';
   switch (leg) {
     case 'searching':
-      return 'Search the city for the emergency signal.';
+      return 'Search the red zone for the person on the rooftop.';
     case 'confirming':
-      return 'Hold your position over the rescue zone.';
+      return 'Hold a steady hover over them to drop the food box.';
     case 'toPickup':
+      if (kind === 'search') return 'Collect the food box from the pickup pad.';
       // A multi-point delivery visits the pickup once per package, and the
       // second visit is a different instruction from the first: the pilot is
       // coming BACK, and the line has to say so or the objective reads as if

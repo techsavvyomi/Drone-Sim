@@ -495,6 +495,10 @@ export function MissionMarkers({ mission }: { mission: Mission }) {
               structure on a roof, and one that appeared when the pilot was sent
               to it would be a building materialising over the city. */}
           <RooftopPad zone={d.zone} deck={zoneGroundY(mission, d.zone)} />
+          {/* A search draws NO rescue mark. The person on the roof is the only
+              thing that says where to hover — a ring round them turned finding
+              someone back into flying to a marker. */}
+          {!mission.search && (
           <ZoneMark
             zone={d.zone}
             groundY={zoneGroundY(mission, d.zone)}
@@ -508,6 +512,7 @@ export function MissionMarkers({ mission }: { mission: Mission }) {
             column={!mission.fire}
             xray={mission.seeThroughMarks === true}
           />
+          )}
         </group>
       ))}
     </group>

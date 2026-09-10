@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import type { ReactNode } from 'react';
 import { Physics } from '@react-three/rapier';
 import { Grid, Sky, Stars } from '@react-three/drei';
 import { useSettingsStore } from '../state/settingsStore';
@@ -25,10 +26,13 @@ import { DroneAudio } from '../audio/DroneAudio';
 //
 // `envIdOverride` lets callers (e.g. Flight School) force a specific environment
 // without changing the pilot's saved selection; the Fly view passes nothing.
+// `children` are mounted inside the Rapier world, for callers that add solid
+// things of their own (a mission's casualty).
 export function FlightScene({
   envIdOverride,
   ceilingOverride,
-}: { envIdOverride?: string; ceilingOverride?: number } = {}) {
+  children,
+}: { envIdOverride?: string; ceilingOverride?: number; children?: ReactNode } = {}) {
   const droneId = useSettingsStore((s) => s.settings.selectedDroneId);
   const selectedEnvId = useSettingsStore((s) => s.settings.selectedEnvironmentId);
   const envId = envIdOverride ?? selectedEnvId;
@@ -186,6 +190,7 @@ export function FlightScene({
           groundY={env.groundY}
         />
         <PropDebris spec={spec} />
+        {children}
       </Physics>
 
       {hud.groundMarker && <GroundMarker />}

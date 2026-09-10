@@ -456,7 +456,7 @@ export function MissionDirector() {
           {
             kind: 'good',
             title: 'CASUALTY LOCATED',
-            sub: 'Hold your position over the rescue zone',
+            sub: 'Hover steady over them to drop the food box',
           },
           BANNER_SEC,
         );
@@ -505,7 +505,9 @@ export function MissionDirector() {
       if (rescueHold.current >= zone.hold) {
         leg = 'delivered';
         store.setLeg(leg);
-        store.takeZone('drop', 'RESCUE CONFIRMED');
+        store.takeZone('drop', 'FOOD BOX DELIVERED');
+        // The box comes off here and falls onto the roof beside them.
+        store.setPayload('delivered');
         rescueHold.current = 0;
         holding.current = false;
         steadyFor.current = 0;
@@ -516,13 +518,22 @@ export function MissionDirector() {
         store.showBanner(
           {
             kind: 'good',
-            title: 'RESCUE LOCATION CONFIRMED',
-            sub: 'Coordinates sent to the emergency team',
+            title: 'FOOD BOX DELIVERED',
+            sub: 'Supplies are with them — return to base and land',
           },
           BANNER_SEC,
         );
         say(mission, 'delivered');
-        queued.current = { key: 'home', at: clock.current + 1.2 };
+        if (mission.endsAtDrop) {
+          // Finding them and holding over them IS the job — straight to
+          // `complete`, exactly as the fire does, so the base ring and the
+          // pointer never light for a flight home that is not asked for.
+          leg = 'complete';
+          store.setLeg(leg);
+          landDwell.current = LAND_DWELL;
+        } else {
+          queued.current = { key: 'home', at: clock.current + 1.2 };
+        }
       }
     } else if (leg === 'toPickup') {
       const z = probeZone(mission, mission.zones.pickup);
@@ -553,7 +564,8 @@ export function MissionDirector() {
         }
       }
       if (pickupHold.current >= mission.zones.pickup.hold) {
-        leg = 'carrying';
+        // A search carries its box into the SEARCH, not to a marked drop.
+        leg = mission.search ? 'searching' : 'carrying';
         store.setLeg(leg);
         store.setPayload('attached');
         store.takeZone('pickup', 'PICKUP', false);
@@ -566,7 +578,13 @@ export function MissionDirector() {
         // suppression pilot who reads 'Package secured' has been handed the
         // delivery's words for a tank they are about to empty in the air.
         store.showBanner(
-          mission.fire
+          mission.search
+            ? {
+                kind: 'good',
+                title: 'FOOD BOX ATTACHED',
+                sub: 'Find the person on the rooftop inside the red zone',
+              }
+            : mission.fire
             ? {
                 kind: 'good',
                 title: 'FIREFIGHTING PAYLOAD ATTACHED',
@@ -958,7 +976,7 @@ export function MissionDirector() {
       // in-picture pointer. It reads a module singleton the Canvas writes every
       // frame and knows nothing about missions, so this is the only place that
       // can silence it.
-      if (guidanceHidden(mission, store.located)) {
+      if (guidanceHidden(mission, store.located, leg)) {
         const search = mission.search;
         const site = search?.sites[Math.min(store.siteIndex, search.sites.length - 1)];
         const flat = site ? flatDist(p0, site.at) : Infinity;
