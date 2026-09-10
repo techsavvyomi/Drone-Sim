@@ -5603,9 +5603,10 @@ button {
 }
 
 /* ---- Search & Rescue: the city map --------------------------------------- */
-/* Where the radar dial sits on every other mission, and round like it. The plan
-   inside is scaled to its own diagonal, so the city keeps its corners even
-   though the frame has none. */
+/* Where the radar dial sits on every other mission, and round like it. What is
+   inside is not the whole city but the blocks around the red zone — see
+   `MissionCityMap` for why. No caption: at this zoom the ring needs no naming,
+   and the words were covering a quarter of the map. */
 .ms-citymap {
   position: absolute;
   top: 72px;
@@ -5616,28 +5617,9 @@ button {
   border: 1px solid rgba(148, 163, 184, 0.2);
   pointer-events: none;
   z-index: 3;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
+  line-height: 0;
 }
 .ms-citymap canvas {
   display: block;
   border-radius: 50%;
-}
-/* Inside the disc rather than under it: a caption below a circle in a round box
-   has to sit in the padding, and there is none to spare. Without it the map
-   shows an urgent-looking shape and never names it, and a pilot who skimmed the
-   briefing has no way to learn that the circle is the search area rather than
-   somewhere to keep out of. */
-.ms-citymap-foot {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 16px;
-  font-size: 9px;
-  font-weight: 800;
-  letter-spacing: 0.16em;
-  text-align: center;
-  color: var(--bad);
-  opacity: 0.85;
 }

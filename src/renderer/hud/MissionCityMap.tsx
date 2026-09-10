@@ -1,8 +1,7 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { dronePose } from '../sim/drone/pose';
 import { useMissionStore } from '../state/missionStore';
-import { NYC_PLAN, NYC_PLAN_BOUNDS } from '../scene/environment/NewYorkPlan';
-import { planMargin } from '../missions/searchZone';
+import { NYC_PLAN } from '../scene/environment/NewYorkPlan';
 import type { Mission } from '../missions/types';
 
 // ----------------------------------------------------------------------------
@@ -14,12 +13,22 @@ import type { Mission } from '../missions/types';
 // an instrument that answered no question at all, on the one mission where the
 // pilot most needs a map.
 //
-// So this is a MAP rather than a radar. The whole city at once, north up and
-// fixed: the blocks the pilot can see out of the window, the red zone the
-// casualty is somewhere inside, and their own aircraft moving across it. That
-// is enough to fly a search with — where have I been, where have I not — and it
-// is the piece a heading-up dial can never give, because a plan you can build a
-// search pattern on has to hold still.
+// So this is a MAP rather than a radar. NORTH UP — a plan you can build a
+// search pattern on must not spin under the pilot, which is the piece a
+// heading-up dial can never give — but it SCROLLS with the aircraft.
+//
+// Both halves of that were arrived at the hard way. The whole city at once put
+// three or four blocks inside the red zone at four pixels each: a texture, not
+// a plan, and a pilot who cannot tell one block from the next cannot tell where
+// in the search area they have already been. Locking the zoom onto the zone
+// fixed the blocks and broke everything else — fly a street the other way and
+// the map showed a neighbourhood the drone was nowhere near.
+//
+// Scrolling and north-up together is the combination that works: the blocks
+// under the aircraft, at a size they can be told apart, in an orientation that
+// holds still while the pilot turns. The red zone is drawn where it is in the
+// world, so it slides into frame as they approach; while it is still out of
+// sight a red pip rides the rim pointing at it.
 //
 // It is DRAWN, not photographed. A baked picture of the city was tried and is
 // the wrong thing twice over: it is a second copy of the map that can fall out
@@ -32,19 +41,31 @@ import type { Mission } from '../missions/types';
 // the frame rather than saying anything: the map itself is the direction.
 //
 // A DISPLAY and nothing else. It reads `dronePose` and the store, and scores
-// nothing. The city is rasterised once into an offscreen canvas at mount — 120
-// rectangles per frame is not expensive, but it is 120 rectangles that never
-// change, and the live layer on top is three shapes.
+// nothing, on its own animation frame — routing a position that changes every
+// frame through React state would re-render the whole overlay sixty times a
+// second for a map that has scrolled two pixels.
 // ----------------------------------------------------------------------------
 
 /** Across the dial, in CSS pixels. A little larger than the 132 px radar it
- *  replaces, and no more: it holds the whole city rather than 90 m of it, but a
- *  map that takes a fifth of the screen is competing with the window the pilot
- *  is supposed to be searching out of. */
+ *  replaces, and no more: a map that takes a fifth of the screen is competing
+ *  with the window the pilot is supposed to be searching out of. */
 const SIZE = 152;
-/** Breathing room inside the rim, so the aircraft at the far edge of the city
- *  is still drawn as a triangle rather than as a clipped edge. */
+/** Breathing room inside the rim, so a shape at the edge of the frame is still
+ *  drawn rather than sliced by it. */
 const PAD = 7;
+
+/**
+ * How far the map sees from the aircraft, metres.
+ *
+ * The one number that decides whether this is a plan or a texture. At 85 m the
+ * disc holds about two blocks in every direction — enough that a street the
+ * pilot has swept is recognisably that street, and enough that the 45 m red
+ * zone fits inside the frame with its surroundings rather than filling it.
+ * Wider and the blocks stop being distinguishable, which is the failure the
+ * whole-city version had; tighter and the pilot loses the context they navigate
+ * into the zone by.
+ */
+const REACH_M = 85;
 
 const CITY = 'rgba(226, 232, 240, 0.3)';
 const ZONE_LINE = '#ff4d4d';
@@ -56,50 +77,10 @@ export function MissionCityMap({ mission }: { mission: Mission }) {
   const zone = useMissionStore((s) => s.searchZone);
   const located = useMissionStore((s) => s.located);
 
-  // World metres to map pixels. One scale for both axes — a plan stretched to
-  // fill its frame is a plan of a different city, and the pilot is meant to be
-  // able to read distances off it.
-  const view = useMemo(() => {
-    // The city PLUS the margin a red zone can overhang it by. `planMargin` is
-    // the same number `zoneFor` clamps against, imported rather than repeated.
-    const m = planMargin(mission.search?.zoneRadius ?? 0);
-    const b = NYC_PLAN_BOUNDS;
-    const w = b.maxX - b.minX + m * 2;
-    const d = b.maxZ - b.minZ + m * 2;
-    /*
-     * Fitted to the DIAGONAL, not to the wider side.
-     *
-     * A round frame keeps the disc and throws the corners away, so a plan
-     * scaled to fit a square of this size loses its own corners — which on this
-     * city is where two of the four sites are, and with them the red zones
-     * drawn round them. What has to fit inside the circle is the smallest
-     * circle the content fits in, and that is half its diagonal.
-     */
-    const reach = Math.hypot(w, d) / 2;
-    const k = (SIZE / 2 - PAD) / reach;
-    const half = SIZE / 2;
-    return {
-      k,
-      ox: half - ((b.minX + b.maxX) / 2) * k,
-      oz: half - ((b.minZ + b.maxZ) / 2) * k,
-    };
-  }, [mission]);
-
-  // The city, drawn once. Nothing in it depends on the attempt.
-  const plan = useMemo(() => {
-    const off = document.createElement('canvas');
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    off.width = SIZE * dpr;
-    off.height = SIZE * dpr;
-    const c = off.getContext('2d');
-    if (!c) return off;
-    c.scale(dpr, dpr);
-    c.fillStyle = CITY;
-    for (const [x, z, w, d] of NYC_PLAN) {
-      c.fillRect(view.ox + x * view.k, view.oz + z * view.k, w * view.k, d * view.k);
-    }
-    return off;
-  }, [view]);
+  /** Pixels per metre. One scale for both axes — a plan stretched to fill its
+   *  frame is a plan of a different city, and the pilot is meant to be able to
+   *  read distances off it. */
+  const k = (SIZE / 2 - PAD) / REACH_M;
 
   useEffect(() => {
     const el = canvas.current;
@@ -112,22 +93,39 @@ export function MissionCityMap({ mission }: { mission: Mission }) {
     el.height = SIZE * dpr;
     ctx.scale(dpr, dpr);
 
-    const sx = (x: number) => view.ox + x * view.k;
-    const sz = (z: number) => view.oz + z * view.k;
+    const half = SIZE / 2;
 
     let raf = 0;
     const draw = (clock: number) => {
       raf = requestAnimationFrame(draw);
       ctx.clearRect(0, 0, SIZE, SIZE);
-      // Everything inside the rim. Nothing should ever reach it — the scale is
-      // set so it cannot — but a clip is what makes that a fact rather than an
-      // intention, and it is what stops a stray shape painting into the corners
-      // the round frame does not cover.
+      // Everything inside the rim, and now the clip is doing real work: a
+      // scrolling map has blocks crossing its edge in every frame.
       ctx.save();
       ctx.beginPath();
-      ctx.arc(SIZE / 2, SIZE / 2, SIZE / 2 - 0.5, 0, Math.PI * 2);
+      ctx.arc(half, half, half - 0.5, 0, Math.PI * 2);
       ctx.clip();
-      ctx.drawImage(plan, 0, 0, SIZE, SIZE);
+
+      // The frame is recomputed every frame off the live pose — that is what
+      // scrolling IS — so the city is drawn rather than blitted from a
+      // pre-rendered plan. 120 rectangles is cheap, and a cached plan would
+      // have to be re-cut on every metre the drone moves anyway.
+      const ox = half - dronePose.position.x * k;
+      const oz = half - dronePose.position.z * k;
+      const sx = (x: number) => ox + x * k;
+      const sz = (z: number) => oz + z * k;
+
+      ctx.fillStyle = CITY;
+      for (const [bx, bz, bw, bd] of NYC_PLAN) {
+        const x = sx(bx);
+        const y = sz(bz);
+        const w = bw * k;
+        const d = bd * k;
+        // Off the disc entirely: skipped rather than clipped, because at this
+        // zoom most of the city is off it most of the time.
+        if (x + w < 0 || y + d < 0 || x > SIZE || y > SIZE) continue;
+        ctx.fillRect(x, y, w, d);
+      }
 
       // --- The red zone ------------------------------------------------------
       //
@@ -137,7 +135,7 @@ export function MissionCityMap({ mission }: { mission: Mission }) {
       // by then the zone has done its job, and a thing still demanding
       // attention after it has been answered is the HUD talking over itself.
       if (zone) {
-        const r = zone.radius * view.k;
+        const r = zone.radius * k;
         const x = sx(zone.at[0]);
         const y = sz(zone.at[1]);
         ctx.fillStyle = ZONE_FILL;
@@ -152,6 +150,24 @@ export function MissionCityMap({ mission }: { mission: Mission }) {
         ctx.arc(x, y, r, 0, Math.PI * 2);
         ctx.stroke();
         ctx.globalAlpha = 1;
+
+        // Out of sight: a pip on the rim pointing at it.
+        //
+        // A scrolling map earns its blocks by giving up the overview, and the
+        // overview is what told the pilot which way the zone was. From the base
+        // pad the circle is off the frame entirely, so without this the mission
+        // opens on a map of streets with nothing on it to aim at.
+        const dx = x - half;
+        const dy = y - half;
+        const away = Math.hypot(dx, dy);
+        if (away - r > half - 8) {
+          const px2 = half + (dx / away) * (half - 9);
+          const py2 = half + (dy / away) * (half - 9);
+          ctx.fillStyle = ZONE_LINE;
+          ctx.beginPath();
+          ctx.arc(px2, py2, 3.5, 0, Math.PI * 2);
+          ctx.fill();
+        }
       }
 
       // --- The aircraft ------------------------------------------------------
@@ -162,8 +178,9 @@ export function MissionCityMap({ mission }: { mission: Mission }) {
       // rather than a memory.
       const q = dronePose.quaternion;
       const yaw = Math.atan2(2 * (q.w * q.y + q.x * q.z), 1 - 2 * (q.y * q.y + q.x * q.x));
-      const px = sx(dronePose.position.x);
-      const py = sz(dronePose.position.z);
+      // Dead centre, always: the map is drawn around it.
+      const px = half;
+      const py = half;
       // Heading 0 faces -Z, which is up on a north-up plan.
       const fx = -Math.sin(yaw);
       const fy = -Math.cos(yaw);
@@ -180,12 +197,16 @@ export function MissionCityMap({ mission }: { mission: Mission }) {
 
     raf = requestAnimationFrame(draw);
     return () => cancelAnimationFrame(raf);
-  }, [mission, view, plan, zone, located]);
+  }, [mission, k, zone, located]);
 
+  // No caption. A label under the circle was there to say what the red ring
+  // was, and at this zoom it does not need saying: the ring is most of the
+  // dial, the drone flies into it, and the briefing has already called it the
+  // search zone. What the words were actually doing was covering the southern
+  // quarter of the map.
   return (
     <div className="ms-citymap" aria-hidden="true">
       <canvas ref={canvas} style={{ width: SIZE, height: SIZE }} />
-      <span className="ms-citymap-foot">{located ? 'RESCUE LOCATED' : 'SEARCH ZONE'}</span>
     </div>
   );
 }
