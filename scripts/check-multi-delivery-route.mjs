@@ -387,10 +387,17 @@ for (const d of drops) {
   // Tight, and tighter than the package is tall. The tolerance was 0.15 m,
   // which is wider than the 0.12 m kerb it failed to notice — a tolerance that
   // covers the mistake is not a check.
+  // A PLATFORM mark's deck is the platform's own collider (`RooftopPadCollider`),
+  // which is not in the city file. What the city has to say there is the roof
+  // the platform stands on — if the city collider reached above it, the drawn
+  // platform would be sunk into an invisible box.
+  const under = d.standsOn ?? d.deck;
   note(
-    Math.abs(real - d.deck) < 0.02,
+    Math.abs(real - under) < 0.02,
     d.label,
-    `declared deck ${d.deck} m, measured ${real.toFixed(2)} m`,
+    d.standsOn === undefined
+      ? `declared deck ${d.deck} m, measured ${real.toFixed(2)} m`
+      : `platform on ${d.standsOn} m, city collider measured ${real.toFixed(2)} m`,
   );
   // A ROOF is anything the drone has to climb a building to reach. A kerb is
   // not one, however carefully its 12 cm are declared: it is still a street mark
@@ -408,7 +415,15 @@ for (const d of drops) {
       const a = (i / 24) * Math.PI * 2;
       const x = d.x + Math.cos(a) * r;
       const z = d.z + Math.sin(a) * r;
-      const off = Math.abs(deck(x, z) - d.deck);
+      // Under a platform, city collider anywhere between the roof and the deck
+      // is inside the platform's own collider and cannot be felt or seen — the
+      // 1 m cells poke a neighbouring box in under the rim. Only above the deck
+      // or below the roof is it wrong.
+      const c = deck(x, z);
+      const off =
+        d.standsOn === undefined
+          ? Math.abs(c - d.deck)
+          : Math.max(0, d.standsOn - c, c - d.deck);
       if (off > worstOff) {
         worstOff = off;
         where = [x, z];
@@ -440,7 +455,10 @@ for (const d of drops) {
     const { worst, at } = column(d.x, d.z, real + 0.6, ZONE_TOP);
     line(d.label, `[${d.x}, ${d.z}] column, tightest at ${at} m`, worst, ZONE_MIN);
   } else {
-    const { worst, at } = column(d.x, d.z, real + 0.5, Math.min(real + 10, CEILING - 1), above);
+    // From the deck the aircraft stands on — the platform's top where there is
+    // one — not the roof under it: nothing flies inside the platform.
+    const from = Math.max(real, d.deck) + 0.5;
+    const { worst, at } = column(d.x, d.z, from, Math.min(from + 9.5, CEILING - 1), above);
     line(d.label, `[${d.x}, ${d.z}] over the roof at ${at} m`, worst, ROOF_MIN);
     // The top of the height band is the highest the pilot ever has to hold. It
     // must sit clear of the ceiling's fade, or the last metre of the approach is

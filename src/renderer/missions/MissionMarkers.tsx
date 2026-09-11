@@ -103,14 +103,11 @@ function columnTexture(): THREE.CanvasTexture {
  * crossing the city can see where they are going before the mark itself comes
  * up.
  *
- * It exists because of how this city's colliders are made. They merge cells into
- * rectangles and fill each one to the tallest thing inside it, so a roof with a
- * parapet is SOLID up to the parapet — the aircraft stops a metre above the slab
- * the pilot can see, and a mark drawn at the height the aircraft stops at hangs
- * in mid-air over the roof. Neither number can move: the collider is what the
- * drone rests on and the slab is what the pilot sees. So the gap gets a
- * building. The collider was always claiming something solid was there; this is
- * that thing, drawn.
+ * It was built for how this city's colliders USED to be made: roof and parapet
+ * merged into one box, so the aircraft stopped a metre or two above the slab and
+ * the platform was that invisible box, drawn. The colliders are now fitted to
+ * the slab, and the platform is solid in its own right — `RooftopPadCollider`
+ * gives it the same footprint and height — so the mark's deck is unchanged.
  *
  * An octagon rather than a circle, and untextured: eight segments and two
  * materials, on a map that is VRAM-bound before the mission adds anything.
@@ -200,7 +197,7 @@ const DECK_T = 0.16;
  */
 const PAD_BITE = 0.04;
 /** How far the platform's deck reaches past the mark drawn on it, metres. */
-const PAD_MARGIN = 0.4;
+export const PAD_MARGIN = 0.4;
 const PAD_STONE = '#a09883';
 const PAD_TOP = '#cdc4ad';
 const PAD_LIFT = '#4a4335';

@@ -270,6 +270,10 @@ describe('the four sites', () => {
       const zone = M.search!.sites[i].zone;
       expect(s.deck).toBeGreaterThanOrEqual(s.roof);
       expect(s.roof + zone.band.min).toBeGreaterThan(s.deck);
+      // And the aircraft can come down to the roof the person is standing on.
+      // The deck was the parapet, up to 2.6 m over the slab, and the drone
+      // stopped on nothing visible beside them; TC-408 re-measures it.
+      expect(s.deck - s.roof).toBeLessThan(0.3);
     }
   });
 

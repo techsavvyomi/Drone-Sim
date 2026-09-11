@@ -105,11 +105,11 @@ export interface MissionZone {
    * box rather than on the roof. A mark drawn at `groundY` on such a roof hangs
    * in mid-air, which is precisely how it looked.
    *
-   * Neither number can be moved — the collider is what the aircraft actually
-   * stops on, and the slab is what the pilot actually sees — so the gap is
-   * FILLED. `MissionMarkers` draws a delivery platform from `padBase` up to
-   * `groundY`, which makes the collider honest: there really is something solid
-   * there now, and the mark is painted on top of it.
+   * The gap is FILLED. `MissionMarkers` draws a delivery platform from `padBase`
+   * up to `groundY` and `RooftopPadCollider` makes it solid, so the mark is
+   * painted on something the aircraft really stands on. (The city colliders have
+   * since been fitted to the slab rather than the parapet; the platform now
+   * carries its own collider instead of hiding one.)
    *
    * Measured off the GLB, never guessed:
    *

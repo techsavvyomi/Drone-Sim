@@ -264,10 +264,13 @@ for (const d of loadMarks()) {
     d.label,
     `declares it stands on ${d.standsOn} m, the model's roof is ${roof === null ? 'nothing' : roof.toFixed(2) + ' m'}`,
   );
+  // The platform carries its own collider (`RooftopPadCollider`) up to the
+  // declared deck. The CITY collider under it must be the roof it stands on: one
+  // that reached above it would sink the drawn platform into an invisible box.
   note(
-    Math.abs(deck - d.deck) <= TOL,
+    Math.abs(deck - d.standsOn) <= TOL,
     d.label,
-    `declares a deck of ${d.deck} m, the aircraft rests at ${deck.toFixed(2)} m`,
+    `platform on ${d.standsOn} m, the city collider under it is at ${deck.toFixed(2)} m`,
   );
 
   // The platform's whole footprint, not just its middle. A pad half over the
@@ -281,7 +284,8 @@ for (const d of loadMarks()) {
       const v = visible(d.x + Math.cos(a) * rr, d.z + Math.sin(a) * rr);
       const c = solid(d.x + Math.cos(a) * rr, d.z + Math.sin(a) * rr);
       worstRoof = Math.max(worstRoof, v === null ? 99 : Math.abs(v - d.standsOn));
-      worstDeck = Math.max(worstDeck, Math.abs(c - d.deck));
+      // Between the roof and the deck is inside the platform's own collider.
+      worstDeck = Math.max(worstDeck, d.standsOn - c, c - d.deck);
     }
   }
   note(
@@ -289,7 +293,11 @@ for (const d of loadMarks()) {
     d.label,
     `platform footprint of ${r.toFixed(1)} m sits on roof that varies by ${worstRoof > 90 ? 'open air' : worstRoof.toFixed(2) + ' m'}`,
   );
-  note(worstDeck <= 0.2, d.label, `the deck under it varies by ${worstDeck.toFixed(2)} m`);
+  note(
+    worstDeck <= 0.2,
+    d.label,
+    `the city collider under its footprint is off the roof by ${worstDeck.toFixed(2)} m`,
+  );
 }
 
 console.log(

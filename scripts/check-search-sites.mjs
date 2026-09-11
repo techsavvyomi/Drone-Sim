@@ -62,6 +62,12 @@ const CEILING = 80;
  * band and would go unmeasured by a check that started at 12.
  */
 const COLUMN_FLOOR = 1;
+/**
+ * Metres over the visible roof the rooftop column starts at: above the parapets
+ * round these roofs (1.7 to 2.6 m, measured when they were the collider deck)
+ * and still under the 4 m hover floor.
+ */
+const PARAPET = 3;
 
 /**
  * How far apart two sites must be to be two searches, metres.
@@ -178,17 +184,19 @@ for (const s of sites) {
   // started at the street would run through the building the casualty is lying
   // on and report no clear air at all.
   // Bands from the VISIBLE roof — where the mark is drawn — and the column from
-  // the collider deck, which is the parapet and the lowest the aircraft can be.
+  // just over the roof's own parapet. The collider deck used to BE the parapet;
+  // fitted to the slab, a column started there reports the parapet wall round
+  // the roof the casualty is standing on, which is scenery below the hover.
   const bandLo = s.roof + (roof ? ROOF_BAND_MIN : BAND_MIN);
   const bandHi = s.roof + (roof ? ROOF_BAND_MAX : BAND_MAX);
-  const floor = roof ? s.deck + 0.5 : COLUMN_FLOOR;
+  const floor = roof ? Math.max(s.deck + 0.5, s.roof + PARAPET) : COLUMN_FLOOR;
   const hover = column(boxes, x, z, bandLo, bandHi);
   const whole = column(boxes, x, z, floor, bandHi);
   const fromBase = Math.hypot(x - BASE[0], z - BASE[1]);
   const tall = tallestNear(boxes, x, z, 30);
 
   console.log(
-    `site ${s.id.toUpperCase()}  [${x}, ${z}]  ${roof ? `roof ${s.roof} m, parapet ${s.deck} m` : 'street'}`,
+    `site ${s.id.toUpperCase()}  [${x}, ${z}]  ${roof ? `roof ${s.roof} m, collider deck ${s.deck} m` : 'street'}`,
   );
   console.log(
     `  hover band ${bandLo.toFixed(1)}-${bandHi.toFixed(1)} m : ${hover.clear.toFixed(2)} m clear`,

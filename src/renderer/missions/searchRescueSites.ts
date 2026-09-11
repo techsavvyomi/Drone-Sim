@@ -38,13 +38,17 @@ export interface SearchSite {
    */
   roof: number;
   /**
-   * The collider deck, metres: the height the aircraft would rest at, which is
-   * the parapet rather than the slab.
+   * The collider deck, metres: the height the aircraft would rest at over the
+   * site.
+   *
+   * It used to be the PARAPET, 1.7 to 2.6 m over the slab, because the collider
+   * generator merged roof and parapet into one box — and the drone stopped on
+   * nothing visible beside the person it was sent to. The colliders are now
+   * fitted to the slab, so this is the roof to within a few centimetres.
    *
    * Nothing is drawn at this height. It is here so `check-search-sites.mjs` can
-   * assert the thing that actually matters — that the hover band, measured from
-   * the visible roof, still starts above the parapet, or the pilot would be
-   * asked to hold a position inside the building.
+   * assert that the hover band, measured from the visible roof, still starts
+   * above it, or the pilot would be asked to hold a position inside the building.
    */
   deck: number;
   /**
@@ -98,7 +102,7 @@ export const SEARCH_SITES: readonly SearchSite[] = [
     id: 'a',
     at: [93, -66],
     roof: 63.55,
-    deck: 65.84,
+    deck: 63.8,
     landmarkHeight: 67.3,
     clearance: 8.06,
   },
@@ -106,7 +110,7 @@ export const SEARCH_SITES: readonly SearchSite[] = [
     id: 'b',
     at: [12, -73],
     roof: 66.12,
-    deck: 67.84,
+    deck: 66.12,
     landmarkHeight: 93.8,
     clearance: 16,
   },
@@ -114,7 +118,7 @@ export const SEARCH_SITES: readonly SearchSite[] = [
     id: 'c',
     at: [93, -6],
     roof: 48.11,
-    deck: 49.84,
+    deck: 48.18,
     landmarkHeight: 60.5,
     clearance: 7.62,
   },
@@ -122,7 +126,7 @@ export const SEARCH_SITES: readonly SearchSite[] = [
     id: 'd',
     at: [90, 57],
     roof: 48.12,
-    deck: 50.72,
+    deck: 48.12,
     landmarkHeight: 58.1,
     clearance: 5,
   },

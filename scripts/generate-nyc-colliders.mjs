@@ -43,8 +43,17 @@ const WALK_CELL = 2;
 
 /** Ignore geometry below this height when building the footprint (ground skirt). */
 const BUILDING_MIN_Y = 1.0;
-/** Quantise roof heights into bands so merging can find large rectangles. */
-const HEIGHT_BAND = 3;
+/**
+ * Quantise roof heights into bands so merging can find large rectangles.
+ *
+ * Half a metre, not three. A merged rectangle is filled to the tallest cell in
+ * it, and at 3 m a roof slab and the parapet round it fell in the same band — so
+ * every such roof was solid up to the parapet, 1.7 to 2.6 m above the slab the
+ * pilot sees. On Mission 4 the drone stopped in mid-air beside the person it was
+ * sent to, on nothing visible. At 0.5 m the slab and the parapet are separate
+ * boxes; it costs about twice the building boxes (≈810 → ≈1610).
+ */
+const HEIGHT_BAND = 0.5;
 
 // Material name -> which collider set the geometry belongs to.
 const ROAD_RE = /street|lane|decal|grass|_LR_Facades$/i;
@@ -285,7 +294,10 @@ function boxesFromField(grid, cell, { minHeight = 0, floorY = 0, spanVertical = 
 
       // Height comes from the real maximum, not the merge band, so roofs land
       // where they look like they should. The band only decided what merged.
-      const yHi = Math.max(top, band - bandSize + 0.5);
+      // A building's top is exactly that maximum: the old half-metre floor was a
+      // no-op in 3 m bands but would lift a 0.5 m band's roof by up to a band.
+      // Props keep it, as a minimum height for a thin footing.
+      const yHi = spanVertical ? Math.max(top, band - bandSize + 0.5) : top;
       // Props sit on their own footing; buildings are solid down to the ground.
       const yLo = spanVertical ? Math.max(0, Math.min(bot, yHi - 0.1)) : floorY;
       const halfY = Math.max((yHi - yLo) / 2, 0.05);

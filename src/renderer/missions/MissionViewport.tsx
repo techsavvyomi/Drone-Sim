@@ -13,6 +13,7 @@ import { MissionHud } from '../hud/MissionHud';
 import { MissionDirector } from './MissionDirector';
 import { MissionMarkers } from './MissionMarkers';
 import { CasualtyCollider } from './CasualtyCollider';
+import { RooftopPadCollider } from './RooftopPadCollider';
 import { Storefront } from './Storefront';
 import { HydrantFillPoint } from './HydrantFillPoint';
 import { LaunchPad } from './LaunchPad';
@@ -110,6 +111,8 @@ export function MissionViewport({ mission }: { mission: Mission }) {
             {/* The person on the roof is solid. Inside the scene because that is
                 where `<Physics>` is. */}
             {mission.search && <CasualtyCollider mission={mission} />}
+            {/* The rooftop delivery platforms are solid too. */}
+            {mission.deliveries && <RooftopPadCollider mission={mission} />}
             {/* The shop the cargo is collected from. Solid, so it is in here
                 too: the restaurant for the food box, the pharmacy for the
                 medical packages of missions 1 and 3. */}
