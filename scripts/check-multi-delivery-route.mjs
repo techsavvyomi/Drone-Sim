@@ -96,7 +96,7 @@ const CEILING_FADE = CEILING - 2;
  * cannot move it — it belongs to the environment — so it is a fixed fact the
  * mission's own marks have to be placed around.
  */
-const SPAWN = { x: 0, z: 26 };
+const SPAWN = { x: 1.5, z: 15.5 };
 /**
  * How far the hub must sit from that spawn, metres.
  *

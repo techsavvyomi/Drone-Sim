@@ -25,10 +25,10 @@ import { PICKUP_DECK_AT, PICKUP_DECK_TOP } from './pickupStorefront';
 //     node scripts/check-search-sites.mjs
 // ----------------------------------------------------------------------------
 
-/** The base pad, on the street. The same place Multi-Point Delivery puts its
- *  hub, and for the same measured reason: the spawn at [0, 26] has a lamp arm
- *  over it at 10 m leaving 1.1 m of clear column, and nothing that has to be
- *  descended onto can go there. At [0, 29] there is 4.1 m. */
+/** The base pad, on the street. Chosen when the spawn was on the road at
+ *  [0, 26], where a lamp arm over it at 10 m left 1.1 m of clear column and
+ *  nothing that has to be descended onto could go; at [0, 29] there is 4.1 m.
+ *  The spawn has since moved onto the sidewalk at [1.5, 15.5], 13.6 m away. */
 const BASE: readonly [number, number] = [0, 29];
 
 /**

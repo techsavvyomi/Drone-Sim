@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { dronePose } from '../sim/drone/pose';
-import { useMissionStore } from '../state/missionStore';
+import { activeZone, legOf, useMissionStore } from '../state/missionStore';
+import type { MissionLeg } from '../state/missionStore';
 import {
   NYC_EDGES,
   NYC_GRASS,
@@ -12,6 +13,8 @@ import {
   NYC_WALKS,
 } from '../scene/environment/NewYorkPlan';
 import type { Mission } from '../missions/types';
+import { getEnvironment } from '../plugins/registry';
+import { nextTargetOf, requiredCheckpoints } from '../missions/types';
 
 // ----------------------------------------------------------------------------
 // The city map — a search mission's whole answer to "where do I go".
@@ -106,6 +109,17 @@ const EDGE = 'rgba(6, 10, 17, 0.75)';
  * at a glance are the aircraft and the red zone.
  */
 const ROAD = '#1b1f26';
+/**
+ * Past the edge of the world: nothing, drawn as nothing.
+ *
+ * The map used to lay road over its whole disc, so a drone at the edge of the
+ * city saw streets and a grid carrying on under it while the window showed open
+ * sky and no ground at all — the map describing a city that is not there. The
+ * ground is only as big as the model's own road plane, and outside it the dial
+ * is this, with a faint line where the land stops.
+ */
+const VOID = '#07090d';
+const LAND_EDGE = 'rgba(148, 163, 184, 0.45)';
 const LANE = 'rgba(214, 180, 90, 0.45)';
 const WALK = '#3a3f48';
 const GRASS = '#3f5c34';
@@ -124,11 +138,49 @@ const GRID_M = 10;
 const ZONE_LINE = '#ff4d4d';
 const ZONE_FILL = 'rgba(255, 77, 77, 0.16)';
 const DRONE = '#e2e8f0';
+/*
+ * A delivery's marks, on Multi-Point Delivery — the city map is not only the
+ * search's any more. The same colours the marks wear in the world: green for
+ * the collection, amber for a destination, and a pale blue for the pad home so
+ * it never reads as a second pickup.
+ */
+const MARK_PICKUP = '#37e08a';
+const MARK_DROP = '#ffcf4d';
+const MARK_BASE = '#7dd3fc';
+const MARK_DONE = 'rgba(148, 163, 184, 0.6)';
+/** The next ring on a route, in the pink the rings wear in the world. */
+const MARK_RING = '#ff5fa2';
 
 export function MissionCityMap({ mission }: { mission: Mission }) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const zone = useMissionStore((s) => s.searchZone);
   const located = useMissionStore((s) => s.located);
+  /** Which leg and which package, read on the map's own frame rather than
+   *  through React: they change a handful of times a flight, and a selector
+   *  would re-run the whole draw effect on each. */
+  const live = useRef<{
+    leg: MissionLeg;
+    runIndex: number;
+    deliveredCount: number;
+    collected: Record<string, true>;
+  }>({
+    leg: useMissionStore.getState().leg,
+    runIndex: useMissionStore.getState().runIndex,
+    deliveredCount: useMissionStore.getState().deliveredCount,
+    collected: useMissionStore.getState().collected,
+  });
+  useEffect(
+    () =>
+      useMissionStore.subscribe((s) => {
+        live.current = {
+          leg: s.leg,
+          runIndex: s.runIndex,
+          deliveredCount: s.deliveredCount,
+          collected: s.collected,
+        };
+      }),
+    [],
+  );
 
   /** Pixels per metre. One scale for both axes — a plan stretched to fill its
    *  frame is a plan of a different city, and the pilot is meant to be able to
@@ -147,6 +199,23 @@ export function MissionCityMap({ mission }: { mission: Mission }) {
     ctx.scale(dpr, dpr);
 
     const half = SIZE / 2;
+
+    // The land, from the environment's own bounds. Those are the measured edge
+    // of the road plane plus the 0.1 m the containment clamps inside, so taking
+    // the 0.1 back off gives the ground exactly.
+    const env = getEnvironment(mission.envId);
+    const land = env
+      ? {
+          x0: env.bounds.min[0] + 0.1,
+          x1: env.bounds.max[0] - 0.1,
+          z0: env.bounds.min[2] + 0.1,
+          z1: env.bounds.max[2] - 0.1,
+        }
+      : null;
+
+    /** The rings the drop waits on, looked up once rather than filtered every
+     *  frame. Empty on a mission with no route. */
+    const required = new Set(requiredCheckpoints(mission).map((c) => c.id));
 
     let raf = 0;
     const draw = (clock: number) => {
@@ -169,6 +238,16 @@ export function MissionCityMap({ mission }: { mission: Mission }) {
       const sz = (z: number) => oz + z * k;
 
       // --- The ground ----------------------------------------------------------
+      ctx.fillStyle = VOID;
+      ctx.fillRect(0, 0, SIZE, SIZE);
+      // Everything from the road to the props is clipped to the land, so the
+      // grid in particular stops where the ground does.
+      if (land) {
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(sx(land.x0), sz(land.z0), (land.x1 - land.x0) * k, (land.z1 - land.z0) * k);
+        ctx.clip();
+      }
       ctx.fillStyle = ROAD;
       ctx.fillRect(0, 0, SIZE, SIZE);
       const rects = (list: readonly number[], colour: string) => {
@@ -242,6 +321,18 @@ export function MissionCityMap({ mission }: { mission: Mission }) {
         ctx.fillRect(x - 0.5, y - 0.5, 1, 1);
       }
 
+      if (land) {
+        ctx.restore();
+        ctx.strokeStyle = LAND_EDGE;
+        ctx.lineWidth = 1;
+        ctx.strokeRect(
+          sx(land.x0),
+          sz(land.z0),
+          (land.x1 - land.x0) * k,
+          (land.z1 - land.z0) * k,
+        );
+      }
+
       // --- The red zone ------------------------------------------------------
       //
       // It breathes, slowly. A static red circle on a static plan is furniture
@@ -282,6 +373,131 @@ export function MissionCityMap({ mission }: { mission: Mission }) {
           ctx.beginPath();
           ctx.arc(px2, py2, 3.5, 0, Math.PI * 2);
           ctx.fill();
+        }
+      }
+
+      // --- A delivery's marks -------------------------------------------------
+      //
+      // Only on a mission that is not a search: the search draws nothing but its
+      // red zone, and that rule lives above. Here every mark is on the plan —
+      // the pharmacy in green, the destinations in amber, the pad home in blue —
+      // because a delivery pilot is TOLD where everything is. Dots only, no
+      // letters: the one being flown to breathes, a package already placed goes
+      // grey, the rest are outlines. The live one rides the rim when it is off
+      // the frame, the same way the red zone's pip does.
+      if (!mission.search) {
+        const { leg, runIndex, deliveredCount, collected } = live.current;
+        // A route's next ring comes first, exactly as on the radar: while one is
+        // owed it is the thing being flown to, and no zone is lit over it.
+        const cp = nextTargetOf(mission, legOf(leg), collected);
+        const here = cp ? null : activeZone(leg);
+        const beat = 0.5 + 0.5 * Math.sin((clock / 1000) * Math.PI * 1.4);
+        const drops = mission.deliveries ?? [{ id: 'd', zone: mission.zones.drop }];
+        const marks = [
+          {
+            at: mission.zones.pickup.at,
+            colour: MARK_PICKUP,
+            active: here === 'pickup',
+            done: false,
+          },
+          ...drops.map((d, i) => ({
+            at: d.zone.at,
+            colour: MARK_DROP,
+            active: here === 'drop' && i === runIndex,
+            done: i < deliveredCount,
+          })),
+          {
+            at: mission.zones.base.at,
+            colour: MARK_BASE,
+            active: here === 'base',
+            done: false,
+          },
+        ];
+
+        for (const m of marks) {
+          const x = sx(m.at[0]);
+          const y = sz(m.at[1]);
+          const dx = x - half;
+          const dy = y - half;
+          const away = Math.hypot(dx, dy);
+          const onFrame = away <= half - 6;
+
+          if (!onFrame) {
+            if (!m.active) continue;
+            const px2 = half + (dx / away) * (half - 9);
+            const py2 = half + (dy / away) * (half - 9);
+            ctx.fillStyle = m.colour;
+            ctx.beginPath();
+            ctx.arc(px2, py2, 3.5, 0, Math.PI * 2);
+            ctx.fill();
+            continue;
+          }
+
+          if (m.active) {
+            ctx.strokeStyle = m.colour;
+            ctx.lineWidth = 1.6;
+            ctx.globalAlpha = 0.35 + 0.45 * beat;
+            ctx.beginPath();
+            ctx.arc(x, y, 6.5 + beat * 3.5, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.globalAlpha = 1;
+            ctx.fillStyle = m.colour;
+            ctx.beginPath();
+            ctx.arc(x, y, 4.5, 0, Math.PI * 2);
+            ctx.fill();
+          } else if (m.done) {
+            ctx.fillStyle = MARK_DONE;
+            ctx.beginPath();
+            ctx.arc(x, y, 3.5, 0, Math.PI * 2);
+            ctx.fill();
+          } else {
+            ctx.strokeStyle = m.colour;
+            ctx.lineWidth = 1.3;
+            ctx.globalAlpha = 0.85;
+            ctx.beginPath();
+            ctx.arc(x, y, 4, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.globalAlpha = 1;
+          }
+        }
+
+        // The next ring, over the zones: it is what the pilot flies to next.
+        if (cp) {
+          const x = sx(cp[0]);
+          const y = sz(cp[2]);
+          const dx = x - half;
+          const dy = y - half;
+          const away = Math.hypot(dx, dy);
+          ctx.fillStyle = MARK_RING;
+          if (away > half - 6) {
+            ctx.beginPath();
+            ctx.arc(half + (dx / away) * (half - 9), half + (dy / away) * (half - 9), 3.5, 0, Math.PI * 2);
+            ctx.fill();
+          } else {
+            ctx.strokeStyle = MARK_RING;
+            ctx.lineWidth = 1.6;
+            ctx.globalAlpha = 0.35 + 0.45 * beat;
+            ctx.beginPath();
+            ctx.arc(x, y, 6.5 + beat * 3.5, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.globalAlpha = 1;
+            ctx.beginPath();
+            ctx.arc(x, y, 4.5, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        }
+
+        // How many rings the drop is still waiting on, while they are in the way.
+        let owed = 0;
+        for (const id of required) if (!collected[id]) owed++;
+        if (owed > 0 && (leg === 'carrying' || leg === 'toDrop')) {
+          ctx.font = '800 9px Inter, system-ui, sans-serif';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'alphabetic';
+          ctx.fillStyle = 'rgba(6, 10, 17, 0.85)';
+          ctx.fillText(`${owed} left`, half + 0.7, SIZE - 8 + 0.7);
+          ctx.fillStyle = MARK_RING;
+          ctx.fillText(`${owed} left`, half, SIZE - 8);
         }
       }
 

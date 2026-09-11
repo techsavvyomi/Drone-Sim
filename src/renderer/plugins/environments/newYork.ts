@@ -17,12 +17,18 @@ export const newYork: EnvironmentSpec = {
   name: 'New York City',
   kind: 'outdoor',
   model: newYorkModelUrl,
-  // Moved 4 m up the street from z = 30 on 2026-08-21. Heading is 0, so forward
-  // is -Z. Checked against the generated collider data before moving it: the
-  // nearest prop ahead sits about 7 m out at z = 30 and closes as you go, so
-  // z = 26 keeps ~4 m of clearance to it and ~11 m to the nearest building.
-  // Below about z = 23 the drone would spawn inside street furniture.
-  spawn: { position: [0, 0.024, 26], heading: 0 },
+  // On the SIDEWALK beside a building, not in the middle of the road. It was at
+  // [0, 26] on the road until 2026-09-11, where the mission helipad painted under
+  // it sat in a traffic lane.
+  //
+  // Swept out of the generated colliders: the pad's whole 1.3 m rim is on one
+  // sidewalk plate (top 0.12 m), the tower's south face is 1.56 m behind it, the
+  // nearest pole is 5.9 m away, and nothing overhangs it. Heading 270 faces +X
+  // along the sidewalk: that line is clear to 15 m at low height, where facing
+  // -X runs into a 4.5 m wing, facing -Z faces the wall, and facing +Z puts the
+  // chase camera inside the tower.
+  spawn: { position: [1.5, 0.144, 15.5], heading: 270 },
+  spawnGround: 0.12,
   bounds: { min: [-123.89, -10, -98.16], max: [123.94, 125, 98.15] },
   // The whole map sits on one flat road plane, so the under-floor rescue applies.
   groundY: 0,

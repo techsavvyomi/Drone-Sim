@@ -14,6 +14,8 @@ import { MissionDirector } from './MissionDirector';
 import { MissionMarkers } from './MissionMarkers';
 import { CasualtyCollider } from './CasualtyCollider';
 import { Storefront } from './Storefront';
+import { HydrantFillPoint } from './HydrantFillPoint';
+import { LaunchPad } from './LaunchPad';
 import { LAKE_CITY_PHARMACY, LOTUS_KITCHEN } from './pickupStorefront';
 import { TargetPointer } from './TargetPointer';
 import { FireZone } from './FireZone';
@@ -113,8 +115,12 @@ export function MissionViewport({ mission }: { mission: Mission }) {
                 three medical packages. */}
             {mission.search && <Storefront site={LOTUS_KITCHEN} kind="restaurant" />}
             {mission.deliveries && <Storefront site={LAKE_CITY_PHARMACY} kind="pharmacy" />}
+            {/* The hydrant fill point the suppression tank waits at. */}
+            {mission.fire && <HydrantFillPoint mission={mission} />}
           </FlightScene>
           <MissionMarkers mission={mission} />
+          {/* The helipad the drone takes off from, under the spawn. */}
+          <LaunchPad mission={mission} />
           {/* Only a suppression mission carries these, and they mount with the
               mission rather than with the leg: a fire that appeared when the
               pilot arrived would be a fire nobody could see on the way. */}

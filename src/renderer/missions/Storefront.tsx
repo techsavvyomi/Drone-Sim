@@ -87,8 +87,9 @@ const W = 8;
 /** Top of the shopfront, metres. */
 const TOP = 3.6;
 
-/** A canvas texture with one or two lines of centred text. */
-function textTexture(
+/** A canvas texture with one or two lines of centred text. Shared with the
+ *  hydrant fill point's signage. */
+export function textTexture(
   lines: readonly string[],
   opts: { w: number; h: number; bg: string; fg: string; size: number },
 ): THREE.CanvasTexture {

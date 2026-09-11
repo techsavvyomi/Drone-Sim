@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
 import { useMissionStore, guidanceHidden, objectiveFor, runContextOf } from '../state/missionStore';
-import { rescueZoneOf } from '../missions/types';
 import { useSimStore } from '../state/simStore';
 import { useFlightStore } from '../state/flightStore';
 import { resetForMission } from '../missions/reset';
@@ -170,20 +169,9 @@ function DeliveryChecklist({
   fire,
   pickup,
   rescue,
-  band,
 }: {
   fire: boolean;
   pickup?: boolean;
-  /**
-   * The height the row is actually asking for, metres above the deck.
-   *
-   * 'Height' with a dot beside it names the failing condition and not the fix.
-   * On a delivery that is survivable — the band opens at the ground, so 'lower'
-   * is the only direction there is. The rescue hover is 12 to 22 m up a canyon,
-   * where 'Height' unticked is equally consistent with too high and too low,
-   * and the pilot has no way to tell which. The numbers say it in a glance.
-   */
-  band?: { min: number; max: number };
   /** The five second hover that confirms a rescue location. The same three
    *  conditions and the same bar — what changes is only what the holding is
    *  FOR, so it gets the wording rather than a second component. */
@@ -244,11 +232,6 @@ function DeliveryChecklist({
       <span className={`ms-check ${checks.inBand ? 'ok' : ''}`}>
         <i />
         <b>Height</b>
-        {band && (
-          <em>
-            {band.min}–{band.max} m
-          </em>
-        )}
       </span>
       <span className={`ms-check ${checks.steady ? 'ok' : ''}`}>
         <i />
@@ -330,7 +313,6 @@ export function MissionHud() {
   const runIndex = useMissionStore((s) => s.runIndex);
   const deliveredCount = useMissionStore((s) => s.deliveredCount);
   const fireIntensity = useMissionStore((s) => s.fireIntensity);
-  const siteIndex = useMissionStore((s) => s.siteIndex);
   const located = useMissionStore((s) => s.located);
   const signal = useMissionStore((s) => s.signal);
   const beginFlight = useMissionStore((s) => s.beginFlight);
@@ -630,7 +612,7 @@ export function MissionHud() {
 
       {/* The five second hover that confirms the rescue location. */}
       {flying && leg === 'confirming' && (
-        <DeliveryChecklist fire={false} rescue band={rescueZoneOf(mission, siteIndex).band} />
+        <DeliveryChecklist fire={false} rescue />
       )}
 
       {/* The same card on the collection: the latch asks for the same hover the
@@ -655,7 +637,11 @@ export function MissionHud() {
           answers 'where now' with one dot and has nothing to say when the whole
           point is that nothing may answer that. */}
       {flying &&
-        (mission.search ? <MissionCityMap mission={mission} /> : <MissionMap mission={mission} />)}
+        (mission.envId === 'new-york' ? (
+          <MissionCityMap mission={mission} />
+        ) : (
+          <MissionMap mission={mission} />
+        ))}
 
       {flying && (
         <div className="ms-strip">

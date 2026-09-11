@@ -130,10 +130,10 @@ describe('the hub and the three destinations', () => {
     // its own aircraft — the first objective already met and nothing to fly to.
     // The spawn belongs to the environment and the mission cannot move it, so
     // this is the mission's side of the bargain.
-    expect(flatDist({ x: 0, z: 26 }, M.zones.pickup.at)).toBeGreaterThan(12);
+    expect(flatDist({ x: 1.5, z: 15.5 }, M.zones.pickup.at)).toBeGreaterThan(12);
     // ...and still inside the mission area, so the first leg is a hop rather
     // than a crossing.
-    expect(flatDist({ x: 0, z: 26 }, M.zones.pickup.at)).toBeLessThan(45);
+    expect(flatDist({ x: 1.5, z: 15.5 }, M.zones.pickup.at)).toBeLessThan(45);
   });
 
   it('TC-246 makes the first entry the mission-level drop zone', () => {

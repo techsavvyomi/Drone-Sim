@@ -651,6 +651,14 @@ export interface EnvironmentSpec {
   model?: string;
   /** Drone spawn point and heading (degrees). */
   spawn: { position: Vec3; heading: number };
+  /**
+   * Height of the surface the drone spawns on, if it is not `groundY`.
+   *
+   * New York's spawn stands on a sidewalk plate 12 cm above the road plane, and
+   * anything painted at the spawn (the mission helipad) has to sit on that, not
+   * on the road under it.
+   */
+  spawnGround?: number;
   /** Axis-aligned play-area bounds [min, max]. */
   bounds: { min: Vec3; max: Vec3 };
   /**

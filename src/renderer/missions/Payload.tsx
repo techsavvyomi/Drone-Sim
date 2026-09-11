@@ -177,9 +177,10 @@ export function Payload({ mission }: { mission: Mission }) {
     // --- Move it -------------------------------------------------------------
     switch (motion.current) {
       case 'waiting': {
-        // An order on a restaurant's pickup deck sits still. The ring and the
-        // shop around it already say where it is.
-        if (mission.kind === 'search') {
+        // Cargo that has somewhere to wait sits still: the food box on the
+        // restaurant's deck, the tank on the hydrant's fill pad. The ring and
+        // what is built around it already say where it is.
+        if (mission.kind === 'search' || mission.kind === 'suppression') {
           at.current.copy(rest);
           g.rotation.set(0, 0.35, 0);
           break;

@@ -3,7 +3,7 @@ import type { Mission, MissionCheckpoint } from './types';
 // ----------------------------------------------------------------------------
 // Forest Fire Emergency — the forest map.
 //
-// Collect a suppression tank from the emergency station on the road, cross the
+// Collect a suppression tank from the hydrant fill point on the road, cross the
 // woods, and hold a hover over the fire until it is out. Six points: five
 // optional rings on the way, plus the fire itself.
 //
@@ -155,15 +155,15 @@ export const forestFire: Mission = {
   blurb:
     'Collect the suppression tank, cross the forest, and hold a hover over the fire until it is out.',
   story:
-    'A fire has taken hold deep in the forest, in a hollow the ground crews cannot reach. A suppression tank has been prepared at the emergency station on the road. Your job is to fly it out and put the fire down.',
+    'A fire has taken hold deep in the forest, in a hollow the ground crews cannot reach. A suppression tank has been filled and is waiting at the hydrant fill point on the road. Your job is to fly it out and put the fire down.',
   flow: [
-    { label: 'Collect', note: 'Descend onto the tank on the road', art: 'collect' },
+    { label: 'Collect', note: 'Descend onto the tank at the hydrant', art: 'collect' },
     { label: 'Cross', note: 'Weave out through the trees', art: 'forest' },
     { label: 'Suppress', note: 'Hold your position until the fire is out', art: 'suppress' },
     { label: 'Extinguish', note: 'The fire goes out beneath you', art: 'suppress' },
   ],
   objectives: [
-    'Collect the suppression tank at the emergency station.',
+    'Collect the suppression tank at the hydrant fill point.',
     'Cross the forest and find the fire.',
     'Hold your position over the fire until it is out.',
   ],
@@ -211,13 +211,18 @@ export const forestFire: Mission = {
   },
 
   zones: {
-    // On the bare dirt road, 11.7 m up from the spawn point and dead flat: the
-    // ground varies by 3 cm across the whole mark and there is 11.75 m of clear
-    // column above it.
+    // The hydrant fill point, BEHIND the spawn and to its left. It was on the
+    // road at [11, -4], 11.7 m ahead, and its water tank filled the opening
+    // view. Here it is 18.4 m from the spawn and 12.8 m from the base pad, the
+    // ground under the pad runs -0.13 to -0.24 m, and the nearest trunk is
+    // 11.5 m away. See `HydrantFillPoint` for everything built around it.
     pickup: {
       kind: 'pickup',
-      at: [11, -4],
-      label: 'Emergency station',
+      at: [-14, 12],
+      label: 'Hydrant fill point',
+      /* The fill pad's top face, which stands a little above the highest ground
+       * under it — the tank rests on the concrete, not on the dirt. */
+      groundY: -0.11,
       radius: 1.8,
       band: { min: 0, max: 2.2 },
       maxGroundSpeed: 1.8,
@@ -287,7 +292,7 @@ export const forestFire: Mission = {
   radio: {
     start: {
       id: 'start',
-      text: 'Pilot, we have an emergency. A fire is burning deep in the forest. The suppression tank is on the road ahead of you: get over it, come down and hold steady.',
+      text: 'Pilot, we have an emergency. A fire is burning deep in the forest. The suppression tank is filled and waiting at the hydrant behind you, to your left: turn round, get over it, come down and hold steady.',
     },
     pickup: {
       id: 'pickup',

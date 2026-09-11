@@ -176,7 +176,10 @@ describe('the ground under each mark', () => {
     // The forest map ships with NO `groundY` in its spec: it has no single
     // ground height. The clearing is at zero and the fire burns 12.5 m below it.
     expect(zoneGroundY(M, M.zones.drop)).toBe(-12.5);
-    expect(zoneGroundY(M, M.zones.pickup)).toBe(0);
+    // The pickup is the hydrant's concrete fill pad, whose top stands a little
+    // above the slope it is poured on — still within a hand's width of zero.
+    expect(zoneGroundY(M, M.zones.pickup)).toBeCloseTo(-0.11, 2);
+    expect(Math.abs(zoneGroundY(M, M.zones.pickup))).toBeLessThan(0.5);
     expect(zoneGroundY(M, M.zones.base)).toBe(0);
     // Which is the point of the field existing at all: the two decks differ by
     // more than the whole hover band is deep.
