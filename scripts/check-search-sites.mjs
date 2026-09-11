@@ -46,14 +46,14 @@ const BAND_MAX = 22;
  * and the ceiling it has to fit under.
  *
  * On this mission the ceiling is the binding constraint rather than a
- * comfortable margin — the highest deck is 47.9 m and the limit is 60 — so it is
+ * comfortable margin — the highest deck is 67.8 m and the limit is 80 — so it is
  * checked here rather than trusted.
  */
 const ROOF_BAND_MIN = 4;
 const ROOF_BAND_MAX = 9;
 /** The mission's own ceiling, from `searchRescue.ts` — NOT the Guru's 30 m. The
  *  whole reason four rooftop sites exist is that the mission raises it. */
-const CEILING = 60;
+const CEILING = 80;
 /**
  * The column is checked from ONE metre, not from the band's floor.
  *

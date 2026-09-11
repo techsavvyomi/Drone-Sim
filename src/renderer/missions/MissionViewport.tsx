@@ -13,6 +13,8 @@ import { MissionHud } from '../hud/MissionHud';
 import { MissionDirector } from './MissionDirector';
 import { MissionMarkers } from './MissionMarkers';
 import { CasualtyCollider } from './CasualtyCollider';
+import { Storefront } from './Storefront';
+import { LAKE_CITY_PHARMACY, LOTUS_KITCHEN } from './pickupStorefront';
 import { TargetPointer } from './TargetPointer';
 import { FireZone } from './FireZone';
 import { Spray } from './Spray';
@@ -106,6 +108,11 @@ export function MissionViewport({ mission }: { mission: Mission }) {
             {/* The person on the roof is solid. Inside the scene because that is
                 where `<Physics>` is. */}
             {mission.search && <CasualtyCollider mission={mission} />}
+            {/* The shop the cargo is collected from. Solid, so it is in here
+                too: the restaurant for the food box, the pharmacy for the
+                three medical packages. */}
+            {mission.search && <Storefront site={LOTUS_KITCHEN} kind="restaurant" />}
+            {mission.deliveries && <Storefront site={LAKE_CITY_PHARMACY} kind="pharmacy" />}
           </FlightScene>
           <MissionMarkers mission={mission} />
           {/* Only a suppression mission carries these, and they mount with the

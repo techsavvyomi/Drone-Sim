@@ -107,10 +107,16 @@ describe('the shape of the mission', () => {
 });
 
 describe('the hub and the three destinations', () => {
-  it('TC-246 puts the pickup and the pad on one mark', () => {
-    // The brief's logistics centre is where the packages are AND where the drone
-    // lands. Two marks on one pad would put two rings on the same square metre.
-    expect(M.zones.pickup.at).toEqual(M.zones.base.at);
+  it('TC-246 collects from the pharmacy deck and lands on the hub pad', () => {
+    // The packages wait on Lake City Pharmacy's raised drone pickup deck rather
+    // than on the road, and the drone still comes home to the street-level hub.
+    expect(M.zones.pickup.at).not.toEqual(M.zones.base.at);
+    expect(M.zones.pickup.groundY!).toBeGreaterThan(0.5);
+    expect(zoneGroundY(M, M.zones.base)).toBeLessThan(0.5);
+    // Close enough that the pharmacy and the pad are one neighbourhood.
+    expect(
+      flatDist({ x: M.zones.base.at[0], z: M.zones.base.at[1] }, M.zones.pickup.at),
+    ).toBeLessThan(30);
     // ...and they are still two different tests: the pickup is a tight box you
     // descend onto, the pad is a circle you land in.
     expect(M.zones.pickup.radius).toBeLessThan(M.zones.base.radius);
@@ -184,12 +190,13 @@ describe('the hub and the three destinations', () => {
     }
   });
 
-  it('TC-246 ramps the destinations on range, height and mark size at once', () => {
+  it('TC-246 ramps the destinations on height and mark size', () => {
     const [a, b, c] = M.deliveries!.map((d) => d.zone);
     const range = (zone: MissionZone) =>
       flatDist({ x: M.zones.pickup.at[0], z: M.zones.pickup.at[1] }, zone.at);
-    // A short hop, then the first roof, then the far one.
-    expect(range(a)).toBeLessThan(range(b));
+    // Range no longer ramps A-B-C. From the pharmacy the street bay is the long
+    // leg, and no shopfront in the city keeps the old order: the only sites that
+    // did stand on Bay A itself. The far roof is still further than the first.
     expect(range(b)).toBeLessThan(range(c));
     // A is on the street; both roofs are up, and C is the higher of the two.
     expect(zoneGroundY(M, a)).toBeLessThan(1);

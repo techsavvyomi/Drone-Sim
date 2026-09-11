@@ -7,6 +7,11 @@ import { multiPointDelivery } from '../src/renderer/missions/multiPointDelivery'
 import { MISSIONS } from '../src/renderer/missions';
 import { SEARCH_SITES, pickSearchSite } from '../src/renderer/missions/searchRescueSites';
 import { zoneFor } from '../src/renderer/missions/searchZone';
+import {
+  PICKUP_DECK_AT,
+  PICKUP_DECK_SIZE,
+  PICKUP_DECK_TOP,
+} from '../src/renderer/missions/pickupStorefront';
 import { NYC_PLAN_BOUNDS } from '../src/renderer/scene/environment/NewYorkPlan';
 import {
   allZonesOf,
@@ -100,6 +105,14 @@ describe('the shape of the mission', () => {
     const [px, pz] = M.zones.pickup.at;
     const [bx, bz] = M.zones.base.at;
     expect(Math.hypot(px - bx, pz - bz)).toBeGreaterThanOrEqual(12);
+  });
+
+  it('TC-400 collects the food box off the restaurant deck, not the road', () => {
+    expect(M.zones.pickup.at).toEqual(PICKUP_DECK_AT);
+    expect(M.zones.pickup.groundY).toBeCloseTo(PICKUP_DECK_TOP, 5);
+    expect(M.zones.pickup.groundY!).toBeGreaterThan(0.5);
+    // The ring has to fit on the deck with room to spare.
+    expect(M.zones.pickup.radius).toBeLessThan(PICKUP_DECK_SIZE / 2);
   });
 
   it('TC-400 declares no stray radius', () => {

@@ -1,8 +1,9 @@
 import type { Mission, MissionSearchSite, MissionZone } from './types';
 import { SEARCH_SITES } from './searchRescueSites';
+import { PICKUP_DECK_AT, PICKUP_DECK_TOP } from './pickupStorefront';
 
 // ----------------------------------------------------------------------------
-// Mission 4 — Missing Person: Search & Rescue (New York City).
+// Mission 4 — Logistics Drones: a food drop to a person stranded on a roof (New York City).
 //
 // The first mission in this project that is not "fly to the mark". The three
 // before it teach hovering, height and placement along a route the app draws;
@@ -82,9 +83,9 @@ function rescueZone(site: {
      * when the sites were in canyons — so the only question is how low a hover
      * still reads as being OVER someone, and four metres does.
      *
-     * The top is what the mission's 60 m ceiling pays for. The highest deck is
-     * 47.86, so nine metres puts the top of the hover at 56.9 — three clear of
-     * the limiter. A band that reached the ceiling would be a hover fighting the
+     * The top is what the mission's 80 m ceiling pays for. The highest roof is
+     * 66.12, so nine metres puts the top of the hover at 75.1 — clear of the
+     * limiter. A band that reached the ceiling would be a hover fighting the
      * aircraft's own air-brake.
      */
     band: { min: 4, max: 9 },
@@ -109,21 +110,22 @@ const SITES: readonly MissionSearchSite[] = SEARCH_SITES.map((s) => ({
  *  scores nothing on its own, as on every delivery. */
 const GOLD = 2;
 
-/** Where the food box waits. Mission 3's hub: off the spawn, which is 3 m from
- *  the base pad, so the pilot is never armed already standing on the pickup. */
-const PICKUP: readonly [number, number] = [-25, 29];
+/** Where the food box waits: on the drone pickup deck in front of Lotus
+ *  Kitchen, a restaurant on the block west of the base. See
+ *  `pickupStorefront.ts` for how the spot was measured. */
+const PICKUP = PICKUP_DECK_AT;
 
 export const searchRescue: Mission = {
   id: 'search-rescue',
   order: 4,
-  name: 'Missing Person',
+  name: 'Logistics Drones',
   subtitle: 'A distress signal, and no position to fly to',
   kind: 'search',
   envId: 'new-york',
   blurb:
     'Someone is stranded on a rooftop with no food, and there is no GPS fix. Collect a food box, find them inside the red search zone, drop it to them, and land back at base.',
   story:
-    'A person is stranded on a rooftop somewhere in this sector and has had nothing to eat. Their signal is too weak to place — the best we can do is the red zone on your map. Collect the food box from the pickup pad, get up over the roofline, search the zone until you find them, and hold a steady hover over them so the box comes down beside them. Then bring the drone home and land.',
+    'A person is stranded on a rooftop somewhere in this sector and has had nothing to eat. Their signal is too weak to place — the best we can do is the red zone on your map. Collect the food box from the drone pickup deck at Lotus Kitchen, get up over the roofline, search the zone until you find them, and hold a steady hover over them so the box comes down beside them. Then bring the drone home and land.',
   flow: [
     { label: 'Pick up', note: 'The food box', art: 'collect' },
     { label: 'Search', note: 'A person on a roof', art: 'city' },
@@ -131,7 +133,7 @@ export const searchRescue: Mission = {
     { label: 'Come home', note: 'Land back on the pad', art: 'land' },
   ],
   objectives: [
-    'Fly to the pickup pad and collect the food box.',
+    'Fly to Lotus Kitchen and collect the food box from its drone pickup deck.',
     'Climb above the rooftops and search the red zone by eye for the person on the roof.',
     'Hold a steady hover over them for two seconds to drop the food box.',
     'Fly back to base and land on the pad.',
@@ -151,27 +153,27 @@ export const searchRescue: Mission = {
   parTimeSec: 240,
   groundY: 0,
   /*
-   * SIXTY METRES, against the Guru's own thirty.
+   * EIGHTY METRES, against the Guru's own thirty.
    *
    * The casualties are on roofs, and this city's roofs start at 45 m: on the
    * stock airframe all but one of them is somewhere the aircraft cannot get
-   * above at all. Sixty is the lowest limit at which four roofs exist that are
-   * flat, clear overhead, and far enough apart to be four separate searches —
-   * the highest deck plus its hover band comes to 56.9, and the remaining three
-   * metres are the air-brake's.
+   * above at all. Sixty was enough for four roofs, but those four were all close
+   * to the restaurant the food box comes from. Eighty is what four FAR roofs
+   * cost — the nearest 110 m from the pickup. The highest roof is 66.12 m, so
+   * its hover band tops out at 75.1 and the air-brake keeps its margin.
    *
    * It is scoped to this mission and it only ever raises: the drone picker still
    * says 30 m, because 30 m is still what the aircraft does. Flying a rescue
    * over the rooftops is the exception the briefing sells, not a quiet upgrade
    * to the Guru.
    */
-  ceiling: 60,
+  ceiling: 80,
   medals: { bronze: 1, silver: GOLD, gold: GOLD },
   /* Nothing hangs at this height — the mission has no route — but the field is
    * required and is what the briefing quotes as a sensible search altitude.
-   * Fifty puts the pilot just over the roofline the casualties are on, which is
-   * the height the whole search is flown at. */
-  routeAltitude: 50,
+   * Seventy puts the pilot just over the roofline the casualties are on (48 to
+   * 66 m), which is the height the whole search is flown at. */
+  routeAltitude: 70,
   /*
    * NO CHECKPOINTS, and this is the one mission where that is a design decision
    * rather than an omission. A ring is an answer. Even one ring, even an
@@ -243,25 +245,28 @@ export const searchRescue: Mission = {
      *
      * Well clear of the band, so a pilot settling into the hover from above is
      * never dropped out of range mid-descent — losing the signal on the way DOWN
-     * to the casualty would read as a fault. What it still catches is the low
-     * roof: its deck is 25 m and the mission's ceiling is 60, so a pilot
-     * cruising at fifty over the whole city is 25 m above it and hears nothing.
-     * On the three high decks the ceiling gets there first and this never fires,
-     * which is the right way round — it is a backstop, not the rule.
+     * to the casualty would read as a fault. What it still catches is the pilot
+     * who climbs to the 80 m ceiling and cruises the whole city from above: over
+     * the two 48 m roofs that is more than 25 m up and hears nothing. It is a
+     * backstop, not the rule.
      */
     maxDetectAgl: 25,
   },
   homeVia: [],
   /*
-   * THE FOOD BOX waits on a pickup pad off the spawn, with its ring, and the
-   * attempt opens flying to it. Mission 3's collection numbers: a 1 m circle
+   * THE FOOD BOX waits on the restaurant's raised pickup deck, with its ring,
+   * and the attempt opens flying to it. Mission 3's collection numbers: a 1 m circle
    * and a 2 m band, so a fly-past collects nothing but a placed hover does.
    */
   zones: {
     pickup: {
       kind: 'pickup',
       at: PICKUP,
-      label: 'Supply pickup',
+      label: 'Lotus Kitchen',
+      /* The deck's top, not the street: the box is collected off the
+       * restaurant's pickup deck. */
+      groundY: PICKUP_DECK_TOP,
+      ringLift: 0.04,
       radius: 1,
       band: { min: 0, max: 2 },
       maxGroundSpeed: 1.1,
@@ -288,7 +293,7 @@ export const searchRescue: Mission = {
   radio: {
     start: {
       id: 'sr-start',
-      text: 'Pilot, someone is stranded on a rooftop in this sector with no food, and the GPS fix is too weak to place them. Collect the food box from the pickup pad first.',
+      text: 'Pilot, someone is stranded on a rooftop in this sector with no food, and the GPS fix is too weak to place them. Collect the food box from the pickup deck at Lotus Kitchen first — it is on the block just west of you.',
     },
     pickup: {
       id: 'sr-pickup',
@@ -299,7 +304,7 @@ export const searchRescue: Mission = {
      * the mission's voice lives in one place. */
     zone: {
       id: 'sr-zone',
-      text: 'The red zone on your map is as close as we can place it. Climb above the roofline, get inside it, and start looking. You are cleared to sixty metres.',
+      text: 'The red zone on your map is as close as we can place it. Climb above the roofline, get inside it, and start looking. You are cleared to eighty metres.',
     },
     /* Said once, the first time the signal is heard at all. The percentage on
      * the strip carries it from here — a second radio line at 60% would be

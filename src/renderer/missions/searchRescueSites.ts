@@ -68,66 +68,63 @@ export interface SearchSite {
 }
 
 /**
- * The four sites. Every one of them is a ROOFTOP.
+ * The four sites. Every one of them is a ROOFTOP, and every one is FAR.
  *
- * Each is at least 45 m from the base pad at [0, 29] — the pad stays on the
- * street, so every attempt starts with a climb — and no pair is within 50 m of
- * another.
+ * The food box is collected at Lotus Kitchen, [-19.6, 50], and the nearest of
+ * these is 110 m from it: 162, 127, 126 and 110 m. The four they replaced sat at
+ * 67, 67, 101 and 117 m, and a pilot flying out of the restaurant was finding the
+ * nearest two almost as soon as they were airborne.
  *
- * FIFTY, where the street sites needed seventy. The old rule was "one hover can
- * never see two of them", which a rooftop makes meaningless: from 45 m up the
- * pilot can see most of the city. What has to stay true is that one red zone can
- * never hold two sites, and the zone is 44 m across — a circle centred at most
- * 12.1 m from its own site reaches 34.1 m, which leaves 15.9 m of daylight
- * before the nearest other. Only the live site carries a beacon in any case, so
- * the other three are indistinguishable from the rest of the skyline.
+ * No pair is within 50 m of another. What has to stay true is that one red zone
+ * can never hold two sites, and the zone is 44 m across — a circle centred at
+ * most 12.1 m from its own site reaches 34.1 m, which leaves 15.9 m of daylight
+ * before the nearest other.
  *
- * Rooftops cost the mission its own ceiling. The Guru's `maxAltitude` is 30 m
- * and this city's roofs start at 45, so on the stock airframe there is exactly
- * ONE reachable roof in the whole city. Four only exist above 60 m, which is why
- * the mission raises the ceiling for its own length (`Mission.ceiling`) and why
- * that is a mission field rather than a change to the aircraft.
+ * Distance cost the mission a higher ceiling. Under 60 m this city has eight
+ * reachable flat roofs and they are all one eastern cluster — there is no set of
+ * four 50 m apart that is also far from the restaurant. At 80 m there are thirty,
+ * across the south and east edges of the city, so the mission raises its ceiling
+ * to 80 for its own length (`Mission.ceiling`). The aircraft itself is unchanged.
  *
  * All four were swept out of the GLB and the colliders together, never chosen by
- * eye: the VISIBLE roof flat to within 0.6 m out to 4.5 m — wider than the
- * rescue ring, so no part of the mark hangs off the edge — clear air through the
- * hover band above, 45 m from base, and the set of four with the widest smallest
- * separation the city allows.
+ * eye: the VISIBLE roof flat to within 0.6 m at 16 bearings out to 4.5 m — wider
+ * than the rescue ring, so no part of the mark hangs off the edge — the hover band
+ * starting above the parapet and ending 3 m under the ceiling, at least 5 m of
+ * clear column above the parapet, inside the room the red zone needs on the map,
+ * and the set of four whose NEAREST is furthest from the pickup.
  */
 export const SEARCH_SITES: readonly SearchSite[] = [
   {
     id: 'a',
-    at: [-44, -12],
-    roof: 45.11,
-    deck: 45.68,
-    landmarkHeight: 72.5,
-    clearance: 5.83,
+    at: [93, -66],
+    roof: 63.55,
+    deck: 65.84,
+    landmarkHeight: 67.3,
+    clearance: 8.06,
   },
   {
     id: 'b',
-    at: [61, -12],
-    roof: 45.62,
-    deck: 47.34,
-    landmarkHeight: 60.5,
-    clearance: 10.05,
+    at: [12, -73],
+    roof: 66.12,
+    deck: 67.84,
+    landmarkHeight: 93.8,
+    clearance: 16,
   },
   {
     id: 'c',
-    at: [97, 48],
-    roof: 48.12,
-    deck: 48.88,
-    landmarkHeight: 57.7,
-    clearance: 6,
+    at: [93, -6],
+    roof: 48.11,
+    deck: 49.84,
+    landmarkHeight: 60.5,
+    clearance: 7.62,
   },
-  /* The low one, and the only site that would still be reachable if the mission
-   * ever gave the ceiling back. */
   {
     id: 'd',
-    at: [47, 48],
-    roof: 33.16,
-    deck: 34.56,
-    landmarkHeight: 58.3,
-    clearance: 10.82,
+    at: [90, 57],
+    roof: 48.12,
+    deck: 50.72,
+    landmarkHeight: 58.1,
+    clearance: 5,
   },
 ] as const;
 

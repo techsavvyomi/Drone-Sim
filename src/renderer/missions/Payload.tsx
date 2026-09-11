@@ -177,6 +177,13 @@ export function Payload({ mission }: { mission: Mission }) {
     // --- Move it -------------------------------------------------------------
     switch (motion.current) {
       case 'waiting': {
+        // An order on a restaurant's pickup deck sits still. The ring and the
+        // shop around it already say where it is.
+        if (mission.kind === 'search') {
+          at.current.copy(rest);
+          g.rotation.set(0, 0.35, 0);
+          break;
+        }
         // Alive on its mark: a slow turn and a shallow bob, so a box on a grey
         // street is something the eye finds.
         at.current.set(rest.x, rest.y + 0.06 + Math.sin(clock.elapsedTime * 1.6) * 0.05, rest.z);

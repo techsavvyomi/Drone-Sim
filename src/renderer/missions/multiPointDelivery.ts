@@ -1,11 +1,12 @@
 import type { Mission, MissionDelivery, MissionZone } from './types';
+import { PHARMACY_DECK_AT, PICKUP_DECK_TOP } from './pickupStorefront';
 
 // ----------------------------------------------------------------------------
 // Multi-Point Delivery — New York City.
 //
-// Three medical packages, one at a time, out of a central logistics hub. Collect
-// A, place it, come back for B, place it, come back for C, place it, come home
-// and land. Four points: one per delivery and one for the landing.
+// Three medical packages, one at a time, collected off Lake City Pharmacy's drone
+// pickup deck. Collect A, place it, come back for B, place it, come back for C,
+// place it, then land on the hub pad down the street. Four points: one per delivery and one for the landing.
 //
 // THE JOB IS THE LOOP, WHICH IS WHY THERE ARE NO RINGS.
 //
@@ -260,18 +261,18 @@ export const multiPointDelivery: Mission = {
   kind: 'delivery',
   envId: 'new-york',
   blurb:
-    'Run three medical packages out of a central hub to three destinations across the city, one at a time, and bring the drone home.',
+    'Collect three medical packages from Lake City Pharmacy, deliver them to three destinations across the city one at a time, and bring the drone home.',
   story:
-    'A hospital network has gone to emergency distribution and the logistics hub has three packages on the pad. There is one drone on the roster and no second one behind it. Take them out one at a time — the hub will not release the next until the last one is down.',
+    'A hospital network has gone to emergency distribution and Lake City Pharmacy has three packages waiting on its drone pickup deck. There is one drone on the roster and no second one behind it. Take them out one at a time — the pharmacy will not release the next until the last one is down — then land back on the hub pad.',
   flow: [
     { label: 'Collect', note: 'One package at a time', art: 'collect' },
     { label: 'Deliver', note: 'A street bay, then two roofs', art: 'deliver' },
-    { label: 'Return', note: 'Back to the hub for the next', art: 'city' },
+    { label: 'Return', note: 'Back to the pharmacy for the next', art: 'city' },
     { label: 'Come home', note: 'Land on the hub pad', art: 'land' },
   ],
   objectives: [
-    'Collect Package A from the logistics hub and place it in Bay A.',
-    'Return to the hub for Package B and hold it over the Rooftop B platform.',
+    'Collect Package A from Lake City Pharmacy and place it in Bay A.',
+    'Return to the pharmacy for Package B and hold it over the Rooftop B platform.',
     'Return once more for Package C and hold it over the Rooftop C platform.',
     'Fly back to the hub and land on the pad.',
   ],
@@ -312,8 +313,12 @@ export const multiPointDelivery: Mission = {
   zones: {
     pickup: {
       kind: 'pickup',
-      at: [HUB[0], HUB[1]],
-      label: 'Logistics hub',
+      /* The three packages wait on Lake City Pharmacy's raised drone pickup
+       * deck, not on the road. The drone still lands on the hub pad. */
+      at: PHARMACY_DECK_AT,
+      label: 'Lake City Pharmacy',
+      groundY: PICKUP_DECK_TOP,
+      ringLift: 0.04,
       /*
        * LOOSER THAN PRECISION DELIVERY'S PICKUP, on purpose.
        *
@@ -372,7 +377,7 @@ export const multiPointDelivery: Mission = {
   radio: {
     start: {
       id: 'start',
-      text: 'The logistics hub is a short hop west of you, with three packages on the pad. Get over Package A, come down onto the box and hold steady.',
+      text: 'Lake City Pharmacy is a short hop from you, with three packages waiting on its drone pickup deck. Get over Package A, come down onto the box and hold steady.',
     },
     pickup: { id: 'pickup', text: 'Package on board. Your destination is marked.' },
     'pickup-a': {
@@ -403,12 +408,12 @@ export const multiPointDelivery: Mission = {
     },
     // Said after a delivery that is NOT the last: the pilot has to go back for
     // the next box rather than on to the next mark.
-    back: { id: 'back', text: 'Return to the logistics hub for the next package.' },
+    back: { id: 'back', text: 'Return to Lake City Pharmacy for the next package.' },
     'back-a': {
       id: 'back-a',
-      text: 'Return to the logistics hub. Package B is waiting on the pad.',
+      text: 'Return to Lake City Pharmacy. Package B is waiting on the pickup deck.',
     },
-    'back-b': { id: 'back-b', text: 'Back to the hub once more. Package C is the last one.' },
+    'back-b': { id: 'back-b', text: 'Back to the pharmacy once more. Package C is the last one.' },
     home: { id: 'home', text: 'All deliveries are complete. Return to the hub and land safely.' },
     landing: { id: 'landing', text: 'The pad is right below you. Bring it down gently.' },
     complete: {

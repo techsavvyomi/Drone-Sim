@@ -589,15 +589,15 @@ export function objectiveFor(
     case 'confirming':
       return 'Hold a steady hover over them to drop the food box.';
     case 'toPickup':
-      if (kind === 'search') return 'Collect the food box from the pickup pad.';
+      if (kind === 'search') return 'Collect the food box from Lotus Kitchen.';
       // A multi-point delivery visits the pickup once per package, and the
       // second visit is a different instruction from the first: the pilot is
       // coming BACK, and the line has to say so or the objective reads as if
       // nothing has happened since the last one.
       if (run) {
         return run.index === 0
-          ? `Collect ${run.name} from the logistics hub.`
-          : `Return to the logistics hub for ${run.name}.`;
+          ? `Collect ${run.name} from Lake City Pharmacy.`
+          : `Return to Lake City Pharmacy for ${run.name}.`;
       }
       return fire ? 'Collect the firefighting payload.' : 'Fly to the pickup location.';
     case 'carrying':
