@@ -9,6 +9,7 @@ import { dronePose } from '../sim/drone/pose';
 import { DEG2RAD, damp } from '../sim/mathx';
 import { decayShake } from '../sim/effects';
 import { aimPitch, aimYaw, pilotAnchor, wrapAngle } from './groundView';
+import { staticHitDistance } from './cameraProbe';
 
 // Positions the R3F camera for chase and FPV modes. The ground view (orbit
 // mode) is handled by OrbitCamera below, and this rig no-ops there so it does
@@ -24,6 +25,15 @@ const _tilt = new THREE.Quaternion();
 const _mount = new THREE.Vector3();
 const _trail = new THREE.Vector3();
 const UP = new THREE.Vector3(0, 1, 0);
+const _pivot = new THREE.Vector3();
+const _over = new THREE.Vector3();
+
+/** How long the line behind the drone must stay clear before the camera drops
+ *  back from overhead, seconds. Stops it bobbing up and down past a corner.
+ *  Chosen by judgement. */
+const RETURN_HOLD = 0.35;
+/** How far short of a wall the camera is kept when it has to be pulled in, m. */
+const WALL_GAP = 0.3;
 
 // Chase distance scales with the airframe so a 20 cm whoop and a 450-class quad
 // both fill roughly the same amount of frame.
@@ -38,6 +48,9 @@ export function CameraRig({ spec, env }: { spec: DroneSpec; env?: EnvironmentSpe
   // Chase distance scales with the user's zoom preference, applied live.
   const zoom = useSettingsStore((s) => s.settings.cameraZoom);
   const CHASE_OFFSET = chaseOffset(spec).multiplyScalar(zoom);
+  // 0 = the normal spot behind the drone, 1 = up over it looking down.
+  const overhead = useRef(0);
+  const clearFor = useRef(0);
 
   useFrame((_state, delta) => {
     if (!dronePose.present || mode === 'orbit') return;
@@ -52,6 +65,33 @@ export function CameraRig({ spec, env }: { spec: DroneSpec; env?: EnvironmentSpe
       _yawQuat.setFromAxisAngle(UP, _euler.y);
       _offset.copy(CHASE_OFFSET).applyQuaternion(_yawQuat);
       _target.copy(dronePose.position).add(_offset);
+
+      // A building behind the drone: go up and over it instead.
+      //
+      // The chase spot is a fixed point behind the airframe, and in a city that
+      // point is often inside a tower — lifting off a pad beside one showed the
+      // pilot the inside of the building. The line from the drone to that spot
+      // is cast against the static world; while it is blocked the camera eases
+      // up over the drone, looking down, and it drops back only once the line
+      // has stayed clear for a moment.
+      const outdoor = !env || env.kind !== 'indoor';
+      _pivot.copy(dronePose.position).addScaledVector(UP, spec.armLength * 1.5);
+      if (outdoor) {
+        const blocked = staticHitDistance(_pivot, _target) < Infinity;
+        clearFor.current = blocked ? 0 : clearFor.current + delta;
+        const want = blocked || (overhead.current > 0.01 && clearFor.current < RETURN_HOLD) ? 1 : 0;
+        overhead.current = damp(overhead.current, want, want ? 5 : 2.5, delta);
+        if (overhead.current > 0.001) {
+          // A little behind as well as above, so lookAt never points straight
+          // down along the camera's up vector.
+          const len = CHASE_OFFSET.length();
+          _over
+            .set(0, len * 0.95, len * 0.35)
+            .applyQuaternion(_yawQuat)
+            .add(dronePose.position);
+          _target.lerp(_over, overhead.current);
+        }
+      }
 
       // Clamp camera + look target inside indoor room so chase never clips
       // into wall interiors (grey faces / "invisible" Pluto) when pitching back.
@@ -114,6 +154,18 @@ export function CameraRig({ spec, env }: { spec: DroneSpec; env?: EnvironmentSpe
       if (trailLen > maxTrail) {
         _trail.multiplyScalar(maxTrail / trailLen);
         camera.position.set(_target.x + _trail.x, _target.y + _trail.y, _target.z + _trail.z);
+      }
+
+      // Last resort, and the guarantee: wherever the easing has put the camera,
+      // it is never left inside something solid. Under an overhang even the spot
+      // overhead is blocked, so pull the camera in along the line to just short
+      // of the hit.
+      if (outdoor) {
+        const hit = staticHitDistance(_pivot, camera.position);
+        if (hit < Infinity) {
+          const d = _pivot.distanceTo(camera.position);
+          camera.position.lerpVectors(_pivot, camera.position, Math.max(hit - WALL_GAP, 0.2) / d);
+        }
       }
 
       // Aim just above the airframe, scaled to its size.

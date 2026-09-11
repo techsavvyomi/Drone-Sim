@@ -10,6 +10,7 @@ import { getDrone, getEnvironment } from '../plugins/registry';
 import { GRAVITY, SIM_DT } from '../sim/constants';
 import { Drone } from '../sim/drone/Drone';
 import { CameraRig, OrbitCamera } from './CameraRig';
+import { CameraProbe } from './cameraProbe';
 import { GroundMarker } from './GroundMarker';
 import { getEnvironmentComponent } from './environment';
 import { SkyClouds } from './SkyClouds';
@@ -190,6 +191,8 @@ export function FlightScene({
           groundY={env.groundY}
         />
         <PropDebris spec={spec} />
+        {/* Hands the physics world to CameraRig, which lives outside <Physics>. */}
+        <CameraProbe />
         {children}
       </Physics>
 
