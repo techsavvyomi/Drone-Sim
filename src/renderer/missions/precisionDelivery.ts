@@ -1,3 +1,5 @@
+import { HELIPAD_LAND_RADIUS, NEW_YORK_HELIPAD_AT, NEW_YORK_HELIPAD_GROUND } from './helipad';
+import { PHARMACY_DECK_AT, PICKUP_DECK_TOP } from './pickupStorefront';
 import type { Mission, MissionCheckpoint, MissionLegId } from './types';
 
 // ----------------------------------------------------------------------------
@@ -199,7 +201,7 @@ export const precisionDelivery: Mission = {
   envId: 'new-york',
   blurb: 'Collect a medical package, fly it across the city, land it on the mark and come home.',
   story:
-    'A medical package is waiting at a logistics station a few blocks west of the pad. It has to be across the city inside eight minutes, and the streets are not going to do it. You are the pilot.',
+    'A medical package is waiting on the drone dispatch deck at Lake City Pharmacy, a short hop from the pad. It has to be across the city inside eight minutes, and the streets are not going to do it. You are the pilot.',
   flow: [
     { label: 'Collect', note: 'Line up over the box, then descend', art: 'collect' },
     { label: 'Fly', note: 'Take all thirteen rings', art: 'city' },
@@ -212,7 +214,7 @@ export const precisionDelivery: Mission = {
   // BOTH green, so home is "the pad you started from" rather than "the green
   // mark", which was sending pilots to the wrong end of the city.
   objectives: [
-    'Collect the medical package from the pickup mark.',
+    'Collect the medical package from Lake City Pharmacy.',
     'Carry it through all thirteen rings across the city.',
     'Deliver it by holding still over the yellow mark.',
     'Return to the pad you started from and land.',
@@ -227,12 +229,16 @@ export const precisionDelivery: Mission = {
   homeVia: HOME_VIA,
 
   zones: {
-    // Three blocks west of the pad, in the open. 8.2 m of clearance in the
-    // column above it, so the pilot can come straight down onto it.
+    // The package waits on Lake City Pharmacy's raised drone dispatch deck, a
+    // short hop from the pad — the same shop and deck Multi-Point Delivery
+    // collects from. See `pickupStorefront.ts` for how the spot was measured.
     pickup: {
       kind: 'pickup',
-      at: [-33, 31],
-      label: 'Pickup',
+      at: PHARMACY_DECK_AT,
+      label: 'Lake City Pharmacy',
+      /* The deck's top, not the street. */
+      groundY: PICKUP_DECK_TOP,
+      ringLift: 0.04,
       // You have to come DOWN to it. The band used to reach 4 m, which is above
       // the box by more than the drone is wide: a pilot arriving at route height
       // and easing off the throttle had the package clip on while they were
@@ -260,7 +266,10 @@ export const precisionDelivery: Mission = {
       // What is NOT relaxed is the rest of the test — still centred, still
       // slowed, still held for most of a second. A fly-past collects nothing,
       // which is what the tight version was really protecting.
-      radius: 1.4,
+      //
+      // 1 m rather than 1.4 m since the box moved onto the pharmacy's 2.6 m
+      // deck: a wider ring would hang off its edge.
+      radius: 1,
       band: { min: 0, max: 2 },
       // Still the gentler of the two tests — the strict one is the DROP, which
       // is tighter on every axis — but a fly-through no longer counts: the
@@ -283,15 +292,14 @@ export const precisionDelivery: Mission = {
       maxVerticalSpeed: 0.8,
       hold: 1,
     },
-    // Three metres up the street from the spawn point, which is as close to
-    // "where you started" as this map allows: the lamp arm over the spawn
-    // leaves only 1.1 m of clear column, and a landing pad you cannot descend
-    // onto is not a landing pad. Here there is 4.1 m.
+    // The helipad the drone launched from. Home is the H, not a mark down the
+    // street — see `helipad.ts`.
     base: {
       kind: 'base',
-      at: [0, 29],
-      label: 'Base',
-      radius: 2.5,
+      at: NEW_YORK_HELIPAD_AT,
+      label: 'Helipad',
+      groundY: NEW_YORK_HELIPAD_GROUND,
+      radius: HELIPAD_LAND_RADIUS,
       band: { min: 0, max: 3 },
       // Landing is judged by ground contact and stillness (see the Director),
       // so these only gate the "LANDING ZONE REACHED" call.
@@ -304,7 +312,7 @@ export const precisionDelivery: Mission = {
   radio: {
     start: {
       id: 'start',
-      text: 'A medical package is waiting on the pickup mark. Get directly over the box, come down onto it and hold steady.',
+      text: 'A medical package is waiting on the dispatch deck at Lake City Pharmacy, a short hop from you. Get directly over the box, come down onto it and hold steady.',
     },
     pickup: {
       id: 'pickup',

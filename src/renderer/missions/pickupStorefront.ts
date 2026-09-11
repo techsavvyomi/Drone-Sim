@@ -4,8 +4,8 @@
 //
 //   - Lotus Kitchen, a restaurant: Logistics Drones (mission 4) collects its
 //     food box here.
-//   - Lake City Pharmacy: Multi-Point Delivery (mission 3) collects its three
-//     medical packages here.
+//   - Lake City Pharmacy: Precision Delivery (mission 1) collects its medical
+//     package here, and Multi-Point Delivery (mission 3) its three.
 //
 // Plain data, free of three.js, so the missions, the scene and the tests all
 // read the same numbers without pulling in a renderer.
@@ -65,8 +65,8 @@ export const LOTUS_KITCHEN: StorefrontSite = { wall: [-16, 50], out: [-1, 0] };
  *
  * The face is continuous across x -15.5..-5.5 and 39.5 m tall. The one thing in
  * the frontage is a street lamp at x -13, z 37.6, about 3.1 m from the deck's
- * centre — past the 1.7 m a rotor can reach from a drone inside the ring. 17 m
- * from the spawn and 17.8 m from the hub pad the drone lands on.
+ * centre — past the 1.7 m a rotor can reach from a drone inside the ring. 26.8 m
+ * from the helipad the drone launches from and lands on.
  */
 export const LAKE_CITY_PHARMACY: StorefrontSite = { wall: [-10.5, 43.06], out: [0, -1] };
 

@@ -107,9 +107,9 @@ describe('the shape of the mission', () => {
 });
 
 describe('the hub and the three destinations', () => {
-  it('TC-246 collects from the pharmacy deck and lands on the hub pad', () => {
+  it('TC-246 collects from the pharmacy deck and lands on the helipad', () => {
     // The packages wait on Lake City Pharmacy's raised drone pickup deck rather
-    // than on the road, and the drone still comes home to the street-level hub.
+    // than on the road, and the drone comes home to the helipad it launched from.
     expect(M.zones.pickup.at).not.toEqual(M.zones.base.at);
     expect(M.zones.pickup.groundY!).toBeGreaterThan(0.5);
     expect(zoneGroundY(M, M.zones.base)).toBeLessThan(0.5);
@@ -123,8 +123,8 @@ describe('the hub and the three destinations', () => {
     expect(M.zones.pickup.band.max).toBeLessThan(M.zones.base.band.max);
   });
 
-  it('TC-246 keeps the hub clear of the spawn point', () => {
-    // The hub is somewhere the pilot GOES. It sat three metres from New York's
+  it('TC-246 keeps the pickup clear of the spawn point', () => {
+    // The pickup is somewhere the pilot GOES. The hub sat three metres from New York's
     // spawn to begin with, which opened the mission with the drone armed in the
     // middle of three parcels, standing on the mark, with the radar's P under
     // its own aircraft — the first objective already met and nothing to fly to.

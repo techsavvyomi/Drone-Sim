@@ -7,6 +7,7 @@ import { multiPointDelivery } from '../src/renderer/missions/multiPointDelivery'
 import { MISSIONS } from '../src/renderer/missions';
 import { SEARCH_SITES, pickSearchSite } from '../src/renderer/missions/searchRescueSites';
 import { zoneFor } from '../src/renderer/missions/searchZone';
+import { newYork } from '../src/renderer/plugins/environments/newYork';
 import {
   PICKUP_DECK_AT,
   PICKUP_DECK_SIZE,
@@ -105,6 +106,18 @@ describe('the shape of the mission', () => {
     const [px, pz] = M.zones.pickup.at;
     const [bx, bz] = M.zones.base.at;
     expect(Math.hypot(px - bx, pz - bz)).toBeGreaterThanOrEqual(12);
+  });
+
+  it('TC-400 lands on the helipad the drone launched from', () => {
+    // The landing is judged on the painted H under the spawn, not on a mark down
+    // the street — on every New York mission that ends with one.
+    const [sx, , sz] = newYork.spawn.position;
+    for (const m of [searchRescue, precisionDelivery, multiPointDelivery]) {
+      expect(m.zones.base.at).toEqual([sx, sz]);
+      expect(m.zones.base.groundY).toBe(newYork.spawnGround);
+      // Tight enough that the aircraft is ON the 1.15 m paint, not beside it.
+      expect(m.zones.base.radius).toBeLessThanOrEqual(1.25);
+    }
   });
 
   it('TC-400 collects the food box off the restaurant deck, not the road', () => {

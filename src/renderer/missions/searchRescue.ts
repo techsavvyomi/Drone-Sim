@@ -1,6 +1,7 @@
 import type { Mission, MissionSearchSite, MissionZone } from './types';
 import { SEARCH_SITES } from './searchRescueSites';
 import { PICKUP_DECK_AT, PICKUP_DECK_TOP } from './pickupStorefront';
+import { HELIPAD_LAND_RADIUS, NEW_YORK_HELIPAD_AT, NEW_YORK_HELIPAD_GROUND } from './helipad';
 
 // ----------------------------------------------------------------------------
 // Mission 4 — Logistics Drones: a food drop to a person stranded on a roof (New York City).
@@ -25,11 +26,6 @@ import { PICKUP_DECK_AT, PICKUP_DECK_TOP } from './pickupStorefront';
 //     node scripts/check-search-sites.mjs
 // ----------------------------------------------------------------------------
 
-/** The base pad, on the street. Chosen when the spawn was on the road at
- *  [0, 26], where a lamp arm over it at 10 m left 1.1 m of clear column and
- *  nothing that has to be descended onto could go; at [0, 29] there is 4.1 m.
- *  The spawn has since moved onto the sidewalk at [1.5, 15.5], 13.6 m away. */
-const BASE: readonly [number, number] = [0, 29];
 
 /**
  * The rescue zone, built from a site rather than written three times.
@@ -278,11 +274,14 @@ export const searchRescue: Mission = {
      * reads `zones.drop` without asking which site is live gets a real zone
      * rather than nothing. What is actually judged is `rescueZoneOf`. */
     drop: SITES[0].zone,
+    /* The helipad the drone launched from — the landing is judged on the H,
+     * not on a mark down the street. See `helipad.ts`. */
     base: {
       kind: 'base',
-      at: BASE,
-      label: 'Base pad',
-      radius: 2.5,
+      at: NEW_YORK_HELIPAD_AT,
+      label: 'Helipad',
+      groundY: NEW_YORK_HELIPAD_GROUND,
+      radius: HELIPAD_LAND_RADIUS,
       band: { min: 0, max: 3 },
       maxGroundSpeed: 1.1,
       maxVerticalSpeed: 1,

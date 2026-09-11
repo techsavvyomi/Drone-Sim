@@ -522,7 +522,14 @@ describe('where the route sits in the city', () => {
   it('TC-230 keeps the pickup near the pad and the drop far from it', () => {
     const { pickup, drop, base } = M.zones;
     const toPickup = Math.hypot(pickup.at[0] - base.at[0], pickup.at[1] - base.at[1]);
-    const carry = Math.hypot(drop.at[0] - pickup.at[0], drop.at[1] - pickup.at[1]);
+    // The carry is measured along the rings, not as the crow flies: every ring
+    // is required, so pickup -> B1..B13 -> drop is the flight that is flown.
+    const via = M.route.filter((c) => c.leg === 'toDrop').map((c) => [c.at[0], c.at[2]] as const);
+    const path = [pickup.at, ...via, drop.at];
+    let carry = 0;
+    for (let i = 1; i < path.length; i++) {
+      carry += Math.hypot(path[i][0] - path[i - 1][0], path[i][1] - path[i - 1][1]);
+    }
 
     // The opening is an easy win a few blocks away; the crossing is the mission.
     expect(toPickup).toBeLessThan(50);

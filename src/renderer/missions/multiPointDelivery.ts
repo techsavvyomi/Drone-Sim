@@ -1,12 +1,14 @@
 import type { Mission, MissionDelivery, MissionZone } from './types';
 import { PHARMACY_DECK_AT, PICKUP_DECK_TOP } from './pickupStorefront';
+import { HELIPAD_LAND_RADIUS, NEW_YORK_HELIPAD_AT, NEW_YORK_HELIPAD_GROUND } from './helipad';
 
 // ----------------------------------------------------------------------------
 // Multi-Point Delivery — New York City.
 //
 // Three medical packages, one at a time, collected off Lake City Pharmacy's drone
 // pickup deck. Collect A, place it, come back for B, place it, come back for C,
-// place it, then land on the hub pad down the street. Four points: one per delivery and one for the landing.
+// place it, then land back on the helipad the drone took off from. Four points:
+// one per delivery and one for the landing.
 //
 // THE JOB IS THE LOOP, WHICH IS WHY THERE ARE NO RINGS.
 //
@@ -53,33 +55,6 @@ import { PHARMACY_DECK_AT, PICKUP_DECK_TOP } from './pickupStorefront';
 // footprint has real roof under it and a level deck above it — this mission's B
 // and C. A is a street-level bay, because there is no third.
 // ----------------------------------------------------------------------------
-
-/**
- * The logistics hub: where all three packages wait, and where the drone lands at
- * the end.
- *
- * ONE PLACE, TWO ZONES. The pickup and the base sit on the same mark because on
- * this mission they are the same thing — the brief's "return to the logistics
- * centre" is the same flight as its "return to base", and giving them separate
- * marks would put two rings on one pad and ask the pilot which of them was
- * theirs. They are never live at the same time, so only one is ever drawn.
- *
- * IT IS DELIBERATELY NOT WHERE THE DRONE TAKES OFF FROM.
- *
- * It sat three metres from NYC's spawn to begin with, which is Precision
- * Delivery's pad. On a mission that carries ONE package that is fine — the pad
- * is bare and the box is somewhere else. Here it meant the pilot armed the
- * aircraft standing in the middle of three parcels, on top of the mark, with the
- * radar's P sitting under their own aircraft: the mission opened with its first
- * objective already met and nothing to fly to. Twenty-five metres down the cross
- * street the depot is a PLACE the pilot goes to, the first thing they do is
- * reposition, and the spawn is clear ground again.
- *
- * Measured, not moved by eye: 8.8 m of clear column here against 4.1 m at the
- * old pad, so it is also the better thing to descend onto — which matters, since
- * this one is landed on as well as collected from.
- */
-const HUB: readonly [number, number] = [-25, 29];
 
 /**
  * The cruise height the corridor between the marks is measured at, in metres.
@@ -207,7 +182,7 @@ const DELIVERIES: readonly MissionDelivery[] = [
     // sees; the platform drawn between them is what makes those the same place.
     zone: bay('Rooftop B', -13.5, 73, { deck: 25.14, radius: 1.8, max: 1.8, standsOn: 24.12 }),
     // West to the avenue at x = -29, north up it, then in over the roof. The
-    // straight line from the hub goes through a block at z = 43.
+    // straight line from the pharmacy goes through a block at z = 43.
     via: [
       [-29, 40],
       [-29, 70],
@@ -237,8 +212,8 @@ const DELIVERIES: readonly MissionDelivery[] = [
  * The way home from the last roof, as bare waypoints.
  *
  * NOT checkpoints — they score nothing and draw nothing. The straight line from
- * C back to the hub crosses a block, so a corridor check measured on it would be
- * measuring a flight nobody can make. This is C's own outbound line flown
+ * C back to the helipad crosses a block, so a corridor check measured on it would
+ * be measuring a flight nobody can make. This is C's own outbound line flown
  * backwards — over the top of the city, down the west avenue, in to the pad —
  * and it is what `check-multi-delivery-route` samples.
  */
@@ -263,18 +238,18 @@ export const multiPointDelivery: Mission = {
   blurb:
     'Collect three medical packages from Lake City Pharmacy, deliver them to three destinations across the city one at a time, and bring the drone home.',
   story:
-    'A hospital network has gone to emergency distribution and Lake City Pharmacy has three packages waiting on its drone pickup deck. There is one drone on the roster and no second one behind it. Take them out one at a time — the pharmacy will not release the next until the last one is down — then land back on the hub pad.',
+    'A hospital network has gone to emergency distribution and Lake City Pharmacy has three packages waiting on its drone pickup deck. There is one drone on the roster and no second one behind it. Take them out one at a time — the pharmacy will not release the next until the last one is down — then land back on the helipad you took off from.',
   flow: [
     { label: 'Collect', note: 'One package at a time', art: 'collect' },
     { label: 'Deliver', note: 'A street bay, then two roofs', art: 'deliver' },
     { label: 'Return', note: 'Back to the pharmacy for the next', art: 'city' },
-    { label: 'Come home', note: 'Land on the hub pad', art: 'land' },
+    { label: 'Come home', note: 'Land back on the helipad', art: 'land' },
   ],
   objectives: [
     'Collect Package A from Lake City Pharmacy and place it in Bay A.',
     'Return to the pharmacy for Package B and hold it over the Rooftop B platform.',
     'Return once more for Package C and hold it over the Rooftop C platform.',
-    'Fly back to the hub and land on the pad.',
+    'Fly back to the helipad you took off from and land on the H.',
   ],
   mapNote: 'Buildings, roads and two reachable roofs',
   // Three round trips is roughly 270 m of flying plus six precision holds and a
@@ -314,7 +289,7 @@ export const multiPointDelivery: Mission = {
     pickup: {
       kind: 'pickup',
       /* The three packages wait on Lake City Pharmacy's raised drone pickup
-       * deck, not on the road. The drone still lands on the hub pad. */
+       * deck, not on the road. The drone lands back on the helipad. */
       at: PHARMACY_DECK_AT,
       label: 'Lake City Pharmacy',
       groundY: PICKUP_DECK_TOP,
@@ -350,11 +325,13 @@ export const multiPointDelivery: Mission = {
     // that reads `zones.drop` without asking which run is live gets the opening
     // destination rather than a stale duplicate that could drift from it.
     drop: DELIVERIES[0].zone,
+    // The helipad the drone launched from. Home is the H — see `helipad.ts`.
     base: {
       kind: 'base',
-      at: [HUB[0], HUB[1]],
-      label: 'Logistics hub',
-      radius: 2.5,
+      at: NEW_YORK_HELIPAD_AT,
+      label: 'Helipad',
+      groundY: NEW_YORK_HELIPAD_GROUND,
+      radius: HELIPAD_LAND_RADIUS,
       band: { min: 0, max: 3 },
       // Landing is judged on ground contact and stillness in the Director; these
       // only gate the "LANDING ZONE REACHED" call.
@@ -365,7 +342,7 @@ export const multiPointDelivery: Mission = {
   },
 
   // The city is 248 m by 196 m and this mission uses about a quarter of it, so
-  // a pilot who has lost the hub can be a long way from anything that matters
+  // a pilot who has lost the helipad can be a long way from anything that matters
   // with nothing on screen saying so. Wide enough to contain every mark with
   // room to overshoot, tight enough to be a real boundary.
   strayRadius: 95,
@@ -414,7 +391,10 @@ export const multiPointDelivery: Mission = {
       text: 'Return to Lake City Pharmacy. Package B is waiting on the pickup deck.',
     },
     'back-b': { id: 'back-b', text: 'Back to the pharmacy once more. Package C is the last one.' },
-    home: { id: 'home', text: 'All deliveries are complete. Return to the hub and land safely.' },
+    home: {
+      id: 'home',
+      text: 'All deliveries are complete. Return to the helipad you took off from and land safely.',
+    },
     landing: { id: 'landing', text: 'The pad is right below you. Bring it down gently.' },
     complete: {
       id: 'complete',
@@ -439,7 +419,7 @@ export const multiPointDelivery: Mission = {
     },
     {
       stars: 1,
-      text: 'Deliver all three packages and land back at the hub',
+      text: 'Deliver all three packages and land back on the helipad',
       test: (r) => r.delivered && r.landed,
     },
   ],

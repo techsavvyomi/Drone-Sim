@@ -25,6 +25,8 @@ import process from 'node:process';
 
 const COLLIDERS = 'src/renderer/scene/environment/NewYorkColliders.tsx';
 const MISSION = 'src/renderer/missions/multiPointDelivery.ts';
+const STOREFRONTS = 'src/renderer/missions/pickupStorefront.ts';
+const ENVIRONMENT = 'src/renderer/plugins/environments/newYork.ts';
 
 /** Metres of clear air a ground mark needs in the column above it. Same number
  *  `check-mission-route` uses: it protects an aircraft 0.6 m across coming
@@ -92,21 +94,17 @@ const CEILING = 30;
  *  ceiling, so anything a pilot has to REACH should sit below this. */
 const CEILING_FADE = CEILING - 2;
 /**
- * New York's spawn point, from `plugins/environments/newYork.ts`. The mission
- * cannot move it — it belongs to the environment — so it is a fixed fact the
- * mission's own marks have to be placed around.
+ * Metres of clear air the landing column over the helipad needs: the 1.2 m ring
+ * must not be drawn into anything. The pad was swept as a spawn (see
+ * `newYork.ts`) with a tower face 1.56 m behind it — a floor, not a berth.
  */
-const SPAWN = { x: 1.5, z: 15.5 };
+const PAD_MIN = 1.2;
 /**
- * How far the hub must sit from that spawn, metres.
- *
- * The hub was three metres from it to begin with, and the mission opened with
- * the pilot armed in the middle of three parcels, standing on the mark, with the
- * radar's P under their own aircraft — the first objective already met and
- * nothing to fly to. A depot is somewhere you GO. This is the check that keeps
- * it that way if the pad is ever moved again.
+ * Metres around the helipad the cruise corridor does not sample. Over the pad
+ * the aircraft climbs out and comes down vertically beside the tower, which
+ * `PAD_MIN` judges; the corridor at cruise height clears 3 m about 2 m out.
  */
-const SPAWN_MIN = 12;
+const PAD_CLIMB = 2.5;
 
 const verbose = process.argv.includes('--verbose');
 
@@ -218,11 +216,35 @@ function column(x, z, from, to, fn = clearance) {
 
 // ---- Mission coordinates ----------------------------------------------------
 
+/** The launch helipad — the base — from the environment's spawn, with the
+ *  sidewalk plate it is painted on. */
+function helipad() {
+  const src = fs.readFileSync(ENVIRONMENT, 'utf8');
+  const m = /spawn: \{ position: \[(-?[\d.]+), (-?[\d.]+), (-?[\d.]+)\]/.exec(src);
+  const ground = Number(/spawnGround: ([\d.]+),/.exec(src)?.[1]);
+  if (!m || !Number.isFinite(ground)) throw new Error('could not read the spawn from newYork.ts');
+  return { x: +m[1], z: +m[3], ground };
+}
+
+/** Lake City Pharmacy's deck centre, where every outbound run starts. */
+function pharmacyDeck() {
+  const src = fs.readFileSync(STOREFRONTS, 'utf8');
+  const out = Number(/PICKUP_DECK_OUT = ([\d.]+);/.exec(src)?.[1]);
+  const m =
+    /LAKE_CITY_PHARMACY: StorefrontSite = \{ wall: \[(-?[\d.]+), (-?[\d.]+)\], out: \[(-?[\d.]+), (-?[\d.]+)\] \}/.exec(
+      src,
+    );
+  if (!m || !Number.isFinite(out))
+    throw new Error('could not read LAKE_CITY_PHARMACY from pickupStorefront.ts');
+  return { x: +m[1] + +m[3] * out, z: +m[2] + +m[4] * out };
+}
+
 function loadMission() {
   const src = fs.readFileSync(MISSION, 'utf8');
 
   const cruise = Number(/^const CRUISE = ([\d.]+);/m.exec(src)?.[1]);
-  const hub = /^const HUB: readonly \[number, number\] = \[(-?[\d.]+), (-?[\d.]+)\];/m.exec(src);
+  if (!/at: NEW_YORK_HELIPAD_AT,/.test(src))
+    throw new Error('the base is no longer NEW_YORK_HELIPAD_AT — update this check');
   /** The waypoint pairs inside one `via: [ ... ]` or `HOME_VIA` block. */
   const points = (block) =>
     [...block.matchAll(/\[(-?[\d.]+), (-?[\d.]+)\]/g)].map((m) => ({ x: +m[1], z: +m[2] }));
@@ -267,17 +289,18 @@ function loadMission() {
   const homeVia = points(homeBlock[1]);
 
   if (!Number.isFinite(cruise)) throw new Error('could not read CRUISE from the mission file');
-  if (!hub) throw new Error('could not read HUB from the mission file');
   // An exact count rather than a floor: this mission IS three deliveries. If the
   // regex stops matching one of them the report would quietly check two marks
   // and pass, which is the failure this whole script exists to prevent.
   if (drops.length !== 3) throw new Error(`parsed ${drops.length} destinations, expected 3`);
   if (homeVia.length < 1)
     throw new Error(`parsed ${homeVia.length} homeVia waypoints — has HOME_VIA changed shape?`);
-  return { cruise, hub: { x: +hub[1], z: +hub[2] }, drops, homeVia };
+  return { cruise, drops, homeVia };
 }
 
-const { cruise, hub, drops, homeVia } = loadMission();
+const { cruise, drops, homeVia } = loadMission();
+const pad = helipad();
+const pharmacy = pharmacyDeck();
 
 // ---- Report -----------------------------------------------------------------
 
@@ -341,19 +364,17 @@ if (process.argv.includes('--roofs')) {
 console.log(`\nMulti-Point Delivery — clearance in New York City`);
 console.log(`${boxes.length} building and prop colliders, corridor sampled at ${cruise} m\n`);
 
-console.log('THE HUB — pickup and base share one mark');
+console.log('THE BASE — the helipad the drone launched from');
 {
-  const { worst, at } = column(hub.x, hub.z, 0.6, ZONE_TOP);
-  line('hub', `[${hub.x}, ${hub.z}] tightest at ${at} m`, worst, ZONE_MIN);
-  // The hub declares no deck of its own, so the surface under it has to BE the
-  // mission's ground height — the same trap Bay A fell into.
-  note(deck(hub.x, hub.z) === 0, 'hub deck', `street level, deck reads ${deck(hub.x, hub.z)} m`);
-  const fromSpawn = Math.hypot(hub.x - SPAWN.x, hub.z - SPAWN.z);
-  line(
-    'off the spawn',
-    `${fromSpawn.toFixed(1)} m from [${SPAWN.x}, ${SPAWN.z}]`,
-    fromSpawn,
-    SPAWN_MIN,
+  const { worst, at } = column(pad.x, pad.z, pad.ground + 0.6, ZONE_TOP);
+  line('helipad', `[${pad.x}, ${pad.z}] tightest at ${at} m`, worst, PAD_MIN);
+  // The pad's declared deck is the environment's `spawnGround`; it has to BE the
+  // sidewalk plate under it — the same trap Bay A fell into.
+  const real = deck(pad.x, pad.z);
+  note(
+    Math.abs(real - pad.ground) < 0.02,
+    'helipad deck',
+    `declared ${pad.ground} m, measured ${real.toFixed(2)} m`,
   );
 }
 
@@ -438,8 +459,10 @@ console.log('\nCORRIDOR — the line flown between the marks, sampled every half
 // The out-and-back legs are the same line in both directions, so each is
 // measured once and named for the delivery it serves.
 const legs = [];
-drops.forEach((d) => legs.push([`hub <-> ${d.label}`, [hub, ...d.via, d]]));
-legs.push([`home from ${drops[2].label}`, [drops[2], ...homeVia, hub]]);
+// Every run starts at the pharmacy, where the packages are; only the flight home
+// ends at the helipad.
+drops.forEach((d) => legs.push([`shop <-> ${d.label}`, [pharmacy, ...d.via, d]]));
+legs.push([`home from ${drops[2].label}`, [drops[2], ...homeVia, pad]]);
 
 /**
  * Samples directly over a rooftop destination are not measured.
@@ -466,6 +489,7 @@ for (const [name, pts] of legs) {
       const x = a.x + (b.x - a.x) * t;
       const z = a.z + (b.z - a.z) * t;
       if (overARoof(x, z)) continue;
+      if (Math.hypot(x - pad.x, z - pad.z) < PAD_CLIMB) continue;
       const c = clearance(x, cruise, z);
       if (verbose) console.log(`        ${x.toFixed(1)}, ${z.toFixed(1)} -> ${c.toFixed(1)}`);
       if (c < worst) {

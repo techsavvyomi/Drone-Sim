@@ -2,6 +2,8 @@ import { execFileSync } from 'node:child_process';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { forestFire } from '../src/renderer/missions/forestFire';
 import { precisionDelivery } from '../src/renderer/missions/precisionDelivery';
+import { PICKUP_DECK_TOP } from '../src/renderer/missions/pickupStorefront';
+import { NEW_YORK_HELIPAD_GROUND } from '../src/renderer/missions/helipad';
 import { MISSIONS } from '../src/renderer/missions';
 import {
   flatDist,
@@ -189,11 +191,16 @@ describe('the ground under each mark', () => {
   });
 
   it('TC-240 leaves a flat map alone', () => {
-    for (const kind of ['pickup', 'drop', 'base'] as const) {
-      expect(zoneGroundY(precisionDelivery, precisionDelivery.zones[kind])).toBe(
-        precisionDelivery.groundY,
-      );
-    }
+    // The street mark stands on the map's ground. The pickup waits on Lake City
+    // Pharmacy's raised deck and the base is the helipad on the sidewalk plate,
+    // and both say so.
+    expect(zoneGroundY(precisionDelivery, precisionDelivery.zones.drop)).toBe(
+      precisionDelivery.groundY,
+    );
+    expect(zoneGroundY(precisionDelivery, precisionDelivery.zones.pickup)).toBe(PICKUP_DECK_TOP);
+    expect(zoneGroundY(precisionDelivery, precisionDelivery.zones.base)).toBe(
+      NEW_YORK_HELIPAD_GROUND,
+    );
   });
 });
 

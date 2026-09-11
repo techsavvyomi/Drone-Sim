@@ -25,6 +25,8 @@ import process from 'node:process';
 
 const COLLIDERS = 'src/renderer/scene/environment/NewYorkColliders.tsx';
 const MISSION = 'src/renderer/missions/precisionDelivery.ts';
+const STOREFRONTS = 'src/renderer/missions/pickupStorefront.ts';
+const ENVIRONMENT = 'src/renderer/plugins/environments/newYork.ts';
 
 /**
  * Metres of clear air a route checkpoint must have all round it.
@@ -46,6 +48,27 @@ const MISSION = 'src/renderer/missions/precisionDelivery.ts';
 const CP_MIN = 4.4;
 /** Metres of clear air a zone needs, from the deck up through the approach. */
 const ZONE_MIN = 3.5;
+/**
+ * The same, for a zone on a storefront's pickup deck: the 1 m ring plus the
+ * 1.7 m a rotor can reach from a drone inside it. The deck is a small placed
+ * hover, not an open street mark, and `pickupStorefront.ts` measured Lake City
+ * Pharmacy's street lamp against exactly this.
+ */
+const DECK_MIN = 2.7;
+/**
+ * The same, for the base on the launch helipad: the 1.2 m landing ring must not
+ * be drawn into anything. The pad was swept as a spawn (see `newYork.ts`) with a
+ * tower face 1.56 m behind it, so this is a floor, not a comfortable berth.
+ */
+const PAD_MIN = 1.2;
+/**
+ * Metres around the helipad the corridor does not sample.
+ *
+ * Over the pad the aircraft climbs out and comes down vertically; it is never at
+ * cruise height beside the tower, and that column is `PAD_MIN`'s to judge. The
+ * cruise corridor clears 3 m about 2 m out from the H's centre.
+ */
+const PAD_CLIMB = 2.5;
 /** How high the zone approach column is checked to, metres. */
 const ZONE_TOP = 25;
 /**
@@ -146,6 +169,28 @@ function column(x, z, top = ZONE_TOP) {
 
 // ---- Mission coordinates ----------------------------------------------------
 
+/** Lake City Pharmacy's deck centre, world x, z — `deckAtOf(LAKE_CITY_PHARMACY)`. */
+function pharmacyDeck() {
+  const src = fs.readFileSync(STOREFRONTS, 'utf8');
+  const out = Number(/PICKUP_DECK_OUT = ([\d.]+);/.exec(src)?.[1]);
+  const m =
+    /LAKE_CITY_PHARMACY: StorefrontSite = \{ wall: \[(-?[\d.]+), (-?[\d.]+)\], out: \[(-?[\d.]+), (-?[\d.]+)\] \}/.exec(
+      src,
+    );
+  if (!m || !Number.isFinite(out))
+    throw new Error('could not read LAKE_CITY_PHARMACY from pickupStorefront.ts');
+  return [+m[1] + +m[3] * out, +m[2] + +m[4] * out];
+}
+
+/** The launch helipad's centre, world x, z — `NEW_YORK_HELIPAD_AT`, which is
+ *  the environment's spawn. */
+function helipad() {
+  const src = fs.readFileSync(ENVIRONMENT, 'utf8');
+  const m = /spawn: \{ position: \[(-?[\d.]+), (-?[\d.]+), (-?[\d.]+)\]/.exec(src);
+  if (!m) throw new Error('could not read the spawn from newYork.ts');
+  return [+m[1], +m[3]];
+}
+
 function loadMission() {
   const src = fs.readFileSync(MISSION, 'utf8');
 
@@ -162,13 +207,19 @@ function loadMission() {
     z: +m[4],
     leg: m[5],
   }));
+  // A zone is a literal `[x, z]`, Lake City Pharmacy's deck, or the launch
+  // helipad — the last two resolved from their own files so nothing can drift.
   const zones = [
-    ...src.matchAll(/kind: '(pickup|drop|base)',\s*\n\s*at: \[(-?[\d.]+), (-?[\d.]+)\]/g),
-  ].map((m) => ({
-    kind: m[1],
-    x: +m[2],
-    z: +m[3],
-  }));
+    ...src.matchAll(
+      /kind: '(pickup|drop|base)',\s*\n\s*at: (?:\[(-?[\d.]+), (-?[\d.]+)\]|(PHARMACY_DECK_AT)|(NEW_YORK_HELIPAD_AT))/g,
+    ),
+  ].map((m) => {
+    const [x, z] = m[4] ? pharmacyDeck() : m[5] ? helipad() : [+m[2], +m[3]];
+    // A zone that names its own `groundY` stands on a deck or a sidewalk plate,
+    // not on the map's ground, so the surface check below does not apply.
+    const block = src.slice(m.index, src.indexOf('}', m.index));
+    return { kind: m[1], x, z, ownGround: /groundY:/.test(block), pad: Boolean(m[5]) };
+  });
 
   if (!Number.isFinite(alt)) throw new Error('could not read ALT from the mission file');
   // A floor rather than an exact count: the route grows, and a check that has to
@@ -209,12 +260,12 @@ const byKind = Object.fromEntries(zones.map((z) => [z.kind, z]));
 for (const kind of ['pickup', 'drop', 'base']) {
   const z = byKind[kind];
   const { worst, at } = column(z.x, z.z);
-  line(kind, `[${z.x}, ${z.z}] tightest at ${at} m`, worst, ZONE_MIN);
-  // No zone here declares a `groundY`, so every one of them is claiming to
-  // stand on the map's flat ground. Checked rather than assumed — see
-  // `surfaceUnder`.
+  const min = z.pad ? PAD_MIN : z.ownGround ? DECK_MIN : ZONE_MIN;
+  line(kind, `[${z.x}, ${z.z}] tightest at ${at} m`, worst, min);
+  // A zone without its own `groundY` is claiming to stand on the map's flat
+  // ground. Checked rather than assumed — see `surfaceUnder`.
   const deck = surfaceUnder(z.x, z.z);
-  if (deck !== 0) {
+  if (deck !== 0 && !z.ownGround) {
     failures++;
     console.log(
       `TIGHT  ${kind.padEnd(10)} stands on a surface at ${deck.toFixed(2)} m, but declares no groundY`,
@@ -248,6 +299,7 @@ for (const [name, pts] of legs) {
       const t = s / steps;
       const x = a.x + (b.x - a.x) * t;
       const z = a.z + (b.z - a.z) * t;
+      if ([a, b].some((p) => p.pad && Math.hypot(x - p.x, z - p.z) < PAD_CLIMB)) continue;
       const c = clearance(x, alt, z);
       if (verbose) console.log(`        ${x.toFixed(1)}, ${z.toFixed(1)} -> ${c.toFixed(1)}`);
       if (c < worst) {

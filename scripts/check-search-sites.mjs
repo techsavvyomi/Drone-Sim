@@ -27,8 +27,8 @@ import process from 'node:process';
 const COLLIDERS = 'src/renderer/scene/environment/NewYorkColliders.tsx';
 const SITES = 'src/renderer/missions/searchRescueSites.ts';
 
-/** The base pad, from `searchRescue.ts`. */
-const BASE = [0, 29];
+/** The base: the launch helipad (`NEW_YORK_HELIPAD_AT`, the New York spawn). */
+const BASE = [1.5, 15.5];
 
 /**
  * Metres of clear air a site needs all round its hover column.

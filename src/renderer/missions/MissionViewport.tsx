@@ -112,9 +112,11 @@ export function MissionViewport({ mission }: { mission: Mission }) {
             {mission.search && <CasualtyCollider mission={mission} />}
             {/* The shop the cargo is collected from. Solid, so it is in here
                 too: the restaurant for the food box, the pharmacy for the
-                three medical packages. */}
+                medical packages of missions 1 and 3. */}
             {mission.search && <Storefront site={LOTUS_KITCHEN} kind="restaurant" />}
-            {mission.deliveries && <Storefront site={LAKE_CITY_PHARMACY} kind="pharmacy" />}
+            {(mission.deliveries || mission.id === 'precision-delivery') && (
+              <Storefront site={LAKE_CITY_PHARMACY} kind="pharmacy" />
+            )}
             {/* The hydrant fill point the suppression tank waits at. */}
             {mission.fire && <HydrantFillPoint mission={mission} />}
           </FlightScene>
