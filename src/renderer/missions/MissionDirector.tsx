@@ -24,7 +24,8 @@ import {
   type Mission,
   type MissionZone,
 } from './types';
-import { playDrop, playFail, playLatch, playSuccess, playWhoosh } from '../audio/sfx';
+import { tigerPose, resetTigerPose } from './tigerPose';
+import { playCollect, playDrop, playFail, playLatch, playSuccess, playWhoosh } from '../audio/sfx';
 import { resetForMission } from './reset';
 import { resetStick } from '../input/controls';
 
@@ -89,6 +90,16 @@ const LAND_DWELL = 1.6;
  *  times a second is unreadable, and this is a machine with frames to spare for
  *  nothing. */
 const PUBLISH_HZ = 10;
+
+/**
+ * The tracking mission's live numbers, written by the leg and read by the
+ * publish block a few lines later.
+ *
+ * Module scope, like every other scratch object in the frame path: nothing may
+ * allocate inside a 250 Hz step, and there is exactly one Director alive at a
+ * time — the mission view mounts one and tears it down with the mission.
+ */
+const trackOut = { lock: 0, lit: false, tooClose: false };
 
 interface ZoneProbe {
   /** Horizontal distance from the mark, metres. */
@@ -197,6 +208,28 @@ export function MissionDirector() {
   const strayFor = useRef(0);
   const straySaidAt = useRef(-99);
 
+  // ---- The tracking mission's own timers ---------------------------------
+  //
+  // They are refs rather than store fields because they move every frame and
+  // the HUD reads them at ten hertz like everything else — see the publish
+  // block. A lock that wrote to zustand sixty times a second would re-render
+  // the whole overlay on every frame of a five second hold.
+
+  /** Seconds of light held on the animal, 0 to `lockSeconds`. */
+  const lockFor = useRef(0);
+  /** Whether the animal was lit last frame, so LOST is said on the edge. */
+  const wasLit = useRef(false);
+  /** Seconds the animal has been out of the light since the lock began. What
+   *  decides when the mission gives up on the hold and sends the pilot back to
+   *  searching, rather than leaving a half-full ring on screen for ever. */
+  const unlitFor = useRef(0);
+  /** Seconds spent inside the animal's safe distance, and when the last
+   *  warning was shown. Both reset the moment the drone backs off. */
+  const disturbFor = useRef(0);
+  const disturbSaidAt = useRef(-99);
+  /** Last tracking numbers published, so an unchanged set is not written. */
+  const lastTrack = useRef('');
+
   /** Everything the attempt accumulates, in one place. A new timer added to the
    *  runtime has to be cleared here, and the compiler will not remind you — so
    *  they all live together rather than beside the code that uses them. */
@@ -217,6 +250,18 @@ export function MissionDirector() {
     lastChecks.current = '';
     announcedDrop.current = false;
     announcedGate.current = false;
+    lockFor.current = 0;
+    wasLit.current = false;
+    unlitFor.current = 0;
+    disturbFor.current = 0;
+    disturbSaidAt.current = -99;
+    lastTrack.current = '';
+    // The animal's own walk clock is NOT reset — it has been out there since
+    // before the drone armed, and putting it back to the head of the path on
+    // every retry is the one thing that would make the patrol memorisable. What
+    // is reset is where the runtime believes it is, so the first frame of a new
+    // attempt never judges a lock against last attempt's position.
+    resetTigerPose();
     touchBase.current = useFlightStore.getState().touches;
     lastResetToken.current = useSimStore.getState().resetToken;
   }
@@ -371,7 +416,216 @@ export function MissionDirector() {
       ? rescueZoneOf(mission, store.siteIndex)
       : dropZoneOf(mission, store.runIndex);
 
-    if (leg === 'searching' && mission.search) {
+    if (mission.tracking && (leg === 'searching' || leg === 'confirming')) {
+      // ---- The tracking mission --------------------------------------------
+      //
+      // The only leg in the app judged against something that MOVES. There is
+      // no zone: `probeZone` measures a drone against a mark, and by the time a
+      // mark could be drawn round this target it would be standing somewhere
+      // else. What replaces it is the light — the same cone `DroneSpotlight`
+      // draws, tested against the same numbers, so what the pilot sees lit and
+      // what the runtime calls lit are one thing.
+      const track = mission.tracking;
+      const p = dronePose.position;
+
+      // Height above the ANIMAL's own deck, not the clearing. On this map the
+      // gorge floor is twenty-seven metres below the pad: a cone measured from
+      // the mission's `groundY` would be a pool computed for air the tiger is
+      // nowhere near.
+      const agl = p.y - tigerPose.y;
+      const dx = p.x - tigerPose.x;
+      const dz = p.z - tigerPose.z;
+      const flat = Math.hypot(dx, dz);
+      const range = Math.hypot(flat, agl);
+
+      // The pool the light actually makes on the ground under the aircraft.
+      // `coneDeg` is the HALF angle, which is what `THREE.SpotLight.angle`
+      // means too — the two are the same number by construction.
+      const pool = Math.tan((track.coneDeg * Math.PI) / 180) * Math.max(0, agl);
+      const lowEnough = agl > 0 && agl <= track.maxTrackAgl;
+      const lit =
+        tigerPose.present && lowEnough && range <= track.lightRange && flat <= Math.max(0.5, pool);
+
+      // TOO CLOSE, and it is a 3-D distance: the whole mission is flown over
+      // the target, so a flat test would be passed by a drone hovering a metre
+      // above its back.
+      const close = tigerPose.present && range < track.minSafeDistance;
+      if (close) {
+        disturbFor.current += dt;
+        // Re-shown while the grace runs, so the failure is never a surprise —
+        // the same contract straying has.
+        if (clock.current - disturbSaidAt.current > 2.4) {
+          disturbSaidAt.current = clock.current;
+          store.showBanner(
+            {
+              kind: 'warn',
+              title: 'TOO CLOSE — BACK OFF',
+              sub: `You are disturbing the animal. Climb away within ${Math.max(
+                1,
+                Math.ceil(track.disturbGraceSec - disturbFor.current),
+              )} s`,
+            },
+            BANNER_SEC,
+          );
+          playFail();
+        }
+        if (disturbFor.current >= track.disturbGraceSec) {
+          playFail();
+          store.setCollisions(collisions);
+          store.fail('disturbed');
+          return;
+        }
+      } else {
+        disturbFor.current = 0;
+      }
+
+      // TOO HIGH TO TRACK. The same rule Mission 4's roof is, for the same
+      // reason: without it the answer to "search the forest" is "climb to the
+      // ceiling and look down", and the pilot never flies among the trees. Said
+      // once — a banner that re-fired on every climb would nag a pilot who has
+      // understood it and is transiting.
+      if (tigerPose.present && agl > track.maxTrackAgl && !warnedHigh.current) {
+        warnedHigh.current = true;
+        store.showBanner(
+          {
+            kind: 'warn',
+            title: 'TOO HIGH FOR THE LIGHT',
+            sub: 'Come down into the trees — the beam does not reach the ground from here',
+          },
+          BANNER_SEC,
+        );
+      }
+
+      if (leg === 'searching') {
+        if (lit) {
+          // FOUND — but NOT `located`. That flag restores every mark in the
+          // app, and there is no honest mark to restore here: the target walks.
+          // It is set at the end of the observation instead, where it turns the
+          // guidance back on for the flight home. See `guidanceHidden`.
+          leg = 'confirming';
+          store.setLeg(leg);
+          lockFor.current = 0;
+          unlitFor.current = 0;
+          playSuccess();
+          store.showBanner(
+            {
+              kind: 'good',
+              title: 'TIGER SIGHTED',
+              sub: `Hold the light on it for ${track.lockSeconds} seconds`,
+            },
+            BANNER_SEC,
+          );
+          say(mission, 'located');
+        }
+      } else {
+        // ---- The lock ------------------------------------------------------
+        //
+        // It DRAINS rather than resetting. A reset is right for a hover over a
+        // person who is not going anywhere — drift off the mark and you have
+        // stopped doing the task. Here the target is walking out of the pool on
+        // its own, and a bar that went to zero the instant a trunk passed
+        // between them would make the mission a lottery rather than a skill.
+        // Draining at twice the fill rate still means a pilot who loses it for
+        // half the hold finishes with nothing, so it costs — it just costs
+        // proportionally.
+        if (lit) {
+          const before = lockFor.current;
+          lockFor.current = Math.min(track.lockSeconds, lockFor.current + dt);
+          unlitFor.current = 0;
+          // ONE TICK PER SECOND SERVED, and the ring is what carries the rest.
+          //
+          // The brief asked whether the lock should be a progress bar or an
+          // audio cue; it is both, and this is the cheap half. A pilot holding
+          // a light on a walking animal at night is looking at the ANIMAL, not
+          // at the top of the HUD — the tick is what tells them it is still
+          // counting without asking them to look away. On the whole number, so
+          // five seconds is five ticks rather than a rattle.
+          if (Math.floor(lockFor.current) > Math.floor(before)) playCollect();
+        } else {
+          lockFor.current = Math.max(0, lockFor.current - dt * 2);
+          unlitFor.current += dt;
+        }
+
+        // LOST, on the edge only. Said once per loss rather than once per frame.
+        if (wasLit.current && !lit) {
+          store.showBanner(
+            { kind: 'warn', title: 'TARGET LOST', sub: 'Find it again — it is still moving' },
+            BANNER_SEC,
+          );
+        }
+
+        // Give up on the hold and go back to searching once the bar is empty
+        // AND the animal has genuinely gone. Both conditions: a bar at zero
+        // with the tiger back in the pool is a pilot who has recovered, and
+        // throwing them back to 'searching' would take the ring off screen at
+        // the moment it was about to start filling again.
+        if (lockFor.current <= 0 && unlitFor.current >= 3) {
+          leg = 'searching';
+          store.setLeg(leg);
+          unlitFor.current = 0;
+        }
+
+        if (lockFor.current >= track.lockSeconds) {
+          // OBSERVED, and on this mission that is the END of it.
+          // `located` goes true, and it still has to: it is the one gate on
+          // every piece of target guidance in the app, and leaving it false
+          // through the completion card would keep the whole HUD suppressed
+          // while the result is being read. The LEG is set once, below, to
+          // whichever of the two endings this mission has — setting 'delivered'
+          // first and 'complete' a line later would publish a leg the mission
+          // never flies and re-render the overlay for it.
+          store.setLocated();
+          store.takeZone('drop', 'OBSERVATION COMPLETE');
+          lockFor.current = 0;
+          unlitFor.current = 0;
+          playSuccess();
+          say(mission, 'delivered');
+
+          if (mission.endsAtDrop) {
+            // Straight to `complete`, exactly as the fire and the rescue do.
+            // `legOf` and `activeZone` both read `complete` as nothing live, so
+            // the station's ring never lights for a flight home that is not
+            // asked for.
+            //
+            // The drone is NOT disarmed. It is hovering over a ravine sixty
+            // metres from the pad with the score already banked, and cutting
+            // the motors here would drop it out of the sky in front of the
+            // pilot for the whole dwell — and onto the animal the mission has
+            // just finished telling them not to disturb.
+            leg = 'complete';
+            store.setLeg(leg);
+            landDwell.current = LAND_DWELL;
+            store.showBanner(
+              {
+                kind: 'good',
+                title: 'OBSERVATION COMPLETE',
+                sub: 'Sighting logged — the survey is done',
+              },
+              BANNER_SEC,
+            );
+          } else {
+            leg = 'delivered';
+            store.setLeg(leg);
+            store.showBanner(
+              {
+                kind: 'good',
+                title: 'OBSERVATION COMPLETE',
+                sub: 'Sighting logged — return to the ranger station and land',
+              },
+              BANNER_SEC,
+            );
+            queued.current = { key: 'home', at: clock.current + 1.2 };
+          }
+        }
+      }
+
+      wasLit.current = lit;
+      // Refs, not the store: the publish block writes them at the HUD's rate
+      // along with everything else.
+      trackOut.lock = lockFor.current / track.lockSeconds;
+      trackOut.lit = lit;
+      trackOut.tooClose = close;
+    } else if (leg === 'searching' && mission.search) {
       // ---- The search ------------------------------------------------------
       //
       // The only leg in the app with no destination. Nothing is lit, nothing is
@@ -585,24 +839,24 @@ export function MissionDirector() {
                 sub: 'Find the person on the rooftop inside the red zone',
               }
             : mission.fire
-            ? {
-                kind: 'good',
-                title: 'FIREFIGHTING PAYLOAD ATTACHED',
-                sub: 'Suppression tank secured under the airframe',
-              }
-            : run
               ? {
-                  // Named, because on this mission the pilot is carrying one of
-                  // three and the banner is the only place they are told WHICH.
                   kind: 'good',
-                  title: `${run.name.toUpperCase()} ATTACHED`,
-                  sub: `${run.cargo} — bound for ${run.zone.label}`,
+                  title: 'FIREFIGHTING PAYLOAD ATTACHED',
+                  sub: 'Suppression tank secured under the airframe',
                 }
-              : {
-                  kind: 'good',
-                  title: 'PAYLOAD ATTACHED',
-                  sub: 'Package secured under the airframe',
-                },
+              : run
+                ? {
+                    // Named, because on this mission the pilot is carrying one of
+                    // three and the banner is the only place they are told WHICH.
+                    kind: 'good',
+                    title: `${run.name.toUpperCase()} ATTACHED`,
+                    sub: `${run.cargo} — bound for ${run.zone.label}`,
+                  }
+                : {
+                    kind: 'good',
+                    title: 'PAYLOAD ATTACHED',
+                    sub: 'Package secured under the airframe',
+                  },
           BANNER_SEC,
         );
         say(mission, 'pickup', run?.id);
@@ -917,7 +1171,14 @@ export function MissionDirector() {
         useFlightStore.getState().disarm();
         resetStick();
         store.showBanner(
-          { kind: 'good', title: 'SAFE LANDING', sub: 'Package delivered, drone home' },
+          {
+            kind: 'good',
+            title: 'SAFE LANDING',
+            // A survey delivered nothing. The line is the last thing the pilot
+            // reads before the result card, and 'Package delivered' on a
+            // wildlife flight is the runtime describing a different mission.
+            sub: mission.tracking ? 'Sighting logged, drone home' : 'Package delivered, drone home',
+          },
           LAND_DWELL,
         );
         landDwell.current = LAND_DWELL;
@@ -977,6 +1238,30 @@ export function MissionDirector() {
       // frame and knows nothing about missions, so this is the only place that
       // can silence it.
       if (guidanceHidden(mission, store.located, leg)) {
+        // The TRACKING mission publishes the lock, and nothing else. No
+        // distance, no bearing, no signal strength — a distance to a walking
+        // animal is a tracker, and this mission's rule is that the pilot finds
+        // it by looking. What they get back is how much of the hold they have
+        // served, which is a fact about their own flying rather than about
+        // where the target is.
+        if (mission.tracking) {
+          targetMark.active = false;
+          const lock = Math.round(trackOut.lock * 20) / 20;
+          const key = `${lock}${trackOut.lit}${trackOut.tooClose}`;
+          if (key !== lastTrack.current) {
+            lastTrack.current = key;
+            store.setTrack({ lock, lit: trackOut.lit, tooClose: trackOut.tooClose });
+          }
+          store.setFlightData({
+            distance: 0,
+            altitude: p0.y - mission.groundY,
+            climb: 0,
+            bearing: 0,
+          });
+          store.setElapsed(Math.round(clock.current * 10) / 10);
+          store.setCollisions(collisions);
+          return;
+        }
         const search = mission.search;
         const site = search?.sites[Math.min(store.siteIndex, search.sites.length - 1)];
         const flat = site ? flatDist(p0, site.at) : Infinity;
