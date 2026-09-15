@@ -115,7 +115,12 @@ export function MissionScreen() {
                       {maxPointsOf(m)} points ·{' '}
                       {m.route.length > 0
                         ? `${m.route.length} checkpoints`
-                        : `${deliveryCount(m)} deliveries`}{' '}
+                        : m.tracking
+                          ? // A survey delivers nothing. '1 deliveries' on the
+                            // card of a wildlife mission is the list describing
+                            // a job the mission does not have.
+                            'no marker'
+                          : `${deliveryCount(m)} deliveries`}{' '}
                       · {Math.round(m.timeLimitSec / 60)} min
                     </>
                   )}

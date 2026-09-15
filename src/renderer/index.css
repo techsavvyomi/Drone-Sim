@@ -5717,3 +5717,129 @@ button {
   display: block;
   border-radius: 50%;
 }
+
+/* ---------------------------------------------------------------------------
+   Mission 5 — the tracking lock.
+
+   Reuses `.ms-checks` for the card itself: it is the same card, in the same
+   place, saying the same kind of thing, and a second shell would drift from the
+   first the next time the top row moves. What it adds is the ring.
+   --------------------------------------------------------------------------- */
+.ms-checks.track {
+  width: 196px;
+  align-items: center;
+}
+.ms-checks.track .ms-checks-head {
+  width: 100%;
+}
+.ms-lock-ring {
+  width: 84px;
+  height: 84px;
+  /* Rotated so the fill starts at twelve o'clock. An arc that begins at three
+     reads as a dial rather than as a countdown. */
+  transform: rotate(-90deg);
+}
+.ms-lock-track {
+  fill: none;
+  stroke: rgba(148, 163, 184, 0.22);
+  stroke-width: 5;
+}
+.ms-lock-fill {
+  fill: none;
+  stroke: var(--warn);
+  stroke-width: 5;
+  stroke-linecap: round;
+  /* No transition on the offset. The lock DRAINS at twice the rate it fills and
+     the pilot is flying against that number — an eased ring would show them
+     where the lock was a quarter of a second ago, which on a five second hold is
+     five per cent of the mission. Colour may ease; the value may not. */
+  transition: stroke 0.18s ease;
+}
+.ms-checks.track.armed .ms-lock-fill {
+  stroke: var(--good);
+}
+.ms-checks.track.blocked .ms-lock-fill {
+  stroke: var(--bad);
+}
+
+/* ---------------------------------------------------------------------------
+   Briefing — the clues and the rules.
+
+   Two panels that only a mission which declares them ever draws, styled off
+   `.ms-rubric` so the briefing card stays one design rather than four. The
+   clues are warm, because they are the thing the pilot is given; the rules are
+   red down the edge, because they are the thing that takes the flight away.
+   --------------------------------------------------------------------------- */
+.ms-clues {
+  margin: 0 0 14px;
+  padding: 12px 14px;
+  border: 1px solid rgba(255, 207, 77, 0.28);
+  border-radius: 10px;
+  background: rgba(255, 207, 77, 0.05);
+}
+.ms-clues ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.ms-clues li {
+  position: relative;
+  padding-left: 16px;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--text-dim);
+}
+/* A diamond rather than a bullet or a number. Clues are not steps, and a
+   numbered list would suggest an order to work through them in. */
+.ms-clues li::before {
+  content: '◆';
+  position: absolute;
+  left: 0;
+  top: 0;
+  font-size: 8px;
+  line-height: 1.9;
+  color: var(--warn);
+}
+.ms-rules {
+  margin: 0 0 14px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-left: 2px solid rgba(255, 92, 92, 0.6);
+  border-radius: 10px;
+  background: rgba(255, 92, 92, 0.04);
+}
+.ms-rules > b:first-child {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+.ms-rule-row {
+  display: grid;
+  grid-template-columns: 14px 1fr;
+  align-items: start;
+  gap: 9px;
+  padding: 3px 0;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--text-dim);
+  text-align: left;
+}
+.ms-rule-row > span:first-child {
+  width: 14px;
+  height: 14px;
+  margin-top: 2px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(255, 92, 92, 0.55);
+  display: grid;
+  place-items: center;
+  font-size: 9px;
+  font-weight: 900;
+  line-height: 1;
+  color: var(--bad);
+}

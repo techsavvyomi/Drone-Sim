@@ -259,6 +259,60 @@ function DeliveryChecklist({
   );
 }
 
+/**
+ * The tracking lock: the five seconds of light, drawn as a ring that fills.
+ *
+ * Its own card rather than the delivery checklist with different words, and the
+ * difference is not cosmetic. That card lists three conditions the pilot can
+ * fix — centred, height, steady — because the thing being held over is not
+ * going anywhere. Here there is ONE condition, the light is on the animal or it
+ * is not, and it is the animal that decides half of it. Three rows, two of them
+ * permanently ticked, would be a card lying about how much control the pilot
+ * has.
+ *
+ * The ring rather than the bar, and this is the question that was asked when the
+ * mission was specified: a bar or an audio cue. A five second hold with no
+ * feedback is a pilot guessing whether they are doing it at all, so there has to
+ * be something; and it is a ring because it sits in the top centre where the
+ * eye already is, reads as a fraction at a glance without being measured against
+ * its own ends, and — unlike a bar — is unmistakable while DRAINING, which is
+ * the state this mission spends most of its time in.
+ */
+function TrackingLock({ seconds }: { seconds: number }) {
+  const lock = useMissionStore((s) => s.lock);
+  const lit = useMissionStore((s) => s.lit);
+  const tooClose = useMissionStore((s) => s.tooClose);
+  /** Circumference of the r=26 ring below, so the dash offset is a fraction. */
+  const C = 2 * Math.PI * 26;
+  const left = Math.max(0, seconds - lock * seconds);
+  return (
+    <div className={`ms-checks track ${tooClose ? 'blocked' : lit ? 'armed' : ''}`}>
+      <span className="ms-checks-head">
+        {tooClose ? 'TOO CLOSE' : lit ? 'TRACKING' : 'LIGHT LOST'}
+        <em>{left.toFixed(1)}s</em>
+      </span>
+      <svg className="ms-lock-ring" viewBox="0 0 60 60" aria-hidden="true">
+        <circle cx="30" cy="30" r="26" className="ms-lock-track" />
+        <circle
+          cx="30"
+          cy="30"
+          r="26"
+          className="ms-lock-fill"
+          strokeDasharray={C}
+          strokeDashoffset={C * (1 - lock)}
+        />
+      </svg>
+      <span className="ms-checks-note">
+        {tooClose
+          ? 'Back off — you are disturbing the animal'
+          : lit
+            ? 'Hold it. Stay above it and keep your distance'
+            : 'Out of the light. Find it again — the lock drains, it does not reset'}
+      </span>
+    </div>
+  );
+}
+
 /** A star row that lights one star at a time, with a chime for each. */
 function StarReveal({ value }: { value: number }) {
   const [shown, setShown] = useState(0);
@@ -315,6 +369,9 @@ export function MissionHud() {
   const fireIntensity = useMissionStore((s) => s.fireIntensity);
   const located = useMissionStore((s) => s.located);
   const signal = useMissionStore((s) => s.signal);
+  const lock = useMissionStore((s) => s.lock);
+  const lit = useMissionStore((s) => s.lit);
+  const tooClose = useMissionStore((s) => s.tooClose);
   const beginFlight = useMissionStore((s) => s.beginFlight);
   const start = useMissionStore((s) => s.start);
   const restart = useMissionStore((s) => s.restart);
@@ -377,6 +434,9 @@ export function MissionHud() {
 
   const flying = phase === 'flying';
   const fire = !!mission.fire;
+  /** The tracking mission, for the handful of lines whose wording would
+   *  otherwise call a wildlife survey a delivery. */
+  const track = !!mission.tracking;
   /** Every piece of target guidance is off while this is true — see the store.
    *  One answer, read by the strip here and by the map and the pointer. */
   const hidden = guidanceHidden(mission, located, leg);
@@ -475,7 +535,9 @@ export function MissionHud() {
                   this card a pilot who reads nothing else should still take in. */}
               <aside className="ms-story">
                 <span className="ms-story-icon" aria-hidden="true">
-                  {fire ? '🔥' : '✚'}
+                  {/* One glyph per kind of job. A red cross over a wildlife
+                      survey said the wrong thing about what the flight is for. */}
+                  {fire ? '🔥' : mission.tracking ? '🐅' : '✚'}
                 </span>
                 <div>
                   <b>The story</b>
@@ -517,6 +579,29 @@ export function MissionHud() {
 
                 <div className="ms-brief-cols">
                   <section className="ms-objectives">
+                    {/* THE CLUES, above the objectives and only on a mission
+                        that has any.
+
+                        Above, because on a mission with no marker they are the
+                        first thing the pilot needs and the objectives are the
+                        second: "find the tiger" means nothing until you know
+                        where to start looking. Their own card rather than a
+                        paragraph inside the story, because that is where the
+                        first four missions put their prose and nobody read it.
+
+                        Four short lines with a marker each, not a numbered
+                        list: clues are not steps and numbering them would
+                        suggest an order to work through. */}
+                    {mission.clues && mission.clues.length > 0 && (
+                      <div className="ms-clues">
+                        <b className="ms-panel-head">Search clues</b>
+                        <ul>
+                          {mission.clues.map((line) => (
+                            <li key={line}>{line}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
                     <b className="ms-panel-head">Mission objectives</b>
                     <ol>
                       {mission.objectives.map((line, i) => (
@@ -529,6 +614,23 @@ export function MissionHud() {
                   </section>
 
                   <aside className="ms-brief-side">
+                    {/* THE RULES, above the rubric.
+
+                        Above it for the same reason the clues are above the
+                        objectives: what ENDS the attempt outranks what it
+                        scores. A pilot who reads one panel on this side of the
+                        card should read this one. */}
+                    {mission.rules && mission.rules.length > 0 && (
+                      <div className="ms-rules">
+                        <b>Mission rules</b>
+                        {mission.rules.map((line) => (
+                          <div key={line} className="ms-rule-row">
+                            <span aria-hidden="true">!</span>
+                            <span>{line}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                     <div className="ms-rubric">
                       <b>Star rating</b>
                       {mission.ranks.map((r) => (
@@ -610,8 +712,14 @@ export function MissionHud() {
 
       {flying && leg === 'toDrop' && <DeliveryChecklist fire={fire} />}
 
-      {/* The five second hover that confirms the rescue location. */}
-      {flying && leg === 'confirming' && (
+      {/* The five second hover that confirms the rescue location — and, on the
+          tracking mission, the five seconds of light that replace it. The same
+          leg, because it is the same beat of the same state machine; two cards,
+          because what the pilot can do about it is not the same thing. */}
+      {flying && leg === 'confirming' && mission.tracking && (
+        <TrackingLock seconds={mission.tracking.lockSeconds} />
+      )}
+      {flying && leg === 'confirming' && !mission.tracking && (
         <DeliveryChecklist fire={false} rescue />
       )}
 
@@ -650,10 +758,13 @@ export function MissionHud() {
             <b>{objectiveFor(leg, mission.kind, run)}</b>
           </div>
           {/* PAYLOAD. Every mission carries something, the search included — its
-              food box. */}
-          <div className={`ms-cell payload ${payload}`}>
-            <span>PAYLOAD</span>
-            {/* One word each, with the state's colour carried by the dot the
+              food box. Except the survey, which carries nothing: a cell reading
+              'WAITING' for the whole flight is a cell the pilot learns to
+              ignore, and this one would never change. */}
+          {!track && (
+            <div className={`ms-cell payload ${payload}`}>
+              <span>PAYLOAD</span>
+              {/* One word each, with the state's colour carried by the dot the
                 stylesheet puts in front of them. The emoji and the tick that
                 used to sit here were doing the same job as that dot, in two
                 more glyphs and at whatever size the platform's font felt like.
@@ -662,16 +773,17 @@ export function MissionHud() {
                 nothing was delivered, it was used up, and the pilot flying home
                 needs to know they have nothing left rather than that they
                 succeeded — the banner already said that. */}
-            <b>
-              {payload === 'waiting' ? 'Empty' : null}
-              {/* Named while it is on board, on a mission that carries three of
+              <b>
+                {payload === 'waiting' ? 'Empty' : null}
+                {/* Named while it is on board, on a mission that carries three of
                   them. 'On board' answers "am I holding something"; only the
                   name answers "which one", and on this mission that is the
                   question the pilot is actually asking. */}
-              {payload === 'attached' ? (fire ? 'Ready' : (run?.name ?? 'On board')) : null}
-              {payload === 'delivered' ? (fire ? 'Empty' : 'Delivered') : null}
-            </b>
-          </div>
+                {payload === 'attached' ? (fire ? 'Ready' : (run?.name ?? 'On board')) : null}
+                {payload === 'delivered' ? (fire ? 'Empty' : 'Delivered') : null}
+              </b>
+            </div>
+          )}
           {/* How far through the job. Beside the payload rather than instead of
               the points, because it is the number this mission is about: a pilot
               two deliveries in wants to know there is one left, and the score
@@ -709,7 +821,21 @@ export function MissionHud() {
               Below the detect radius the cell says nothing at all: a signal
               reading 0% across the whole map is a detector that works at any
               range, because it can be flown against as a grid. */}
-          {hidden ? (
+          {hidden && mission.tracking ? (
+            /* The TRACKING mission's cell is the lock, and only the lock.
+
+               Not a distance and not a signal: a bearing to an animal is a
+               tracker, and this mission's rule is that the pilot finds it by
+               looking. What the cell reports is how much of the hold they have
+               served, which is a fact about their own flying rather than about
+               where the target is. It goes warm the moment the light is ON
+               something, which is the one piece of confirmation the pilot gets
+               that the shape in the beam is the shape the runtime can see. */
+            <div className={`ms-cell ${tooClose ? 'warn' : lit ? 'good' : ''}`}>
+              <span>{tooClose ? 'TOO CLOSE' : 'LOCK'}</span>
+              <b>{lit || lock > 0 ? `${Math.round(lock * 100)}%` : '— — —'}</b>
+            </div>
+          ) : hidden ? (
             <div className={`ms-cell ${signal > 0 ? 'warn' : ''}`}>
               <span>SIGNAL</span>
               <b>{signal > 0 ? `${Math.round(signal * 100)}%` : '— — —'}</b>
@@ -754,10 +880,21 @@ export function MissionHud() {
                         ['Person found', '✓', true],
                         ['Food box delivered', '✓', true],
                       ] as const)
-                    : ([
-                        [fire ? 'Payload collected' : 'Payload picked up', '✓', true],
-                        [fire ? 'Fire suppressed' : 'Payload delivered', '✓', true],
-                      ] as const)),
+                    : mission.kind === 'tracking'
+                      ? // A survey reports the two things it is judged on, and
+                        // 'not disturbed' is one of them: the pilot passed a
+                        // test whose whole content is something they did NOT do,
+                        // and a card that only ticked the sighting would never
+                        // say so.
+                        ([
+                          ['Tiger located', '✓', true],
+                          ['Observation complete', '✓', true],
+                          ['Animal not disturbed', '✓', true],
+                        ] as const)
+                      : ([
+                          [fire ? 'Payload collected' : 'Payload picked up', '✓', true],
+                          [fire ? 'Fire suppressed' : 'Payload delivered', '✓', true],
+                        ] as const)),
                 // A mission that ends at the drop has no homeward leg to report.
                 // Rows that always read '✓' are noise; rows for a leg that was
                 // never flown are worse than noise.
@@ -838,26 +975,37 @@ export function MissionHud() {
                   ? 'Left the mission area'
                   : failReason === 'payload'
                     ? 'Payload lost'
-                    : 'Drone destroyed'}
+                    : failReason === 'disturbed'
+                      ? 'Animal disturbed'
+                      : 'Drone destroyed'}
             </h2>
             <p className="ms-fail-line">
-              {failReason === 'payload'
-                ? 'The drone dropped into the flames and the tank went with it. Hold the hover above the fire: the height band on the checklist is where the spray reaches from.'
-                : failReason === 'strayed'
-                  ? fire
-                    ? 'The drone flew out of the response area and did not come back. The arrow on the strip points at the fire the whole way.'
-                    : 'The drone flew out of the delivery area and did not come back. The arrow on the strip points at your next target.'
-                  : failReason === 'timeout'
+              {/* The tracking mission's own ending, and it is a FAILURE rather
+                  than a deduction on purpose: a wildlife survey that drives the
+                  animal off has not been flown badly, it has not been flown. */}
+              {failReason === 'disturbed'
+                ? 'You flew too close and the tiger broke off into the trees. The survey is over. Track it from further back — the light reaches the ground from well outside nine metres.'
+                : failReason === 'payload'
+                  ? 'The drone dropped into the flames and the tank went with it. Hold the hover above the fire: the height band on the checklist is where the spray reaches from.'
+                  : failReason === 'strayed'
                     ? fire
-                      ? 'The fire got away from you. Take the marked line east next time.'
-                      : 'The delivery window closed. Take a straighter line through the city.'
-                    : payload === 'attached'
+                      ? 'The drone flew out of the response area and did not come back. The arrow on the strip points at the fire the whole way.'
+                      : track
+                        ? 'The drone flew out of the survey area and did not come back. The tiger is inside it — the clues say where.'
+                        : 'The drone flew out of the delivery area and did not come back. The arrow on the strip points at your next target.'
+                    : failReason === 'timeout'
                       ? fire
-                        ? 'The aircraft is wrecked and the suppression tank went down with it.'
-                        : 'The aircraft is wrecked and the package went down with it.'
-                      : fire
-                        ? 'The aircraft is wrecked. A tree is solid all the way up to its own treetop.'
-                        : 'The aircraft is wrecked. Watch the street furniture on the approach.'}
+                        ? 'The fire got away from you. Take the marked line east next time.'
+                        : track
+                          ? 'The survey window closed without a sighting. Read the clues before you launch and fly straight to the line the tiger is walking.'
+                          : 'The delivery window closed. Take a straighter line through the city.'
+                      : payload === 'attached'
+                        ? fire
+                          ? 'The aircraft is wrecked and the suppression tank went down with it.'
+                          : 'The aircraft is wrecked and the package went down with it.'
+                        : fire || track
+                          ? 'The aircraft is wrecked. A tree is solid all the way up to its own treetop.'
+                          : 'The aircraft is wrecked. Watch the street furniture on the approach.'}
             </p>
             <div className="ms-sheet">
               <div className="ms-sheet-row">
