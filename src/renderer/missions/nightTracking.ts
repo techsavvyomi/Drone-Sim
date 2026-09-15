@@ -113,7 +113,8 @@ export const nightTracking: Mission = {
    */
   rules: [
     'No marker, no waypoint and no route will be drawn to the tiger.',
-    'Stay more than 9 m away. Closer and the animal is disturbed and the survey fails.',
+    'The beam only counts from more than 9 m away. Search from 10 to 30 m above the ground.',
+    'Once you have sighted the tiger, staying inside 9 m disturbs it and the survey fails.',
     'The spotlight only reaches the ground from under 30 m. Above that it finds nothing.',
     'If the tiger leaves the light the lock drains. Find it again and it fills from where it stopped.',
     'The survey ends at the sighting. There is no flight home to fly and no landing to score.',
@@ -134,7 +135,7 @@ export const nightTracking: Mission = {
   objectives: [
     'Fly out from the ranger station and search the forest with your spotlight.',
     'Find the tiger by eye. Nothing on the HUD will point at it.',
-    'Hold the light on it for five seconds without going inside 9 m.',
+    'Hold the light on it for five seconds while staying more than 9 m away.',
     'The survey is complete the moment the sighting is confirmed.',
   ],
   mapNote: 'The forest at night. No marker, no route',

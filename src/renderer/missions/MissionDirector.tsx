@@ -227,6 +227,13 @@ export function MissionDirector() {
    *  warning was shown. Both reset the moment the drone backs off. */
   const disturbFor = useRef(0);
   const disturbSaidAt = useRef(-99);
+  /** Whether the tiger has been SIGHTED at all this attempt.
+   *
+   *  What arms the safe-distance rule. It is deliberately not `store.located`,
+   *  which on this mission is not set until the whole observation is finished —
+   *  the rule has to be live for the five seconds in between, which is exactly
+   *  when the pilot is closest to the animal. */
+  const sighted = useRef(false);
   /** Last tracking numbers published, so an unchanged set is not written. */
   const lastTrack = useRef('');
 
@@ -255,6 +262,7 @@ export function MissionDirector() {
     unlitFor.current = 0;
     disturbFor.current = 0;
     disturbSaidAt.current = -99;
+    sighted.current = false;
     lastTrack.current = '';
     // The animal's own walk clock is NOT reset — it has been out there since
     // before the drone armed, and putting it back to the head of the path on
@@ -443,13 +451,60 @@ export function MissionDirector() {
       // means too — the two are the same number by construction.
       const pool = Math.tan((track.coneDeg * Math.PI) / 180) * Math.max(0, agl);
       const lowEnough = agl > 0 && agl <= track.maxTrackAgl;
-      const lit =
-        tigerPose.present && lowEnough && range <= track.lightRange && flat <= Math.max(0.5, pool);
-
       // TOO CLOSE, and it is a 3-D distance: the whole mission is flown over
       // the target, so a flat test would be passed by a drone hovering a metre
       // above its back.
-      const close = tigerPose.present && range < track.minSafeDistance;
+      const inside = tigerPose.present && range < track.minSafeDistance;
+
+      // THE LIGHT DOES NOT COUNT FROM INSIDE THE SAFE DISTANCE.
+      //
+      // Without this the two rules contradict each other. Straight above the
+      // animal `range` IS the altitude, so at 5 m up the cone is 2.4 m wide and
+      // a drone passing over is both LIT and inside nine metres — the lock
+      // starts filling on the same frame the attempt starts dying. Making the
+      // light refuse below the safe distance turns one of those into the
+      // instruction for the other: the ring will not fill until you climb.
+      const lit =
+        tigerPose.present &&
+        lowEnough &&
+        !inside &&
+        range <= track.lightRange &&
+        flat <= Math.max(0.5, pool);
+      if (lit) sighted.current = true;
+
+      /*
+       * AND THE DISTANCE RULE ONLY BITES ONCE THE ANIMAL HAS BEEN SIGHTED.
+       *
+       * This was the first thing flying the mission found, and it was fatal: the
+       * ridge-road patrol walks along the dirt road the pilot naturally follows
+       * out of the clearing, at night, with nothing on screen saying it is
+       * there. A pilot searching at a sensible 5 or 6 metres flew over it,
+       * entered the nine metre sphere without ever seeing it, and lost the
+       * attempt at thirty-four seconds having done nothing wrong.
+       *
+       * You cannot be judged on your distance to something the mission has not
+       * yet told you exists. Before the sighting a close pass is a MISTAKE TO
+       * BE TOLD ABOUT — see the banner below, which says to climb — and the
+       * light refusing to count is what makes flying low pointless rather than
+       * fatal. After the sighting the pilot knows exactly where the animal is
+       * and the rule is fair, which is the moment it arms.
+       */
+      const close = inside && sighted.current;
+
+      // The close pass a pilot could not have known about. Said, not punished,
+      // and worded as the fix rather than as the offence.
+      if (inside && !sighted.current && clock.current - disturbSaidAt.current > 3.5) {
+        disturbSaidAt.current = clock.current;
+        store.showBanner(
+          {
+            kind: 'warn',
+            title: 'TOO LOW TO OBSERVE',
+            sub: `Climb above ${track.minSafeDistance} m — the beam does not count from this close`,
+          },
+          BANNER_SEC,
+        );
+      }
+
       if (close) {
         disturbFor.current += dt;
         // Re-shown while the grace runs, so the failure is never a surprise —

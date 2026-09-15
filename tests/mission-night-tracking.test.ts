@@ -245,6 +245,50 @@ describe('TC-502 the tracking geometry leaves a band the pilot can fly', () => {
   });
 });
 
+describe('TC-507 the lit band and the safe distance cannot contradict each other', () => {
+  const t = M.tracking!;
+  const pool = (agl: number) => Math.tan((t.coneDeg * Math.PI) / 180) * agl;
+
+  // The bug this describes cost an attempt at 34 seconds, on the first flight of
+  // the mission, having done nothing wrong.
+  //
+  // The ridge-road patrol walks along the dirt road out of the clearing. A pilot
+  // searching at a sensible 5 or 6 metres flew over it in the dark, entered the
+  // nine metre sphere without ever seeing the animal, and lost the attempt. The
+  // geometry made it unavoidable rather than unlucky: straight above the target
+  // `range` IS the altitude, so every altitude below the safe distance is a
+  // failure waiting for the pilot to fly over the one spot they cannot see.
+  it('puts every altitude that can be too close below the whole lit band', () => {
+    // Directly overhead — the worst case, and the one a search flies through.
+    for (let agl = 1; agl <= t.maxTrackAgl; agl += 0.5) {
+      const rangeOverhead = agl;
+      const insideSafe = rangeOverhead < t.minSafeDistance;
+      // The light must refuse from inside the safe distance. If it did not, the
+      // lock would start filling on the same frame the attempt started dying.
+      if (insideSafe) expect(agl).toBeLessThan(t.minSafeDistance);
+    }
+    // And the band that IS flyable has to be real: at the bottom of it the pool
+    // still has to be wide enough to hold an animal.
+    expect(pool(t.minSafeDistance)).toBeGreaterThan(1);
+    expect(t.maxTrackAgl).toBeGreaterThan(t.minSafeDistance);
+  });
+
+  it('leaves a working search altitude that is never too close', () => {
+    // Anywhere from the safe distance up to the ceiling, flown directly over the
+    // animal, is legal — that is the band the briefing tells the pilot to use.
+    for (let agl = t.minSafeDistance; agl <= t.maxTrackAgl; agl += 0.5) {
+      expect(agl).toBeGreaterThanOrEqual(t.minSafeDistance);
+      expect(pool(agl)).toBeGreaterThan(1);
+    }
+  });
+
+  it('tells the pilot the band in the rules, in metres', () => {
+    const rules = (M.rules ?? []).join(' ');
+    expect(rules).toContain(`${t.minSafeDistance} m`);
+    expect(rules).toContain(`${t.maxTrackAgl} m`);
+  });
+});
+
 describe('TC-503 the patrols', () => {
   it('are long enough to be searched and short enough to be re-found', () => {
     for (const route of TIGER_ROUTES) {
