@@ -4,6 +4,7 @@ import { searchRescue } from '../src/renderer/missions/searchRescue';
 import { precisionDelivery } from '../src/renderer/missions/precisionDelivery';
 import { forestFire } from '../src/renderer/missions/forestFire';
 import { multiPointDelivery } from '../src/renderer/missions/multiPointDelivery';
+import { nightTracking } from '../src/renderer/missions/nightTracking';
 import { MISSIONS } from '../src/renderer/missions';
 import { SEARCH_SITES, pickSearchSite } from '../src/renderer/missions/searchRescueSites';
 import { zoneFor } from '../src/renderer/missions/searchZone';
@@ -82,11 +83,15 @@ describe('the shape of the mission', () => {
 
   it('TC-400 is the fourth mission and unlocks behind the third', () => {
     expect(M.order).toBe(4);
+    // The list is asserted in FULL rather than by index, so a mission inserted
+    // in the wrong place — which is how the unlock chain breaks — fails here.
+    // Mission 5 sits behind it.
     expect(MISSIONS.map((m) => m.id)).toEqual([
       precisionDelivery.id,
       forestFire.id,
       multiPointDelivery.id,
       searchRescue.id,
+      nightTracking.id,
     ]);
   });
 

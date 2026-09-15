@@ -2,6 +2,7 @@ import { precisionDelivery } from './precisionDelivery';
 import { forestFire } from './forestFire';
 import { multiPointDelivery } from './multiPointDelivery';
 import { searchRescue } from './searchRescue';
+import { nightTracking } from './nightTracking';
 import type { Mission } from './types';
 
 // The mission list.
@@ -21,10 +22,11 @@ export const MISSIONS: readonly Mission[] = [
   forestFire,
   multiPointDelivery,
   searchRescue,
+  nightTracking,
 ].sort((a, b) => a.order - b.order);
 
 export function getMission(id: string): Mission | undefined {
   return MISSIONS.find((m) => m.id === id);
 }
 
-export { precisionDelivery, forestFire, multiPointDelivery, searchRescue };
+export { precisionDelivery, forestFire, multiPointDelivery, searchRescue, nightTracking };

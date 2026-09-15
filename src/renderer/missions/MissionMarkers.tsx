@@ -483,9 +483,17 @@ export function MissionMarkers({ mission }: { mission: Mission }) {
           mission is built on deserves the belt as well as the braces. Before the
           casualty is found, none of the three is lit and the two decoys are
           indistinguishable from the real one. */}
-      {(
-        mission.deliveries ??
-        mission.search?.sites ?? [{ id: 'drop', zone: mission.zones.drop }]
+      {/* A TRACKING mission draws none of this, and the empty list is how it
+          says so. Its `zones.drop` exists because the type requires three
+          zones, and it is never flown to: the thing in the middle of that
+          mission walks, so a pad and a ring drawn where it was standing when
+          the scene mounted would be furniture in a forest pointing at nothing.
+          The list is emptied rather than each mark being gated, so a fifth kind
+          of mark added below inherits the rule. */}
+      {(mission.tracking
+        ? []
+        : (mission.deliveries ??
+          mission.search?.sites ?? [{ id: 'drop', zone: mission.zones.drop }])
       ).map((d, i) => (
         <group key={d.id}>
           {/* Drawn whether or not this destination is the live one: it is a
@@ -496,19 +504,19 @@ export function MissionMarkers({ mission }: { mission: Mission }) {
               thing that says where to hover — a ring round them turned finding
               someone back into flying to a marker. */}
           {!mission.search && (
-          <ZoneMark
-            zone={d.zone}
-            groundY={zoneGroundY(mission, d.zone)}
-            live={
-              flying &&
-              zoneKind === 'drop' &&
-              i === (mission.search ? siteIndex : runIndex) &&
-              (!mission.hideGuidanceUntilFound || located)
-            }
-            ready={i === (mission.search ? siteIndex : runIndex) ? ready : undefined}
-            column={!mission.fire}
-            xray={mission.seeThroughMarks === true}
-          />
+            <ZoneMark
+              zone={d.zone}
+              groundY={zoneGroundY(mission, d.zone)}
+              live={
+                flying &&
+                zoneKind === 'drop' &&
+                i === (mission.search ? siteIndex : runIndex) &&
+                (!mission.hideGuidanceUntilFound || located)
+              }
+              ready={i === (mission.search ? siteIndex : runIndex) ? ready : undefined}
+              column={!mission.fire}
+              xray={mission.seeThroughMarks === true}
+            />
           )}
         </group>
       ))}

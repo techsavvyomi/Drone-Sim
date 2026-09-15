@@ -22,6 +22,8 @@ import { TargetPointer } from './TargetPointer';
 import { FireZone } from './FireZone';
 import { Spray } from './Spray';
 import { Payload } from './Payload';
+import { Tiger } from './Tiger';
+import { DroneSpotlight } from './DroneSpotlight';
 import type { Mission } from './types';
 
 // The mission flight view: the same 3D scene as free flight, pinned to the
@@ -34,8 +36,12 @@ import type { Mission } from './types';
 // second simulator.
 /** Every mission is flown on the Guru, whatever is selected elsewhere. */
 const MISSION_DRONE = 'pluto-guru';
-/** And in the evening: the city at the blue half hour, which is the light this
- *  mission was built to look like. */
+/** And in the evening: the city at the blue half hour, which is the light the
+ *  first four missions were built to look like.
+ *
+ *  A mission may override it — see `Mission.hour`. Only Mission 5 does, and it
+ *  has to: the dark IS that mission, and at the blue half hour its spotlight is
+ *  decoration. */
 const MISSION_HOUR = 'evening' as const;
 /** How much of the stick a mission gives the pilot.
  *
@@ -66,7 +72,8 @@ export function MissionViewport({ mission }: { mission: Mission }) {
 
     const world = useWorldStore.getState();
     const hour = world.timeOfDay;
-    if (hour !== MISSION_HOUR) world.setTimeOfDay(MISSION_HOUR);
+    const want = mission.hour ?? MISSION_HOUR;
+    if (hour !== want) world.setTimeOfDay(want);
 
     // Missions fly a gentler stick. Only here: put it back on the way out.
     //
@@ -81,11 +88,11 @@ export function MissionViewport({ mission }: { mission: Mission }) {
       if (chosen !== MISSION_DRONE) {
         useSettingsStore.getState().set('selectedDroneId', chosen);
       }
-      if (hour !== MISSION_HOUR) useWorldStore.getState().setTimeOfDay(hour);
+      if (hour !== want) useWorldStore.getState().setTimeOfDay(hour);
     };
     // The mission is torn down and rebuilt when it changes, so this only has to
-    // re-run if the number itself does.
-  }, [mission.throttleScale]);
+    // re-run if the numbers themselves do.
+  }, [mission.throttleScale, mission.hour]);
 
   const graphics = useSettingsStore((s) => s.settings.graphics);
   const q = qualityFor(graphics);
@@ -131,9 +138,17 @@ export function MissionViewport({ mission }: { mission: Mission }) {
               pilot arrived would be a fire nobody could see on the way. */}
           {mission.fire && <FireZone mission={mission} />}
           {mission.fire && <Spray />}
-          {/* Every mission carries something now — the search carries a food box
-              to the person on the roof. */}
-          <Payload mission={mission} />
+          {/* The tiger, and the light that finds it. Inside the Canvas, outside
+              <Physics>: the animal is not solid. A drone that could bump into it
+              would turn "do not disturb the wildlife" into a collision test, and
+              the mission already has a distance rule that says it better. */}
+          {mission.tracking && <Tiger mission={mission} />}
+          {mission.tracking && <DroneSpotlight mission={mission} />}
+          {/* Every mission carries something — except the tracking one, which
+              carries nothing at all: there is no box to fetch and nothing to put
+              down, and a payload mounted for it would hang a food box under a
+              drone out watching wildlife. */}
+          {!mission.tracking && <Payload mission={mission} />}
           <MissionDirector />
           {/* Projects the Director's target into screen space every frame, for
               the chevron the HUD draws over it. Inside the Canvas because that
