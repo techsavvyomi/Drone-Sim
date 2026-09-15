@@ -80,8 +80,14 @@ export type PayloadState = 'waiting' | 'attached' | 'delivered';
  * `strayed` is the brief's optional fourth: the pilot left the mission area and
  * did not come back inside the grace period. Only a mission that declares a
  * `strayRadius` can reach it.
+ *
+ * `disturbed` belongs to the tracking mission alone: the pilot flew inside the
+ * animal's safe distance and stayed there past the grace period. It is a
+ * failure rather than a penalty because the mission's one rule is "observe
+ * without disturbing" — a wildlife survey that ends with the animal driven off
+ * has not been completed badly, it has failed.
  */
-export type FailReason = 'crash' | 'timeout' | 'strayed' | 'payload';
+export type FailReason = 'crash' | 'timeout' | 'strayed' | 'payload' | 'disturbed';
 
 /** A transient line across the middle of the view. */
 export interface Banner {
@@ -163,6 +169,30 @@ interface MissionState {
    */
   signal: number;
   /**
+   * Which of a tracking mission's patrols the tiger is walking, 0-based.
+   *
+   * Drawn when the attempt arms and never touched again — the same device
+   * `siteIndex` is, and for the same reason. Always 0 on every other mission,
+   * where nothing reads it.
+   */
+  routeIndex: number;
+  /**
+   * How much of the tracking lock has been served, 0 to 1. Tracking only.
+   *
+   * Published rather than left in the Director because the HUD draws it as a
+   * filling ring and the pilot is flying against it — it is the one number on
+   * this mission that answers "am I doing this right", which on every other
+   * mission the lit mark answers by being lit.
+   */
+  lock: number;
+  /** Whether the animal is inside the spotlight THIS frame. What makes the ring
+   *  fill rather than drain, and what the HUD's cue reads. */
+  lit: boolean;
+  /** Whether the drone is inside the animal's safe distance right now. Drives
+   *  the warning, and the grace timer that ends the attempt behind it. */
+  tooClose: boolean;
+
+  /**
    * Whether the casualty has been FOUND.
    *
    * The single gate on every piece of target guidance in the app. False for the
@@ -243,6 +273,8 @@ interface MissionState {
   setLeg: (leg: MissionLeg) => void;
   /** Signal strength, published by the Director at the HUD's rate. */
   setSignal: (signal: number) => void;
+  /** The tracking lock, published by the Director at the HUD's rate. */
+  setTrack: (t: { lock: number; lit: boolean; tooClose: boolean }) => void;
   /** The casualty is found. One way only — nothing puts it back but a restart. */
   setLocated: () => void;
   setPayload: (payload: PayloadState) => void;
@@ -283,11 +315,21 @@ function freshAttempt(mission: Mission | null) {
   return {
     // Every mission opens on the run to the pickup — the search too, which now
     // collects a food box before it goes looking for the person it is for.
-    leg: 'toPickup' as MissionLeg,
+    //
+    // The TRACKING mission is the one that does not. It carries nothing: there
+    // is no box to fetch and no shop to fetch it from, so a `toPickup` leg
+    // would open the attempt by sending the pilot to a zone the mission does
+    // not use. It starts where its job starts, which is looking.
+    leg: (mission?.tracking ? 'searching' : 'toPickup') as MissionLeg,
     // WHICH SITE, decided here and only here. It is re-rolled on every attempt
     // — including a restart — so a pilot who failed at site B is not handed
     // site B again to fly from memory.
     ...pickSearch(mission),
+    // And WHICH PATROL, on the same terms and for the same reason.
+    routeIndex: pickRouteIndex(mission),
+    lock: 0,
+    lit: false,
+    tooClose: false,
     signal: 0,
     located: false,
     payload: 'waiting' as PayloadState,
@@ -372,6 +414,32 @@ function pickSearch(mission: Mission | null): { siteIndex: number; searchZone: S
   };
 }
 
+/** Which patrol the last attempt drew. Module scope, for the reason
+ *  `lastSiteIndex` is. */
+let lastRouteIndex = -1;
+
+/**
+ * One of the mission's tiger patrols at random, never the one just flown.
+ *
+ * With two routes that makes the draw an alternation, which is weaker than the
+ * search's three-from-four — but the alternative is worse. Plain random over
+ * two hands the pilot the patrol they have just finished searching half the
+ * time, and a tracking mission flown twice in the same ravine is a mission with
+ * no search left in it. A pilot who works out that it alternates has learned
+ * something true about the mission rather than memorised where the animal is,
+ * and they still have to find it once they get there — it walks.
+ */
+function pickRouteIndex(mission: Mission | null): number {
+  const n = mission?.tracking?.routes.length ?? 0;
+  if (n <= 0) return 0;
+  if (n === 1) return 0;
+  const choices = [];
+  for (let i = 0; i < n; i++) if (i !== lastRouteIndex) choices.push(i);
+  const next = choices[Math.floor(Math.random() * choices.length)] ?? 0;
+  lastRouteIndex = next;
+  return next;
+}
+
 let seq = 0;
 const nextId = () => ++seq;
 
@@ -392,6 +460,7 @@ export const useMissionStore = create<MissionState>((set, get) => ({
 
   setLeg: (leg) => set({ leg }),
   setSignal: (signal) => set({ signal }),
+  setTrack: (t) => set(t),
   setLocated: () => set({ located: true }),
   setPayload: (payload) => set({ payload }),
 
@@ -566,6 +635,14 @@ export function guidanceHidden(
   // The run to the PICKUP is ordinary flying: the food box is on a marked pad
   // and the pilot is guided to it like any other collection. Only the search
   // that follows is silent.
+  //
+  // On a TRACKING mission `located` is not set until the observation is
+  // COMPLETE, where the search sets it the moment the casualty is confirmed.
+  // The difference is that the casualty stays where they are and the tiger does
+  // not: a mark restored at the start of the lock would be a ring drawn round
+  // where the animal was standing a second ago, which is worse guidance than
+  // none. So the whole of the tracking leg stays dark and the base marks come
+  // back with `located` at the end of it.
   return mission?.hideGuidanceUntilFound === true && !located && leg !== 'toPickup';
 }
 
@@ -583,10 +660,13 @@ export function objectiveFor(
   run: RunContext | null = null,
 ): string {
   const fire = kind === 'suppression';
+  const track = kind === 'tracking';
   switch (leg) {
     case 'searching':
+      if (track) return 'Sweep the forest with your spotlight and find the tiger.';
       return 'Search the red zone for the person on the rooftop.';
     case 'confirming':
+      if (track) return 'Keep the spotlight on the tiger and stay back.';
       return 'Hold a steady hover over them to drop the food box.';
     case 'toPickup':
       if (kind === 'search') return 'Collect the food box from Lotus Kitchen.';
@@ -609,6 +689,7 @@ export function objectiveFor(
       if (run) return `Centre over ${run.to} and descend.`;
       return fire ? 'Hold your position over the fire.' : 'Centre over the drop mark and descend.';
     case 'delivered':
+      if (track) return 'Observation complete. Return to the ranger station.';
       return 'Return to base.';
     case 'returning':
       return 'Land the drone safely.';

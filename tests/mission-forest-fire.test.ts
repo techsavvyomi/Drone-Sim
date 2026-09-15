@@ -306,7 +306,17 @@ describe('what the briefing card needs from a mission', () => {
       expect(m.mapNote).not.toBe('');
       // Every beat names a scene the card knows how to draw. A key it does not
       // know renders an empty box.
-      const drawable = ['collect', 'city', 'forest', 'deliver', 'suppress', 'land'];
+      const drawable = [
+        'collect',
+        'city',
+        'forest',
+        'deliver',
+        'suppress',
+        'land',
+        // Mission 5's two: the empty beam over the wood, and the animal in it.
+        'sweep',
+        'track',
+      ];
       for (const step of m.flow) expect(drawable).toContain(step.art);
       // And every objective is a sentence rather than a label.
       for (const line of m.objectives) expect(line).toMatch(/\.$/);

@@ -1,4 +1,6 @@
 import type { MissionSpec, Vec3 } from '@shared/types';
+import type { TimeOfDay } from '../state/worldStore';
+import type { TigerRoute } from './tigerRoutes';
 
 // ----------------------------------------------------------------------------
 // The mission content model.
@@ -184,7 +186,17 @@ export interface MissionStep {
 }
 
 /** The scenes the briefing card knows how to draw. */
-export type MissionArt = 'collect' | 'city' | 'forest' | 'deliver' | 'suppress' | 'land';
+export type MissionArt =
+  | 'collect'
+  | 'city'
+  | 'forest'
+  | 'deliver'
+  | 'suppress'
+  | 'land'
+  /** The night sweep: the beam down over a dark wood, nothing in it yet. */
+  | 'sweep'
+  /** The sighting: two eyes in the pool of light, and the lock filling. */
+  | 'track';
 
 /** A line from Mission Control, played once when its leg begins. */
 export interface RadioLine {
@@ -204,7 +216,7 @@ export interface RadioLine {
  * right height and stopped. What differs is how long, and what the holding is
  * FOR.
  */
-export type MissionKind = 'delivery' | 'suppression' | 'search';
+export type MissionKind = 'delivery' | 'suppression' | 'search' | 'tracking';
 
 /**
  * One of the places the casualty can be, on a SEARCH mission.
@@ -288,6 +300,68 @@ export interface MissionSearch {
    * enough that the pilot has to come down among the buildings to find anyone.
    */
   maxDetectAgl: number;
+}
+
+/**
+ * The tracking, on a TRACKING mission.
+ *
+ * Mission 5's whole difference from Mission 4 is in this block. A search has a
+ * casualty who lies where they fell: the site is one of three fixed points, the
+ * hover over it is an ordinary `MissionZone`, and every piece of the runtime
+ * that judges a placement already worked. A tiger WALKS. There is no zone to
+ * draw, because the thing being judged has moved by the time the ring is
+ * rendered — so the hold is measured against a live position rather than
+ * against a mark, and everything below is what replaces the mark.
+ *
+ * Nothing here is a marker and nothing here is drawn on the map. The pilot is
+ * given a forest, a spotlight and four clues.
+ */
+export interface MissionTracking {
+  /** The candidate patrols, one drawn per attempt. See `tigerRoutes.ts`. */
+  routes: readonly TigerRoute[];
+  /** How fast the animal walks, m/s. */
+  speed: number;
+  /**
+   * How far the spotlight reaches, metres, measured in 3-D from the aircraft.
+   *
+   * A hard limit on top of the cone below, and it is the cheaper of the two
+   * tests — a pilot at the ceiling has a cone wide enough to cover half the
+   * ravine, and without a reach the light would "find" a tiger it could not
+   * possibly illuminate.
+   */
+  lightRange: number;
+  /**
+   * Half-angle of the light cone, degrees.
+   *
+   * What turns altitude into a trade rather than a cheat. The pool on the
+   * ground is `agl * tan(cone)` across, so climbing widens the search and dims
+   * the odds of holding any one thing in it — which is the choice a real
+   * searchlight gives you.
+   */
+  coneDeg: number;
+  /** Seconds of unbroken light on the animal that secure the sighting. */
+  lockSeconds: number;
+  /**
+   * How close the drone may come, metres, in 3-D.
+   *
+   * Inside it the animal is disturbed. It is a 3-D distance rather than a flat
+   * one on purpose: the mission is flown over the target, so a flat test would
+   * be passed by a drone hovering a metre above its back.
+   */
+  minSafeDistance: number;
+  /** Seconds a pilot may sit inside `minSafeDistance` before the attempt is
+   *  failed. A warning with a grace period, the way straying is — never a wall
+   *  that ends the flight on one frame of overshoot. */
+  disturbGraceSec: number;
+  /**
+   * The highest the aircraft may be above the animal's own deck and still light
+   * it, metres.
+   *
+   * The same rule Mission 4's `maxDetectAgl` is, and it exists for the same
+   * reason: without it the answer to "search the forest" is "climb to the
+   * ceiling and look down", which is not flying a searchlight.
+   */
+  maxTrackAgl: number;
 }
 
 /**
@@ -423,6 +497,42 @@ export interface Mission {
   fire?: MissionFire;
   /** The search, on a search mission. Absent on every other kind. */
   search?: MissionSearch;
+  /** The tracking, on a tracking mission. Absent on every other kind. */
+  tracking?: MissionTracking;
+  /**
+   * The light this mission is flown in, overriding the missions' shared hour.
+   *
+   * Every mission before this one flies at `evening` — the blue half hour — and
+   * that is a look rather than a rule, so it lives in `MissionViewport` and no
+   * mission had to say anything. Mission 5 is called Nightfall because the dark
+   * IS the mission: the spotlight is the only instrument that works, and at
+   * `evening` there is enough skylight left that the pilot can fly it with the
+   * light off. Unset means the shared hour, which is what the first four want.
+   */
+  hour?: TimeOfDay;
+  /**
+   * What the pilot is told about where the target is, as separate lines.
+   *
+   * A SEARCH mission's answer to the missing marker. Mission 4 replaced its
+   * written clues with a red circle on the map, and that was right for a city
+   * whose streets are a grid the map can point into. A forest has no such
+   * grid — a circle drawn over trees is a circle drawn over trees — so the
+   * clues come back here, as their own card on the briefing rather than as a
+   * paragraph inside the story where nobody read them.
+   *
+   * Absent on every mission that draws a destination, which is all four before
+   * this one.
+   */
+  clues?: readonly string[];
+  /**
+   * The rules of engagement, as their own card on the briefing.
+   *
+   * Separate from `objectives` because they are a different question. The
+   * objectives are what to do and are read in order; these are what ENDS the
+   * attempt, and a pilot scanning for them should not have to read a numbered
+   * list of tasks to find the one line that says how close is too close.
+   */
+  rules?: readonly string[];
   /**
    * Hide every piece of target guidance until the mission says the target has
    * been FOUND.
@@ -538,7 +648,12 @@ export function toMissionSpec(m: Mission): MissionSpec {
   return {
     id: m.id,
     name: m.name,
-    type: m.kind === 'delivery' ? 'delivery' : 'rescue',
+    /* 'search' rather than 'rescue' for the tracking mission. `MissionType` is
+     * the shared registry's vocabulary and it already has the right word: a
+     * wildlife survey is a search flown to the end, and calling it a rescue
+     * would tell anything that reads the registry there is someone in trouble
+     * out there. */
+    type: m.kind === 'delivery' ? 'delivery' : m.kind === 'tracking' ? 'search' : 'rescue',
     description: m.blurb,
     medalThresholds: m.medals,
   };
@@ -647,6 +762,20 @@ export function maxPointsOf(m: Mission): number {
  */
 export function rescueZoneOf(m: Mission, siteIndex: number): MissionZone {
   return searchSiteOf(m, siteIndex)?.zone ?? m.zones.drop;
+}
+
+/**
+ * The patrol the tiger is walking this attempt, or null off a tracking mission.
+ *
+ * The same shape of answer `searchSiteOf` gives a search, and for the same
+ * reason: the mission holds the candidates, the store holds which one was
+ * drawn, and everything that moves, draws or judges the animal comes through
+ * here so no two of them can disagree about which route it is on.
+ */
+export function tigerRouteOf(m: Mission, routeIndex: number): TigerRoute | null {
+  const list = m.tracking?.routes;
+  if (!list || list.length === 0) return null;
+  return list[Math.min(Math.max(routeIndex, 0), list.length - 1)];
 }
 
 /** The live site, or null on a mission that is not a search. */

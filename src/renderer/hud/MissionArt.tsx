@@ -254,6 +254,54 @@ const SCENES: Record<ArtKey, () => ReactElement> = {
       <path d="M60 28 L 52 46 L 68 46 Z" fill="#bfe9ff" opacity="0.35" />
     </g>
   ),
+  // The night sweep: the beam down over a dark wood, and nothing in it. The
+  // whole first half of Mission 5 in one picture — the point is the EMPTY pool.
+  sweep: () => (
+    <g>
+      <Trees dark />
+      <path d="M60 30 L 40 70 L 80 70 Z" fill="#bfe9ff" opacity="0.22" />
+      <ellipse cx="60" cy="70" rx="20" ry="5" fill="#dff1ff" opacity="0.3" />
+      <Drone x={60} y={26} s={1.1} />
+      {/* Stars, so the card reads as night rather than as an unlit day. */}
+      {[
+        [14, 12],
+        [34, 8],
+        [92, 14],
+        [108, 9],
+        [72, 6],
+      ].map(([x, y]) => (
+        <circle key={`${x}`} cx={x} cy={y} r="0.9" fill="#dbe6f5" opacity="0.65" />
+      ))}
+    </g>
+  ),
+  // The sighting: the animal in the pool, the lock ring filling round it.
+  track: () => (
+    <g>
+      <Trees dark />
+      <path d="M60 30 L 38 70 L 82 70 Z" fill="#ffe9c0" opacity="0.28" />
+      <ellipse cx="60" cy="70" rx="22" ry="6" fill="#ffe9c0" opacity="0.4" />
+      {/* The tiger, from above: a long body, a head, a tail. */}
+      <ellipse cx="60" cy="68" rx="9" ry="3.4" fill="#a5551d" />
+      <circle cx="50.5" cy="68" r="3" fill="#a5551d" />
+      <path d="M69 68 q 7 -1 8 -5" stroke="#a5551d" strokeWidth="1.6" fill="none" />
+      {[56, 60, 64].map((x) => (
+        <rect key={x} x={x} y="65.2" width="1.2" height="5.6" rx="0.5" fill="#140d09" />
+      ))}
+      {/* Eyeshine. */}
+      <circle cx="49.2" cy="66.9" r="0.85" fill="#eaf5a8" />
+      <circle cx="49.2" cy="69.1" r="0.85" fill="#eaf5a8" />
+      {/* The lock, three-quarters round. */}
+      <circle cx="60" cy="68" r="15" fill="none" stroke="#1d2b3f" strokeWidth="2" opacity="0.8" />
+      <path
+        d="M60 53 A 15 15 0 1 1 45.3 71.5"
+        fill="none"
+        stroke="#37e08a"
+        strokeWidth="2.4"
+        strokeLinecap="round"
+      />
+      <Drone x={60} y={26} s={1.1} />
+    </g>
+  ),
   // Home: the pad, and the drone settling onto it.
   land: () => (
     <g>
