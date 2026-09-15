@@ -112,7 +112,10 @@ export function FlightScene({
           mieDirectionalG={0.8}
         />
       )}
-      {outdoor && t.night && (
+      {/* Stars are asked for by their own flag, falling back to `night`.
+          `dusk` is the one preset that wants them without the rest of night's
+          darkness — see `TimePreset.stars`. */}
+      {outdoor && (t.stars ?? t.night) && (
         <Stars radius={300} depth={60} count={3500} factor={5} fade speed={0.4} />
       )}
       {outdoor && cloudsEnabled && !t.night && <SkyClouds tint={t.sunColor} />}

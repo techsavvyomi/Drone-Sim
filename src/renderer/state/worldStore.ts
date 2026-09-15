@@ -3,7 +3,7 @@ import { create } from 'zustand';
 // Time of day drives the sky, sun position, light colour/intensity and fog.
 // Kept separate from physics settings because it's purely presentation.
 
-export type TimeOfDay = 'morning' | 'afternoon' | 'evening' | 'sunset' | 'night';
+export type TimeOfDay = 'morning' | 'afternoon' | 'evening' | 'dusk' | 'sunset' | 'night';
 
 export interface TimePreset {
   label: string;
@@ -17,8 +17,26 @@ export interface TimePreset {
   fogColor: string;
   fogNear: number;
   fogFar: number;
-  /** Night shows stars and lights the pad with floodlights instead. */
+  /**
+   * Night: the deepest preset. Shows stars, drops the outdoor hemisphere fill
+   * from 0.7 to 0.25, darkens the background behind the sky and turns the city's
+   * lamp and window props on.
+   *
+   * It is a bundle of five things, which is why `dusk` needed `stars` below
+   * rather than simply setting this: a preset that wanted the star field but not
+   * the 0.25 hemisphere had no way to ask.
+   */
   night: boolean;
+  /**
+   * Draw the star field, independently of `night`.
+   *
+   * Only `dusk` sets it. The sky at nightfall genuinely has stars in it while
+   * there is still light on the ground, and Mission 5 is sold on that moment —
+   * but borrowing `night` to get them would have brought the whole of its
+   * darkness with it, which is the thing dusk exists to avoid. Unset means "the
+   * same as `night`", which is what every other preset means.
+   */
+  stars?: boolean;
   /**
    * Bloom, per preset rather than per `night` flag.
    *
@@ -99,6 +117,58 @@ export const TIME_PRESETS: Record<TimeOfDay, TimePreset> = {
     bloomThreshold: 0.9,
     bloomIntensity: 0.34,
     iblScale: 0.9,
+  },
+  /**
+   * Dusk: nightfall, and the light Mission 5 is flown in.
+   *
+   * It exists because neither neighbour worked. `night` (ambient 0.22, hemisphere
+   * 0.25) is a black screen with a torch in it — the forest floor, the trunks and
+   * the animal are all invisible outside the light pool, and a search you cannot
+   * see to fly is not a search. `evening` (ambient 0.55, hemisphere 0.7) is the
+   * opposite failure: there is enough skylight left in the clearing to fly the
+   * whole mission with the spotlight switched OFF, which makes the mission's one
+   * instrument decoration.
+   *
+   * So the numbers sit between them, and they are not a simple average — the two
+   * that matter are pulled in opposite directions:
+   *
+   *   ambient 0.38   Low enough that the light pool is plainly brighter than
+   *                  what is around it; high enough to read a trunk you are
+   *                  about to fly into.
+   *   night: false   Which keeps the outdoor hemisphere at 0.7 rather than 0.25.
+   *                  This is where most of the recovered visibility comes from,
+   *                  and it is why the preset is not simply `night` with the
+   *                  ambient turned up: hemisphere light comes from the sky and
+   *                  the ground rather than from a direction, so it lifts the
+   *                  shadowed sides of things — exactly what a canopy makes.
+   *   stars: true    The sky still reads as nightfall. See the field.
+   *
+   * The sun is BELOW the horizon, as evening's is, so nothing is lit directly
+   * and what remains is skylight. The fog is a deep blue-violet, darker and
+   * warmer than evening's slate: the fog colour is also the background behind
+   * the sky dome, so it is most of what "how dark is it" looks like from inside
+   * the aircraft.
+   *
+   * Bloom is up, because the spotlight and the tiger's eyeshine are the two
+   * emissive things in the frame and this is the preset where they carry the
+   * mission.
+   */
+  dusk: {
+    label: 'Dusk',
+    sun: [26, -6, -48],
+    sunIntensity: 0.3,
+    sunColor: '#7e93c4',
+    ambient: 0.38,
+    skyTurbidity: 8,
+    skyRayleigh: 2.4,
+    fogColor: '#1b2742',
+    fogNear: 40,
+    fogFar: 340,
+    night: false,
+    stars: true,
+    bloomThreshold: 0.8,
+    bloomIntensity: 0.44,
+    iblScale: 0.85,
   },
   sunset: {
     label: 'Sunset',
