@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
 import { dronePose } from '../sim/drone/pose';
+import { useDisposable } from '../scene/useDisposable';
 import { useMissionStore } from '../state/missionStore';
 
 // ----------------------------------------------------------------------------
@@ -158,13 +159,11 @@ export function CasualtyFigure({
     [],
   );
 
-  useEffect(
-    () => () => {
-      Object.values(mat).forEach((m) => m.dispose());
-      Object.values(geo).forEach((g) => g.dispose());
-    },
-    [mat, geo],
-  );
+  // Freed through `useDisposable`, which defers long enough to tell a real
+  // unmount from the one StrictMode fakes on every mount. Disposing in a bare
+  // cleanup frees the objects the remounted component goes on using, which is
+  // where the terminal's `glGetProgramiv: Program object expected` came from.
+  useDisposable(mat, geo);
 
   useFrame(({ clock }, dt) => {
     if (!root.current) return;
@@ -362,11 +361,7 @@ export function CasualtyFigure({
               <mesh position={[0, -0.31, 0]} scale={[0.42, 1.1, 0.85]} material={mat.skin}>
                 <sphereGeometry args={[0.05, 10, 8]} />
               </mesh>
-              <mesh
-                position={[0, -0.29, 0.032]}
-                rotation={[0.5, 0, 0]}
-                material={mat.skin}
-              >
+              <mesh position={[0, -0.29, 0.032]} rotation={[0.5, 0, 0]} material={mat.skin}>
                 <capsuleGeometry args={[0.012, 0.03, 3, 6]} />
               </mesh>
             </group>

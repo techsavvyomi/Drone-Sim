@@ -1,7 +1,8 @@
-import { useEffect, useMemo } from 'react';
+import { useMemo } from 'react';
 import * as THREE from 'three';
 import { CuboidCollider, RigidBody } from '@react-three/rapier';
 import { textTexture } from './Storefront';
+import { useDisposable } from '../scene/useDisposable';
 import type { Mission } from './types';
 import { zoneGroundY } from './types';
 
@@ -86,7 +87,11 @@ export function HydrantFillPoint({ mission }: { mission: Mission }) {
     }),
     [],
   );
-  useEffect(() => () => Object.values(tex).forEach((t) => t.dispose()), [tex]);
+  // Freed through `useDisposable`, which defers long enough to tell a real
+  // unmount from the one StrictMode fakes on every mount. Disposing in a bare
+  // cleanup frees the objects the remounted component goes on using, which is
+  // where the terminal's `glGetProgramiv: Program object expected` came from.
+  useDisposable(tex);
 
   // The hose, lying from the hydrant's side nozzle across to the pad's edge.
   const hose = useMemo(() => {
@@ -98,7 +103,7 @@ export function HydrantFillPoint({ mission }: { mission: Mission }) {
     ]);
     return new THREE.TubeGeometry(curve, 32, 0.045, 8, false);
   }, []);
-  useEffect(() => () => hose.dispose(), [hose]);
+  useDisposable(hose);
 
   // The feed pipe along the ground, from under the water tank to the hydrant.
   const feed = useMemo(() => {
@@ -154,7 +159,11 @@ export function HydrantFillPoint({ mission }: { mission: Mission }) {
         return (
           <mesh
             key={i}
-            position={[Math.sin(a) * (PAD / 2 - 0.1), PAD_TOP + 0.004, Math.cos(a) * (PAD / 2 - 0.1)]}
+            position={[
+              Math.sin(a) * (PAD / 2 - 0.1),
+              PAD_TOP + 0.004,
+              Math.cos(a) * (PAD / 2 - 0.1),
+            ]}
             rotation={[-Math.PI / 2, 0, a]}
           >
             <planeGeometry args={[PAD, 0.12]} />
@@ -263,11 +272,7 @@ export function HydrantFillPoint({ mission }: { mission: Mission }) {
         {/* Legs, footed well below the frame: the tank's ground is the lowest
             of anything here. */}
         {corners.map(([sx, sz]) => (
-          <mesh
-            key={`${sx}${sz}`}
-            position={[sx * 1.15, (2.6 - 0.5) / 2, sz * 1.15]}
-            castShadow
-          >
+          <mesh key={`${sx}${sz}`} position={[sx * 1.15, (2.6 - 0.5) / 2, sz * 1.15]} castShadow>
             <boxGeometry args={[0.16, 2.6 + 0.5, 0.16]} />
             <meshStandardMaterial color={STEEL} metalness={0.4} roughness={0.55} />
           </mesh>

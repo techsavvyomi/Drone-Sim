@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react';
+import { useMemo } from 'react';
 import * as THREE from 'three';
 import { CuboidCollider, RigidBody } from '@react-three/rapier';
 import {
@@ -8,6 +8,7 @@ import {
   STOREFRONT_BASE,
   storefrontYaw,
 } from './pickupStorefront';
+import { useDisposable } from '../scene/useDisposable';
 import type { StorefrontSite } from './pickupStorefront';
 
 // ----------------------------------------------------------------------------
@@ -140,7 +141,13 @@ export function Storefront({ site, kind }: { site: StorefrontSite; kind: Storefr
   const tex = useMemo(
     () => ({
       sign: textTexture(look.sign, { w: 1024, h: 128, bg: look.signBg, fg: look.signFg, size: 64 }),
-      deck: textTexture([look.deckSign], { w: 512, h: 112, bg: '#1c64f2', fg: '#ffffff', size: 58 }),
+      deck: textTexture([look.deckSign], {
+        w: 512,
+        h: 112,
+        bg: '#1c64f2',
+        fg: '#ffffff',
+        size: 58,
+      }),
       menu: textTexture(['MENU', 'Thali · Noodles · Wraps'], {
         w: 256,
         h: 256,
@@ -153,7 +160,11 @@ export function Storefront({ site, kind }: { site: StorefrontSite; kind: Storefr
     }),
     [look],
   );
-  useEffect(() => () => Object.values(tex).forEach((t) => t.dispose()), [tex]);
+  // Freed through `useDisposable`, which defers long enough to tell a real
+  // unmount from the one StrictMode fakes on every mount. Disposing in a bare
+  // cleanup frees the objects the remounted component goes on using, which is
+  // where the terminal's `glGetProgramiv: Program object expected` came from.
+  useDisposable(tex);
 
   const deckZ = PICKUP_DECK_OUT;
   const half = PICKUP_DECK_SIZE / 2;
