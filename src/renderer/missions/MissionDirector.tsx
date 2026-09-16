@@ -20,11 +20,13 @@ import {
   requiredLeft,
   nextTargetOf,
   rescueZoneOf,
+  trackingLit,
   zoneGroundY,
   type Mission,
   type MissionZone,
 } from './types';
 import { tigerPose, resetTigerPose } from './tigerPose';
+import { beamPose } from './beamPose';
 import { playCollect, playDrop, playFail, playLatch, playSuccess, playWhoosh } from '../audio/sfx';
 import { resetForMission } from './reset';
 import { resetStick } from '../input/controls';
@@ -52,6 +54,11 @@ import { resetStick } from '../input/controls';
 const BANNER_SEC = 2.6;
 /** How long a Mission Control line stays up, seconds. */
 const RADIO_SEC = 5.5;
+
+/** Scratch for the tracking light test. The Director runs every frame, and
+ *  nothing in a frame loop allocates. */
+const _toAnimal = { x: 0, y: 0, z: 0 };
+const _beamAxis = { x: 0, y: -1, z: 0 };
 
 /** Distances the destination is called out at, metres. Three calls across a
  *  90 m crossing, and nothing between them — guidance, not a killstreak. */
@@ -227,13 +234,16 @@ export function MissionDirector() {
    *  warning was shown. Both reset the moment the drone backs off. */
   const disturbFor = useRef(0);
   const disturbSaidAt = useRef(-99);
-  /** Whether the tiger has been SIGHTED at all this attempt.
+  /** Seconds of light held on the tiger in the sighting that is still running.
    *
-   *  What arms the safe-distance rule. It is deliberately not `store.located`,
-   *  which on this mission is not set until the whole observation is finished —
-   *  the rule has to be live for the five seconds in between, which is exactly
-   *  when the pilot is closest to the animal. */
-  const sighted = useRef(false);
+   *  What arms the safe-distance rule, and it is a duration rather than a flag
+   *  for a reason — see `MissionTracking.sightArmSec`. It is deliberately not
+   *  `store.located`, which on this mission is not set until the whole
+   *  observation is finished: the rule has to be live for the five seconds in
+   *  between, which is exactly when the pilot is closest to the animal. It is
+   *  zeroed when the mission gives up on the hold and goes back to searching,
+   *  because at that moment the pilot no longer knows where the animal is. */
+  const sightedFor = useRef(0);
   /** Last tracking numbers published, so an unchanged set is not written. */
   const lastTrack = useRef('');
 
@@ -262,7 +272,7 @@ export function MissionDirector() {
     unlitFor.current = 0;
     disturbFor.current = 0;
     disturbSaidAt.current = -99;
-    sighted.current = false;
+    sightedFor.current = 0;
     lastTrack.current = '';
     // The animal's own walk clock is NOT reset — it has been out there since
     // before the drone armed, and putting it back to the head of the path on
@@ -446,60 +456,67 @@ export function MissionDirector() {
       const flat = Math.hypot(dx, dz);
       const range = Math.hypot(flat, agl);
 
-      // The pool the light actually makes on the ground under the aircraft.
-      // `coneDeg` is the HALF angle, which is what `THREE.SpotLight.angle`
-      // means too — the two are the same number by construction.
-      const pool = Math.tan((track.coneDeg * Math.PI) / 180) * Math.max(0, agl);
-      const lowEnough = agl > 0 && agl <= track.maxTrackAgl;
       // TOO CLOSE, and it is a 3-D distance: the whole mission is flown over
       // the target, so a flat test would be passed by a drone hovering a metre
       // above its back.
       const inside = tigerPose.present && range < track.minSafeDistance;
-
-      // THE LIGHT DOES NOT COUNT FROM INSIDE THE SAFE DISTANCE.
-      //
-      // Without this the two rules contradict each other. Straight above the
-      // animal `range` IS the altitude, so at 5 m up the cone is 2.4 m wide and
-      // a drone passing over is both LIT and inside nine metres — the lock
-      // starts filling on the same frame the attempt starts dying. Making the
-      // light refuse below the safe distance turns one of those into the
-      // instruction for the other: the ring will not fill until you climb.
-      const lit =
-        tigerPose.present &&
-        lowEnough &&
-        !inside &&
-        range <= track.lightRange &&
-        flat <= Math.max(0.5, pool);
-      if (lit) sighted.current = true;
+      // LIT: the light is on the animal, and that is the whole test — no
+      // height band, at five metres or at thirty. Judged against the beam the
+      // lamp actually DREW, aimed ahead of the nose, not one rebuilt here from
+      // the airframe — see `beamPose` and `trackingLit`.
+      _toAnimal.x = tigerPose.x - beamPose.x;
+      _toAnimal.y = tigerPose.y - beamPose.y;
+      _toAnimal.z = tigerPose.z - beamPose.z;
+      _beamAxis.x = beamPose.dx;
+      _beamAxis.y = beamPose.dy;
+      _beamAxis.z = beamPose.dz;
+      const lit = tigerPose.present && beamPose.present && trackingLit(track, _toAnimal, _beamAxis);
+      if (lit) sightedFor.current += dt;
 
       /*
-       * AND THE DISTANCE RULE ONLY BITES ONCE THE ANIMAL HAS BEEN SIGHTED.
+       * AND THE DISTANCE RULE ONLY BITES WHILE THE PILOT CAN SEE THE ANIMAL.
        *
        * This was the first thing flying the mission found, and it was fatal: the
        * ridge-road patrol walks along the dirt road the pilot naturally follows
        * out of the clearing, at night, with nothing on screen saying it is
        * there. A pilot searching at a sensible 5 or 6 metres flew over it,
-       * entered the nine metre sphere without ever seeing it, and lost the
+       * entered the keep-off sphere without ever seeing it, and lost the
        * attempt at thirty-four seconds having done nothing wrong.
        *
        * You cannot be judged on your distance to something the mission has not
-       * yet told you exists. Before the sighting a close pass is a MISTAKE TO
-       * BE TOLD ABOUT — see the banner below, which says to climb — and the
-       * light refusing to count is what makes flying low pointless rather than
-       * fatal. After the sighting the pilot knows exactly where the animal is
-       * and the rule is fair, which is the moment it arms.
+       * told you about. Before a sighting a close pass is a MISTAKE TO BE TOLD
+       * ABOUT — see the banner below, which says to climb — and the light
+       * refusing to count is what makes flying low pointless rather than fatal.
+       *
+       * ARMING IT ON A LATCHED FLAG WAS STILL WRONG, and it is what failed the
+       * attempt in the report this replaces. Two ways:
+       *
+       *   1. One frame of light set it. The beam crossing a tiger for a
+       *      sixteenth of a second, behind the aircraft, off screen, armed a
+       *      rule the pilot never knew had been armed.
+       *   2. It never came back off. This target WALKS — a 36 to 44 m patrol —
+       *      and the mission deliberately shows no marker for it. A minute
+       *      after losing it the pilot has no more idea where it is than before
+       *      they ever saw it, and "you had the tiger" is not true any more.
+       *
+       * So it arms on a sighting the pilot was given time to notice, and it
+       * disarms again when the mission itself gives up on the hold and goes
+       * back to searching — the same moment, and the same reasoning, as the
+       * TARGET LOST banner. While it is armed the pilot is being told where the
+       * animal is every frame, by the ring filling on their own HUD.
        */
-      const close = inside && sighted.current;
+      const armed = sightedFor.current >= track.sightArmSec;
+      const close = inside && armed;
 
       // The close pass a pilot could not have known about. Said, not punished,
       // and worded as the fix rather than as the offence.
-      if (inside && !sighted.current && clock.current - disturbSaidAt.current > 3.5) {
+      if (inside && !armed && clock.current - disturbSaidAt.current > 3.5) {
         disturbSaidAt.current = clock.current;
         store.showBanner(
           {
             kind: 'warn',
-            title: 'TOO LOW TO OBSERVE',
-            sub: `Climb above ${track.minSafeDistance} m — the beam does not count from this close`,
+            title: 'TOO CLOSE TO OBSERVE',
+            sub: `Give it ${track.minSafeDistance} m of room — the beam does not count from this close`,
           },
           BANNER_SEC,
         );
@@ -534,9 +551,10 @@ export function MissionDirector() {
         disturbFor.current = 0;
       }
 
-      // TOO HIGH TO TRACK. The same rule Mission 4's roof is, for the same
-      // reason: without it the answer to "search the forest" is "climb to the
-      // ceiling and look down", and the pilot never flies among the trees. Said
+      // TOO HIGH TO SEE ANYTHING — and it is ADVICE now, not a rule. Nothing
+      // refuses to count up here; the pool simply arrives at the forest floor
+      // barely above the ambient and spread over fifteen metres, so the pilot
+      // is searching by a light that is no longer showing them anything. Said
       // once — a banner that re-fired on every climb would nag a pilot who has
       // understood it and is transiting.
       if (tigerPose.present && agl > track.maxTrackAgl && !warnedHigh.current) {
@@ -544,8 +562,8 @@ export function MissionDirector() {
         store.showBanner(
           {
             kind: 'warn',
-            title: 'TOO HIGH FOR THE LIGHT',
-            sub: 'Come down into the trees — the beam does not reach the ground from here',
+            title: 'THE POOL IS TOO THIN UP HERE',
+            sub: 'Come down into the trees — from this height the beam shows you nothing',
           },
           BANNER_SEC,
         );
@@ -618,6 +636,12 @@ export function MissionDirector() {
           leg = 'searching';
           store.setLeg(leg);
           unlitFor.current = 0;
+          // And the safe-distance rule goes with it. The animal is somewhere in
+          // the trees walking a patrol the pilot cannot see and the mission
+          // will not draw, so from here they are searching for it exactly as
+          // they were at the start — and may not be failed for finding it with
+          // the airframe instead of the light.
+          sightedFor.current = 0;
         }
 
         if (lockFor.current >= track.lockSeconds) {

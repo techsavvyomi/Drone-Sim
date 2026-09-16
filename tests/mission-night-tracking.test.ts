@@ -2,11 +2,34 @@ import { execFileSync } from 'node:child_process';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { nightTracking } from '../src/renderer/missions/nightTracking';
 import { MISSIONS } from '../src/renderer/missions';
-import { TIGER_ROUTES, routeLength, tigerAt } from '../src/renderer/missions/tigerRoutes';
+import {
+  TIGER_ROUTES,
+  ambleDistance,
+  amblePace,
+  routeLength,
+  tigerAt,
+  tigerAtDistance,
+} from '../src/renderer/missions/tigerRoutes';
 import { forest } from '../src/renderer/plugins/environments/forest';
-import { lampRamp } from '../src/renderer/missions/DroneSpotlight';
+import {
+  IRIS_ALT,
+  LIGHT_INTENSITY,
+  LIGHT_MAX_TILT_DEG,
+  LIGHT_TILT_DEG,
+  beamTilt,
+  irisScale,
+  lampExposure,
+  lampHold,
+  lampRamp,
+} from '../src/renderer/missions/DroneSpotlight';
 import { TIME_PRESETS } from '../src/renderer/state/worldStore';
-import { maxPointsOf, rankFor, tigerRouteOf, toMissionSpec } from '../src/renderer/missions/types';
+import {
+  maxPointsOf,
+  rankFor,
+  tigerRouteOf,
+  toMissionSpec,
+  trackingLit,
+} from '../src/renderer/missions/types';
 import type { MissionResult } from '../src/renderer/missions/types';
 import {
   activeZone,
@@ -255,7 +278,7 @@ describe('TC-507 the lit band and the safe distance cannot contradict each other
   //
   // The ridge-road patrol walks along the dirt road out of the clearing. A pilot
   // searching at a sensible 5 or 6 metres flew over it in the dark, entered the
-  // nine metre sphere without ever seeing the animal, and lost the attempt. The
+  // keep-off sphere without ever seeing the animal, and lost the attempt. The
   // geometry made it unavoidable rather than unlucky: straight above the target
   // `range` IS the altitude, so every altitude below the safe distance is a
   // failure waiting for the pilot to fly over the one spot they cannot see.
@@ -287,6 +310,116 @@ describe('TC-507 the lit band and the safe distance cannot contradict each other
     const rules = (M.rules ?? []).join(' ');
     expect(rules).toContain(`${t.minSafeDistance} m`);
     expect(rules).toContain(`${t.maxTrackAgl} m`);
+  });
+});
+
+describe('TC-507c the hold counts the moment the light is on the animal', () => {
+  const t = M.tracking!;
+  /** The steepest lean the lamp ever draws — the hardest case for reach. */
+  const TILT = (LIGHT_MAX_TILT_DEG * Math.PI) / 180;
+  /** The beam at full forward lean, toward a nose facing −Z. */
+  const axis = { x: 0, y: -Math.cos(TILT), z: -Math.sin(TILT) };
+  /** A point `d` metres along the beam from the lamp, nudged by `off` radians
+   *  within the vertical plane — positive lifts it toward the horizon. */
+  const along = (d: number, off = 0) => {
+    const a = TILT + off;
+    return { x: 0, y: -Math.cos(a) * d, z: -Math.sin(a) * d };
+  };
+
+  // Asked for in as many words: whatever height I am at, the moment my
+  // flashlight is on the tiger it should start completing.
+
+  it('counts along the beam at every range from the keep-off to its reach', () => {
+    for (let d = t.minSafeDistance + 0.01; d <= t.lightRange; d += 0.5) {
+      expect(trackingLit(t, along(d), axis)).toBe(true);
+    }
+  });
+
+  it('reaches the animal from the aircraft ceiling over the deepest patrol', () => {
+    // 30 m above the pad and the gorge's lowest node at -30.47: sixty metres
+    // of height, and at full lean that is 1/cos(tilt) further along the beam.
+    const height = GURU_CEILING + 30.47;
+    expect(trackingLit(t, along(height / Math.cos(TILT)), axis)).toBe(true);
+  });
+
+  it('judges the patch the beam is on, not the ground behind the aircraft', () => {
+    // Leaning forward, the ground behind the tail is well outside the cone.
+    // Scoring it would count an animal the pilot is not lighting.
+    const behindTail = { x: 0, y: -12, z: 6 };
+    expect(trackingLit(t, behindTail, axis)).toBe(false);
+  });
+
+  it('holds the whole cone and nothing outside it', () => {
+    const half = (t.coneDeg * Math.PI) / 180;
+    expect(trackingLit(t, along(15, half * 0.9), axis)).toBe(true);
+    expect(trackingLit(t, along(15, -half * 0.9), axis)).toBe(true);
+    expect(trackingLit(t, along(15, half * 1.3), axis)).toBe(false);
+    expect(trackingLit(t, along(15, -half * 1.3), axis)).toBe(false);
+  });
+
+  it('still refuses from on top of the animal, and only from there', () => {
+    // The one exclusion that is not about the light: without it the lock would
+    // fill on the same frames the disturb grace was ending the attempt.
+    expect(trackingLit(t, along(t.minSafeDistance - 0.5), axis)).toBe(false);
+    expect(trackingLit(t, along(t.minSafeDistance + 0.5), axis)).toBe(true);
+  });
+
+  it('never counts an animal behind the lamp', () => {
+    const behind = { x: 0, y: Math.cos(TILT) * 10, z: Math.sin(TILT) * 10 };
+    expect(trackingLit(t, behind, axis)).toBe(false);
+  });
+});
+
+describe('TC-507d the beam leans slightly forward, and further in forward flight', () => {
+  const deg = (r: number) => (r * 180) / Math.PI;
+
+  it('points a little ahead of the nose at a level hover', () => {
+    expect(deg(beamTilt(0))).toBeCloseTo(LIGHT_TILT_DEG);
+    expect(LIGHT_TILT_DEG).toBeGreaterThan(0);
+    expect(LIGHT_TILT_DEG).toBeLessThan(30);
+  });
+
+  it('leans further ahead as the airframe pitches nose-down', () => {
+    const tenDeg = (10 * Math.PI) / 180;
+    expect(beamTilt(tenDeg)).toBeGreaterThan(beamTilt(0));
+    expect(beamTilt(-tenDeg)).toBeLessThan(beamTilt(0));
+  });
+
+  it('never leans past its limit or tips back behind straight down', () => {
+    expect(deg(beamTilt(Math.PI / 2))).toBeCloseTo(LIGHT_MAX_TILT_DEG);
+    expect(beamTilt(-Math.PI / 2)).toBe(0);
+  });
+});
+
+describe('TC-507b the keep-off distance is not a working height', () => {
+  const t = M.tracking!;
+
+  // It was nine metres, and nine turned the survey into a hover at one specific
+  // altitude: straight above the animal the distance IS the altitude, so "never
+  // inside nine" reads as "hold it at nine" — at the widest, dimmest end of the
+  // pool, one careless metre from losing the attempt. The mission's constraint
+  // is supposed to be the CONE, which the pilot trades height against on their
+  // own terms.
+
+  it('leaves most of the flyable envelope as a free choice of height', () => {
+    // Anything much more than a fifth of the ceiling stops being a keep-off and
+    // starts being an instruction about where to fly.
+    expect(t.minSafeDistance).toBeLessThan(t.maxTrackAgl / 5);
+  });
+
+  it('is close enough to be about the animal rather than about the flying', () => {
+    // Roughly two body lengths of a 1.9 m animal: where a real aircraft's noise
+    // and downwash are actually on it. Below one body length it would be a rule
+    // nothing could break; far above it, a flight ceiling in disguise.
+    expect(t.minSafeDistance).toBeGreaterThan(2);
+  });
+
+  it('is legal to fly the lock from, all the way down to it', () => {
+    // If the pool at the floor could not hold the animal, the bottom of the
+    // band would be unwinnable and the pilot would be pushed back up to a
+    // single workable height — which is the thing being removed.
+    const pool = Math.tan((t.coneDeg * Math.PI) / 180) * t.minSafeDistance;
+    expect(pool).toBeGreaterThan(1.9 / 2);
   });
 });
 
@@ -324,6 +457,224 @@ describe('TC-508 the searchlight is off until the drone leaves the ground', () =
     // at all.
     expect(lampRamp(2, true)).toBe(1);
     expect(lampRamp(30, true)).toBe(1);
+  });
+});
+
+describe('TC-502c the searchlight is not put out by the wood it is searching', () => {
+  // The take-off gate reads the support probe, and the probe reports the
+  // nearest solid thing under each rotor — which on this map includes 2,913
+  // trunk colliders whose tops sit between 2 and 30 m, i.e. inside the whole
+  // flight envelope. Read live, the gate took every treetop for the pad and
+  // faded the searchlight out in mid-air. It is a ratchet now.
+
+  it('closes on the pad, with the motors dead, and in a wreck', () => {
+    // `held` is what is carried in; none of these three may carry anything out.
+    expect(lampHold(1, 1, false, false)).toBe(0);
+    expect(lampHold(1, 1, true, true)).toBe(0);
+    expect(lampHold(0, 0, true, true)).toBe(0);
+  });
+
+  it('opens across the climb exactly as the ramp does', () => {
+    let held = 0;
+    for (const h of [0.3, 0.9, 1.5, 1.8]) {
+      held = lampHold(lampRamp(h, true), held, true, false);
+      expect(held).toBeCloseTo(lampRamp(h, true), 6);
+    }
+    expect(held).toBe(1);
+  });
+
+  it('cannot be closed by something the aircraft flies OVER', () => {
+    // At altitude, with the gate open, the probe drops to a treetop a metre
+    // below and then saturates again as the tree passes.
+    let held = 1;
+    for (const probe of [1.2, 0.4, 0.05, 0.4, 2]) {
+      held = lampHold(lampRamp(probe, true), held, true, false);
+      expect(held).toBe(1);
+    }
+  });
+
+  it('is closed by LANDING on that same treetop', () => {
+    // A foot resting on it is a different fact from passing over it, and it is
+    // the one the ratchet reopens on.
+    expect(lampHold(0, 1, true, true)).toBe(0);
+  });
+});
+
+describe('TC-502b the searchlight does not blow out underneath itself', () => {
+  // The pool is `INTENSITY / agl^2`, which is the right physics and the wrong
+  // exposure: low down it runs far past the bloom threshold, the whole pool
+  // clips to flat white, and its soft edge clips with it — flown as "the light
+  // circle has hard edges and looks flat white" at 1.4 m. Below the design
+  // height the falloff is compressed instead. Uses the lamp's REAL intensity:
+  // this test once pinned 360 while the lamp had been turned up to 1500, and
+  // the blowout came back with nothing failing.
+  const pool = (h: number) => (LIGHT_INTENSITY / (h * h)) * lampExposure(h);
+
+  it('leaves the altitude trade above the design height untouched', () => {
+    for (const h of [IRIS_ALT, IRIS_ALT + 2, 30, 45]) expect(irisScale(h)).toBe(1);
+  });
+
+  it('keeps the pool off the top of the exposure range all the way down', () => {
+    expect(pool(9)).toBeLessThan(3.5);
+    expect(pool(4)).toBeLessThan(6);
+    expect(pool(2)).toBeLessThan(9);
+    expect(pool(1.4)).toBeLessThan(11);
+    expect(pool(1)).toBeLessThan(13);
+  });
+
+  it('holds the brightness that was signed off, and never goes dark low down', () => {
+    // This used to require the pool to brighten every metre down. The look the
+    // maintainer approved does not: it was flown with the lamp a metre above
+    // the drone, which evens the pool out and dims it slightly below ~6 m, and
+    // they asked for exactly that look to be kept (see LOOK_OFFSET). What still
+    // matters is that low down the pool is neither blown out (above) nor lost.
+    for (const h of [1, 1.4, 2, 4, 6, 9, 12]) expect(pool(h)).toBeGreaterThan(1.5);
+    expect(pool(6)).toBeGreaterThan(pool(IRIS_ALT));
+  });
+
+  it('never dims a reading it does not have', () => {
+    // Of the two ways to be wrong, a pool that is too hot can be seen and
+    // turned down; one that is turned off cannot be seen at all.
+    for (const h of [0, -1]) expect(irisScale(h)).toBe(1);
+  });
+});
+describe('TC-502e the safe distance may only judge a pilot who can see the animal', () => {
+  const track = M.tracking!;
+
+  // The rule failed the attempt with "you had the tiger" a minute after the
+  // tiger had walked off into the trees. It was armed by a latched flag that
+  // one frame of beam could set and nothing could clear — on the one mission
+  // that draws no marker for its target and whose target moves.
+
+  it('cannot be armed by a single frame of light', () => {
+    // Two frames at 30 fps is 67 ms; a sixteenth of a second of beam across an
+    // animal the pilot never saw must not arm anything.
+    expect(track.sightArmSec).toBeGreaterThan(4 / 30);
+  });
+
+  it('arms well inside the hold it precedes', () => {
+    // "You have seen it", not "you have observed it" — and the pilot has to be
+    // able to reach the safe distance question while the sighting is still
+    // live, or the rule would only ever fire on a lock already lost.
+    expect(track.sightArmSec).toBeLessThan(track.lockSeconds / 4);
+  });
+
+  it('leaves room to climb away once it has armed', () => {
+    // Arming is not failing: the grace period is what the pilot acts inside,
+    // and it must be the longer of the two by a clear margin.
+    expect(track.disturbGraceSec).toBeGreaterThan(track.sightArmSec * 3);
+  });
+});
+
+describe('TC-505 the tiger ambles rather than marching', () => {
+  const speed = M.tracking!.speed;
+
+  // A constant 0.9 m/s down a polyline reads, in the air, as a model being slid
+  // along a rail. The pace varies instead — but three things have to survive
+  // that, and each of them is load-bearing for the mission rather than for the
+  // look.
+
+  it('never walks backwards', () => {
+    // The pace multiplies the speed, so a negative one would run the animal
+    // back down its own patrol and hand the pilot a target that reverses.
+    for (let t = 0; t < 600; t += 0.05) expect(amblePace(t)).toBeGreaterThan(0);
+  });
+
+  it('comes close to a stop and picks up again', () => {
+    let lo = Infinity;
+    let hi = -Infinity;
+    for (let t = 0; t < 600; t += 0.05) {
+      const p = amblePace(t);
+      lo = Math.min(lo, p);
+      hi = Math.max(hi, p);
+    }
+    // Slow enough to read as stopping over something, brisk enough that it is
+    // plainly the same animal moving off again.
+    expect(lo).toBeLessThan(0.2);
+    expect(hi).toBeGreaterThan(1.7);
+  });
+
+  it('keeps the mission arithmetic: the mean pace is still the mission speed', () => {
+    // Every promise the briefing makes — the eighty to a hundred second
+    // there-and-back, "it will walk back towards you" — is a promise about
+    // distance covered. The amble redistributes it; it must not change it.
+    for (const window of [120, 300, 480]) {
+      const mean = ambleDistance(window, speed) / window;
+      expect(mean).toBeGreaterThan(speed * 0.97);
+      expect(mean).toBeLessThan(speed * 1.03);
+    }
+  });
+
+  it('is monotonic, so the walk never rewinds', () => {
+    let last = -1;
+    for (let t = 0; t < 300; t += 0.1) {
+      const d = ambleDistance(t, speed);
+      expect(d).toBeGreaterThan(last);
+      last = d;
+    }
+  });
+
+  it('starts the patrol at the head of the path, as the constant walk does', () => {
+    expect(ambleDistance(0, speed)).toBeCloseTo(0, 9);
+    const scratch = { x: 0, y: 0, z: 0, heading: 0 };
+    const route = TIGER_ROUTES[0];
+    tigerAtDistance(route, 0, scratch);
+    expect(scratch.x).toBeCloseTo(route.path[0].at[0], 5);
+    expect(scratch.z).toBeCloseTo(route.path[0].at[1], 5);
+  });
+
+  it('walks the same path the routes were measured along', () => {
+    // The amble changes WHEN the animal is somewhere, never WHERE it can be:
+    // the clearances in check-tiger-routes.mjs are measured along the polyline,
+    // and a pace that wandered off it would put the tiger inside a trunk.
+    const scratch = { x: 0, y: 0, z: 0, heading: 0 };
+    for (const route of TIGER_ROUTES) {
+      for (let t = 0; t < 600; t += 0.9) {
+        tigerAtDistance(route, ambleDistance(t, speed), scratch);
+        let nearest = Infinity;
+        for (let i = 1; i < route.path.length; i++) {
+          const a = route.path[i - 1].at;
+          const b = route.path[i].at;
+          const vx = b[0] - a[0];
+          const vz = b[1] - a[1];
+          const len2 = vx * vx + vz * vz;
+          const f = Math.min(
+            1,
+            Math.max(0, ((scratch.x - a[0]) * vx + (scratch.z - a[1]) * vz) / len2),
+          );
+          nearest = Math.min(
+            nearest,
+            Math.hypot(scratch.x - (a[0] + vx * f), scratch.z - (a[1] + vz * f)),
+          );
+        }
+        expect(nearest).toBeLessThan(0.05);
+      }
+    }
+  });
+});
+
+describe('TC-504 the aircraft starts ON the pad', () => {
+  // Reported as a bang on every launch and every reset: the drone was spawned
+  // 0.35 m up and fell onto its own helipad at 2.5 m/s. A spawn height is a
+  // RESTING height, not a clearance.
+
+  /** How far the drone's lowest colliders — its four feet — sit below the body
+   *  origin, metres. `Drone.tsx` builds them at y -0.012 with a half-height of
+   *  0.012; the airframe therefore rests this far above what it stands on. */
+  const FOOT_DROP = 0.024;
+  /** The spawn apron in `ForestEnv` holds a floor at exactly 0 under the pad
+   *  until the 15 MB terrain streams in, and the road there is measured at
+   *  -0.013..+0.015 — so the higher of the two, and the resting surface, is 0. */
+  const PAD_SURFACE = 0;
+
+  it('spawns at the height it comes to rest at, not above it', () => {
+    const y = forest.spawn.position[1];
+    const rest = PAD_SURFACE + FOOT_DROP;
+    // Never below rest, or the feet start inside the deck and are pushed out.
+    expect(y).toBeGreaterThanOrEqual(rest);
+    // And never far enough above it to be a fall: 2 cm of settle is 0.6 m/s,
+    // which is a touch. The old 0.35 arrived at 2.5.
+    expect(y - rest).toBeLessThan(0.02);
   });
 });
 

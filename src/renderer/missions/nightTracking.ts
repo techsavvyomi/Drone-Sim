@@ -28,9 +28,10 @@ import { forest } from '../plugins/environments/forest';
 //      seconds of LIGHT on an animal that is walking, and the bar drains rather
 //      than resetting when it slips out — see the Director.
 //
-// And one rule that ends the attempt: get inside nine metres of the tiger and
-// it is disturbed. A wildlife survey that drives the animal off has not been
-// flown badly, it has failed.
+// And one rule that ends the attempt: fly down ONTO the tiger and it is
+// disturbed. A wildlife survey that drives the animal off has not been flown
+// badly, it has failed. It is a keep-off distance and nothing more — the pilot
+// picks their own working height, which is the whole point of the trade above.
 //
 // Positions come from `tigerRoutes.ts`, measured against the terrain and the
 // generated trunk colliders — never chosen by eye. Re-measure with:
@@ -113,9 +114,10 @@ export const nightTracking: Mission = {
    */
   rules: [
     'No marker, no waypoint and no route will be drawn to the tiger.',
-    'The beam only counts from more than 9 m away. Search from 10 to 30 m above the ground.',
-    'Once you have sighted the tiger, staying inside 9 m disturbs it and the survey fails.',
-    'The spotlight only reaches the ground from under 30 m. Above that it finds nothing.',
+    'Work from any height you like. Low is a tight bright pool; by 30 m it is wide, thin and shows you nothing.',
+    'Never closer than 4 m to the tiger: inside that the beam stops counting, and once you have sighted it the survey fails.',
+    'The spotlight is angled a little ahead of the nose, and leans further as you fly forward. Point the aircraft at where you want to look.',
+    'The moment the beam is on the tiger the hold starts filling — at 5 m or at 30, it counts the same.',
     'If the tiger leaves the light the lock drains. Find it again and it fills from where it stopped.',
     'The survey ends at the sighting. There is no flight home to fly and no landing to score.',
   ],
@@ -135,7 +137,7 @@ export const nightTracking: Mission = {
   objectives: [
     'Fly out from the ranger station and search the forest with your spotlight.',
     'Find the tiger by eye. Nothing on the HUD will point at it.',
-    'Hold the light on it for five seconds while staying more than 9 m away.',
+    'Hold the light on it for five seconds, from a height of your choosing.',
     'The survey is complete the moment the sighting is confirmed.',
   ],
   mapNote: 'The forest at night. No marker, no route',
@@ -242,62 +244,98 @@ export const nightTracking: Mission = {
      */
     speed: 0.9,
     /*
-     * FORTY-FIVE METRES OF REACH, in 3-D.
+     * NINETY METRES OF REACH, in 3-D, along the beam.
      *
-     * A hard limit on top of the cone, and the cheaper of the two tests: at the
-     * airframe's 30 m ceiling the cone alone is fourteen metres wide on the
-     * ground, and without a reach the light would "find" an animal it could not
-     * possibly illuminate out at the edge of a shallow pass. Forty-five is a
-     * comfortable margin over the thirty the aircraft can actually be at.
+     * A hard limit on top of the cone. It was forty-five, which was a margin
+     * over a light pointing straight DOWN from the 30 m ceiling. The beam now
+     * leans up to 35° ahead of the nose, so the distance to what it lights is
+     * the height over cos(lean) — and over the gorge, whose floor is thirty
+     * metres below the pad, a pilot at the ceiling is sixty metres above the
+     * animal and up to seventy-three along the beam from it. "Whatever height I am at" was the
+     * request, and this is the number that honours it. What limits a pilot up
+     * there is the light itself, which by then shows them nothing.
      */
-    lightRange: 45,
+    lightRange: 90,
     /*
-     * TWENTY-SIX DEGREES OF HALF-ANGLE, which is the number the whole mission
+     * SIXTEEN DEGREES OF HALF-ANGLE, which is the number the whole mission
      * balances on.
      *
-     * The pool on the ground is `agl · tan(26°)` — about half the height. At
-     * ten metres up it is 4.9 m across the radius: tight, bright, and the tiger
-     * walks out of it if the pilot drifts. At the 30 m ceiling it is 14.6 m,
-     * which is a wide easy pool — and at that height, at night, over a canopy,
-     * the pilot cannot see what is in it. That is the trade, and it is the same
+     * It was 26, and flown high that pool lit half the forest — it read as a
+     * floodlight, not as a torch under the drone. The pool on the ground is
+     * `agl · tan(16°)`, a little over a quarter of the height. At ten metres up
+     * it is 2.9 m across the radius: tight, bright, and the tiger walks out of
+     * it if the pilot drifts. At the 30 m ceiling it is 8.6 m — still a pool,
+     * not the whole wood. At four metres, the keep-off, it is 1.15 m, which
+     * still holds the animal (TC-507b). That is the trade, and it is the same
      * number `DroneSpotlight` draws with, so what looks lit IS lit.
      *
      * Chosen rather than measured, and it is the first thing to change after a
      * fly test: too narrow and the mission is a pixel hunt, too wide and a
      * pilot at the ceiling finishes the lock without ever coming down.
      */
-    coneDeg: 26,
+    coneDeg: 16,
     /** Five seconds, as the brief asks. Long enough to be a hold rather than a
      *  touch, short enough that losing it is a retry rather than a punishment
      *  — and it drains rather than resetting, which is what makes that true. */
     lockSeconds: 5,
     /*
-     * NINE METRES, in 3-D, and it is a real constraint rather than a formality.
+     * FOUR METRES, in 3-D, and it is a keep-off distance — NOT a working height.
      *
-     * The animal is 1.9 m long and the Guru spans 1.44 m; nine metres is about
-     * five body lengths, which is the distance a survey drone is actually
-     * flown at. Against the cone it sets the floor of the mission: at nine
-     * metres up the pool is 4.4 m across, so the pilot can fly the lock from
-     * just above the safe distance if they are precise, and a careless descent
-     * costs them the attempt rather than merely the lock.
+     * It was nine, and nine turned the whole mission into a hover at one
+     * specific altitude. The light refuses to count from inside this distance,
+     * and straight above the animal the distance IS the altitude, so "do not go
+     * inside nine metres" read to the pilot as "hold it at nine metres" — with
+     * the pool at its widest and dimmest right at the floor, and a careless
+     * descent of a metre costing the attempt. A survey is not a tightrope, and
+     * the mission already HAS its constraint: the cone. Low is tight and bright
+     * and hard to keep an animal in; high is wide and dim and hard to see
+     * anything in. That trade is worth flying, and it only works if the pilot
+     * is the one choosing the height.
+     *
+     * Four is what it is for: the animal is 1.9 m long and the Guru spans
+     * 1.44 m, so this is roughly two body lengths — close enough that a real
+     * aircraft's noise and downwash are on the animal, and far enough that
+     * nothing but a deliberate dive at it gets there. The pool at four metres
+     * is 1.95 m across the radius, which still holds a tiger, so the band is
+     * legal all the way down to it rather than unwinnable at the bottom.
      */
-    minSafeDistance: 9,
+    minSafeDistance: 4,
     /** Four seconds inside it before the survey fails, with the warning re-shown
      *  while the grace runs. A pilot who overshoots a descent has time to climb
      *  away; one who parks on top of the animal does not. */
     disturbGraceSec: 4,
     /*
-     * THIRTY METRES ABOVE THE ANIMAL'S OWN DECK.
+     * FOUR FIFTHS OF A SECOND OF LIGHT BEFORE THE SAFE DISTANCE IS ENFORCED.
+     *
+     * The rule used to arm on a latched flag set by ONE FRAME of beam, and
+     * never came off again. Both halves of that were wrong on this mission in
+     * particular, because it is the one mission that draws no marker for its
+     * target and the target WALKS a forty metre patrol: a beam clipping the
+     * tiger off-screen armed a rule the pilot never knew about, and a minute
+     * later, with the animal long gone into the trees, they were still being
+     * judged on a distance to something they could not see. The attempt then
+     * ended on "you had the tiger", which by then was not true.
+     *
+     * Long enough that the sighting has been announced and the lock ring is on
+     * screen; far shorter than the five second hold it precedes, because this
+     * is "you have seen it", not "you have observed it". The rule also comes
+     * back OFF when the mission gives up on the hold — see the Director.
+     */
+    sightArmSec: 0.8,
+    /*
+     * THIRTY METRES ABOVE THE ANIMAL'S OWN DECK, AND IT IS ADVICE.
      *
      * Its own deck, not the clearing: the gorge floor is twenty-seven metres
-     * below the pad, so a ceiling measured from the mission's `groundY` would
-     * let a pilot hover over the ravine at launch height and light its floor
-     * from fifty-seven metres up.
+     * below the pad, so a height measured from the mission's `groundY` would
+     * call a pilot hovering over the ravine at launch height "low".
      *
-     * The number is the airframe's own limit on purpose. It is not there to
-     * push the pilot down — the cone and the dark already do that — it is there
-     * so that a pilot who climbs to the top of the envelope over a gorge gets
-     * nothing, which is the honest answer.
+     * It gates NOTHING. The lock fills wherever the beam is on the animal, at
+     * five metres or at thirty, because a survey is not a hover window — the
+     * pilot picks the height and takes what the cone gives them for it. All
+     * this number does is fire one banner, so a pilot who has climbed out of
+     * usefulness is told why they are finding nothing: at thirty metres the
+     * pool is 14.6 m across and lands at 0.4 against an ambient of 0.38. The
+     * dark is the ceiling here, not a rule.
      */
     maxTrackAgl: 30,
   },

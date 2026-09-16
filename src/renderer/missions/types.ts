@@ -354,12 +354,30 @@ export interface MissionTracking {
    *  that ends the flight on one frame of overshoot. */
   disturbGraceSec: number;
   /**
-   * The highest the aircraft may be above the animal's own deck and still light
-   * it, metres.
+   * Seconds the light must hold the animal before `minSafeDistance` is enforced
+   * at all.
    *
-   * The same rule Mission 4's `maxDetectAgl` is, and it exists for the same
-   * reason: without it the answer to "search the forest" is "climb to the
-   * ceiling and look down", which is not flying a searchlight.
+   * The safe-distance rule may only judge a pilot who KNOWS where the animal
+   * is, and one frame of beam across it is not knowing. This is how long the
+   * sighting — a banner, a sound, a radio line and the lock ring appearing —
+   * takes to reach someone who is flying rather than reading.
+   */
+  sightArmSec: number;
+  /**
+   * The height above the animal's own deck at which the pool stops being worth
+   * anything, metres.
+   *
+   * ADVISORY, and deliberately so: nothing refuses to count above it. It drives
+   * one banner, which tells a pilot who has climbed out of usefulness why they
+   * are not finding anything. It used to gate the lock, and a ceiling on the
+   * lock plus a keep-off under it is a hover window, which is not what this
+   * mission is.
+   *
+   * What stops the answer to "search the forest" being "climb to the ceiling
+   * and look down" is the light rather than this number: up there the pool is
+   * spread over fifteen metres and lands barely above the ambient, so there is
+   * nothing to see and nothing to aim at. A pilot who finds the animal from the
+   * ceiling anyway has earned it.
    */
   maxTrackAgl: number;
 }
@@ -772,6 +790,51 @@ export function rescueZoneOf(m: Mission, siteIndex: number): MissionZone {
  * drawn, and everything that moves, draws or judges the animal comes through
  * here so no two of them can disagree about which route it is on.
  */
+/**
+ * Is the light on the animal?
+ *
+ * The one test the tracking lock turns on, pulled out of the Director so it can
+ * be stated and checked rather than read out of a frame loop. `to` is the
+ * vector from the LAMP to the animal and `axis` the unit vector the beam points
+ * along — both world space, both exactly what `DroneSpotlight` drew with, via
+ * `beamPose`.
+ *
+ * It is a CONE test, not a pool-on-the-ground test, and that stopped being a
+ * detail when the beam was tilted 45° ahead of the nose. The old form asked
+ * "is the animal within `agl · tan(cone)` of the point straight under the
+ * aircraft", which is only the cone when the cone points straight down — and it
+ * would have scored the patch of forest under the drone while the pilot was
+ * looking at, and lighting, the patch in front of it.
+ *
+ * THERE IS NO HEIGHT BAND IN IT. If the beam is on the tiger, the tiger is
+ * being observed, at five metres or at thirty, and the hold starts filling on
+ * that frame. What is left are facts rather than rules:
+ *
+ *   - The animal is inside the cone: within its half-angle of the axis, and in
+ *     front of the lamp rather than behind it.
+ *   - It is within the light's reach.
+ *   - The aircraft is not ON TOP of it. Without this a drone sitting on the
+ *     animal would fill the lock on the same frames the disturb grace was
+ *     running the attempt out — one rule finishing the mission while the other
+ *     ended it.
+ *
+ * A small angular floor keeps an animal that is wider than a very narrow slice
+ * of cone counting — the same job the old half-metre floor on the pool did.
+ */
+export function trackingLit(
+  track: MissionTracking,
+  to: { x: number; y: number; z: number },
+  axis: { x: number; y: number; z: number },
+): boolean {
+  const range = Math.hypot(to.x, to.y, to.z);
+  if (range < track.minSafeDistance || range > track.lightRange) return false;
+  const along = (to.x * axis.x + to.y * axis.y + to.z * axis.z) / range;
+  if (along <= 0) return false;
+  const off = Math.acos(Math.min(1, along));
+  const half = (track.coneDeg * Math.PI) / 180;
+  return off <= Math.max(half, Math.atan2(0.5, range));
+}
+
 export function tigerRouteOf(m: Mission, routeIndex: number): TigerRoute | null {
   const list = m.tracking?.routes;
   if (!list || list.length === 0) return null;
