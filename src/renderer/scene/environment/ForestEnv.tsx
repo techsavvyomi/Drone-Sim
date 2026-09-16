@@ -67,7 +67,7 @@ const MODEL_OFFSET: [number, number, number] = [
  * is genuinely uneven ground the drone lands on.
  */
 const SOLID =
-  /Terrain|Aerial_Grass|Ground_Dirt|Dirt_Road|Cobblestone|Sloped_Rock|Tall_Cliff|Broken_Rocks|Wood_Log|Metal_Fence|Wood_Fence/i;
+  /Terrain|Aerial_Grass|Grass_Close|Ground_Dirt|Dirt_Road|Cobblestone|Sloped_Rock|Tall_Cliff|Broken_Rocks|Wood_Log|Metal_Fence|Wood_Fence|Road_Edge|Gravel|Mud|Puddle|Decal/i;
 
 /**
  * Top face of the catch floor — a backstop for anything that finds a seam in

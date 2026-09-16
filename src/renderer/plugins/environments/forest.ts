@@ -15,7 +15,22 @@ export const forest: EnvironmentSpec = {
   model: forestModelUrl,
   // On the bare dirt road, which is the flattest ground in the scene
   // (0.5 m of undulation across its whole 40 m length).
-  spawn: { position: [0, 0.35, 0], heading: 0 },
+  //
+  // THE HEIGHT IS A RESTING HEIGHT, NOT A CLEARANCE. It was 0.35, and the drone
+  // does not start there — it starts 33 cm above the deck and FALLS, so every
+  // launch and every press of R opened with the aircraft dropping onto its own
+  // helipad with a bang. At 2.5 m/s of arrival that is also a real impact for
+  // the contact model to absorb, on a frame where the pilot has not touched
+  // anything yet.
+  //
+  // The number is measured, not chosen. The drone's lowest colliders — the four
+  // feet — bottom out 24 mm below the body origin, so it comes to rest 24 mm
+  // above whatever it is standing on. The road within 2 m of this point runs
+  // -0.013 to +0.015 (sampled out of forest.opt.glb), and the spawn apron in
+  // ForestEnv holds a floor at exactly 0 until the terrain streams in, so the
+  // resting height here is 0.024. Six millimetres over it is enough that the
+  // feet can never spawn inside the deck, and is a settle rather than a drop.
+  spawn: { position: [0, 0.03, 0], heading: 0 },
   /**
    * Fog pushed past the whole map.
    *
