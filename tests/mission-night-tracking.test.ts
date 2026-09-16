@@ -4,6 +4,7 @@ import { nightTracking } from '../src/renderer/missions/nightTracking';
 import { MISSIONS } from '../src/renderer/missions';
 import { TIGER_ROUTES, routeLength, tigerAt } from '../src/renderer/missions/tigerRoutes';
 import { forest } from '../src/renderer/plugins/environments/forest';
+import { lampRamp } from '../src/renderer/missions/DroneSpotlight';
 import { TIME_PRESETS } from '../src/renderer/state/worldStore';
 import { maxPointsOf, rankFor, tigerRouteOf, toMissionSpec } from '../src/renderer/missions/types';
 import type { MissionResult } from '../src/renderer/missions/types';
@@ -286,6 +287,43 @@ describe('TC-507 the lit band and the safe distance cannot contradict each other
     const rules = (M.rules ?? []).join(' ');
     expect(rules).toContain(`${t.minSafeDistance} m`);
     expect(rules).toContain(`${t.maxTrackAgl} m`);
+  });
+});
+
+describe('TC-508 the searchlight is off until the drone leaves the ground', () => {
+  // Flown, and reported: the lamp burned on the pad from the first frame. An
+  // inverse-square light a few centimetres off the deck overexposes everything
+  // under it, and bloom smears that across the whole airframe — the drone
+  // stopped being a drone and became a bulb sitting in a white hole. It is also
+  // simply not what a survey aircraft does: the light is for the search, and
+  // the search starts when you leave the ground.
+
+  it('is dark on the pad, however the motors are set', () => {
+    expect(lampRamp(0, true)).toBe(0);
+    expect(lampRamp(0, false)).toBe(0);
+    // Still dark through the first few centimetres of a lift-off.
+    expect(lampRamp(0.25, true)).toBe(0);
+  });
+
+  it('is dark whenever the motors are not live', () => {
+    // Disarmed at altitude — a wreck falling, or a pilot who cut the motors —
+    // has no reason to be lighting the forest.
+    for (const h of [0, 1, 2, 10]) expect(lampRamp(h, false)).toBe(0);
+  });
+
+  it('comes up across the climb rather than switching on', () => {
+    const climb = [0.3, 0.6, 0.9, 1.2, 1.5, 1.8].map((h) => lampRamp(h, true));
+    for (let i = 1; i < climb.length; i++) expect(climb[i]).toBeGreaterThan(climb[i - 1]);
+    expect(climb[0]).toBe(0);
+    expect(climb[climb.length - 1]).toBe(1);
+  });
+
+  it('is at full power by the time the probe saturates', () => {
+    // The four-corner support probe reaches 2 m and reports 2.0 for anything
+    // beyond, so the ramp has to be finished by then or it would never finish
+    // at all.
+    expect(lampRamp(2, true)).toBe(1);
+    expect(lampRamp(30, true)).toBe(1);
   });
 });
 

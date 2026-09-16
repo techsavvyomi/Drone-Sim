@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
 import { dronePose } from '../sim/drone/pose';
+import { useSimStore } from '../state/simStore';
+import { useFlightStore } from '../state/flightStore';
 import type { Mission } from './types';
 
 // ----------------------------------------------------------------------------
@@ -72,10 +74,10 @@ const AIM_LERP = 3.5;
  * irradiance at the centre of the pool is simply `INTENSITY / agl²`. The
  * ambient at `dusk` is 0.38, so the arithmetic that chose this number is:
  *
- *      9 m up  →  600 / 81  = 7.4    hot, and the lowest legal altitude
- *     12 m up  →  600 / 144 = 4.2    a strong working pool
- *     20 m up  →  600 / 400 = 1.5    still clearly a pool
- *     30 m up  →  600 / 900 = 0.67   barely above the ambient — the ceiling
+ *      9 m up  →  360 / 81  = 4.4    hot, and the lowest legal altitude
+ *     12 m up  →  360 / 144 = 2.5    a strong working pool
+ *     20 m up  →  360 / 400 = 0.9    still clearly a pool
+ *     30 m up  →  360 / 900 = 0.4    barely above the ambient — the ceiling
  *
  * That last line IS the mission: climbing widens the pool and dims it until it
  * stops being worth anything, which is what stops the answer to "search the
@@ -84,12 +86,15 @@ const AIM_LERP = 3.5;
  * has, and it made 30 m nearly as bright as 10 m, so the pool had no altitude
  * behaviour and read as a flat white disc stamped on the ground.
  *
- * Close up it does blow out — 600 / 0.35² is thousands — and that is correct
- * and self-limiting rather than the "flash" this was reported as. The pool's
- * RADIUS scales with altitude too (`tan(26°) · agl`), so on the pad the
- * overexposed patch is 17 cm across: a landing light, which is what it is.
+ * Close up it blows out badly — 360 / 0.35² is thousands — and the claim that
+ * this was self-limiting because the pool is only 17 cm wide down there was
+ * simply WRONG, as the first flight showed: bloom spreads a patch that
+ * overexposed across half the airframe, and on the pad the whole helipad went
+ * white. The fix is not a lower number, it is `LAMP_ON_*` below — the lamp is
+ * off on the ground and comes up as the aircraft climbs away, which is what a
+ * survey aircraft actually does with its light.
  */
-const INTENSITY = 600;
+const INTENSITY = 360;
 
 /**
  * How soft the edge of the cone is, 0 (a knife edge) to 1 (soft to the centre).
@@ -118,7 +123,44 @@ const BEAM_LEN = 26;
  * reads, brighter round its edge than through its middle — and a value that
  * looks right on the ground looks like a solid cone from the side.
  */
-const BEAM_ALPHA = 0.1;
+const BEAM_ALPHA = 0.07;
+
+/**
+ * THE TAKE-OFF GATE: metres above the ground the lamp comes up between.
+ *
+ * The first flight had the light burning on the pad, and it was indefensible in
+ * two separate ways. Visually, an inverse-square light a few centimetres off
+ * the deck overexposes everything under it and bloom smears that across the
+ * whole airframe — the drone stopped being a drone and became a bulb sitting in
+ * a white hole. And behaviourally, no survey aircraft sits on its pad with the
+ * searchlight lit: the light is for the search, and the search starts when you
+ * leave the ground.
+ *
+ * So it fades in across the first metre and a half of climb. The reading comes
+ * from the four-corner support probe, which is the only thing on this map that
+ * knows where the ground actually IS — world altitude says nothing here, the
+ * gorge floor being twenty-seven metres below the clearing. The probe's own
+ * reach is 2 m and it saturates there, which is exactly the range this needs.
+ */
+const LAMP_ON_FROM = 0.3;
+const LAMP_ON_FULL = 1.8;
+/** How fast the lamp fades in and out, per second. Slow enough to read as a
+ *  light coming up rather than a switch being flicked. */
+const LAMP_LERP = 2.6;
+
+/**
+ * How far up the lamp should be, given the height above whatever is underneath
+ * and whether the motors are live. 0 is dark, 1 is full.
+ *
+ * Pulled out of the frame loop as a pure function purely so it can be tested.
+ * "The searchlight is off while the drone is on its pad" is not a thing the
+ * typecheck can see, and it is a thing that has already been wrong once.
+ */
+export function lampRamp(height: number, live: boolean): number {
+  if (!live) return 0;
+  const t = (height - LAMP_ON_FROM) / (LAMP_ON_FULL - LAMP_ON_FROM);
+  return Math.min(1, Math.max(0, t));
+}
 
 /**
  * A vertical fade for the beam shell: lit at the lamp, gone by the far end.
@@ -162,6 +204,8 @@ export function DroneSpotlight({ mission }: { mission: Mission }) {
   const forward = useMemo(() => new THREE.Vector3(), []);
   /** The smoothed aim offset, in world XZ. Chased rather than snapped. */
   const aim = useRef({ x: 0, z: 0 });
+  /** How far up the lamp is, 0 (dark, on the pad) to 1 (full). */
+  const lamp = useRef(0);
 
   // The cone is the mission's, in radians. `THREE.SpotLight.angle` is the HALF
   // angle, which is the same thing `coneDeg` means — see the Director, which
@@ -196,8 +240,22 @@ export function DroneSpotlight({ mission }: { mission: Mission }) {
     [],
   );
 
+  /**
+   * The lens.
+   *
+   * Dim, and that is the whole of what was wrong with it. It was pure white and
+   * untonemapped, which put it straight through the bloom threshold: the
+   * halo swallowed the airframe and the drone read as a light bulb rather than
+   * as a machine carrying one. This colour peaks at 0.80, which is the `dusk`
+   * preset's bloom threshold exactly — so it is plainly a lit lens and it
+   * glows, but it does not flare.
+   *
+   * Its brightness is scaled by the take-off gate every frame, so on the pad it
+   * is a dark piece of the airframe.
+   */
+  const lensBase = useMemo(() => new THREE.Color('#93a9cc'), []);
   const lensMat = useMemo(
-    () => new THREE.MeshBasicMaterial({ color: '#f4f8ff', toneMapped: false, fog: false }),
+    () => new THREE.MeshBasicMaterial({ color: '#000000', toneMapped: false, fog: false }),
     [],
   );
   const housingMat = useMemo(
@@ -229,7 +287,14 @@ export function DroneSpotlight({ mission }: { mission: Mission }) {
     // Before the aircraft exists there is nothing to hang a lamp off. Hidden
     // rather than parked at the origin, which would put a lit cone on the pad.
     g.visible = dronePose.present;
-    if (!dronePose.present) return;
+    if (!dronePose.present) {
+      // Put the gate back with it. Otherwise the next attempt's first frame
+      // draws the lamp at whatever brightness the last one left behind, which
+      // is a lit searchlight sitting on the pad — the exact frame this whole
+      // mechanism exists to prevent.
+      lamp.current = 0;
+      return;
+    }
 
     const p = dronePose.position;
     // The aircraft's own forward, so the lead follows the nose rather than a
@@ -246,6 +311,25 @@ export function DroneSpotlight({ mission }: { mission: Mission }) {
     const k = 1 - Math.exp(-AIM_LERP * dt);
     aim.current.x += (forward.x * LEAD - aim.current.x) * k;
     aim.current.z += (forward.z * LEAD - aim.current.z) * k;
+
+    // ---- The take-off gate -------------------------------------------------
+    //
+    // Height above whatever is actually underneath, from the support probe —
+    // the same reading `RotorWash` sits its dust on, and for the same reason:
+    // world altitude is meaningless on a map whose floor moves sixty metres.
+    // Past the probe's 2 m reach every corner reports 2.0, which is already
+    // well clear of the gate, so saturation needs no special case.
+    const d = useSimStore.getState().support.distances;
+    const height = Math.min(d[0], d[1], d[2], d[3]);
+    const status = useFlightStore.getState().status();
+    const live = status === 'armed' || status === 'flying';
+    const wanted = lampRamp(height, live);
+    lamp.current += (wanted - lamp.current) * (1 - Math.exp(-LAMP_LERP * dt));
+    const on = lamp.current;
+
+    if (light.current) light.current.intensity = INTENSITY * on;
+    beamMat.opacity = BEAM_ALPHA * on;
+    lensMat.color.copy(lensBase).multiplyScalar(on);
 
     // The rig is unrotated, so its children's local axes are world axes: the
     // lamp, the shaft and the light all sit straight down from the aircraft and
@@ -266,7 +350,7 @@ export function DroneSpotlight({ mission }: { mission: Mission }) {
       {/* The lens: unlit, untonemapped, so it stays a hot white dot at any
           exposure rather than being graded down with the rest of the scene. */}
       <mesh material={lensMat} position={[0, -0.004, 0]} rotation={[Math.PI / 2, 0, 0]}>
-        <circleGeometry args={[0.05, 12]} />
+        <circleGeometry args={[0.028, 12]} />
       </mesh>
 
       {/* The shaft, hanging point-up from the lens.
@@ -283,7 +367,10 @@ export function DroneSpotlight({ mission }: { mission: Mission }) {
       <spotLight
         ref={light}
         angle={angle}
-        intensity={INTENSITY}
+        /* Zero at mount: the frame loop owns it, and a light that flashed at
+           full power for the one frame before the first update is the exact
+           thing the gate exists to prevent. */
+        intensity={0}
         penumbra={PENUMBRA}
         /* INVERSE SQUARE, and no `distance` cutoff.
            Two is what light actually does, and the cutoff is an optimisation
