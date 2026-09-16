@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { dronePose } from '../sim/drone/pose';
+import { tigerPose } from '../missions/tigerPose';
 import { useMissionStore, legOf, activeZone, guidanceHidden } from '../state/missionStore';
 import { requiredCheckpoints, nextTargetOf, dropZoneOf, rescueZoneOf } from '../missions/types';
 import type { Mission } from '../missions/types';
@@ -45,6 +46,8 @@ const BASE = '#37e08a';
 const NEXT = '#37e08a';
 const OWED = '#ff6ee0';
 const DRONE = '#e2e8f0';
+/** The tiger, on a mission that shows it (`tracking.showOnMap`). */
+const TIGER = '#ff3b3b';
 
 type Zone = { at: readonly [number, number]; color: string; kind: string };
 
@@ -280,6 +283,32 @@ export function MissionMap({ mission }: { mission: Mission }) {
           ctx.fillStyle = NEXT;
           ctx.fillText('P', x, y - 11);
         }
+      }
+
+      // --- The tiger, where the mission shows it ------------------------------
+      //
+      // A red dot at the animal's live position, on the same rim clamp as every
+      // other mark: out of range it sits on the edge in the tiger's direction,
+      // which is the "that way" the pilot flies on. Drawn under the aircraft so
+      // the arrow stays readable once the dot reaches the middle.
+      if (mission.tracking?.showOnMap && tigerPose.present) {
+        const { x, y, far } = onDial(sx(tigerPose.x), sz(tigerPose.z));
+        const t = (clock % 1200) / 1200;
+        ctx.strokeStyle = TIGER;
+        ctx.lineWidth = 2;
+        ctx.globalAlpha = 0.75 * (1 - t);
+        ctx.beginPath();
+        ctx.arc(x, y, 6 + t * 10, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.globalAlpha = 1;
+        ctx.fillStyle = 'rgba(6, 10, 17, 0.85)';
+        ctx.beginPath();
+        ctx.arc(x, y, far ? 5.5 : 6.5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = TIGER;
+        ctx.beginPath();
+        ctx.arc(x, y, far ? 4 : 5, 0, Math.PI * 2);
+        ctx.fill();
       }
 
       // --- The aircraft, dead centre -----------------------------------------

@@ -3,7 +3,7 @@ import { TIGER_ROUTES } from './tigerRoutes';
 import { forest } from '../plugins/environments/forest';
 
 // ----------------------------------------------------------------------------
-// Mission 5 — Nightfall Predator Tracking (the forest, after dark).
+// Mission 6 — Nightfall Predator Tracking (the forest, after dark).
 //
 // The fifth mission, and the first whose target is ALIVE. Mission 4 took the
 // route away and left the pilot a red circle and a person lying on a roof;
@@ -63,7 +63,7 @@ const GOLD = 1;
 
 export const nightTracking: Mission = {
   id: 'night-tracking',
-  order: 5,
+  order: 6,
   name: 'Wildlife Tracker',
   subtitle: 'A tiger in the dark, and nothing on the map',
   kind: 'tracking',
@@ -71,7 +71,7 @@ export const nightTracking: Mission = {
   blurb:
     'A tiger has gone unrecorded on the evening survey. Find it in the forest with your spotlight and hold the light on it long enough to log the sighting, without ever disturbing it. The survey is over the moment the sighting is confirmed.',
   story:
-    'The evening survey missed one of our tigers and the ground team cannot walk the gorge after dark. There is no collar on this animal and no fix to give you — only where it was last seen and which way it was heading. Take the drone out, find it with your light, and watch it long enough to confirm it is well. The moment we have the sighting, the job is done — you leave the animal alone and we log it.',
+    'The evening survey missed one of our tigers and the ground team cannot walk the forest after dark. There is no collar on this animal and no fix to give you — only where it was last seen and which way it was heading. Take the drone out, find it with your light, and watch it long enough to confirm it is well. The moment we have the sighting, the job is done — you leave the animal alone and we log it.',
   /*
    * DUSK, against the missions' shared blue half hour — and it is its own
    * preset rather than either neighbour, because both neighbours failed.
@@ -99,7 +99,7 @@ export const nightTracking: Mission = {
    * a clue, and none of these do.
    */
   clues: [
-    'The tiger was last seen near water, at the bottom of the gorge.',
+    'It keeps off the roads. Search under the trees, not along the tracks.',
     'It was moving deeper into the forest, away from the clearing.',
     'The sighting was at dusk. It has been walking since.',
     'It will not be where it was last seen. Search along its line, not at a point.',
@@ -114,40 +114,32 @@ export const nightTracking: Mission = {
    */
   rules: [
     'No marker, no waypoint and no route will be drawn to the tiger.',
-    'You can spot the tiger from far off (above 30 m the light shows you nothing), but the hold only counts from within 12 m of it. Come in close and hover.',
+    'You can spot the tiger from far off (above 30 m the light shows you nothing), but the hold only counts from within 9 m of it. Come in close and hover.',
     'Never closer than 4 m to the tiger: inside that the beam stops counting, and once you have sighted it the survey fails.',
     'The spotlight is mounted on the nose and throws its beam well ahead, like a headlight. Point the aircraft at where you want to look.',
-    'Once you are within 12 m and the beam is on the tiger, the hold starts filling.',
+    'Once you are within 9 m and the beam is on the tiger, the hold starts filling.',
     'If the tiger leaves the light the lock drains. Find it again and it fills from where it stopped.',
     'The survey ends at the sighting. There is no flight home to fly and no landing to score.',
   ],
-  /* Four beats, and the last one is the SIGHTING rather than a landing.
-   *
-   * The card draws four whatever the mission flies — Forest Fire has drawn a
-   * fourth picture for a leg it does not have since it was written, because the
-   * beats are what the briefing SHOWS, not the legs the runtime walks. Here the
-   * fourth is the confirmation itself: the pilot deserves a picture of the thing
-   * that ends the mission, and it is not a pad. */
+  /* Two beats with room for a photograph each: where the flight starts, and the
+   * moment the drone finds the tiger. Files go in as night-tracking-1 and -2. */
   flow: [
-    { label: 'Sweep', note: 'Search the dark with your light', art: 'sweep' },
-    { label: 'Sight', note: 'Eyeshine in the beam', art: 'track' },
-    { label: 'Observe', note: 'Five seconds of light, from a distance', art: 'track' },
-    { label: 'Logged', note: 'The sighting confirmed — survey over', art: 'track' },
+    { label: 'Take off', note: 'Lift off from the ranger station helipad', art: 'sweep' },
+    { label: 'Found', note: 'The tiger in your light — sighting confirmed', art: 'track' },
   ],
   objectives: [
     'Fly out from the ranger station and search the forest with your spotlight.',
     'Find the tiger by eye. Nothing on the HUD will point at it.',
-    'Come within 12 m and hold the light on it for five seconds.',
+    'Come within 9 m and hold the light on it for five seconds.',
     'The survey is complete the moment the sighting is confirmed.',
   ],
   mapNote: 'The forest at night. No marker, no route',
   /*
-   * EIGHT MINUTES against a four minute par, the same pair Mission 4 carries
-   * and for the same reason: a search cannot be timed like a flight. The same
-   * pilot flying to the same standard finds the animal in ninety seconds or in
-   * four minutes depending on which way they turned off the pad, so the limit
-   * has to be generous enough that a wrong guess is not a failure, and the par
-   * is what the rating is actually measured against.
+   * THREE MINUTES against a two and a half minute par. A search cannot be
+   * timed like a flight — the same pilot finds the animal in ninety seconds or
+   * in three minutes depending on which way they turned off the pad — so the
+   * par is what the rating is actually measured against. The par still has to
+   * sit above one there-and-back of the longer patrol (TC-503).
    *
    * What is different here is that the target is walking, which cuts both ways:
    * a pilot searching the wrong half of the map will not be saved by the animal
@@ -156,8 +148,8 @@ export const nightTracking: Mission = {
    * inside a couple of minutes. The patrols are 36 and 44 m long at 0.9 m/s,
    * so a there-and-back is eighty to a hundred seconds.
    */
-  timeLimitSec: 480,
-  parTimeSec: 240,
+  timeLimitSec: 180,
+  parTimeSec: 150,
   groundY: CLEARING_Y,
   /*
    * NO CEILING OVERRIDE, deliberately, where Mission 4 raised its to eighty.
@@ -201,19 +193,9 @@ export const nightTracking: Mission = {
    * drone spawns and what `strayRadius` is measured from.
    */
   endsAtDrop: true,
-  /*
-   * A STRAY RADIUS, where the rescue refused one.
-   *
-   * Mission 4 argued that a recall banner narrows a search the app has already
-   * narrowed once, and that is right — over a city, where the pilot can see
-   * where they are. This is a forest at night with a 320 m fog and no skyline:
-   * a pilot who has lost their bearings can fly to the map boundary with
-   * nothing on screen ever saying they have left the survey area, and the
-   * boundary itself is an invisible wall. 120 m covers both patrols with
-   * twenty-five metres to spare at the far end of the ridge road, and it is a
-   * warning with a grace period, never a wall.
-   */
-  strayRadius: 120,
+  /* NO STRAY RADIUS: no "return to mission area" recall on this mission. The
+   * pilot searches freely and the three minute time limit is the only thing
+   * that ends a search that has gone the wrong way. */
   /* A forest is a wall of trunks with a canopy over it, so a depth-tested mark
    * is behind a tree from most headings — the landing ring vanishes and comes
    * back as the pilot yaws, which reads as a bug. Nothing here is a building,
@@ -258,15 +240,16 @@ export const nightTracking: Mission = {
      */
     lightRange: 90,
     /*
-     * TWELVE METRES: the hold only counts from this close.
+     * NINE METRES: the hold only counts from this close. (It was twelve; the
+     * maintainer wanted the pilot in closer.)
      *
      * The light still reaches 90 m and the pilot can see the animal lit from
      * far off — but lit from across the ravine, the lock filled at once, which
-     * is not a survey. With the beam 60° ahead of the nose, twelve metres along
-     * it is about 6 m of height and 10 m ahead: come in low and close, hover,
+     * is not a survey. With the beam 60° ahead of the nose, nine metres along
+     * it is about 4.5 m of height and 8 m ahead: come in low and close, hover,
      * hold. A banner tells a pilot who has it lit from further out to close in.
      */
-    lockRange: 12,
+    lockRange: 9,
     /*
      * SIXTEEN DEGREES OF HALF-ANGLE, which is the number the whole mission
      * balances on.
@@ -414,7 +397,7 @@ export const nightTracking: Mission = {
      * the mission's voice lives in one place. */
     zone: {
       id: 'nt-zone',
-      text: 'Last sighting was down in the gorge, near the water, heading deeper in. That was at dusk, so it has had hours to walk. Search the line, not the spot.',
+      text: 'Last sighting was deep in the trees, well off the roads, heading further in. That was at dusk, so it has had hours to walk. Search the line, not the spot.',
     },
     located: {
       id: 'nt-located',
@@ -456,8 +439,8 @@ export const nightTracking: Mission = {
   ranks: [
     {
       stars: 3,
-      text: 'Sighting logged, no collisions, inside 4:00',
-      test: (r) => r.delivered && r.points >= GOLD && r.collisions === 0 && r.timeSec <= 240,
+      text: 'Sighting logged, no collisions, inside 2:30',
+      test: (r) => r.delivered && r.points >= GOLD && r.collisions === 0 && r.timeSec <= 150,
     },
     {
       stars: 2,

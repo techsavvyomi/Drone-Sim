@@ -119,7 +119,9 @@ export function MissionScreen() {
                           ? // A survey delivers nothing. '1 deliveries' on the
                             // card of a wildlife mission is the list describing
                             // a job the mission does not have.
-                            'no marker'
+                            m.tracking.showOnMap
+                            ? 'tiger on map'
+                            : 'no marker'
                           : `${deliveryCount(m)} deliveries`}{' '}
                       · {Math.round(m.timeLimitSec / 60)} min
                     </>
