@@ -335,11 +335,13 @@ describe('TC-507c the hold counts the moment the light is on the animal', () => 
     }
   });
 
-  it('reaches the animal from the aircraft ceiling over the deepest patrol', () => {
-    // 30 m above the pad and the gorge's lowest node at -30.47: sixty metres
-    // of height, and at full lean that is 1/cos(tilt) further along the beam.
-    const height = GURU_CEILING + 30.47;
-    expect(trackingLit(t, along(height / Math.cos(TILT)), axis)).toBe(true);
+  it('reaches flat ground from the aircraft ceiling, even at full lean', () => {
+    // It used to reach the gorge's lowest node (-30.47) from the ceiling. With
+    // the lamp tipped up like a headlight (60°, 70° at full lean) the beam is
+    // 1/cos(tilt) longer than the height, so over the deep gorge the pilot has
+    // to come down to reach it — chosen by the maintainer. Over the pad's own
+    // level it still reaches from the top of the envelope.
+    expect(trackingLit(t, along(GURU_CEILING / Math.cos(TILT)), axis)).toBe(true);
   });
 
   it('judges the patch the beam is on, not the ground behind the aircraft', () => {
@@ -376,7 +378,9 @@ describe('TC-507d the beam leans slightly forward, and further in forward flight
   it('points a little ahead of the nose at a level hover', () => {
     expect(deg(beamTilt(0))).toBeCloseTo(LIGHT_TILT_DEG);
     expect(LIGHT_TILT_DEG).toBeGreaterThan(0);
-    expect(LIGHT_TILT_DEG).toBeLessThan(30);
+    // Tipped up like a phone torch, but still pointing DOWN at the ground.
+    expect(LIGHT_TILT_DEG).toBeLessThan(90);
+    expect(LIGHT_MAX_TILT_DEG).toBeLessThan(90);
   });
 
   it('leans further ahead as the airframe pitches nose-down', () => {
@@ -515,7 +519,8 @@ describe('TC-502b the searchlight does not blow out underneath itself', () => {
   });
 
   it('keeps the pool off the top of the exposure range all the way down', () => {
-    expect(pool(9)).toBeLessThan(3.5);
+    // 4.5, from 3.5: the lamp was flown as too dim at 900 and raised 1.5x.
+    expect(pool(9)).toBeLessThan(4.5);
     expect(pool(4)).toBeLessThan(6);
     expect(pool(2)).toBeLessThan(9);
     expect(pool(1.4)).toBeLessThan(11);

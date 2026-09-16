@@ -7,6 +7,7 @@ import { useSimStore } from '../state/simStore';
 import { useFlightStore } from '../state/flightStore';
 import { staticHitDistance } from '../scene/cameraProbe';
 import { beamPose, resetBeamPose } from './beamPose';
+import { tigerPose } from './tigerPose';
 import type { Mission } from './types';
 
 // ----------------------------------------------------------------------------
@@ -45,11 +46,19 @@ import type { Mission } from './types';
 // and dimming it only moved the problem. It is gone; the light is shown where
 // it lands, which is where a real torch at night is seen.
 
-/** Lean ahead of straight down at a level hover, degrees. */
-export const LIGHT_TILT_DEG = 25;
+/**
+ * Lean ahead of straight down at a level hover, degrees.
+ *
+ * 60: a torch held like a phone with its top tipped up — the beam is thrown
+ * well ahead of the nose, close to a headlight, rather than lighting the ground
+ * under the aircraft. At 25° the pool sat almost under the drone and the
+ * tiger's shadow fell under the tiger, where nobody could see it.
+ */
+export const LIGHT_TILT_DEG = 60;
 
-/** The most the beam may lean ahead in forward flight, degrees. */
-export const LIGHT_MAX_TILT_DEG = 35;
+/** The most the beam may lean ahead in forward flight, degrees. At 70° the
+ *  beam from the 30 m ceiling still meets flat ground inside `LIGHT_DISTANCE`. */
+export const LIGHT_MAX_TILT_DEG = 70;
 
 /** How much of the airframe's nose-down pitch the beam follows, 0 to 1.
  *  0 holds the beam at `LIGHT_TILT_DEG` whatever the aircraft does. */
@@ -69,12 +78,14 @@ const TILT_LERP = 2.5;
 /**
  * Candela at full power, against decay = 2.
  *
- * 900, down from 1500. At 1500 the pool under a drone a metre or two up was
- * several times over the bloom threshold: the whole pool clipped to flat white
- * and its penumbra clipped with it, which is what made the edge look hard.
- * Brightness below `IRIS_ALT` is then managed by `irisScale` (TC-502b).
+ * 1350. At 1500 with no low-altitude correction the pool under a drone a
+ * metre or two up was several times over the bloom threshold: the whole pool
+ * clipped to flat white and its penumbra clipped with it, which is what made
+ * the edge look hard. 900 fixed that and was flown as too dim ("kaafi halka"),
+ * so it is 1.5x that. Near the ground `lampExposure` still holds it well under
+ * the old blowout (TC-502b).
  */
-export const LIGHT_INTENSITY = 900;
+export const LIGHT_INTENSITY = 1350;
 
 /**
  * The brightness the current look was approved at is that of a lamp this many
@@ -89,8 +100,14 @@ export const LIGHT_INTENSITY = 900;
  */
 const LOOK_OFFSET = 1;
 
-/** Light reach, metres. The pool fades to nothing by here. */
-const LIGHT_DISTANCE = 40;
+/**
+ * Light reach, metres. The pool fades to nothing by here.
+ *
+ * 90, the mission's own `lightRange`, so what the detection counts is exactly
+ * as far as the light shows. It was 40 with the beam at 25°; leaning at 60° the
+ * beam is twice as long to the ground, and 40 put the pool out above ~20 m.
+ */
+const LIGHT_DISTANCE = 90;
 
 /** Soft pool edge, 0 (hard) to 1. */
 const LIGHT_PENUMBRA = 0.5;
@@ -98,9 +115,49 @@ const LIGHT_PENUMBRA = 0.5;
 /** Light colour — a warm white, like a halogen torch. */
 const LIGHT_COLOR = '#ffe2bd';
 
-/** Where the lamp sits below the drone's origin, metres (negative is down).
- *  Flush under the battery. */
-const LIGHT_OFFSET_Y = -0.03;
+/**
+ * Where the lamp's lens sits, in the drone's own frame, metres.
+ *
+ * MEASURED off PlutoGuru.opt.glb as the game draws it (modelScale, sizeScale
+ * 2.5, yaw and offset applied): the fuselage nose ends at z = −0.145 and its
+ * underside there is at y ≈ +0.030 — ABOVE the drone's origin, since the feet
+ * hang down to −0.024. So the lamp is mounted at the front edge of the belly,
+ * just inside the nose, with its 12 mm housing touching the underside. The old
+ * centre mount at y = −0.03 was hanging below the feet.
+ */
+const LIGHT_OFFSET_Y = 0.018;
+
+/** Forward is −Z. Just inside the nose tip at −0.145. */
+const LIGHT_OFFSET_Z = -0.12;
+
+// ---- SHADOW ------------------------------------------------------------------
+//
+// On Medium and High only (Low has no shadow map). Nothing in the forest GLB
+// casts — every tree and ground tile has castShadow = false — so what this
+// light shadows is the tiger. Two things keep it cheap, both learned from
+// Mission 5 lagging on High the last time this was on:
+// - a 512 map, not 1024, next to the sun's own map on a VRAM-bound target;
+// - the map is redrawn only while the tiger is near the beam, plus one frame
+//   after it leaves to clear it, instead of every frame.
+
+/** Shadow map resolution, texels per side. */
+const SHADOW_MAP = 512;
+
+/** Depth bias against shadow acne. More negative removes acne but detaches the
+ *  shadow from the animal's feet (peter-panning). */
+const SHADOW_BIAS = -0.0005;
+
+/** Offset along the surface normal; handles acne on slopes without detaching. */
+const SHADOW_NORMAL_BIAS = 0.02;
+
+/** Shadow camera near plane, metres. Clears the airframe the lamp is under, or
+ *  the drone's own arms would shadow the whole pool. */
+const SHADOW_NEAR = 0.3;
+
+/** How far outside the cone the tiger may be and still have its shadow
+ *  redrawn, as a multiple of the cone's half-angle — so the shadow is already
+ *  there as the animal walks into the pool. */
+const SHADOW_CONE_MARGIN = 1.6;
 
 /** How fast the aim catches up with the nose, per second. */
 const AIM_LERP = 3.5;
@@ -125,6 +182,9 @@ export function beamTilt(pitchDown: number): number {
  *  light's own reach, so a clear reading means the pool is fully faded. One
  *  ray per frame; the shorter it is, the cheaper. */
 const RANGE_REACH = LIGHT_DISTANCE + 5;
+
+/** Shadow camera far plane, metres: the light's own reach. */
+const SHADOW_FAR = LIGHT_DISTANCE;
 
 
 /** The altitude the pool is exposed for, metres. Above it the lamp runs at
@@ -184,7 +244,7 @@ function castAlong(from: THREE.Vector3, dir: THREE.Vector3, end: THREE.Vector3):
   return Number.isFinite(hit) ? hit : RANGE_REACH;
 }
 
-export function DroneSpotlight({ mission }: { mission: Mission }) {
+export function DroneSpotlight({ mission, shadows }: { mission: Mission; shadows: boolean }) {
   const rig = useRef<THREE.Group>(null);
   const light = useRef<THREE.SpotLight>(null);
   const track = mission.tracking;
@@ -195,6 +255,8 @@ export function DroneSpotlight({ mission }: { mission: Mission }) {
   /** The lamp's world position, and a point along a ray from it. */
   const lampAt = useMemo(() => new THREE.Vector3(), []);
   const up = useMemo(() => new THREE.Vector3(0, 1, 0), []);
+  /** The lamp's mount in the drone's frame. */
+  const mount = useMemo(() => new THREE.Vector3(), []);
   const rayEnd = useMemo(() => new THREE.Vector3(), []);
 
   /** The smoothed flat heading the beam is aimed along, as a unit XZ vector.
@@ -206,6 +268,12 @@ export function DroneSpotlight({ mission }: { mission: Mission }) {
   const lamp = useRef(0);
   const held = useRef(0);
   const irisAgl = useRef(IRIS_ALT);
+  /** Whether the shadow map was drawn with the tiger near the beam last frame,
+   *  so it is redrawn once more after the animal leaves — clearing it. */
+  const shadowWasLive = useRef(false);
+  /** The `shadows` prop, readable from the dev console helper. */
+  const shadowsOn = useRef(shadows);
+  shadowsOn.current = shadows;
 
   // SpotLight cone half-angle
   const angle = ((track?.coneDeg ?? 26) * Math.PI) / 180;
@@ -226,6 +294,9 @@ export function DroneSpotlight({ mission }: { mission: Mission }) {
   useEffect(() => {
     if (light.current && rig.current) {
       rig.current.add(light.current.target);
+      // The shadow map is redrawn on demand, not every frame — see below.
+      light.current.shadow.autoUpdate = false;
+      light.current.shadow.needsUpdate = true;
     }
     // Development only: `beamDebug()` in the DevTools console prints where the
     // light really is and where its pool really lands, read from the live
@@ -255,6 +326,14 @@ export function DroneSpotlight({ mission }: { mission: Mission }) {
           'circle ahead of drone, m': offset.dot(flatFwd).toFixed(2),
           'circle to the right, m': offset.dot(new THREE.Vector3(-flatFwd.z, 0, flatFwd.x)).toFixed(2),
           'published to detection': f(new THREE.Vector3(beamPose.dx, beamPose.dy, beamPose.dz)),
+          'shadows allowed (graphics)': String(shadowsOn.current),
+          'light castShadow': String(l.castShadow),
+          'shadow map created': String(l.shadow.map !== null),
+          'tiger near beam (shadow redrawing)': String(shadowWasLive.current),
+          'tiger distance from lamp, m': tigerPose.present
+            ? Math.hypot(tigerPose.x - lightW.x, tigerPose.y - lightW.y, tigerPose.z - lightW.z).toFixed(1)
+            : 'no tiger',
+          'light intensity now': l.intensity.toFixed(0),
         });
       };
     }
@@ -305,7 +384,10 @@ export function DroneSpotlight({ mission }: { mission: Mission }) {
     // θ carries forward (−Z) to (−sin θ, 0, −cos θ), so θ = atan2(−x, −z).
     const sinT = Math.sin(tilt.current);
     const cosT = Math.cos(tilt.current);
-    g.position.set(p.x, p.y + LIGHT_OFFSET_Y, p.z);
+    // The mount point follows the full airframe transform, so the lamp stays on
+    // the nose when the aircraft pitches; the beam's own aim is set below.
+    mount.set(0, LIGHT_OFFSET_Y, LIGHT_OFFSET_Z).applyQuaternion(dronePose.quaternion).add(p);
+    g.position.copy(mount);
     g.quaternion.setFromAxisAngle(up, Math.atan2(-aim.current.x, -aim.current.z));
 
     // THE AXIS, world space — down, leaning toward the heading. It is exactly
@@ -334,7 +416,7 @@ export function DroneSpotlight({ mission }: { mission: Mission }) {
 
     // What the middle of the pool lands on, for the iris. The same axis the
     // light is aimed along and the Director judges with.
-    lampAt.set(p.x, p.y + LIGHT_OFFSET_Y, p.z);
+    lampAt.copy(mount);
     const axisHit = castAlong(lampAt, aimDir, rayEnd);
     irisAgl.current += (axisHit - irisAgl.current) * (1 - Math.exp(-IRIS_LERP * dt));
 
@@ -347,6 +429,22 @@ export function DroneSpotlight({ mission }: { mission: Mission }) {
       if (!light.current.target.parent) g.add(light.current.target);
       light.current.target.position.set(0, -cosT * 10, -sinT * 10);
       light.current.intensity = LIGHT_INTENSITY * on * lampExposure(effectiveAgl);
+
+      // Redraw the shadow only while the tiger is near the beam, plus one frame
+      // after it leaves.
+      let tigerNear = false;
+      if (shadows && tigerPose.present && on > 0.01) {
+        const dx = tigerPose.x - lampAt.x;
+        const dy = tigerPose.y - lampAt.y;
+        const dz = tigerPose.z - lampAt.z;
+        const dist = Math.hypot(dx, dy, dz);
+        if (dist > 1e-3 && dist < SHADOW_FAR) {
+          const cosOff = (dx * aimDir.x + dy * aimDir.y + dz * aimDir.z) / dist;
+          tigerNear = cosOff > Math.cos(Math.min(Math.PI / 2, angle * SHADOW_CONE_MARGIN));
+        }
+      }
+      if (tigerNear || shadowWasLive.current) light.current.shadow.needsUpdate = true;
+      shadowWasLive.current = tigerNear;
     }
 
     // Lens glow: subtle white illumination on optic face
@@ -383,7 +481,7 @@ export function DroneSpotlight({ mission }: { mission: Mission }) {
       </mesh>
 
       {/*
-        The SpotLight, at the lamp. castShadow is OFF for now, by request.
+        The SpotLight, at the lamp. Casts shadows on Medium/High — see SHADOW.
         Its target is a child of this rig too (added in the effect above).
       */}
       <spotLight
@@ -397,7 +495,12 @@ export function DroneSpotlight({ mission }: { mission: Mission }) {
         decay={2}
         color={LIGHT_COLOR}
         distance={LIGHT_DISTANCE}
-        castShadow={false}
+        castShadow={shadows}
+        shadow-mapSize={[SHADOW_MAP, SHADOW_MAP]}
+        shadow-bias={SHADOW_BIAS}
+        shadow-normalBias={SHADOW_NORMAL_BIAS}
+        shadow-camera-near={SHADOW_NEAR}
+        shadow-camera-far={SHADOW_FAR}
       />
     </group>
   );

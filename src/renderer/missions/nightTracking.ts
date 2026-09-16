@@ -116,7 +116,7 @@ export const nightTracking: Mission = {
     'No marker, no waypoint and no route will be drawn to the tiger.',
     'Work from any height you like. Low is a tight bright pool; by 30 m it is wide, thin and shows you nothing.',
     'Never closer than 4 m to the tiger: inside that the beam stops counting, and once you have sighted it the survey fails.',
-    'The spotlight is angled a little ahead of the nose, and leans further as you fly forward. Point the aircraft at where you want to look.',
+    'The spotlight is mounted on the nose and throws its beam well ahead, like a headlight. Point the aircraft at where you want to look.',
     'The moment the beam is on the tiger the hold starts filling — at 5 m or at 30, it counts the same.',
     'If the tiger leaves the light the lock drains. Find it again and it fills from where it stopped.',
     'The survey ends at the sighting. There is no flight home to fly and no landing to score.',
@@ -248,10 +248,11 @@ export const nightTracking: Mission = {
      *
      * A hard limit on top of the cone. It was forty-five, which was a margin
      * over a light pointing straight DOWN from the 30 m ceiling. The beam now
-     * leans up to 35° ahead of the nose, so the distance to what it lights is
-     * the height over cos(lean) — and over the gorge, whose floor is thirty
-     * metres below the pad, a pilot at the ceiling is sixty metres above the
-     * animal and up to seventy-three along the beam from it. "Whatever height I am at" was the
+     * leans 60° ahead of the nose (70° at full lean), so the distance to what
+     * it lights is the height over cos(lean): from the ceiling over flat ground
+     * that is 60 m, and 88 m at full lean. Over the gorge, thirty metres below
+     * the pad, the pilot has to come down to reach the animal. The lamp's own
+     * reach (`LIGHT_DISTANCE`) is this same number. "Whatever height I am at" was the
      * request, and this is the number that honours it. What limits a pilot up
      * there is the light itself, which by then shows them nothing.
      */

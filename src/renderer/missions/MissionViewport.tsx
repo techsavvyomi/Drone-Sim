@@ -143,7 +143,7 @@ export function MissionViewport({ mission }: { mission: Mission }) {
               would turn "do not disturb the wildlife" into a collision test, and
               the mission already has a distance rule that says it better. */}
           {mission.tracking && <Tiger mission={mission} />}
-          {mission.tracking && <DroneSpotlight mission={mission} />}
+          {mission.tracking && <DroneSpotlight mission={mission} shadows={q.shadows} />}
           {/* Every mission carries something — except the tracking one, which
               carries nothing at all: there is no box to fetch and nothing to put
               down, and a payload mounted for it would hang a food box under a
