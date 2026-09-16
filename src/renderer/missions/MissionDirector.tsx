@@ -55,6 +55,16 @@ const BANNER_SEC = 2.6;
 /** How long a Mission Control line stays up, seconds. */
 const RADIO_SEC = 5.5;
 
+/**
+ * How far out, metres, "TOO FAR TO OBSERVE" may be said from.
+ *
+ * Not the light's full 90 m reach: out there the pool is too thin to show the
+ * animal, and telling a pilot to close in on a tiger they cannot see names
+ * where it is. Inside this they can see it lit, and the ring not filling needs
+ * explaining.
+ */
+const FAR_HINT_RANGE = 25;
+
 /** Scratch for the tracking light test. The Director runs every frame, and
  *  nothing in a frame loop allocates. */
 const _toAnimal = { x: 0, y: 0, z: 0 };
@@ -234,8 +244,9 @@ export function MissionDirector() {
    *  warning was shown. Both reset the moment the drone backs off. */
   const disturbFor = useRef(0);
   const disturbSaidAt = useRef(-99);
-  /** When the "too far to count" banner was last shown. */
-  const farSaidAt = useRef(-99);
+  /** Whether the "too far to count" banner has been shown this attempt. Once
+   *  only: repeated every few seconds it read as nagging — flown and reported. */
+  const farSaid = useRef(false);
   /** Seconds of light held on the tiger in the sighting that is still running.
    *
    *  What arms the safe-distance rule, and it is a duration rather than a flag
@@ -274,7 +285,7 @@ export function MissionDirector() {
     unlitFor.current = 0;
     disturbFor.current = 0;
     disturbSaidAt.current = -99;
-    farSaidAt.current = -99;
+    farSaid.current = false;
     sightedFor.current = 0;
     lastTrack.current = '';
     // The animal's own walk clock is NOT reset — it has been out there since
@@ -477,15 +488,17 @@ export function MissionDirector() {
       if (lit) sightedFor.current += dt;
 
       // In the beam but too far out to count: say so, or a pilot who can SEE
-      // the animal lit and the ring not filling is left guessing why.
+      // the animal lit and the ring not filling is left guessing why. ONCE per
+      // attempt — the rules card already says 9 m, and the banner is the one
+      // reminder the first time it matters.
       if (
+        !farSaid.current &&
         !lit &&
         tigerPose.present &&
         beamPose.present &&
-        trackingLit(track, _toAnimal, _beamAxis, track.lightRange) &&
-        clock.current - farSaidAt.current > 3.5
+        trackingLit(track, _toAnimal, _beamAxis, FAR_HINT_RANGE)
       ) {
-        farSaidAt.current = clock.current;
+        farSaid.current = true;
         store.showBanner(
           {
             kind: 'warn',
@@ -574,23 +587,11 @@ export function MissionDirector() {
         disturbFor.current = 0;
       }
 
-      // TOO HIGH TO SEE ANYTHING — and it is ADVICE now, not a rule. Nothing
-      // refuses to count up here; the pool simply arrives at the forest floor
-      // barely above the ambient and spread over fifteen metres, so the pilot
-      // is searching by a light that is no longer showing them anything. Said
-      // once — a banner that re-fired on every climb would nag a pilot who has
-      // understood it and is transiting.
-      if (tigerPose.present && agl > track.maxTrackAgl && !warnedHigh.current) {
-        warnedHigh.current = true;
-        store.showBanner(
-          {
-            kind: 'warn',
-            title: 'THE POOL IS TOO THIN UP HERE',
-            sub: 'Come down into the trees — from this height the beam shows you nothing',
-          },
-          BANNER_SEC,
-        );
-      }
+      // There used to be a "THE POOL IS TOO THIN UP HERE" banner here, said
+      // once above `maxTrackAgl`. Removed on the maintainer's call: it measured
+      // height from the TIGER's ground, so over the gorge it fired on the pad
+      // the moment the mission opened, and it told the pilot nothing the rules
+      // card does not. The 9 m lock range is what keeps the pilot in close.
 
       if (leg === 'searching') {
         if (lit) {

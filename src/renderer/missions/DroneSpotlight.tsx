@@ -217,6 +217,10 @@ export function lampExposure(distance: number): number {
   return irisScale(distance) * keep * keep;
 }
 
+/** How far up the lamp must have come, 0 to 1, before its beam lights anything
+ *  as far as the mission is concerned. */
+const LAMP_LIVE = 0.5;
+
 /** Take-off gate heights, metres. */
 const LAMP_ON_FROM = 0.3;
 const LAMP_ON_FULL = 1.8;
@@ -457,7 +461,11 @@ export function DroneSpotlight({ mission, shadows }: { mission: Mission; shadows
     beamPose.dx = aimDir.x;
     beamPose.dy = aimDir.y;
     beamPose.dz = aimDir.z;
-    beamPose.present = true;
+    // Only a lamp that is ON lights anything. It was `true` whenever the drone
+    // existed — so on the pad, lamp dark, a tiger within reach ahead of the
+    // nose counted as "in the beam", and "TOO FAR TO OBSERVE" came up the
+    // moment Mission 5 opened. Half power is past the take-off ramp's midpoint.
+    beamPose.present = on > LAMP_LIVE;
   });
 
   if (!track) return null;

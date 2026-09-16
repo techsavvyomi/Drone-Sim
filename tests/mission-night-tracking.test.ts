@@ -68,10 +68,15 @@ const M = nightTracking;
 const GURU_CEILING = 30;
 
 describe('the shape of the mission', () => {
-  it('TC-500 is the fifth mission and unlocks behind the fourth', () => {
-    expect(M.order).toBe(5);
+  it('TC-500 is the sixth mission and unlocks behind Tiger Tracker', () => {
+    expect(M.order).toBe(6);
     expect(MISSIONS[MISSIONS.length - 1].id).toBe(M.id);
-    expect(MISSIONS.map((m) => m.order)).toEqual([1, 2, 3, 4, 5]);
+    expect(MISSIONS[MISSIONS.length - 2].id).toBe('tiger-tracker');
+    expect(MISSIONS.map((m) => m.order)).toEqual([1, 2, 3, 4, 5, 6]);
+  });
+
+  it('TC-500 never shows the tiger on the map', () => {
+    expect(M.tracking!.showOnMap).toBeFalsy();
   });
 
   it('TC-500 registers as a search in the plugin index, not a rescue', () => {
@@ -174,9 +179,13 @@ describe('TC-501 nothing on screen may point at the tiger', () => {
     // standing a second ago is worse guidance than none.
     expect(guidanceHidden(M, false, 'searching')).toBe(true);
     expect(guidanceHidden(M, false, 'confirming')).toBe(true);
-    // And it comes back for the flight home, which is ordinary flying.
-    expect(guidanceHidden(M, true, 'delivered')).toBe(false);
-    expect(guidanceHidden(M, true, 'returning')).toBe(false);
+    // And it stays dark after the sighting. There is no flight home on this
+    // mission (endsAtDrop), and bringing the marks back at the end pointed a
+    // chevron and a distance at the launch pad the moment it was complete.
+    expect(M.endsAtDrop).toBe(true);
+    expect(guidanceHidden(M, true, 'complete')).toBe(true);
+    expect(guidanceHidden(M, true, 'delivered')).toBe(true);
+    expect(guidanceHidden(M, true, 'returning')).toBe(true);
   });
 
   it('lights no mark and no checkpoint while the search is on', () => {
@@ -347,7 +356,7 @@ describe('TC-507c the hold counts the moment the light is on the animal', () => 
   });
 
   it('leaves a close-in band to fly between the keep-off and the lock range', () => {
-    expect(t.lockRange - t.minSafeDistance).toBeGreaterThanOrEqual(6);
+    expect(t.lockRange - t.minSafeDistance).toBeGreaterThanOrEqual(5);
     expect(t.lockRange).toBeLessThan(t.lightRange);
   });
 
@@ -360,10 +369,10 @@ describe('TC-507c the hold counts the moment the light is on the animal', () => 
 
   it('holds the whole cone and nothing outside it', () => {
     const half = (t.coneDeg * Math.PI) / 180;
-    expect(trackingLit(t, along(10, half * 0.9), axis)).toBe(true);
-    expect(trackingLit(t, along(10, -half * 0.9), axis)).toBe(true);
-    expect(trackingLit(t, along(10, half * 1.3), axis)).toBe(false);
-    expect(trackingLit(t, along(10, -half * 1.3), axis)).toBe(false);
+    expect(trackingLit(t, along(8, half * 0.9), axis)).toBe(true);
+    expect(trackingLit(t, along(8, -half * 0.9), axis)).toBe(true);
+    expect(trackingLit(t, along(8, half * 1.3), axis)).toBe(false);
+    expect(trackingLit(t, along(8, -half * 1.3), axis)).toBe(false);
   });
 
   it('still refuses from on top of the animal, and only from there', () => {
@@ -626,6 +635,40 @@ describe('TC-505 the tiger ambles rather than marching', () => {
     }
   });
 
+  it('faces the way it walks, on every segment, both ways', () => {
+    // Flown and reported: "its legs walk forward and it goes backward". The
+    // yaw had X mirrored — right along Z, backward along X. The model's head is
+    // its local +Z, turned π to face −Z, so the facing for heading h is
+    // (−sin h, −cos h).
+    const scratch = { x: 0, y: 0, z: 0, heading: 0 };
+    for (const route of TIGER_ROUTES) {
+      const len = routeLength(route);
+      let travelled = 0;
+      for (let i = 1; i < route.path.length; i++) {
+        const a = route.path[i - 1].at;
+        const b = route.path[i].at;
+        const seg = Math.hypot(b[0] - a[0], b[1] - a[1]);
+        if (seg < 0.5) {
+          travelled += seg;
+          continue;
+        }
+        const dir = [(b[0] - a[0]) / seg, (b[1] - a[1]) / seg];
+        const mid = travelled + seg / 2;
+        // Out along the path…
+        tigerAtDistance(route, mid, scratch);
+        expect(
+          -Math.sin(scratch.heading) * dir[0] - Math.cos(scratch.heading) * dir[1],
+        ).toBeGreaterThan(0.99);
+        // …and back along it, facing the other way.
+        tigerAtDistance(route, len * 2 - mid, scratch);
+        expect(
+          -Math.sin(scratch.heading) * dir[0] - Math.cos(scratch.heading) * dir[1],
+        ).toBeLessThan(-0.99);
+        travelled += seg;
+      }
+    }
+  });
+
   it('starts the patrol at the head of the path, as the constant walk does', () => {
     expect(ambleDistance(0, speed)).toBeCloseTo(0, 9);
     const scratch = { x: 0, y: 0, z: 0, heading: 0 };
@@ -711,17 +754,17 @@ describe('TC-503 the patrols', () => {
     expect(Math.hypot(ax - bx, az - bz)).toBeGreaterThan(60);
   });
 
-  it('are both inside the map and inside the mission area', () => {
-    const [bx, bz] = M.zones.base.at;
+  it('never recalls the pilot to a mission area', () => {
+    expect(M.strayRadius).toBeUndefined();
+  });
+
+  it('are inside the map', () => {
     for (const route of TIGER_ROUTES) {
       for (const n of route.path) {
         expect(n.at[0]).toBeGreaterThan(forest.bounds.min[0]);
         expect(n.at[0]).toBeLessThan(forest.bounds.max[0]);
         expect(n.at[1]).toBeGreaterThan(forest.bounds.min[2]);
         expect(n.at[1]).toBeLessThan(forest.bounds.max[2]);
-        // Inside the stray radius, with margin. A patrol node outside it would
-        // recall a pilot who is flying the mission correctly.
-        expect(Math.hypot(n.at[0] - bx, n.at[1] - bz)).toBeLessThan(M.strayRadius! - 20);
       }
     }
   });
@@ -819,7 +862,7 @@ describe('TC-505 the rating', () => {
   const base: MissionResult = {
     points: 1,
     maxPoints: 1,
-    timeSec: 200,
+    timeSec: 120,
     collisions: 0,
     delivered: true,
     landed: false,
@@ -831,7 +874,7 @@ describe('TC-505 the rating', () => {
 
   it('drops to two for a collision and to one for a slow survey', () => {
     expect(rankFor(M.ranks, { ...base, collisions: 1 })).toBe(2);
-    expect(rankFor(M.ranks, { ...base, timeSec: 400 })).toBe(2);
+    expect(rankFor(M.ranks, { ...base, timeSec: 170 })).toBe(2);
   });
 
   it('does not test `landed`, because there is no landing', () => {
@@ -859,6 +902,8 @@ describe('TC-506 the routes still fit the map they were measured against', () =>
     const out = execFileSync('node', ['scripts/check-tiger-routes.mjs'], {
       encoding: 'utf8',
     });
-    expect(out).toContain('Every node stands on its own ground with room above it.');
+    expect(out).toContain(
+      'Every node stands on its own ground, off the road, with a hover in reach.',
+    );
   }, 120_000);
 });

@@ -43,71 +43,107 @@ export interface TigerRoute {
   path: readonly TigerNode[];
 }
 
-/**
- * THE GORGE — the ravine the dirt road drops into, south-west of the clearing.
+/*
+ * THE FOUR FOREST PATROLS.
  *
- * Ground falls from −26.6 to −30.5 m across the patrol, so the tiger is walking
- * a floor twenty-seven metres BELOW the pad the drone launched from. A pilot who
- * searches at launch height sees the canopy and nothing else; finding this one
- * means descending into the cut, which is the flying the mission is for.
+ * All four are IN THE TREES, off the roads. The first two routes (a gorge and a
+ * ridge road) were drawn on open ground because the check demanded a 4.5 m clear
+ * column straight above every node, for a drone hovering over the animal — and
+ * in this forest a trunk is solid to its own treetop, so the only such columns
+ * were the roads. Flown and reported: "on every restart the tiger is on the
+ * road". With the beam 60° ahead of the nose and the hold counting only within
+ * 9 m, the drone no longer hovers over the tiger, so the rule is now that a
+ * hover is REACHABLE within the lock range — and the patrols moved into the
+ * woods.
  *
- * Measured clearance around the walk is 10.1 to 15.2 m at every node from two
- * metres off the deck up to twelve, so the Guru can hold a lit hover anywhere
- * along it. The two nodes that continue the ravine east — (18, −66) and
- * (24, −72) — were dropped at 5.8 and 6.2 m: flyable, but not with a light cone
- * to place as well.
+ * Found by searching the map, not drawn by eye: every node is off the road
+ * (nearest road 9 m on the east patrol, beyond 20 m on the others), has five
+ * or more trunks within 8 m, level footing, room for the animal between the
+ * trunks along every stretch, and a clear hover for the drone within 9 m. The
+ * numbers are re-checked by `scripts/check-tiger-routes.mjs` (TC-506).
+ *
+ * Four rather than two, drawn at random per attempt, on four different bearings
+ * from the pad — a restart puts the animal somewhere else in the forest.
  */
-const GORGE: TigerRoute = {
-  id: 'gorge',
-  label: 'the gorge',
+
+/** South-west of the pad, in the trees above the gorge. */
+const SOUTH_WEST_WOODS: TigerRoute = {
+  id: 'south-west-woods',
+  label: 'the south-west woods',
   path: [
-    { at: [-18, -80], ground: -30.47 },
-    { at: [-12, -74], ground: -28.73 },
-    { at: [-6, -68], ground: -27.79 },
-    { at: [0, -64], ground: -27.2 },
-    { at: [6, -62], ground: -26.91 },
-    { at: [12, -62], ground: -26.63 },
+    { at: [-80, -30], ground: -19.19 },
+    { at: [-75, -35], ground: -18.07 },
+    { at: [-70, -40], ground: -17.26 },
+    { at: [-65, -45], ground: -17.31 },
+    { at: [-60, -50], ground: -17.31 },
+    { at: [-55, -55], ground: -18.14 },
+    { at: [-50, -60], ground: -19.22 },
+    { at: [-45, -60], ground: -20.41 },
+    { at: [-40, -55], ground: -20.84 },
+  ],
+};
+
+/** East of the pad, in the dense stand south of the ridge road. */
+const EAST_WOODS: TigerRoute = {
+  id: 'east-woods',
+  label: 'the east woods',
+  path: [
+    { at: [75, -25], ground: -5.98 },
+    { at: [70, -30], ground: -5.25 },
+    { at: [65, -30], ground: -4.49 },
+    { at: [60, -35], ground: -4.95 },
+    { at: [55, -40], ground: -5.63 },
+    { at: [50, -45], ground: -6.89 },
+    { at: [45, -45], ground: -6.79 },
+    { at: [40, -45], ground: -6.72 },
+    { at: [35, -45], ground: -6.81 },
+  ],
+};
+
+/** West of the pad, climbing the slope through the trees. */
+const WEST_SLOPE: TigerRoute = {
+  id: 'west-slope',
+  label: 'the west slope',
+  path: [
+    { at: [-90, 10], ground: -18.79 },
+    { at: [-85, 5], ground: -16.85 },
+    { at: [-80, 0], ground: -14.91 },
+    { at: [-75, -5], ground: -13.14 },
+    { at: [-70, -5], ground: -11.52 },
+    { at: [-65, 0], ground: -9.49 },
+    { at: [-60, 5], ground: -7.99 },
+    { at: [-55, 10], ground: -6.89 },
+    { at: [-50, 15], ground: -6.37 },
+  ],
+};
+
+/** North-east of the pad, deep in the woods. */
+const NORTH_EAST_WOODS: TigerRoute = {
+  id: 'north-east-woods',
+  label: 'the north-east woods',
+  path: [
+    { at: [75, 55], ground: -15.37 },
+    { at: [70, 50], ground: -14.53 },
+    { at: [65, 50], ground: -14.88 },
+    { at: [60, 45], ground: -13.89 },
+    { at: [55, 40], ground: -13.44 },
+    { at: [50, 40], ground: -14.0 },
+    { at: [45, 40], ground: -13.58 },
+    { at: [40, 40], ground: -11.97 },
+    { at: [35, 35], ground: -10.92 },
   ],
 };
 
 /**
- * THE RIDGE ROAD — the unpaved road running east out of the clearing, along the
- * shoulder before it turns south.
- *
- * The open one. Ground only drops from −0.5 to −6.6 m across the whole patrol,
- * the road surface is bare, and the trees stand off it — so a tiger on this
- * route is genuinely visible from above, and the mission is then about holding
- * the light on something that keeps walking rather than about finding it at all.
- *
- * Clearance is 8.8 m at the western end and never below 6.1, with ONE pinch at
- * (72, −14), where the nearest trunk is 4.7 m. It is kept as a node rather than
- * smoothed away so the check script measures it every time: it is the tightest
- * place on either route and the first thing a collider regeneration would move.
+ * The four, drawn at random per attempt. The first two are on opposite sides of
+ * the pad (TC-503 holds them over 60 m apart).
  */
-const RIDGE_ROAD: TigerRoute = {
-  id: 'ridge-road',
-  label: 'the ridge road',
-  path: [
-    { at: [48, -10], ground: -0.47 },
-    { at: [54, -12], ground: -0.98 },
-    { at: [60, -10], ground: -1.69 },
-    { at: [66, -12], ground: -2.59 },
-    { at: [72, -14], ground: -3.74 },
-    { at: [78, -14], ground: -4.67 },
-    { at: [84, -16], ground: -5.52 },
-    { at: [84, -22], ground: -6.63 },
-  ],
-};
-
-/**
- * The two, in no meaningful order — the attempt draws one at random.
- *
- * They are deliberately a matched pair rather than a hard one and an easy one:
- * both sit 60 to 70 m from the pad, on opposite bearings, and either can be
- * reached and searched inside the time limit. A pilot who guesses wrong has lost
- * a crossing, not the attempt.
- */
-export const TIGER_ROUTES: readonly TigerRoute[] = [GORGE, RIDGE_ROAD];
+export const TIGER_ROUTES: readonly TigerRoute[] = [
+  SOUTH_WEST_WOODS,
+  EAST_WOODS,
+  WEST_SLOPE,
+  NORTH_EAST_WOODS,
+];
 
 /** Total walked length of a route, metres. What the patrol's loop time is
  *  worked out from, rather than a duration typed beside a path that can change
@@ -235,8 +271,13 @@ export function tigerAtDistance(
       out.x = a.at[0] + dx * f;
       out.z = a.at[1] + dz * f;
       out.y = a.ground + (b.ground - a.ground) * f;
-      // Three.js yaw: 0 looks down −Z, and the tiger faces the way it walks.
-      out.heading = Math.atan2(forward ? dx : -dx, forward ? -dz : dz);
+      // Three.js yaw: 0 looks down −Z, and yaw θ turns −Z to (−sin θ, −cos θ).
+      // To face a walk of (x, z) that is θ = atan2(−x, −z). It was
+      // atan2(x, −z) — right along Z, and exactly BACKWARDS along X, sideways
+      // on a diagonal: flown as "its legs walk forward and it goes backward".
+      const wx = forward ? dx : -dx;
+      const wz = forward ? dz : -dz;
+      out.heading = Math.atan2(-wx, -wz);
       return;
     }
     travelled += seg;

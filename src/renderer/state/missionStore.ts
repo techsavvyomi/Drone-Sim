@@ -643,6 +643,13 @@ export function guidanceHidden(
   // where the animal was standing a second ago, which is worse guidance than
   // none. So the whole of the tracking leg stays dark and the base marks come
   // back with `located` at the end of it.
+  //
+  // A tracking mission that ENDS at the sighting keeps it dark for good. The
+  // marks were brought back for a flight home, and that leg was cut: with it
+  // gone, `located` going true at the end pointed the chevron and the distance
+  // readout at the launch pad the instant the observation completed — flown
+  // and reported as a "71 m" marker at the start point that should not be there.
+  if (mission?.tracking && mission.endsAtDrop) return true;
   return mission?.hideGuidanceUntilFound === true && !located && leg !== 'toPickup';
 }
 

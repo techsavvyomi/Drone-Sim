@@ -6,6 +6,7 @@ import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { useMissionStore } from '../state/missionStore';
 import { dronePose } from '../sim/drone/pose';
 import { useDisposable } from '../scene/useDisposable';
+import { staticHitDistance } from '../scene/cameraProbe';
 import { tigerPose, resetTigerPose } from './tigerPose';
 import { tigerRouteOf } from './types';
 import { ambleDistance, amblePace, tigerAtDistance } from './tigerRoutes';
@@ -38,6 +39,42 @@ const EYESHINE_RANGE = 55;
 /** How fast the body yaws to face its heading, per second. */
 const TURN_LERP = 2.4;
 
+/**
+ * Off its heading by more than this, degrees, the tiger stops advancing and
+ * turns first; between this and straight ahead it slows smoothly.
+ *
+ * The patrol reverses at each end, and the path has corners: the heading jumps
+ * there, the body takes a second to come round, and an animal still moving
+ * along the path meanwhile walks backward or sideways while its legs step
+ * forward. A real animal turns, then walks.
+ */
+const TURN_BEFORE_WALK_DEG = 75;
+
+/**
+ * Ground-following: where the paws are, and how the body settles onto them.
+ *
+ * The route stores ONE measured ground height per node and interpolated a
+ * straight line between them, and those heights are only checked to within
+ * 0.6 m. A dirt road is not a straight line: wherever it rose above the
+ * interpolation the paws went into it — flown and reported as "the tiger's legs
+ * go inside the road". So the ground is measured under the animal every frame:
+ * one ray down under the front paws and one under the hind paws, against the
+ * same static terrain the drone collides with. The body sits on their average
+ * and pitches to the slope between them.
+ *
+ * Not a physics collider, on purpose: the tiger stays non-solid so a drone
+ * cannot bump it (see MissionViewport). Two rays a frame.
+ */
+/** Front and hind paws, metres ahead of / behind the root along the body. */
+const PAW_REACH = 0.5;
+/** Rays start this far above the route height, and look this far below it. */
+const RAY_UP = 1.5;
+const RAY_DOWN = 3;
+/** How fast the body settles onto the measured ground, per second. */
+const GROUND_LERP = 12;
+/** The steepest the body will pitch to follow a slope, degrees. */
+const MAX_PITCH_DEG = 25;
+
 /** Full 4-beat walk cycle distance for all four paws, metres. */
 const STRIDE_LENGTH = 0.88;
 
@@ -60,8 +97,16 @@ export function Tiger({ mission }: { mission: Mission }) {
 
   // Clocks and states
   const walk = useRef(0);
+  /** Patrol clock: like `walk`, but it stops while the tiger turns round. */
+  const patrol = useRef(0);
   const along = useRef(0);
   const facing = useRef<number | null>(null);
+  /** Smoothed ground height under the body, and the body's pitch. */
+  const groundY = useRef<number | null>(null);
+  const pitch = useRef(0);
+  /** Scratch for the two ground rays. */
+  const rayFrom = useMemo(() => new THREE.Vector3(), []);
+  const rayTo = useMemo(() => new THREE.Vector3(), []);
 
   // Scratch coordinate
   const at = useMemo(() => ({ x: 0, y: 0, z: 0, heading: 0 }), []);
@@ -218,13 +263,25 @@ export function Tiger({ mission }: { mission: Mission }) {
     walk.current += dt;
     const speed = mission.tracking?.speed ?? 0.9;
 
+    // Advance along the patrol only as fast as the body is facing the way the
+    // path goes — see TURN_BEFORE_WALK_DEG. Judged against last frame's
+    // heading; on the first frame the body is snapped to it, so it walks.
+    let go = 1;
+    if (facing.current !== null) {
+      const off = Math.abs(turnTowards(0, at.heading - facing.current, 1));
+      const cosLimit = Math.cos((TURN_BEFORE_WALK_DEG * Math.PI) / 180);
+      const t = (Math.cos(off) - cosLimit) / (1 - cosLimit);
+      go = Math.min(1, Math.max(0, t));
+    }
+    patrol.current += dt * go;
+
     // Continuous distance amble along the forest patrol
-    const travelled = ambleDistance(walk.current, speed);
+    const travelled = ambleDistance(patrol.current, speed);
     along.current = travelled;
     tigerAtDistance(route, travelled, at);
 
     // Natural pace variations (ambling, pauses, stalking)
-    const basePace = Math.max(0, amblePace(walk.current));
+    const basePace = Math.max(0, amblePace(patrol.current)) * go;
 
     // ------------------------------------------------------------------------
     // QUADRUPED STRIDE-SYNCHRONIZED LEG MOTION (NO SLIDING / ZERO SKATING)
@@ -304,23 +361,51 @@ export function Tiger({ mission }: { mission: Mission }) {
 
     // Vertical rhythmic body weight transfer (drops and rises with paw plants)
     if (modelRef.current) {
-      const bob = Math.cos(cycle * 2) * 0.014 * Math.min(1.0, activePace);
+      // Never below zero: a downward bob pushed the paws into the ground.
+      const bob = (1 + Math.cos(cycle * 2)) * 0.007 * Math.min(1.0, activePace);
       modelRef.current.position.y = bob;
     }
-
-    // Update root world position (y stands precisely on terrain ground)
-    root.current.position.set(at.x, at.y, at.z);
 
     // Smooth heading orientation
     facing.current =
       facing.current === null
         ? at.heading
         : turnTowards(facing.current, at.heading, 1 - Math.exp(-TURN_LERP * dt));
-    root.current.rotation.y = facing.current;
+
+    // Stand on the ground actually under the paws — see PAW_REACH. Facing is
+    // (−sin h, −cos h); a ray that finds nothing falls back to the route height.
+    const fx = -Math.sin(facing.current);
+    const fz = -Math.cos(facing.current);
+    const groundAt = (ox: number, oz: number): number => {
+      rayFrom.set(at.x + ox, at.y + RAY_UP, at.z + oz);
+      rayTo.set(at.x + ox, at.y - RAY_DOWN, at.z + oz);
+      const hit = staticHitDistance(rayFrom, rayTo);
+      return Number.isFinite(hit) ? rayFrom.y - hit : at.y;
+    };
+    const front = groundAt(fx * PAW_REACH, fz * PAW_REACH);
+    const hind = groundAt(-fx * PAW_REACH, -fz * PAW_REACH);
+    const wantY = (front + hind) / 2;
+    const maxPitch = (MAX_PITCH_DEG * Math.PI) / 180;
+    const wantPitch = Math.max(
+      -maxPitch,
+      Math.min(maxPitch, Math.atan2(front - hind, PAW_REACH * 2)),
+    );
+    const settle = 1 - Math.exp(-GROUND_LERP * dt);
+    // Never let the smoothing lag the body BELOW the ground on a rise.
+    groundY.current =
+      groundY.current === null
+        ? wantY
+        : Math.max(wantY, groundY.current + (wantY - groundY.current) * settle);
+    pitch.current += (wantPitch - pitch.current) * settle;
+
+    root.current.position.set(at.x, groundY.current, at.z);
+    root.current.rotation.order = 'YXZ';
+    // Positive X rotation lifts local −Z, the head end.
+    root.current.rotation.set(pitch.current, facing.current, 0);
 
     // Update tigerPose for spotlight detection, safe distance checks, and radar
     tigerPose.x = at.x;
-    tigerPose.y = at.y;
+    tigerPose.y = groundY.current;
     tigerPose.z = at.z;
     tigerPose.heading = at.heading;
     tigerPose.present = phase === 'flying';
