@@ -331,6 +331,16 @@ export interface MissionTracking {
    */
   lightRange: number;
   /**
+   * How close the aircraft must be for the light to COUNT, metres, in 3-D.
+   *
+   * The light reaches `lightRange` and the pilot can see the animal lit from
+   * there — but the hold only fills from within this. Flown and reported: once
+   * the beam was tipped up like a headlight, a tiger lit from far off started
+   * filling the lock at once, and the mission is meant to be flown in close
+   * over the animal, not snapped from across the ravine.
+   */
+  lockRange: number;
+  /**
    * Half-angle of the light cone, degrees.
    *
    * What turns altitude into a trade rather than a cheat. The pool on the
@@ -812,7 +822,8 @@ export function rescueZoneOf(m: Mission, siteIndex: number): MissionZone {
  *
  *   - The animal is inside the cone: within its half-angle of the axis, and in
  *     front of the lamp rather than behind it.
- *   - It is within the light's reach.
+ *   - It is within `reach` — by default `lockRange`, the distance the hold
+ *     counts from. Pass `lightRange` to ask only "is it in the beam at all".
  *   - The aircraft is not ON TOP of it. Without this a drone sitting on the
  *     animal would fill the lock on the same frames the disturb grace was
  *     running the attempt out — one rule finishing the mission while the other
@@ -825,9 +836,10 @@ export function trackingLit(
   track: MissionTracking,
   to: { x: number; y: number; z: number },
   axis: { x: number; y: number; z: number },
+  reach: number = track.lockRange,
 ): boolean {
   const range = Math.hypot(to.x, to.y, to.z);
-  if (range < track.minSafeDistance || range > track.lightRange) return false;
+  if (range < track.minSafeDistance || range > reach) return false;
   const along = (to.x * axis.x + to.y * axis.y + to.z * axis.z) / range;
   if (along <= 0) return false;
   const off = Math.acos(Math.min(1, along));

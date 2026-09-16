@@ -310,6 +310,7 @@ describe('TC-507 the lit band and the safe distance cannot contradict each other
     const rules = (M.rules ?? []).join(' ');
     expect(rules).toContain(`${t.minSafeDistance} m`);
     expect(rules).toContain(`${t.maxTrackAgl} m`);
+    expect(rules).toContain(`${t.lockRange} m`);
   });
 });
 
@@ -330,18 +331,24 @@ describe('TC-507c the hold counts the moment the light is on the animal', () => 
   // flashlight is on the tiger it should start completing.
 
   it('counts along the beam at every range from the keep-off to its reach', () => {
-    for (let d = t.minSafeDistance + 0.01; d <= t.lightRange; d += 0.5) {
+    for (let d = t.minSafeDistance + 0.01; d <= t.lockRange; d += 0.5) {
       expect(trackingLit(t, along(d), axis)).toBe(true);
     }
   });
 
-  it('reaches flat ground from the aircraft ceiling, even at full lean', () => {
-    // It used to reach the gorge's lowest node (-30.47) from the ceiling. With
-    // the lamp tipped up like a headlight (60°, 70° at full lean) the beam is
-    // 1/cos(tilt) longer than the height, so over the deep gorge the pilot has
-    // to come down to reach it — chosen by the maintainer. Over the pad's own
-    // level it still reaches from the top of the envelope.
-    expect(trackingLit(t, along(GURU_CEILING / Math.cos(TILT)), axis)).toBe(true);
+  it('does not count a tiger lit from far off, only from close in', () => {
+    // Flown and reported: with the beam tipped up like a headlight, a tiger
+    // lit from far away filled the lock at once. It is still IN the beam out
+    // there — the pilot can see it, and the Director says "close in" — but the
+    // hold counts only within lockRange.
+    expect(trackingLit(t, along(t.lockRange + 1), axis)).toBe(false);
+    expect(trackingLit(t, along(t.lockRange + 1), axis, t.lightRange)).toBe(true);
+    expect(trackingLit(t, along(t.lockRange - 1), axis)).toBe(true);
+  });
+
+  it('leaves a close-in band to fly between the keep-off and the lock range', () => {
+    expect(t.lockRange - t.minSafeDistance).toBeGreaterThanOrEqual(6);
+    expect(t.lockRange).toBeLessThan(t.lightRange);
   });
 
   it('judges the patch the beam is on, not the ground behind the aircraft', () => {
@@ -353,10 +360,10 @@ describe('TC-507c the hold counts the moment the light is on the animal', () => 
 
   it('holds the whole cone and nothing outside it', () => {
     const half = (t.coneDeg * Math.PI) / 180;
-    expect(trackingLit(t, along(15, half * 0.9), axis)).toBe(true);
-    expect(trackingLit(t, along(15, -half * 0.9), axis)).toBe(true);
-    expect(trackingLit(t, along(15, half * 1.3), axis)).toBe(false);
-    expect(trackingLit(t, along(15, -half * 1.3), axis)).toBe(false);
+    expect(trackingLit(t, along(10, half * 0.9), axis)).toBe(true);
+    expect(trackingLit(t, along(10, -half * 0.9), axis)).toBe(true);
+    expect(trackingLit(t, along(10, half * 1.3), axis)).toBe(false);
+    expect(trackingLit(t, along(10, -half * 1.3), axis)).toBe(false);
   });
 
   it('still refuses from on top of the animal, and only from there', () => {

@@ -984,7 +984,7 @@ export function MissionHud() {
                   than a deduction on purpose: a wildlife survey that drives the
                   animal off has not been flown badly, it has not been flown. */}
               {failReason === 'disturbed'
-                ? 'You had the tiger and then flew down onto it, and it broke off into the trees. Give it room and pick it up again — any height works, so long as you are not on top of the animal.'
+                ? 'You had the tiger and then flew down onto it, and it broke off into the trees. Give it room and pick it up again — within 12 m to count, but never on top of the animal.'
                 : failReason === 'payload'
                   ? 'The drone dropped into the flames and the tank went with it. Hold the hover above the fire: the height band on the checklist is where the spray reaches from.'
                   : failReason === 'strayed'

@@ -234,6 +234,8 @@ export function MissionDirector() {
    *  warning was shown. Both reset the moment the drone backs off. */
   const disturbFor = useRef(0);
   const disturbSaidAt = useRef(-99);
+  /** When the "too far to count" banner was last shown. */
+  const farSaidAt = useRef(-99);
   /** Seconds of light held on the tiger in the sighting that is still running.
    *
    *  What arms the safe-distance rule, and it is a duration rather than a flag
@@ -272,6 +274,7 @@ export function MissionDirector() {
     unlitFor.current = 0;
     disturbFor.current = 0;
     disturbSaidAt.current = -99;
+    farSaidAt.current = -99;
     sightedFor.current = 0;
     lastTrack.current = '';
     // The animal's own walk clock is NOT reset — it has been out there since
@@ -472,6 +475,26 @@ export function MissionDirector() {
       _beamAxis.z = beamPose.dz;
       const lit = tigerPose.present && beamPose.present && trackingLit(track, _toAnimal, _beamAxis);
       if (lit) sightedFor.current += dt;
+
+      // In the beam but too far out to count: say so, or a pilot who can SEE
+      // the animal lit and the ring not filling is left guessing why.
+      if (
+        !lit &&
+        tigerPose.present &&
+        beamPose.present &&
+        trackingLit(track, _toAnimal, _beamAxis, track.lightRange) &&
+        clock.current - farSaidAt.current > 3.5
+      ) {
+        farSaidAt.current = clock.current;
+        store.showBanner(
+          {
+            kind: 'warn',
+            title: 'TOO FAR TO OBSERVE',
+            sub: `Close in — the hold only counts within ${track.lockRange} m`,
+          },
+          BANNER_SEC,
+        );
+      }
 
       /*
        * AND THE DISTANCE RULE ONLY BITES WHILE THE PILOT CAN SEE THE ANIMAL.

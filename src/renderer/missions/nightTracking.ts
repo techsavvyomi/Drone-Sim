@@ -114,10 +114,10 @@ export const nightTracking: Mission = {
    */
   rules: [
     'No marker, no waypoint and no route will be drawn to the tiger.',
-    'Work from any height you like. Low is a tight bright pool; by 30 m it is wide, thin and shows you nothing.',
+    'You can spot the tiger from far off (above 30 m the light shows you nothing), but the hold only counts from within 12 m of it. Come in close and hover.',
     'Never closer than 4 m to the tiger: inside that the beam stops counting, and once you have sighted it the survey fails.',
     'The spotlight is mounted on the nose and throws its beam well ahead, like a headlight. Point the aircraft at where you want to look.',
-    'The moment the beam is on the tiger the hold starts filling — at 5 m or at 30, it counts the same.',
+    'Once you are within 12 m and the beam is on the tiger, the hold starts filling.',
     'If the tiger leaves the light the lock drains. Find it again and it fills from where it stopped.',
     'The survey ends at the sighting. There is no flight home to fly and no landing to score.',
   ],
@@ -137,7 +137,7 @@ export const nightTracking: Mission = {
   objectives: [
     'Fly out from the ranger station and search the forest with your spotlight.',
     'Find the tiger by eye. Nothing on the HUD will point at it.',
-    'Hold the light on it for five seconds, from a height of your choosing.',
+    'Come within 12 m and hold the light on it for five seconds.',
     'The survey is complete the moment the sighting is confirmed.',
   ],
   mapNote: 'The forest at night. No marker, no route',
@@ -257,6 +257,16 @@ export const nightTracking: Mission = {
      * there is the light itself, which by then shows them nothing.
      */
     lightRange: 90,
+    /*
+     * TWELVE METRES: the hold only counts from this close.
+     *
+     * The light still reaches 90 m and the pilot can see the animal lit from
+     * far off — but lit from across the ravine, the lock filled at once, which
+     * is not a survey. With the beam 60° ahead of the nose, twelve metres along
+     * it is about 6 m of height and 10 m ahead: come in low and close, hover,
+     * hold. A banner tells a pilot who has it lit from further out to close in.
+     */
+    lockRange: 12,
     /*
      * SIXTEEN DEGREES OF HALF-ANGLE, which is the number the whole mission
      * balances on.
