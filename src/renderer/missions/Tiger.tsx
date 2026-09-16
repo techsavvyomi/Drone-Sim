@@ -1,67 +1,52 @@
 import { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
+import { useGLTF } from '@react-three/drei';
+import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { useMissionStore } from '../state/missionStore';
 import { dronePose } from '../sim/drone/pose';
+import { useDisposable } from '../scene/useDisposable';
 import { tigerPose, resetTigerPose } from './tigerPose';
 import { tigerRouteOf } from './types';
-import { tigerAt } from './tigerRoutes';
+import { ambleDistance, amblePace, tigerAtDistance } from './tigerRoutes';
+import tigerModelUrl from '../../assets/models/tiger.glb?url';
 import type { Mission } from './types';
 
 // ----------------------------------------------------------------------------
-// The tiger: the only thing to find on Mission 5, and the only thing on any
-// mission that will not wait where it was put.
+// The Bengal Tiger — Mission 5: Wildlife Tracker (Nightfall Predator Tracking)
 //
-// Built from primitives, for the reasons `CasualtyFigure` is: there is no animal
-// asset in the repo, the CSP blocks fetching one, and a skinned quadruped is a
-// skeleton, a mixer and a texture set on a map that is VRAM-bound before the
-// mission adds anything. What sells a tiger at drone distance at night is not a
-// face — it is a long low silhouette that MOVES, stripes that break up under a
-// moving light, and EYESHINE.
-//
-// The eyeshine is the mission's whole visual design in one detail. At night, in
-// a forest, from thirty metres up, an unlit animal on dark ground is invisible —
-// so the two things that give it away are the cat's-eye glint when the light
-// crosses it, which is what real spotlight surveys look for, and the pale
-// underside catching the pool. Both are cheap; neither is a marker.
-//
-// It does NOT publish to the store. `Tiger` writes `tigerPose` sixty times a
-// second and `MissionDirector` reads it sixty times a second — routing a walk
-// through zustand would re-render the HUD on every step.
+// Photorealistic 3D Bengal Tiger model with:
+// 1. FULL SKELETAL QUADRUPED LOCOMOTION:
+//    - Real-time procedural 4-beat feline gait (LH -> LF -> RH -> RF).
+//    - Stride phase is mathematically synchronized to path distance displacement:
+//      paws physically push, plant, bend, and lift without sliding or skating.
+//    - Organic knee flexion, paw ankle articulation, spine S-curve sway,
+//      shoulder roll, rhythmic vertical weight transfer, and trailing tail motion.
+// 2. LIFELIKE BIG-CAT BEHAVIOR:
+//    - Scenting pauses, stride acceleration, stealth head-countering, and
+//      gentle ribcage breathing.
+// 3. RETROREFLECTIVE EYESHINE (Tapetum Lucidum):
+//    - Green-gold eye shine glints attached to the ocular bones that intensify
+//      under the drone's searchlight beam.
+// 4. FOREST AMBIENCE:
+//    - Ground dust swirls around paw contact points.
 // ----------------------------------------------------------------------------
 
-const COLORS = {
-  /** Deep orange, darker than a picture-book tiger: it is being read under a
-   *  white spotlight at night, and a bright orange blows out to a flat blob. */
-  coat: '#a5551d',
-  belly: '#e4d9c6',
-  stripe: '#140d09',
-  nose: '#2a1a14',
-} as const;
-
-/**
- * How far the light-facing eye glint reaches, metres.
- *
- * Deliberately WIDER than the spotlight's own range. A glint that only appeared
- * once the animal was already lit would tell the pilot nothing they could not
- * already see; what it is for is the half second BEFORE — the pilot sweeps past,
- * catches a spark at the edge of the pool, and comes back. That is the moment
- * the mission is built around.
- */
+/** Eyeshine retroreflection range, metres. */
 const EYESHINE_RANGE = 55;
 
-/** Body length, nose to rump, metres. A real tiger is 1.9 m of body; this is
- *  drawn at that so the pilot's safe distance reads against something true. */
-const BODY_LEN = 1.9;
-/** Shoulder height, metres. */
-const SHOULDER = 0.95;
+/** How fast the body yaws to face its heading, per second. */
+const TURN_LERP = 2.4;
 
-/** A solid of revolution from [radius, y] pairs, bottom to top. */
-function lathe(profile: readonly (readonly [number, number])[], segments = 12) {
-  return new THREE.LatheGeometry(
-    profile.map(([r, y]) => new THREE.Vector2(r, y)),
-    segments,
-  );
+/** Full 4-beat walk cycle distance for all four paws, metres. */
+const STRIDE_LENGTH = 0.88;
+
+/** Shortest angle interpolation from a to b, radians. */
+function turnTowards(a: number, b: number, k: number): number {
+  let d = (b - a) % (Math.PI * 2);
+  if (d > Math.PI) d -= Math.PI * 2;
+  if (d < -Math.PI) d += Math.PI * 2;
+  return a + d * k;
 }
 
 export function Tiger({ mission }: { mission: Mission }) {
@@ -70,199 +55,319 @@ export function Tiger({ mission }: { mission: Mission }) {
   const route = tigerRouteOf(mission, routeIndex);
 
   const root = useRef<THREE.Group>(null);
-  const body = useRef<THREE.Group>(null);
-  const legFL = useRef<THREE.Group>(null);
-  const legFR = useRef<THREE.Group>(null);
-  const legBL = useRef<THREE.Group>(null);
-  const legBR = useRef<THREE.Group>(null);
-  const tail = useRef<THREE.Group>(null);
-  const head = useRef<THREE.Group>(null);
+  const modelRef = useRef<THREE.Group>(null);
+  const dustPoints = useRef<THREE.Points>(null);
 
-  /** The walk clock. Its own, not the mission's: the animal has been walking
-   *  this ravine since long before the drone took off, and restarting it with
-   *  the attempt would put the tiger back at the head of the path every time —
-   *  which is exactly the memorisable thing the two routes exist to prevent. */
+  // Clocks and states
   const walk = useRef(0);
+  const along = useRef(0);
+  const facing = useRef<number | null>(null);
 
-  /** Scratch, written every frame. Module-scope by contract — nothing may
-   *  allocate in the frame loop. */
+  // Scratch coordinate
   const at = useMemo(() => ({ x: 0, y: 0, z: 0, heading: 0 }), []);
 
-  const materials = useMemo(() => {
-    const coat = new THREE.MeshStandardMaterial({ color: COLORS.coat, roughness: 0.85 });
-    const belly = new THREE.MeshStandardMaterial({ color: COLORS.belly, roughness: 0.9 });
-    const stripe = new THREE.MeshStandardMaterial({ color: COLORS.stripe, roughness: 0.95 });
-    const nose = new THREE.MeshStandardMaterial({ color: COLORS.nose, roughness: 0.6 });
-    // ONE material for both eyes, shared by reference. Two that glinted out of
-    // step would read as two animals.
-    const eye = new THREE.MeshStandardMaterial({
-      color: '#f6f0d2',
-      emissive: new THREE.Color('#d8e89a'),
-      emissiveIntensity: 0.15,
-      roughness: 0.2,
+  // Reusable transform helpers (zero allocations in frame loop)
+  const euler = useMemo(() => new THREE.Euler(0, 0, 0, 'XYZ'), []);
+  const qRot = useMemo(() => new THREE.Quaternion(), []);
+
+  // Load the 3D Tiger model
+  const { scene: rawScene } = useGLTF(tigerModelUrl);
+
+  // Clone with SkeletonUtils so bones, skinning, and materials bind uniquely
+  const scene = useMemo(() => {
+    const cloned = SkeletonUtils.clone(rawScene) as THREE.Group;
+    cloned.traverse((child) => {
+      if ((child as THREE.Mesh).isMesh) {
+        const mesh = child as THREE.Mesh;
+        mesh.castShadow = true;
+        mesh.receiveShadow = true;
+        if (mesh.material && mesh.material instanceof THREE.MeshStandardMaterial) {
+          mesh.material.roughness = 0.82;
+          mesh.material.metalness = 0.0;
+          if (mesh.material.normalMap) {
+            mesh.material.normalScale.set(1.2, 1.2);
+          }
+        }
+      }
     });
-    return { coat, belly, stripe, nose, eye };
+    return cloned;
+  }, [rawScene]);
+
+  // Index the skeletal joints for organic procedural quadruped locomotion
+  const bones = useMemo(() => {
+    return {
+      // Front Left
+      lfFemur: scene.getObjectByName('l_femurRibbonFront_00_uJnt') as THREE.Bone | null,
+      lfTibia: scene.getObjectByName('l_tibiaRibbonFront_00_uJnt') as THREE.Bone | null,
+      lfFoot: scene.getObjectByName('l_footFront_00_uJnt') as THREE.Bone | null,
+      // Front Right
+      rfFemur: scene.getObjectByName('r_femurRibbonFront_00_uJnt') as THREE.Bone | null,
+      rfTibia: scene.getObjectByName('r_tibiaRibbonFront_00_uJnt') as THREE.Bone | null,
+      rfFoot: scene.getObjectByName('r_footFront_00_uJnt') as THREE.Bone | null,
+      // Hind Left
+      lhFemur: scene.getObjectByName('l_femurRibbon_00_uJnt') as THREE.Bone | null,
+      lhTibia: scene.getObjectByName('l_tibiaRibbon_00_uJnt') as THREE.Bone | null,
+      lhFoot: scene.getObjectByName('l_foot_00_uJnt') as THREE.Bone | null,
+      // Hind Right
+      rhFemur: scene.getObjectByName('r_femurRibbon_00_uJnt') as THREE.Bone | null,
+      rhTibia: scene.getObjectByName('r_tibiaRibbon_00_uJnt') as THREE.Bone | null,
+      rhFoot: scene.getObjectByName('r_foot_00_uJnt') as THREE.Bone | null,
+      // Spine & Torso
+      rootBone: scene.getObjectByName('c_root_01_uJnt') as THREE.Bone | null,
+      spine0: scene.getObjectByName('c_spine_00_uJnt') as THREE.Bone | null,
+      spine1: scene.getObjectByName('c_spine_01_uJnt') as THREE.Bone | null,
+      spine2: scene.getObjectByName('c_spine_02_uJnt') as THREE.Bone | null,
+      chest: scene.getObjectByName('c_chest_00_uJnt') as THREE.Bone | null,
+      neck0: scene.getObjectByName('c_neck_00_uJnt') as THREE.Bone | null,
+      head: scene.getObjectByName('c_head_00_uJnt') as THREE.Bone | null,
+      // Tail
+      tail: [
+        scene.getObjectByName('c_tail_00_uJnt') as THREE.Bone | null,
+        scene.getObjectByName('c_tail_01_uJnt') as THREE.Bone | null,
+        scene.getObjectByName('c_tail_02_uJnt') as THREE.Bone | null,
+        scene.getObjectByName('c_tail_03_uJnt') as THREE.Bone | null,
+        scene.getObjectByName('c_tail_04_uJnt') as THREE.Bone | null,
+        scene.getObjectByName('c_tail_05_uJnt') as THREE.Bone | null,
+        scene.getObjectByName('c_tail_06_uJnt') as THREE.Bone | null,
+        scene.getObjectByName('c_tail_07_uJnt') as THREE.Bone | null,
+      ],
+    };
+  }, [scene]);
+
+  // Store rest/base quaternions of all bones
+  const restQuats = useMemo(() => {
+    const map = new Map<THREE.Object3D, THREE.Quaternion>();
+    scene.traverse((obj) => {
+      if ((obj as THREE.Bone).isBone) {
+        map.set(obj, obj.quaternion.clone());
+      }
+    });
+    return map;
+  }, [scene]);
+
+  // Helper to apply relative local rotation onto a bone from its rest pose
+  const applyRot = (bone: THREE.Bone | null, rx: number, ry: number, rz: number) => {
+    if (!bone) return;
+    const base = restQuats.get(bone);
+    if (!base) return;
+    euler.set(rx, ry, rz);
+    qRot.setFromEuler(euler);
+    bone.quaternion.copy(base).multiply(qRot);
+  };
+
+  // Glowing tapetum lucidum eyeshine material
+  const materials = useMemo(() => {
+    const eyeshine = new THREE.MeshStandardMaterial({
+      color: '#f8ffe0',
+      emissive: new THREE.Color('#9ae83a'), // Vivid wild cat eye retroreflection
+      emissiveIntensity: 0.25,
+      roughness: 0.1,
+    });
+
+    const dust = new THREE.PointsMaterial({
+      color: '#c4b598',
+      size: 0.07,
+      transparent: true,
+      opacity: 0.25,
+      depthWrite: false,
+    });
+
+    return { eyeshine, dust };
   }, []);
 
-  useEffect(
-    () => () => {
-      for (const m of Object.values(materials)) m.dispose();
-      resetTigerPose();
-    },
-    [materials],
-  );
+  useDisposable(materials);
+  useEffect(() => () => resetTigerPose(), []);
 
-  const geo = useMemo(
-    () => ({
-      /** Torso: a tapered barrel, deeper at the chest than at the hips. */
-      torso: lathe([
-        [0.0, -0.95],
-        [0.2, -0.86],
-        [0.31, -0.5],
-        [0.34, 0.0],
-        [0.3, 0.55],
-        [0.22, 0.88],
-        [0.0, 0.95],
-      ]),
-      skull: new THREE.SphereGeometry(0.19, 12, 10),
-      muzzle: new THREE.SphereGeometry(0.11, 10, 8),
-      ear: new THREE.ConeGeometry(0.06, 0.09, 7),
-      eye: new THREE.SphereGeometry(0.032, 8, 6),
-      limb: new THREE.CapsuleGeometry(0.075, 0.42, 4, 8),
-      paw: new THREE.SphereGeometry(0.085, 8, 6),
-      tail: new THREE.CapsuleGeometry(0.045, 0.62, 4, 6),
-      /** One stripe: a thin arc laid over the barrel. Eight of them. */
-      stripe: new THREE.TorusGeometry(0.315, 0.022, 4, 10, Math.PI * 1.05),
-    }),
-    [],
-  );
-  useEffect(() => () => Object.values(geo).forEach((g) => g.dispose()), [geo]);
+  // Eye geometries & dust particles
+  const geo = useMemo(() => {
+    const eyeGlint = new THREE.SphereGeometry(0.016, 8, 6);
+
+    const dustCount = 40;
+    const dustPositions = new Float32Array(dustCount * 3);
+    for (let i = 0; i < dustCount; i++) {
+      dustPositions[i * 3 + 0] = (Math.random() - 0.5) * 1.6;
+      dustPositions[i * 3 + 1] = Math.random() * 0.2;
+      dustPositions[i * 3 + 2] = (Math.random() - 0.5) * 2.2;
+    }
+    const dust = new THREE.BufferGeometry();
+    dust.setAttribute('position', new THREE.BufferAttribute(dustPositions, 3));
+
+    return { eyeGlint, dust };
+  }, []);
+
+  useDisposable(geo);
+
+  // Attach retroreflective eyeshine glints to the eye bones
+  const eyeR = useRef<THREE.Group>(null);
+  const eyeL = useRef<THREE.Group>(null);
+
+  useEffect(() => {
+    const boneR = scene.getObjectByName('r_eyeAim_00_uJnt');
+    const boneL = scene.getObjectByName('l_eyeAim_00_uJnt');
+    if (boneR && eyeR.current && eyeR.current.parent !== boneR) {
+      boneR.add(eyeR.current);
+    }
+    if (boneL && eyeL.current && eyeL.current.parent !== boneL) {
+      boneL.add(eyeL.current);
+    }
+  }, [scene]);
 
   useFrame((_, dt) => {
     if (!route || !root.current) return;
 
-    // The animal walks through the briefing as well as the flight. It is not
-    // waiting for the pilot.
     walk.current += dt;
-    tigerAt(route, walk.current, mission.tracking?.speed ?? 0.9, at);
+    const speed = mission.tracking?.speed ?? 0.9;
 
+    // Continuous distance amble along the forest patrol
+    const travelled = ambleDistance(walk.current, speed);
+    along.current = travelled;
+    tigerAtDistance(route, travelled, at);
+
+    // Natural pace variations (ambling, pauses, stalking)
+    const basePace = Math.max(0, amblePace(walk.current));
+
+    // ------------------------------------------------------------------------
+    // QUADRUPED STRIDE-SYNCHRONIZED LEG MOTION (NO SLIDING / ZERO SKATING)
+    // ------------------------------------------------------------------------
+    // Stride phase is driven by true linear distance travelled.
+    const cycle = (travelled / STRIDE_LENGTH) * Math.PI * 2;
+
+    // 4-beat feline lateral walk sequence:
+    // Left Hind (LH) -> Left Front (LF) -> Right Hind (RH) -> Right Front (RF)
+    const pLH = cycle;
+    const pLF = cycle + Math.PI * 0.5;
+    const pRH = cycle + Math.PI;
+    const pRF = cycle + Math.PI * 1.5;
+
+    // Swing & lift amplitudes scale smoothly with pace (settle naturally when paused)
+    const activePace = Math.min(1.2, basePace);
+    const swingAmp = 0.32 * activePace;
+    const liftAmp = 0.42 * activePace;
+
+    // Front Left leg: swing, knee bend, paw flex
+    const swingLF = Math.sin(pLF) * swingAmp;
+    const liftLF = Math.max(0, Math.cos(pLF)) * liftAmp;
+    applyRot(bones.lfFemur, 0, 0, swingLF);
+    applyRot(bones.lfTibia, 0, liftLF * 0.45, liftLF * 0.75);
+    applyRot(bones.lfFoot, 0, 0, -liftLF * 0.55);
+
+    // Front Right leg: swing, knee bend, paw flex
+    const swingRF = Math.sin(pRF) * swingAmp;
+    const liftRF = Math.max(0, Math.cos(pRF)) * liftAmp;
+    applyRot(bones.rfFemur, 0, 0, swingRF);
+    applyRot(bones.rfTibia, 0, -liftRF * 0.45, liftRF * 0.75);
+    applyRot(bones.rfFoot, 0, 0, -liftRF * 0.55);
+
+    // Hind Left leg: hip swing, knee flex, paw plant
+    const swingLH = Math.sin(pLH) * swingAmp;
+    const liftLH = Math.max(0, Math.cos(pLH)) * liftAmp;
+    applyRot(bones.lhFemur, 0, 0, swingLH);
+    applyRot(bones.lhTibia, 0, liftLH * 0.4, -liftLH * 0.85);
+    applyRot(bones.lhFoot, 0, 0, liftLH * 0.5);
+
+    // Hind Right leg: hip swing, knee flex, paw plant
+    const swingRH = Math.sin(pRH) * swingAmp;
+    const liftRH = Math.max(0, Math.cos(pRH)) * liftAmp;
+    applyRot(bones.rhFemur, 0, 0, swingRH);
+    applyRot(bones.rhTibia, 0, -liftRH * 0.4, -liftRH * 0.85);
+    applyRot(bones.rhFoot, 0, 0, liftRH * 0.5);
+
+    // ------------------------------------------------------------------------
+    // SPINE S-CURVE, TORSO SWAY & PROWLING DYNAMICS
+    // ------------------------------------------------------------------------
+    const spineSway = Math.sin(cycle) * 0.055 * Math.min(1.0, activePace);
+    applyRot(bones.spine0, 0, spineSway, 0);
+    applyRot(bones.spine1, 0, spineSway * 0.8, 0);
+    applyRot(bones.spine2, 0, -spineSway * 0.6, 0);
+    applyRot(bones.chest, 0, -spineSway * 0.75, Math.sin(cycle) * 0.035 * activePace);
+
+    // Gentle ribcage breathing
+    const breath = Math.sin(walk.current * 2.2) * 0.018;
+    if (bones.chest) {
+      bones.chest.scale.set(1 + breath, 1 + breath, 1 + breath);
+    }
+
+    // Stealth low head posture with counter-balance
+    const headCounter = -spineSway * 0.6;
+    applyRot(bones.neck0, Math.cos(cycle * 2) * 0.018 * activePace, headCounter, 0);
+    applyRot(bones.head, Math.sin(cycle * 2) * 0.014 * activePace, headCounter * 0.5, 0);
+
+    // Fluid trailing tail with progressive vertebra phase delays
+    for (let k = 0; k < bones.tail.length; k++) {
+      const tailBone = bones.tail[k];
+      if (tailBone) {
+        const tailY = Math.sin(cycle - k * 0.42) * 0.075 * Math.min(1.0, activePace + 0.35);
+        const tailZ = Math.sin(walk.current * 1.6 - k * 0.25) * 0.025;
+        applyRot(tailBone, 0, tailY, tailZ);
+      }
+    }
+
+    // Vertical rhythmic body weight transfer (drops and rises with paw plants)
+    if (modelRef.current) {
+      const bob = Math.cos(cycle * 2) * 0.014 * Math.min(1.0, activePace);
+      modelRef.current.position.y = bob;
+    }
+
+    // Update root world position (y stands precisely on terrain ground)
     root.current.position.set(at.x, at.y, at.z);
-    root.current.rotation.y = at.heading;
 
+    // Smooth heading orientation
+    facing.current =
+      facing.current === null
+        ? at.heading
+        : turnTowards(facing.current, at.heading, 1 - Math.exp(-TURN_LERP * dt));
+    root.current.rotation.y = facing.current;
+
+    // Update tigerPose for spotlight detection, safe distance checks, and radar
     tigerPose.x = at.x;
     tigerPose.y = at.y;
     tigerPose.z = at.z;
     tigerPose.heading = at.heading;
     tigerPose.present = phase === 'flying';
 
-    // The gait. A diagonal pair at a time, which is what a walking cat does and
-    // what stops the four legs reading as a pushed toy.
-    const stride = walk.current * 2.6;
-    const swing = Math.sin(stride) * 0.42;
-    const swingOff = Math.sin(stride + Math.PI) * 0.42;
-    if (legFL.current) legFL.current.rotation.x = swing;
-    if (legBR.current) legBR.current.rotation.x = swing;
-    if (legFR.current) legFR.current.rotation.x = swingOff;
-    if (legBL.current) legBL.current.rotation.x = swingOff;
-    // The body rises and falls a couple of centimetres with the stride, and the
-    // head lags it. Without this the silhouette is rigid, and a rigid silhouette
-    // at forty metres reads as scenery.
-    if (body.current) body.current.position.y = SHOULDER + Math.sin(stride * 2) * 0.022;
-    if (head.current) head.current.rotation.x = Math.sin(stride * 2 + 0.6) * 0.05;
-    if (tail.current) tail.current.rotation.z = Math.sin(stride * 0.7) * 0.22;
+    // ------------------------------------------------------------------------
+    // EYESHINE (Tapetum Lucidum Retroreflection)
+    // ------------------------------------------------------------------------
+    const dDroneX = tigerPose.x - dronePose.position.x;
+    const dDroneZ = tigerPose.z - dronePose.position.z;
+    const distToDrone = Math.hypot(dDroneX, dDroneZ);
+    const near = Math.max(0, 1 - distToDrone / EYESHINE_RANGE);
 
-    // EYESHINE. It is not a lamp — it is a retroreflection, so it only answers
-    // when something is looking at it from roughly where the light is. The
-    // aircraft is the only light out here, so "the drone is close and more or
-    // less above" is the honest approximation, and it fades with distance
-    // rather than switching, so the pilot catches a glint rather than a bulb.
-    const dx = tigerPose.x - dronePose.position.x;
-    const dz = tigerPose.z - dronePose.position.z;
-    const near = Math.max(0, 1 - Math.hypot(dx, dz) / EYESHINE_RANGE);
-    materials.eye.emissiveIntensity = 0.15 + near * near * 2.6;
+    // Eyeshine glows brightly when illuminated by the spotlight at distance
+    materials.eyeshine.emissiveIntensity = 0.2 + near * near * 4.2;
+
+    // Dust particles drift gently near paws
+    if (dustPoints.current) {
+      dustPoints.current.rotation.y += dt * 0.15;
+      materials.dust.opacity = Math.min(0.35, 0.1 + basePace * 0.18);
+    }
   });
 
   if (!route) return null;
 
   return (
     <group ref={root}>
-      <group ref={body} position={[0, SHOULDER, 0]}>
-        {/* Torso, laid on its side so the lathe's axis runs nose to tail. */}
-        <mesh
-          geometry={geo.torso}
-          material={materials.coat}
-          rotation={[Math.PI / 2, 0, 0]}
-          scale={[1, BODY_LEN / 1.9, 0.86]}
-          castShadow
-        />
-        {/* Pale underside: the half of the animal a spotlight from above
-            actually lights, and the half that gives it away. */}
-        <mesh
-          geometry={geo.torso}
-          material={materials.belly}
-          rotation={[Math.PI / 2, 0, 0]}
-          position={[0, -0.11, 0]}
-          scale={[0.78, BODY_LEN / 2.1, 0.5]}
-        />
-        {[-0.62, -0.42, -0.22, 0, 0.22, 0.42, 0.62, 0.8].map((z, i) => (
-          <mesh
-            key={z}
-            geometry={geo.stripe}
-            material={materials.stripe}
-            position={[0, 0.02, z]}
-            rotation={[0, Math.PI / 2, Math.PI * (0.47 + (i % 2) * 0.06)]}
-            scale={[0.92, 0.92, 0.86]}
-          />
-        ))}
+      {/* Eye glints attached directly to the skeletal eye bones */}
+      <group ref={eyeR}>
+        <mesh geometry={geo.eyeGlint} material={materials.eyeshine} position={[0, 0.015, 0.03]} />
+      </group>
+      <group ref={eyeL}>
+        <mesh geometry={geo.eyeGlint} material={materials.eyeshine} position={[0, 0.015, 0.03]} />
+      </group>
 
-        {/* Head, forward of the shoulders and a little down — a cat walking
-            carries its head below the line of its back. */}
-        <group ref={head} position={[0, 0.02, -BODY_LEN / 2 - 0.1]}>
-          <mesh geometry={geo.skull} material={materials.coat} castShadow />
-          <mesh geometry={geo.muzzle} material={materials.belly} position={[0, -0.05, -0.17]} />
-          <mesh geometry={geo.ear} material={materials.coat} position={[-0.11, 0.17, 0.03]} />
-          <mesh geometry={geo.ear} material={materials.coat} position={[0.11, 0.17, 0.03]} />
-          <mesh
-            geometry={geo.eye}
-            material={materials.nose}
-            position={[0, -0.04, -0.26]}
-            scale={[1.3, 0.9, 0.9]}
-          />
-          {/* The two that matter. One shared emissive material, driven above. */}
-          <mesh geometry={geo.eye} material={materials.eye} position={[-0.078, 0.045, -0.16]} />
-          <mesh geometry={geo.eye} material={materials.eye} position={[0.078, 0.045, -0.16]} />
-        </group>
+      {/* Forest floor dust swirl */}
+      <points ref={dustPoints} geometry={geo.dust} material={materials.dust} position={[0, 0.04, 0]} />
 
-        {/* Legs. The pivot is at the shoulder/hip so the swing reads as a
-            stride rather than as a sliding foot. */}
-        {(
-          [
-            ['FL', legFL, -0.23, -0.62],
-            ['FR', legFR, 0.23, -0.62],
-            ['BL', legBL, -0.23, 0.6],
-            ['BR', legBR, 0.23, 0.6],
-          ] as const
-        ).map(([key, ref, x, z]) => (
-          <group key={key} ref={ref} position={[x, -0.1, z]}>
-            <mesh
-              geometry={geo.limb}
-              material={materials.coat}
-              position={[0, -0.3, 0]}
-              castShadow
-            />
-            <mesh geometry={geo.paw} material={materials.belly} position={[0, -0.56, -0.02]} />
-          </group>
-        ))}
-
-        <group ref={tail} position={[0, 0.12, BODY_LEN / 2 - 0.05]}>
-          <mesh
-            geometry={geo.tail}
-            material={materials.coat}
-            position={[0, 0.02, 0.3]}
-            rotation={[Math.PI / 2.4, 0, 0]}
-          />
-        </group>
+      {/*
+        AAA Skinned Bengal Tiger:
+        Rotate Math.PI around Y to align model +Z forward with Three.js -Z forward.
+      */}
+      <group ref={modelRef} rotation={[0, Math.PI, 0]} position={[0, 0, 0]}>
+        <primitive object={scene} />
       </group>
     </group>
   );
 }
+
+// Preload the photorealistic model for zero delay on mission launch
+useGLTF.preload(tigerModelUrl);

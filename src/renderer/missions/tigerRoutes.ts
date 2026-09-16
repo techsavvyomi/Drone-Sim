@@ -123,17 +123,88 @@ export function routeLength(route: TigerRoute): number {
 }
 
 /**
+ * THE AMBLE: the two rhythms that turn a constant march into a walk.
+ *
+ * An animal crossing its own territory does not hold a speed. It walks, slows
+ * to almost nothing over something worth smelling, and picks the pace back up —
+ * and a tiger that covered its patrol at exactly 0.9 m/s for four hundred and
+ * eighty seconds read, in the air, as a model being slid along a rail.
+ *
+ * Two sine terms rather than one, on periods that are not multiples of each
+ * other, so the pattern does not repeat inside an attempt and the pilot cannot
+ * learn it. Their amplitudes sum to 0.87, which is the one hard rule here: the
+ * pace multiplier stays positive, so the animal never walks backwards.
+ *
+ * The mean is exactly 1 over a whole number of periods, which is what keeps the
+ * mission's arithmetic intact — `speed` is still the speed, the patrol still
+ * takes the eighty to a hundred seconds the briefing promises, and nothing that
+ * measured the route has to be measured again.
+ */
+const AMBLE = [
+  { period: 23, amp: 0.55, phase: 0 },
+  { period: 8.5, amp: 0.32, phase: 1.1 },
+] as const;
+
+/**
+ * How fast the animal is walking at `t`, as a multiple of its nominal speed.
+ *
+ * 0.13 at the bottom — a stop in all but name — and 1.87 at the top. Exported
+ * because the gait is driven off it: the legs, the head and the tail all read
+ * this one number, which is what stops a walk cycle running at a pace the
+ * animal is not actually travelling at.
+ */
+export function amblePace(t: number): number {
+  let pace = 1;
+  for (const w of AMBLE) pace += w.amp * Math.sin((Math.PI * 2 * t) / w.period + w.phase);
+  return pace;
+}
+
+/**
+ * How far along the patrol the animal has walked by `t`, metres.
+ *
+ * The integral of `amblePace` in closed form, not a step-by-step accumulation —
+ * so it is the same number on a machine holding 60 fps and one holding 20, and
+ * the same number after a pause. An animal whose position depended on how many
+ * frames had been drawn would be somewhere else on every pilot's screen.
+ */
+export function ambleDistance(t: number, speed: number): number {
+  let along = t;
+  for (const w of AMBLE) {
+    const k = (Math.PI * 2) / w.period;
+    along -= (w.amp / k) * (Math.cos(k * t + w.phase) - Math.cos(w.phase));
+  }
+  return along * speed;
+}
+
+/**
  * Where the tiger is, `t` seconds into the patrol, at `speed` m/s.
+ *
+ * The constant-speed form, and what the route measurements are expressed in.
+ * The runtime walks the animal with `ambleDistance` instead — see `Tiger` —
+ * but every guarantee the routes make (this length, this clearance, this many
+ * seconds for a there-and-back) is a guarantee about distance along the path,
+ * and this is the function that states it.
+ */
+export function tigerAt(
+  route: TigerRoute,
+  t: number,
+  speed: number,
+  out: { x: number; y: number; z: number; heading: number },
+): void {
+  tigerAtDistance(route, t * speed, out);
+}
+
+/**
+ * Where the tiger is `along` metres into the patrol.
  *
  * Walks the path nose to tail, turns round, and walks back — so the animal is
  * never teleported to the start, and the pilot who loses it at one end knows
  * which way it went. Allocation-free by contract: it writes into `out` rather
  * than returning a tuple, because it is called from the frame loop.
  */
-export function tigerAt(
+export function tigerAtDistance(
   route: TigerRoute,
-  t: number,
-  speed: number,
+  along: number,
   out: { x: number; y: number; z: number; heading: number },
 ): void {
   const len = routeLength(route);
@@ -148,8 +219,8 @@ export function tigerAt(
   // One full there-and-back is two lengths. Fold the second half back on
   // itself rather than taking a modulo of one length, which would snap the
   // tiger from the far end to the near one every lap.
-  const lap = (t * speed) % (len * 2);
-  const along = lap <= len ? lap : len * 2 - lap;
+  const lap = along % (len * 2);
+  const walked = lap <= len ? lap : len * 2 - lap;
   const forward = lap <= len;
 
   let travelled = 0;
@@ -159,8 +230,8 @@ export function tigerAt(
     const dx = b.at[0] - a.at[0];
     const dz = b.at[1] - a.at[1];
     const seg = Math.hypot(dx, dz);
-    if (travelled + seg >= along || i === route.path.length - 1) {
-      const f = seg <= 0 ? 0 : Math.min(1, Math.max(0, (along - travelled) / seg));
+    if (travelled + seg >= walked || i === route.path.length - 1) {
+      const f = seg <= 0 ? 0 : Math.min(1, Math.max(0, (walked - travelled) / seg));
       out.x = a.at[0] + dx * f;
       out.z = a.at[1] + dz * f;
       out.y = a.ground + (b.ground - a.ground) * f;
