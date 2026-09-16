@@ -299,7 +299,9 @@ describe('what the briefing card needs from a mission', () => {
       // leg it does not have — but the beats are what the card DRAWS, not the
       // legs it flies, and a suppression run has a fourth picture worth showing
       // (the fire going out) even though nothing flies home after it.
-      expect(m.flow).toHaveLength(4);
+      // The tiger missions brief in two beats, each with a photograph: the
+      // helipad and the tiger found.
+      expect(m.flow).toHaveLength(m.tracking ? 2 : 4);
       // The objectives are their own list and no longer march with the beats:
       // a mission may draw a beat it does not set an objective for.
       expect(m.objectives.length).toBeGreaterThanOrEqual(3);
@@ -313,7 +315,7 @@ describe('what the briefing card needs from a mission', () => {
         'deliver',
         'suppress',
         'land',
-        // Mission 5's two: the empty beam over the wood, and the animal in it.
+        // The tiger missions' two: the empty beam over the wood, and the animal in it.
         'sweep',
         'track',
       ];

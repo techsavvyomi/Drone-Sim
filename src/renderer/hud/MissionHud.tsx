@@ -524,7 +524,10 @@ export function MissionHud() {
           it is detail rather than the front door. */}
       {phase === 'briefing' && (
         <div className="ms-center">
-          <div className="ms-card brief" ref={cardRef}>
+          <div
+            className={mission.tracking ? 'ms-card brief brief-compact' : 'ms-card brief'}
+            ref={cardRef}
+          >
             <header className="ms-brief-top">
               <div className="ms-brief-title">
                 <span className="ms-card-tag">Mission {mission.order} · Briefing</span>
@@ -546,25 +549,34 @@ export function MissionHud() {
               </aside>
             </header>
 
-            <div className="ms-brief-body">
-              {/* The map, drawn rather than photographed — see MissionArt. */}
-              <figure className="ms-hero">
-                <MissionHero envId={mission.envId} src={missionImage(mission.id, 'hero')} />
-                <figcaption>
-                  <span className="ms-hero-pin" aria-hidden="true">
-                    ◎
-                  </span>
-                  <span>
-                    <i>Map</i>
-                    <b>{mapName}</b>
-                    <em>{mission.mapNote}</em>
-                  </span>
-                </figcaption>
-              </figure>
+            <div
+              className={
+                mission.tracking ? 'ms-brief-body ms-brief-body--no-hero' : 'ms-brief-body'
+              }
+            >
+              {/* Mission 5 briefs without the tall map picture. */}
+              {!mission.tracking && (
+                <>
+                  {/* The map, drawn rather than photographed — see MissionArt. */}
+                  <figure className="ms-hero">
+                    <MissionHero envId={mission.envId} src={missionImage(mission.id, 'hero')} />
+                    <figcaption>
+                      <span className="ms-hero-pin" aria-hidden="true">
+                        ◎
+                      </span>
+                      <span>
+                        <i>Map</i>
+                        <b>{mapName}</b>
+                        <em>{mission.mapNote}</em>
+                      </span>
+                    </figcaption>
+                  </figure>
+                </>
+              )}
 
               <div className="ms-brief-main">
                 {/* The job in four beats, before a word of prose. */}
-                <ol className="ms-flow">
+                <ol className="ms-flow" data-steps={mission.flow.length}>
                   {mission.flow.map((step, i) => (
                     <li key={step.label}>
                       <span className="ms-flow-num">{i + 1}</span>
@@ -984,7 +996,7 @@ export function MissionHud() {
                   than a deduction on purpose: a wildlife survey that drives the
                   animal off has not been flown badly, it has not been flown. */}
               {failReason === 'disturbed'
-                ? 'You had the tiger and then flew down onto it, and it broke off into the trees. Give it room and pick it up again — within 12 m to count, but never on top of the animal.'
+                ? 'You had the tiger and then flew down onto it, and it broke off into the trees. Give it room and pick it up again — within 9 m to count, but never on top of the animal.'
                 : failReason === 'payload'
                   ? 'The drone dropped into the flames and the tank went with it. Hold the hover above the fire: the height band on the checklist is where the spray reaches from.'
                   : failReason === 'strayed'

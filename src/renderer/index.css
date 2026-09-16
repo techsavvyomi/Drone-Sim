@@ -5250,6 +5250,81 @@ button {
 
 /* The hero. A drawn map rather than a screenshot — see hud/MissionArt.tsx for
    why this app cannot have photographs on this card. */
+.ms-brief-body--no-hero {
+  grid-template-columns: 1fr;
+}
+/* Mission 5's compact briefing: no map picture, and the two beats, the
+   clues and objectives, and the rules sit side by side in one row so the whole
+   card fits on screen without scrolling. */
+.brief-compact .ms-brief-top {
+  padding-bottom: 12px;
+}
+.brief-compact .ms-story p {
+  font-size: 12px;
+  line-height: 1.45;
+}
+.brief-compact .ms-brief-body {
+  margin-top: 14px;
+}
+.brief-compact .ms-brief-main {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-rows: auto 1fr;
+  gap: 16px 18px;
+  align-items: start;
+}
+/* The picture column also carries the star rating under the two beats, so it
+   is as tall as the columns beside it rather than half empty. */
+.brief-compact .ms-brief-cols,
+.brief-compact .ms-brief-side {
+  display: contents;
+}
+.brief-compact .ms-flow {
+  grid-column: 1;
+  grid-row: 1;
+}
+.brief-compact .ms-rubric {
+  grid-column: 1;
+  grid-row: 2;
+}
+.brief-compact .ms-objectives {
+  grid-column: 2;
+  grid-row: 1 / 3;
+}
+.brief-compact .ms-rules {
+  grid-column: 3;
+  grid-row: 1 / 3;
+}
+.brief-compact .ms-flow[data-steps='2'] {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin: 0;
+}
+.brief-compact .ms-clues {
+  margin-bottom: 12px;
+}
+.brief-compact .ms-clues li,
+.brief-compact .ms-rule-row {
+  font-size: 12px;
+  line-height: 1.4;
+}
+.brief-compact .ms-rule-row {
+  padding: 2px 0;
+}
+.brief-compact .ms-objectives ol {
+  gap: 7px;
+}
+.brief-compact .ms-objectives li {
+  font-size: 13px;
+  line-height: 1.4;
+}
+.brief-compact .ms-rules {
+  margin: 0;
+}
+.brief-compact .ms-brief-foot {
+  margin-top: 12px;
+  padding-top: 12px;
+}
 .ms-hero {
   position: relative;
   margin: 0;
@@ -5318,6 +5393,13 @@ button {
   margin: 0 0 18px;
   padding: 0;
   list-style: none;
+}
+/* A two-beat mission keeps each card at a quarter-row size and centres the
+   pair, rather than stretching two squares across the whole row. */
+.ms-flow[data-steps='2'] {
+  grid-template-columns: repeat(2, minmax(0, 190px));
+  justify-content: center;
+  gap: 64px;
 }
 .ms-flow li {
   position: relative;
