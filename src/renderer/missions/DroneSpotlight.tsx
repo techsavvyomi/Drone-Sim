@@ -53,9 +53,24 @@ import type { Mission } from './types';
  *  too far ahead lights nothing under the aircraft, and the lock is judged on
  *  what is under it. */
 const LEAD = 1.2;
-/** How far below the airframe the lamp sits. Under the belly, clear of the
- *  props. */
-const DROP = 0.14;
+/**
+ * How far below the aircraft's origin the lamp's FACE sits, metres.
+ *
+ * Flush, not slung. It was 0.14, which on a body this size left a visible gap —
+ * the pod hung under the drone like something on a string, and flown it read as
+ * a separate object that happened to be following the aircraft rather than as a
+ * light bolted to it.
+ *
+ * The housing above this face is deliberately tall enough to push a few
+ * millimetres INTO the fuselage. A fixture that stops exactly at the skin
+ * leaves a hairline of background between the two at some angles; one that
+ * buries its top never can.
+ *
+ * Read against the Guru as it is DRAWN, not as it is specified: the model is
+ * inflated by `sizeScale` 2.5 for readability, so the visible airframe is two
+ * and a half times the numbers in `guru.ts`.
+ */
+const DROP = 0.055;
 
 /**
  * How fast the aim catches up with the nose, per second.
@@ -183,9 +198,15 @@ function beamTexture(): THREE.CanvasTexture {
     // downward — so the TOP of the canvas is the tip of the cone, which is
     // where the lamp is.
     const g = ctx.createLinearGradient(0, 0, 0, 128);
-    g.addColorStop(0, 'rgba(255,255,255,1)');
-    g.addColorStop(0.25, 'rgba(255,255,255,0.55)');
-    g.addColorStop(0.7, 'rgba(255,255,255,0.14)');
+    // NOT full at the very apex. A shell is at its narrowest there, so every
+    // ray through it crosses the same few centimetres twice — at full alpha
+    // that stacks into a small solid nub sitting under the lamp, which reads as
+    // a lump of geometry rather than as the start of a beam. It climbs in over
+    // the first stretch instead, so the shaft appears to LEAVE the lens.
+    g.addColorStop(0, 'rgba(255,255,255,0.45)');
+    g.addColorStop(0.08, 'rgba(255,255,255,0.72)');
+    g.addColorStop(0.3, 'rgba(255,255,255,0.5)');
+    g.addColorStop(0.7, 'rgba(255,255,255,0.13)');
     g.addColorStop(1, 'rgba(255,255,255,0)');
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, 4, 128);
@@ -342,10 +363,12 @@ export function DroneSpotlight({ mission }: { mission: Mission }) {
 
   return (
     <group ref={rig}>
-      {/* The lamp. Small, and the point of it is entirely that the pilot can
-          see where the light leaves the aircraft. */}
-      <mesh material={housingMat} position={[0, 0.035, 0]}>
-        <cylinderGeometry args={[0.055, 0.07, 0.07, 10]} />
+      {/* The lamp: a shallow fixture, wider than it is deep, with its top
+          buried in the belly. The old one was a 7 cm pod hanging in clear air —
+          the right idea at the wrong proportions, and a pod with daylight above
+          it reads as cargo rather than as a fitting. */}
+      <mesh material={housingMat} position={[0, 0.032, 0]}>
+        <cylinderGeometry args={[0.062, 0.052, 0.064, 12]} />
       </mesh>
       {/* The lens: unlit, untonemapped, so it stays a hot white dot at any
           exposure rather than being graded down with the rest of the scene. */}

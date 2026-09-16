@@ -243,7 +243,20 @@ export function Propellers({ spec }: { spec: DroneSpec }) {
     const green = live && !low;
     ledMat.current.color.set(green ? '#2bff88' : '#ff3344');
     ledMat.current.emissive.set(green ? '#2bff88' : '#ff3344');
-    ledMat.current.emissiveIntensity = on ? 2.4 : 0.15;
+    // UNDER THE BLOOM THRESHOLD, and that is the whole reason for the number.
+    //
+    // It was 2.4, and with `toneMapped` off that is a linear output of 2.4 on
+    // the green channel — nearly three times the threshold the darker time
+    // presets bloom at (0.8 at dusk and night, against 1.1 in daylight). The
+    // status LED stopped being a dot and became a white ball swallowing the
+    // middle of the airframe: flown on Mission 5, the drone read as a bulb
+    // rather than as a machine carrying a light.
+    //
+    // 0.9 puts the brightest channel just over the dusk threshold, so it still
+    // has a whisker of glow after dark and is a clean bright dot in daylight.
+    // The light stays untonemapped, which is what makes an LED read as an LED
+    // rather than as painted plastic.
+    ledMat.current.emissiveIntensity = on ? 0.9 : 0.12;
   });
 
   return (
