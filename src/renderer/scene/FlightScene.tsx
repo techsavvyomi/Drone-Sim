@@ -18,6 +18,7 @@ import { RotorWash } from './RotorWash';
 import { PropDebris } from './PropDebris';
 import { LocalEnvironment } from './LocalEnvironment';
 import { PostFX } from './PostFX';
+import { SunLight } from './SunLight';
 import { AdaptiveResolution } from './AdaptiveResolution';
 import { DroneAudio } from '../audio/DroneAudio';
 
@@ -128,22 +129,17 @@ export function FlightScene({
         color={t.night ? '#26364d' : '#cfe3ff'}
         groundColor={outdoor ? '#3f5233' : '#0a1018'}
       />
-      {/* Classroom uses its own window + ceiling rig; skip the outdoor sun key. */}
+      {/* Classroom uses its own window + ceiling rig; skip the outdoor sun key.
+          The shadow box travels with the aircraft — see SunLight, and note that
+          a light declared here with a fixed position shadowed only the forty
+          metres around the spawn pad. */}
       {!isClassroom && (
-        <directionalLight
-          position={t.sun}
+        <SunLight
+          sun={t.sun}
           intensity={sun}
           color={t.sunColor}
-          castShadow={shadows}
-          shadow-mapSize={[shadowMap, shadowMap]}
-          shadow-bias={-0.0002}
-          shadow-normalBias={0.02}
-          shadow-camera-left={-38}
-          shadow-camera-right={38}
-          shadow-camera-top={38}
-          shadow-camera-bottom={-38}
-          shadow-camera-near={0.5}
-          shadow-camera-far={200}
+          shadows={shadows}
+          shadowMap={shadowMap}
         />
       )}
 
