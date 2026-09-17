@@ -472,6 +472,17 @@ export interface AppInfo {
   version: string;
   platform: NodeJS.Platform;
   electron: string;
+  /** Short git commit the build was made from, or 'dev'. */
+  commit: string;
+  /** ISO time the build was made. */
+  builtAt: string;
+  /** A packaged release build, as opposed to `npm start`. */
+  packaged: boolean;
+  /** OS version, e.g. "15.3.1" on macOS or "10.0.22631" on Windows. */
+  osVersion: string;
+  arch: string;
+  chrome: string;
+  node: string;
 }
 
 // ----------------------------------------------------------------------------

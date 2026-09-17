@@ -23,8 +23,9 @@ beforeEach(() => {
     saveSettings: vi.fn(async (s: Record<string, unknown>) => {
       stored = s;
     }),
+    openExternal: vi.fn(async () => true),
     appInfo: vi.fn(async () => ({
-      name: 'Drone Flight Simulator',
+      name: 'PlutoSim',
       version: '0.1.0',
       platform: 'darwin',
       electron: '43.0.0',

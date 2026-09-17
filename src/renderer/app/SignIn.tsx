@@ -79,13 +79,6 @@ export function SignIn() {
         </div>
 
         <h1>{mode === 'activate' ? 'Activate your simulator' : 'Welcome back'}</h1>
-        <p className="signin-lede">
-          {needsSignIn
-            ? 'Your sign-in has expired. Enter your email and activation key to continue.'
-            : mode === 'activate'
-              ? 'Enter the activation key you were given. It will be linked to your email, and your flights and points will be saved to your profile.'
-              : 'Sign in with the email and activation key you activated with.'}
-        </p>
 
         {mode === 'activate' && (
           <label className="signin-field">
@@ -135,6 +128,14 @@ export function SignIn() {
         <button className="signin-submit" type="submit" disabled={busy}>
           {busy ? 'Checking…' : mode === 'activate' ? 'Activate' : 'Sign in'}
         </button>
+
+        <p className="signin-note">
+          {needsSignIn
+            ? 'Your sign-in has expired. Enter your email and activation key to continue.'
+            : mode === 'activate'
+              ? 'Enter the activation key you were given. It will be linked to your email, and your flights and points will be saved to your profile.'
+              : 'Sign in with the email and activation key you activated with.'}
+        </p>
 
         <div className="signin-switch">
           {mode === 'activate' ? (
