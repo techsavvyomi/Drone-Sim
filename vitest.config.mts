@@ -20,6 +20,11 @@ export default defineConfig({
       '@renderer': new URL('./src/renderer', import.meta.url).pathname,
     },
   },
+  // Tests run the development configuration: models are not encrypted.
+  define: {
+    __ASSET_KEY_A__: JSON.stringify(''),
+    __ASSET_KEY_B__: JSON.stringify(''),
+  },
   test: {
     environment: 'node',
     include: ['tests/**/*.test.ts'],

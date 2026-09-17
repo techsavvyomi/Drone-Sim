@@ -4,6 +4,7 @@ import { useGLTF } from '@react-three/drei';
 import { App } from './app/App';
 import { AppErrorBoundary } from './app/AppErrorBoundary';
 import { loadBuiltinPlugins } from './plugins';
+import { installProtectedModelLoader } from './assets/protectedModels';
 import './index.css';
 
 // Point Draco at the decoder bundled in public/, before anything loads a model.
@@ -18,6 +19,11 @@ import './index.css';
 // the dev server and under file:// in a packaged build, where a leading slash
 // would point at the filesystem root.
 useGLTF.setDecoderPath('draco/gltf/');
+
+// A packaged build's models are encrypted inside app.asar. This must run before
+// anything starts loading one, which is why it sits above the plugin registry
+// (loading plugins preloads the drone models).
+installProtectedModelLoader();
 
 // Register built-in drones/environments before the app reads the registry.
 loadBuiltinPlugins();
