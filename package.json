@@ -15,7 +15,8 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint . --ext .ts,.tsx",
     "format": "prettier --write \"src/**/*.{ts,tsx,css}\"",
-    "build:apps-script": "node scripts/build-apps-script.mjs"
+    "build:apps-script": "node scripts/build-apps-script.mjs",
+    "verify:build": "node scripts/verify-build.mjs"
   },
   "devDependencies": {
     "@electron-forge/cli": "^7.11.2",
@@ -23,8 +24,10 @@
     "@electron-forge/maker-squirrel": "^7.11.2",
     "@electron-forge/maker-zip": "^7.11.2",
     "@electron-forge/plugin-auto-unpack-natives": "^7.11.2",
+    "@electron-forge/plugin-fuses": "^7.11.2",
     "@electron-forge/plugin-vite": "^7.11.2",
     "@electron-internal/extract-zip": "^1.0.5",
+    "@electron/fuses": "^1.8.0",
     "@electron/get": "^5.1.0",
     "@eslint/js": "^10.0.1",
     "@gltf-transform/cli": "^4.4.1",

@@ -137,6 +137,34 @@ the script's header for how to find the right node names.
 | `npm run typecheck` | `tsc --noEmit` |
 | `npm run lint` | ESLint over `src/` |
 | `npm run format` | Prettier over `src/` |
+| `npm test` | Unit tests (Vitest) |
+| `npm run verify:build` | Check a packaged build under `out/` is locked down (see below) |
+| `npm run build:apps-script` | Rebuild the one-file Apps Script backend (see `backend/README.md`) |
+
+### Protecting a release build
+
+`npm run package` and `npm run make` protect the build automatically; nothing to
+remember:
+
+- **Everything is inside `app.asar`**: code, models, textures, the Draco decoder.
+- **3D models are encrypted.** Every `.glb` is AES-256-GCM encrypted with a key made
+  fresh for that build (`vite-plugins/protect-assets.ts`) and decrypted in memory as it
+  loads (`src/renderer/assets/protectedModels.ts`). Unpacking the archive gives files
+  Blender cannot open. `npm start` uses the plain files.
+- **No source maps** ship.
+- **The Electron binary is locked** with fuses (`forge.config.ts`): it cannot run as
+  Node, takes no `NODE_OPTIONS` / `--inspect`, loads the app only from `app.asar`, and
+  refuses to start if `app.asar` has been modified.
+- **No debugging:** a packaged build exits on `--remote-debugging-port` or `--inspect`,
+  and DevTools never open (`src/main/security.ts`).
+
+After packaging, run `npm run verify:build`; it fails if any of the above is missing.
+To inspect a packaged build yourself, package with `DRONESIM_ALLOW_DEBUG=1`, and never
+ship that build.
+
+This stops casual copying, not a determined reverse-engineer: the app must be able to
+decrypt its own models, and anything drawn on screen can be captured from the GPU.
+Keep anything truly secret on the server.
 
 ---
 

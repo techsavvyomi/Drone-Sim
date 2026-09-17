@@ -2,6 +2,10 @@ import { app, BrowserWindow } from 'electron';
 import path from 'node:path';
 import { registerIpcHandlers } from './main/ipc/handlers';
 import { installCrashReporting } from './main/crash';
+import { enforceLockdown } from './main/security';
+
+// A packaged build refuses debugger switches and never opens DevTools.
+const lockdown = enforceLockdown();
 
 // Before anything else: the native crash reporter must start before other
 // processes do, and an exception during startup is worth a report too.
@@ -30,6 +34,7 @@ function createWindow(): void {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: false,
+      devTools: lockdown.devTools,
     },
   });
 

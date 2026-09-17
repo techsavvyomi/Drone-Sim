@@ -7,6 +7,8 @@ import { MakerZIP } from '@electron-forge/maker-zip';
 import { MakerDeb } from '@electron-forge/maker-deb';
 import { VitePlugin } from '@electron-forge/plugin-vite';
 import { AutoUnpackNativesPlugin } from '@electron-forge/plugin-auto-unpack-natives';
+import { FusesPlugin } from '@electron-forge/plugin-fuses';
+import { FuseV1Options, FuseVersion } from '@electron/fuses';
 
 const config: ForgeConfig = {
   packagerConfig: {
@@ -86,6 +88,25 @@ const config: ForgeConfig = {
     // Ensures native modules (e.g. better-sqlite3, added in Phase 4) are
     // unpacked from the asar archive so they load at runtime.
     new AutoUnpackNativesPlugin({}),
+    // Lock down the packaged Electron binary. These flip switches compiled into
+    // the executable itself, so they cannot be undone from outside:
+    //   - it cannot be started as a plain Node.js runtime (ELECTRON_RUN_AS_NODE)
+    //     or have code injected through NODE_OPTIONS / --inspect;
+    //   - it only runs the app from app.asar, and checks that archive against
+    //     the hash recorded at build time, so an unpacked-and-edited copy will
+    //     not start.
+    // Everything the app ships (code, models, textures) is inside app.asar; the
+    // .glb models in there are also encrypted (vite.renderer.config.ts).
+    // Remote debugging and DevTools are refused separately, in src/main.ts.
+    new FusesPlugin({
+      version: FuseVersion.V1,
+      [FuseV1Options.RunAsNode]: false,
+      [FuseV1Options.EnableCookieEncryption]: true,
+      [FuseV1Options.EnableNodeOptionsEnvironmentVariable]: false,
+      [FuseV1Options.EnableNodeCliInspectArguments]: false,
+      [FuseV1Options.EnableEmbeddedAsarIntegrityValidation]: true,
+      [FuseV1Options.OnlyLoadAppFromAsar]: true,
+    }),
   ],
 };
 
