@@ -6,6 +6,7 @@ import {
   labelFor,
   overallProgress,
   resetResourceTracking,
+  runPreparationTasks,
   trackModelLoads,
   useResourceStore,
 } from '../src/renderer/assets/resourceTracker';
@@ -86,6 +87,32 @@ describe('resource loading', () => {
     expect(labelFor('/src/assets/models/PlutoGuru.opt.glb?import')).toBe('Pluto Guru drone');
     expect(labelFor('assets/site_props.opt-BZqHwzu3.glb')).toBe('Construction site');
     expect(labelFor('assets/something_new-abcdefgh.glb')).toBe('something new');
+  });
+
+  it('counts preparation tasks from the start, runs them in order, and survives one failing', async () => {
+    const order: string[] = [];
+    const running = runPreparationTasks([
+      { name: 'audio', label: 'sound engine', weightBytes: 4, run: () => order.push('audio') },
+      {
+        name: 'broken',
+        label: 'broken thing',
+        weightBytes: 2,
+        run: () => {
+          throw new Error('no GPU');
+        },
+      },
+      { name: 'textures', label: 'surface textures', weightBytes: 4, run: async () => order.push('textures') },
+    ]);
+    // Registered before any has run, so the screen cannot finish early.
+    expect(Object.keys(entries())).toEqual(['task:audio', 'task:broken', 'task:textures']);
+    expect(allSettled(entries())).toBe(false);
+    expect(currentEntry(entries())?.label).toBe('sound engine');
+
+    await running;
+    expect(order).toEqual(['audio', 'textures']);
+    expect(allSettled(entries())).toBe(true);
+    expect(entries()['task:broken'].failed).toBe(true);
+    expect(overallProgress(entries())).toBe(1);
   });
 
   it('is ready immediately when nothing is loading', () => {

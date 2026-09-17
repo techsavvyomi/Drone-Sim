@@ -6,6 +6,7 @@ import { useGLTF } from '@react-three/drei';
 import { App } from './app/App';
 import { AppErrorBoundary } from './app/AppErrorBoundary';
 import { loadBuiltinPlugins } from './plugins';
+import { startPreparingResources } from './assets/prepareResources';
 import './index.css';
 
 // Point Draco at the decoder bundled in public/, before anything loads a model.
@@ -23,6 +24,10 @@ useGLTF.setDecoderPath('draco/gltf/');
 
 // Register built-in drones/environments before the app reads the registry.
 loadBuiltinPlugins();
+
+// Everything a map would otherwise build the first time it opens (sound engine,
+// procedural textures), prepared behind the loading screen instead.
+void startPreparingResources();
 
 const container = document.getElementById('root');
 if (!container) throw new Error('Root element #root not found');

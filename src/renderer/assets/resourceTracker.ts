@@ -1,14 +1,19 @@
 import { create } from 'zustand';
 import { GLTFLoader } from 'three-stdlib';
 
-// Progress of the 3D models the app preloads at startup.
+// Progress of everything the app prepares before its menu opens.
 //
-// Every model is loaded by three-stdlib's GLTFLoader (drei's useGLTF uses it,
-// preloads included), so hooking its `load` once sees them all: each file's
-// bytes as they arrive, and the moment it has been decrypted and parsed. The
-// loading screen after sign-in reads this; nothing has to register a model.
+// Two kinds of work, one progress bar:
+//   - MODELS. Every model is loaded by three-stdlib's GLTFLoader (drei's useGLTF
+//     uses it, preloads included), so hooking its `load` once sees them all:
+//     each file's bytes as they arrive (decrypted in memory, never on disk), and
+//     the moment it has been parsed. Nothing has to register a model.
+//   - TASKS. Work a map would otherwise do the first time it opens and then
+//     reuse: starting the sound engine, generating the procedural textures. See
+//     assets/prepareResources.ts.
 
 export interface ResourceEntry {
+  /** A model's URL, or `task:<name>` for a preparation task. */
   url: string;
   label: string;
   loadedBytes: number;
@@ -122,6 +127,42 @@ export function trackModelLoads(loaderProto: { load: LoadFn } = GLTFLoader.proto
       },
     );
   };
+}
+
+/**
+ * Register preparation tasks up front, so the loading screen counts them before
+ * they start, then run them one at a time, yielding a frame between each so the
+ * progress bar can paint. `weightBytes` is the task's share of the bar, on the
+ * same scale as a model's size.
+ */
+export async function runPreparationTasks(
+  tasks: { name: string; label: string; weightBytes: number; run: () => unknown }[],
+): Promise<void> {
+  useResourceStore.setState((s) => {
+    const entries = { ...s.entries };
+    for (const t of tasks) {
+      entries[`task:${t.name}`] = {
+        url: `task:${t.name}`,
+        label: t.label,
+        loadedBytes: 0,
+        totalBytes: t.weightBytes,
+        done: false,
+        failed: false,
+      };
+    }
+    return { entries };
+  });
+  for (const t of tasks) {
+    await new Promise((r) => setTimeout(r, 16));
+    try {
+      await t.run();
+      patch(`task:${t.name}`, { done: true, loadedBytes: t.weightBytes });
+    } catch (error) {
+      // A failed warm-up is not fatal: the map does the work itself when it opens.
+      console.warn(`[loading] ${t.label} failed`, error);
+      patch(`task:${t.name}`, { failed: true });
+    }
+  }
 }
 
 /** Test hook: forget everything tracked. */
