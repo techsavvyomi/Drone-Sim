@@ -19,6 +19,7 @@ import { useMissionStore } from '../state/missionStore';
 import { attachGamepad } from '../input/gamepad';
 import { useAccountStore } from '../state/accountStore';
 import { attachTelemetry } from '../analytics/telemetry';
+import { attachCrashReporting } from '../analytics/crashReporting';
 
 function MainArea() {
   const section = useUiStore((s) => s.section);
@@ -84,6 +85,9 @@ export function App() {
     void hydrate();
   }, [hydrate]);
 
+  // Crash reports, from the first render: a failure on the sign-in screen counts.
+  useEffect(() => attachCrashReporting(), []);
+
   // Who is flying. Resolved alongside settings; the simulator opens once both are.
   useEffect(() => useAccountStore.getState().init(), []);
 
@@ -141,7 +145,7 @@ export function App() {
     return (
       <div className="boot">
         <b>DroneSIM</b>
-        <span>Drona Aviation · PlutoX</span>
+        <span>By Drona Aviation</span>
       </div>
     );
   }
