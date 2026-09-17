@@ -2,9 +2,9 @@ import type { Mission } from './types';
 import { nightTracking } from './nightTracking';
 
 // ----------------------------------------------------------------------------
-// Mission 5 — Tiger Tracker.
+// Mission 5 — Animal Rescue.
 //
-// Mission 6 (Wildlife Tracker) with one thing added: the corner radar shows
+// Mission 6 (Search and Rescue) with one thing added: the corner radar shows
 // where the tiger is, as a red dot that walks with it and rides the rim in its
 // direction when it is out of range. Everything else — the forest, the four
 // patrols, the light, the lock, the keep-off distance, the clock — is spread
@@ -20,7 +20,7 @@ export const tigerTracker: Mission = {
   ...nightTracking,
   id: 'tiger-tracker',
   order: 5,
-  name: 'Tiger Tracker',
+  name: 'Animal Rescue',
   subtitle: 'A tiger in the dark, and a red dot on your map',
   rules: [
     'The map in the top-right corner shows the tiger as a red dot. If the dot sits on the edge of the map, the tiger is further away in that direction.',

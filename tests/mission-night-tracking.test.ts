@@ -68,7 +68,7 @@ const M = nightTracking;
 const GURU_CEILING = 30;
 
 describe('the shape of the mission', () => {
-  it('TC-500 is the sixth mission and unlocks behind Tiger Tracker', () => {
+  it('TC-500 is the sixth mission and unlocks behind Animal Rescue', () => {
     expect(M.order).toBe(6);
     expect(MISSIONS[MISSIONS.length - 1].id).toBe(M.id);
     expect(MISSIONS[MISSIONS.length - 2].id).toBe('tiger-tracker');
