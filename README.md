@@ -138,6 +138,7 @@ the script's header for how to find the right node names.
 | `npm run lint` | ESLint over `src/` |
 | `npm run format` | Prettier over `src/` |
 | `npm test` | Unit tests (Vitest) |
+| `npm run make:release` | Build the installers and portable zips for macOS (Apple Silicon and Intel) and Windows, then verify them. Needs `brew install makensis` for the Windows installer |
 | `npm run verify:build` | Check a packaged build under `out/` is locked down (see below) |
 | `npm run build:apps-script` | Rebuild the one-file Apps Script backend (see `backend/README.md`) |
 

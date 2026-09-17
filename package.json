@@ -16,11 +16,16 @@
     "lint": "eslint . --ext .ts,.tsx",
     "format": "prettier --write \"src/**/*.{ts,tsx,css}\"",
     "build:apps-script": "node scripts/build-apps-script.mjs",
-    "verify:build": "node scripts/verify-build.mjs"
+    "verify:build": "node scripts/verify-build.mjs",
+    "make:mac": "electron-forge make --platform=darwin --arch=arm64 && electron-forge make --platform=darwin --arch=x64",
+    "make:win": "electron-forge make --platform=win32 --arch=x64",
+    "make:release": "npm run make:mac && npm run make:win && npm run verify:build",
+    "make:icons": "node scripts/make-icons.mjs"
   },
   "devDependencies": {
     "@electron-forge/cli": "^7.11.2",
     "@electron-forge/maker-deb": "^7.11.2",
+    "@electron-forge/maker-dmg": "^7.11.2",
     "@electron-forge/maker-squirrel": "^7.11.2",
     "@electron-forge/maker-zip": "^7.11.2",
     "@electron-forge/plugin-auto-unpack-natives": "^7.11.2",
