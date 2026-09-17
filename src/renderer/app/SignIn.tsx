@@ -29,7 +29,6 @@ export function SignIn() {
   const needsSignIn = useAccountStore((s) => s.needsSignIn);
   const activate = useAccountStore((s) => s.activate);
   const login = useAccountStore((s) => s.login);
-  const signOut = useAccountStore((s) => s.signOut);
 
   // Someone whose device was signed out comes back to the sign-in form, with
   // their email already filled in.
@@ -145,11 +144,6 @@ export function SignIn() {
           ) : (
             <button type="button" onClick={() => switchMode('activate')}>
               I have a new activation key
-            </button>
-          )}
-          {needsSignIn && (
-            <button type="button" onClick={() => void signOut()}>
-              Use a different profile
             </button>
           )}
         </div>
