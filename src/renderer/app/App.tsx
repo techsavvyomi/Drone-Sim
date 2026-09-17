@@ -8,6 +8,8 @@ import { Placeholder } from './Placeholder';
 import { StatusBar } from './StatusBar';
 import { TrainingScreen } from './TrainingScreen';
 import { MissionScreen } from './MissionScreen';
+import { ProfileScreen } from './ProfileScreen';
+import { SignIn } from './SignIn';
 import { Viewport } from '../scene/Viewport';
 import { useUiStore } from '../state/uiStore';
 import { useFlightStore } from '../state/flightStore';
@@ -15,6 +17,8 @@ import { useSettingsStore } from '../state/settingsStore';
 import { useTrainingStore } from '../state/trainingStore';
 import { useMissionStore } from '../state/missionStore';
 import { attachGamepad } from '../input/gamepad';
+import { useAccountStore } from '../state/accountStore';
+import { attachTelemetry } from '../analytics/telemetry';
 
 function MainArea() {
   const section = useUiStore((s) => s.section);
@@ -26,6 +30,8 @@ function MainArea() {
       return <Viewport />;
     case 'settings':
       return <SettingsPanel />;
+    case 'profile':
+      return <ProfileScreen />;
     case 'training':
       return <TrainingScreen />;
     case 'missions':
@@ -60,6 +66,8 @@ export function App() {
   const togglePanel = useUiStore((s) => s.togglePanel);
   const trainingLesson = useTrainingStore((s) => s.activeLessonId);
   const activeMission = useMissionStore((s) => s.mission);
+  const accountStatus = useAccountStore((s) => s.status);
+  const needsSignIn = useAccountStore((s) => s.needsSignIn);
 
   // A running lesson or mission is a flight view: full-bleed, no nav rail.
   //
@@ -75,6 +83,16 @@ export function App() {
   useEffect(() => {
     void hydrate();
   }, [hydrate]);
+
+  // Who is flying. Resolved alongside settings; the simulator opens once both are.
+  useEffect(() => useAccountStore.getState().init(), []);
+
+  // Sessions and gameplay events. It records only while someone is signed in,
+  // and after settings have hydrated, so the drone it reports is the real one.
+  useEffect(() => {
+    if (!hydrated) return;
+    return attachTelemetry();
+  }, [hydrated]);
 
   // App-wide, not flight-view-scoped: the settings screen needs live axis and
   // button readings to configure a controller before ever entering a flight.
@@ -119,13 +137,20 @@ export function App() {
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
-  if (!hydrated) {
+  if (!hydrated || accountStatus === 'loading') {
     return (
       <div className="boot">
         <b>DroneSIM</b>
         <span>Drona Aviation · PlutoX</span>
       </div>
     );
+  }
+
+  // With profiles on, the simulator is used through a profile: nothing past
+  // this point until someone has activated or signed in. A token that expires
+  // mid-flight waits for the flight to end: the queue holds its data meanwhile.
+  if (accountStatus === 'signedOut' || (accountStatus === 'signedIn' && needsSignIn && !flightLike)) {
+    return <SignIn />;
   }
 
   return (

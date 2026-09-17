@@ -1,28 +1,36 @@
 import { useUiStore, type Section } from '../state/uiStore';
 import { getDrone } from '../plugins/registry';
-import { usePilotStore } from '../state/pilotStore';
+import { usePilotStanding } from './pilotRank';
+import { useAccountStore } from '../state/accountStore';
 import { ArenaShowcase } from '../scene/ArenaShowcase';
 import { IconChevron, IconDrone, IconMedal, IconSignal, IconCap } from './icons';
 
 /** Compact pilot/progression badge shown in the menu's bottom-left corner. */
 function PilotBadge() {
-  const pilot = usePilotStore();
-  const pct = Math.round((pilot.xp / pilot.xpNext) * 100);
+  const pilot = usePilotStanding();
+  const setSection = useUiStore((s) => s.setSection);
+  const signedIn = useAccountStore((s) => s.status === 'signedIn');
+  const pct = pilot.next > 0 ? Math.round((pilot.current / pilot.next) * 100) : 0;
 
+  // Signed in, the badge is the way to the pilot's profile.
+  const Tag = signedIn ? 'button' : 'div';
   return (
-    <div className="pilot-badge">
+    <Tag
+      className={`pilot-badge ${signedIn ? 'is-link' : ''}`}
+      {...(signedIn ? { onClick: () => setSection('profile'), title: 'View your profile' } : {})}
+    >
       <span className="pilot-badge-avatar">🧑‍✈️</span>
       <span className="pilot-badge-main">
-        <b>{pilot.callsign}</b>
+        <b>{pilot.name}</b>
         <i>{pilot.rank}</i>
         <span className="pilot-badge-bar">
           <span style={{ width: `${pct}%` }} />
         </span>
       </span>
       <span className="pilot-badge-xp">
-        {pilot.xp} / {pilot.xpNext} XP
+        {pilot.current} / {pilot.next} {pilot.unit}
       </span>
-    </div>
+    </Tag>
   );
 }
 
@@ -118,14 +126,6 @@ export function Home() {
 
         <footer className="home-bottom">
           <PilotBadge />
-
-          <div className="keyhints">
-            <kbd>Enter</kbd>
-            <span>to arm</span>
-            <i className="divider" />
-            <kbd>Space</kbd>
-            <span>to take off</span>
-          </div>
 
           <div className="sysready">
             <span className="sysready-bars">

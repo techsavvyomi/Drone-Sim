@@ -1,8 +1,9 @@
 import { useSettingsStore } from '../state/settingsStore';
 import { useUiStore } from '../state/uiStore';
+import { useAccountStore } from '../state/accountStore';
 import { getDrone, listDrones, listEnvironments } from '../plugins/registry';
 import { ChipSelect, type SelectOption } from './ChipSelect';
-import { IconArena, IconCeiling, IconDrone, IconGear, IconTarget } from './icons';
+import { IconArena, IconCeiling, IconDrone, IconGear, IconTarget, IconUser } from './icons';
 
 /** Accent tints for option thumbnails, cycled by index. */
 const TINTS = ['#3b82f6', '#22c55e', '#f5a524', '#a855f7', '#38bdf8'];
@@ -11,6 +12,7 @@ export function TopBar() {
   const { settings, set } = useSettingsStore();
   const setSection = useUiStore((s) => s.setSection);
   const drone = getDrone(settings.selectedDroneId);
+  const profile = useAccountStore((s) => (s.status === 'signedIn' ? s.profile : null));
 
   // Options come straight from the plugin registries, so new drones and maps
   // appear in these menus with no UI changes.
@@ -47,10 +49,24 @@ export function TopBar() {
       </button>
 
       <div className="topbar-right">
-        <div className="pill-connected">
-          <span className="dot" />
-          Connected
-        </div>
+        {/* Signed in, the pilot's own chip takes the status pill's place, so
+            the bar stays the width it was designed at. */}
+        {profile ? (
+          <button className="chip-user" onClick={() => setSection('profile')} title="Your profile">
+            <span className="chip-icon">
+              <IconUser size={20} />
+            </span>
+            <span className="chip-body">
+              <i>Level {profile.level}</i>
+              <b>{profile.name}</b>
+            </span>
+          </button>
+        ) : (
+          <div className="pill-connected">
+            <span className="dot" />
+            Connected
+          </div>
+        )}
 
         <div className="chip-group">
           <ChipSelect

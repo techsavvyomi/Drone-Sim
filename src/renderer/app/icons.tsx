@@ -47,6 +47,13 @@ export const IconCap = ({ size }: P) => (
   </svg>
 );
 
+export const IconUser = ({ size }: P) => (
+  <svg {...base(size)}>
+    <circle cx="12" cy="8.5" r="3.8" />
+    <path d="M4.5 20.5c.8-3.9 3.8-6 7.5-6s6.7 2.1 7.5 6" />
+  </svg>
+);
+
 export const IconMedal = ({ size }: P) => (
   <svg {...base(size)}>
     <path d="M12 3 4.5 6v5.2c0 4.3 3.1 7.7 7.5 9.3 4.4-1.6 7.5-5 7.5-9.3V6L12 3Z" />
