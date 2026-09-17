@@ -262,6 +262,12 @@ interface MissionState {
 
   result: CompletedResult | null;
   failReason: FailReason | null;
+  /**
+   * How many attempts have been flown since the mission was opened: bumped by
+   * `beginFlight` and `restart`, zeroed by `start` and `exit`. Telemetry reads it
+   * to tell a retry from a new visit; nothing in the flight does.
+   */
+  attempt: number;
 
   start: (mission: Mission) => void;
   beginFlight: () => void;
@@ -447,16 +453,26 @@ export const useMissionStore = create<MissionState>((set, get) => ({
   mission: null,
   phase: 'briefing',
   maxPoints: 0,
+  attempt: 0,
   ...freshAttempt(null),
 
   start: (mission) =>
-    set({ mission, phase: 'briefing', maxPoints: maxPointsOf(mission), ...freshAttempt(mission) }),
+    set({
+      mission,
+      phase: 'briefing',
+      maxPoints: maxPointsOf(mission),
+      attempt: 0,
+      ...freshAttempt(mission),
+    }),
 
-  beginFlight: () => set((s) => ({ phase: 'flying', ...freshAttempt(s.mission) })),
+  beginFlight: () =>
+    set((s) => ({ phase: 'flying', attempt: s.attempt + 1, ...freshAttempt(s.mission) })),
 
-  restart: () => set((s) => ({ phase: 'flying', ...freshAttempt(s.mission) })),
+  restart: () =>
+    set((s) => ({ phase: 'flying', attempt: s.attempt + 1, ...freshAttempt(s.mission) })),
 
-  exit: () => set({ mission: null, phase: 'briefing', maxPoints: 0, ...freshAttempt(null) }),
+  exit: () =>
+    set({ mission: null, phase: 'briefing', maxPoints: 0, attempt: 0, ...freshAttempt(null) }),
 
   setLeg: (leg) => set({ leg }),
   setSignal: (signal) => set({ signal }),
