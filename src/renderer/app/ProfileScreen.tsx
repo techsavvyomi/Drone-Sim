@@ -140,7 +140,7 @@ export function ProfileScreen() {
   const litSegments = Math.floor((levelPct / 100) * segments);
   const since = p.registeredAt
     ? new Date(p.registeredAt).toLocaleDateString('en-US', { dateStyle: 'medium' })
-    : '—';
+    : '-';
 
   return (
     <div className="section-body pro">
@@ -358,7 +358,7 @@ export function ProfileScreen() {
                       <td>{s.droneName}</td>
                       <td className="num">{formatDuration(s.duration)}</td>
                       <td className="num">
-                        {s.flightType === 'FREE_FLIGHT' ? '—' : (
+                        {s.flightType === 'FREE_FLIGHT' ? '-' : (
                           <>
                             {s.score}
                             {s.stars > 0 && <span className="pro-log-stars"> {'★'.repeat(s.stars)}</span>}

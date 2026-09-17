@@ -76,6 +76,14 @@ export const IconGear = ({ size }: P) => (
   </svg>
 );
 
+export const IconInfo = ({ size }: P) => (
+  <svg {...base(size)}>
+    <circle cx="12" cy="12" r="8.5" />
+    <path d="M12 11v5.5" />
+    <path d="M12 7.6v.1" />
+  </svg>
+);
+
 export const IconChevron = ({ size }: P) => (
   <svg {...base(size)}>
     <path d="m9 5 7 7-7 7" />

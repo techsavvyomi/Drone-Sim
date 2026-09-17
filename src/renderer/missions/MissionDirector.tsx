@@ -503,7 +503,7 @@ export function MissionDirector() {
           {
             kind: 'warn',
             title: 'TOO FAR TO OBSERVE',
-            sub: `Close in — the hold only counts within ${track.lockRange} m`,
+            sub: `Close in, the hold only counts within ${track.lockRange} m`,
           },
           BANNER_SEC,
         );
@@ -552,7 +552,7 @@ export function MissionDirector() {
           {
             kind: 'warn',
             title: 'TOO CLOSE TO OBSERVE',
-            sub: `Give it ${track.minSafeDistance} m of room — the beam does not count from this close`,
+            sub: `Give it ${track.minSafeDistance} m of room, the beam does not count from this close`,
           },
           BANNER_SEC,
         );
@@ -567,7 +567,7 @@ export function MissionDirector() {
           store.showBanner(
             {
               kind: 'warn',
-              title: 'TOO CLOSE — BACK OFF',
+              title: 'TOO CLOSE, BACK OFF',
               sub: `You are disturbing the animal. Climb away within ${Math.max(
                 1,
                 Math.ceil(track.disturbGraceSec - disturbFor.current),
@@ -646,7 +646,7 @@ export function MissionDirector() {
         // LOST, on the edge only. Said once per loss rather than once per frame.
         if (wasLit.current && !lit) {
           store.showBanner(
-            { kind: 'warn', title: 'TARGET LOST', sub: 'Find it again — it is still moving' },
+            { kind: 'warn', title: 'TARGET LOST', sub: 'Find it again, it is still moving' },
             BANNER_SEC,
           );
         }
@@ -702,7 +702,7 @@ export function MissionDirector() {
               {
                 kind: 'good',
                 title: 'OBSERVATION COMPLETE',
-                sub: 'Sighting logged — the survey is done',
+                sub: 'Sighting logged, the survey is done',
               },
               BANNER_SEC,
             );
@@ -713,7 +713,7 @@ export function MissionDirector() {
               {
                 kind: 'good',
                 title: 'OBSERVATION COMPLETE',
-                sub: 'Sighting logged — return to the ranger station and land',
+                sub: 'Sighting logged, return to the ranger station and land',
               },
               BANNER_SEC,
             );
@@ -770,7 +770,7 @@ export function MissionDirector() {
           {
             kind: 'warn',
             title: 'TOO HIGH TO SEARCH',
-            sub: 'Come down below the rooftops — you cannot pick the signal up from here',
+            sub: 'Come down below the rooftops, you cannot pick the signal up from here',
           },
           BANNER_SEC,
         );
@@ -876,7 +876,7 @@ export function MissionDirector() {
           {
             kind: 'good',
             title: 'FOOD BOX DELIVERED',
-            sub: 'Supplies are with them — return to base and land',
+            sub: 'Supplies are with them, return to base and land',
           },
           BANNER_SEC,
         );
@@ -953,7 +953,7 @@ export function MissionDirector() {
                     // three and the banner is the only place they are told WHICH.
                     kind: 'good',
                     title: `${run.name.toUpperCase()} ATTACHED`,
-                    sub: `${run.cargo} — bound for ${run.zone.label}`,
+                    sub: `${run.cargo}, bound for ${run.zone.label}`,
                   }
                 : {
                     kind: 'good',

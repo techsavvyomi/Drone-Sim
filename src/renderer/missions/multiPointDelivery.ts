@@ -238,7 +238,7 @@ export const multiPointDelivery: Mission = {
   blurb:
     'Collect three medical packages from Lake City Pharmacy, deliver them to three destinations across the city one at a time, and bring the drone home.',
   story:
-    'A hospital network has gone to emergency distribution and Lake City Pharmacy has three packages waiting on its drone pickup deck. There is one drone on the roster and no second one behind it. Take them out one at a time — the pharmacy will not release the next until the last one is down — then land back on the helipad you took off from.',
+    'A hospital network has gone to emergency distribution and Lake City Pharmacy has three packages waiting on its drone pickup deck. There is one drone on the roster and no second one behind it. Take them out one at a time. The pharmacy will not release the next until the last one is down, then land back on the helipad you took off from.',
   flow: [
     { label: 'Collect', note: 'One package at a time', art: 'collect' },
     { label: 'Deliver', note: 'A street bay, then two roofs', art: 'deliver' },
@@ -363,7 +363,7 @@ export const multiPointDelivery: Mission = {
     },
     'pickup-b': {
       id: 'pickup-b',
-      text: 'Package B attached. Rooftop B is north — climb to twenty-five metres and hold it over the platform. Do not put the skids down on a roof.',
+      text: 'Package B attached. Rooftop B is north. Climb to twenty-five metres and hold it over the platform. Do not put the skids down on a roof.',
     },
     'pickup-c': {
       id: 'pickup-c',

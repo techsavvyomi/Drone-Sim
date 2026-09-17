@@ -41,6 +41,7 @@ export const IPC = {
   telemetryStatus: 'telemetry:status',
   crashReport: 'crash:report',
   crashContext: 'crash:context',
+  openExternal: 'app:open-external',
 } as const;
 
 /** A crash as the game window reports it. */
@@ -85,4 +86,6 @@ export interface IpcApi {
     recordEvents(clientSessionKey: string | null, events: EventInput[]): void;
     status(): Promise<TelemetryStatus>;
   };
+  /** Opens a Drona Aviation link in the user's browser; anything else is refused. */
+  openExternal(url: string): Promise<void>;
 }

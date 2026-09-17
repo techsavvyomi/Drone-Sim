@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import type { ApiErrorCode } from '@shared/backend/contract';
 import { useAccountStore } from '../state/accountStore';
-import { IconDrone } from './icons';
+import logoMark from '../../assets/brand/plutosim-logo-mark.webp';
 
 // The door into the simulator: activate a key the first time, sign in after.
 //
@@ -68,11 +68,11 @@ export function SignIn() {
       <form className="signin-card" onSubmit={submit}>
         <div className="signin-brand">
           <span className="logo-mark">
-            <IconDrone size={34} />
+            <img src={logoMark} alt="" />
           </span>
           <span>
             <b>
-              Drone<i>SIM</i>
+              Pluto<i>Sim</i>
             </b>
             <em>Pilot profile</em>
           </span>

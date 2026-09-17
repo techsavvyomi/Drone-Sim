@@ -33,6 +33,7 @@ const api: IpcApi = {
     recordEvents: (key, events) => ipcRenderer.send(IPC.telemetryEvents, key, events),
     status: () => ipcRenderer.invoke(IPC.telemetryStatus),
   },
+  openExternal: (url: string) => ipcRenderer.invoke(IPC.openExternal, url),
 };
 
 contextBridge.exposeInMainWorld('api', api);

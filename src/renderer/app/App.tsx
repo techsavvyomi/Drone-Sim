@@ -3,6 +3,7 @@ import { Sidebar } from './Sidebar';
 import { TopBar } from './TopBar';
 import { Home } from './Home';
 import { TelemetryPanel } from './TelemetryPanel';
+import { AboutScreen } from './AboutSection';
 import { SettingsPanel } from './SettingsPanel';
 import { Placeholder } from './Placeholder';
 import { StatusBar } from './StatusBar';
@@ -31,6 +32,8 @@ function MainArea() {
       return <Viewport />;
     case 'settings':
       return <SettingsPanel />;
+    case 'about':
+      return <AboutScreen />;
     case 'profile':
       return <ProfileScreen />;
     case 'training':
@@ -144,7 +147,7 @@ export function App() {
   if (!hydrated || accountStatus === 'loading') {
     return (
       <div className="boot">
-        <b>DroneSIM</b>
+        <b>PlutoSim</b>
         <span>By Drona Aviation</span>
       </div>
     );

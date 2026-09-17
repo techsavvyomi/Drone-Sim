@@ -7,6 +7,7 @@ import {
 } from '@shared/types';
 import { useSettingsStore } from '../state/settingsStore';
 import { useUiStore } from '../state/uiStore';
+import { AboutSection } from './AboutSection';
 import { GamepadSetup } from './GamepadSetup';
 
 const GRAPHICS: GraphicsPreset[] = ['low', 'medium', 'high'];
@@ -193,23 +194,7 @@ export function SettingsPanel() {
           </>
         )}
 
-        {category === 'about' && (
-          <>
-            <div className="about-card">
-              <div className="about-row">
-                <span>Product</span>
-                <b>DroneSIM Flight Simulator</b>
-              </div>
-              <div className="about-row">
-                <span>Version</span>
-                <b>v0.1.0</b>
-              </div>
-            </div>
-            <p className="section-note">
-              Everything here persists. Quit and relaunch and it comes back as you left it.
-            </p>
-          </>
-        )}
+        {category === 'about' && <AboutSection />}
       </div>
     </div>
   );

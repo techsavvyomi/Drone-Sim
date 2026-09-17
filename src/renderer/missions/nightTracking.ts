@@ -71,7 +71,7 @@ export const nightTracking: Mission = {
   blurb:
     'A tiger has gone unrecorded on the evening survey. Find it in the forest with your spotlight and hold the light on it long enough to log the sighting, without ever disturbing it. The survey is over the moment the sighting is confirmed.',
   story:
-    'The evening survey missed one of our tigers and the ground team cannot walk the forest after dark. There is no collar on this animal and no fix to give you — only where it was last seen and which way it was heading. Take the drone out, find it with your light, and watch it long enough to confirm it is well. The moment we have the sighting, the job is done — you leave the animal alone and we log it.',
+    'The evening survey missed one of our tigers and the ground team cannot walk the forest after dark. There is no collar on this animal and no fix to give you, only where it was last seen and which way it was heading. Take the drone out, find it with your light, and watch it long enough to confirm it is well. The moment we have the sighting, the job is done. You leave the animal alone and we log it.',
   /*
    * DUSK, against the missions' shared blue half hour — and it is its own
    * preset rather than either neighbour, because both neighbours failed.
@@ -125,7 +125,7 @@ export const nightTracking: Mission = {
    * moment the drone finds the tiger. Files go in as night-tracking-1 and -2. */
   flow: [
     { label: 'Take off', note: 'Lift off from the ranger station helipad', art: 'sweep' },
-    { label: 'Found', note: 'The tiger in your light — sighting confirmed', art: 'track' },
+    { label: 'Found', note: 'The tiger in your light, sighting confirmed', art: 'track' },
   ],
   objectives: [
     'Fly out from the ranger station and search the forest with your spotlight.',
@@ -390,7 +390,7 @@ export const nightTracking: Mission = {
   radio: {
     start: {
       id: 'nt-start',
-      text: 'Pilot, one of our tigers missed the evening survey and we have no collar on it. Read your clues, take the light out over the forest and find it. Stay well back when you do — this is an observation, not an intercept.',
+      text: 'Pilot, one of our tigers missed the evening survey and we have no collar on it. Read your clues, take the light out over the forest and find it. Stay well back when you do. This is an observation, not an intercept.',
     },
     /* Never played by name — `radio` is an open record and nothing calls for
      * this key. It is the line the briefing quotes, kept beside the others so
@@ -401,11 +401,11 @@ export const nightTracking: Mission = {
     },
     located: {
       id: 'nt-located',
-      text: 'That is our animal. Hold the light on it and keep your distance — five seconds and we have the sighting.',
+      text: 'That is our animal. Hold the light on it and keep your distance. Five seconds and we have the sighting.',
     },
     delivered: {
       id: 'nt-observed',
-      text: 'Sighting logged, and it looks in good condition. That is everything we needed — leave it be, pilot.',
+      text: 'Sighting logged, and it looks in good condition. That is everything we needed. Leave it be, pilot.',
     },
     /* NEITHER OF THESE IS EVER PLAYED. `radio` is a fixed record and every
      * mission has to fill it; this one ends at the sighting, so the two lines

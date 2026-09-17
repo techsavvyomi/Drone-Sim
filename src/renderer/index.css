@@ -5,6 +5,16 @@
    interactive surface reacts.
    ========================================================================== */
 
+/* Wordmark face for the top-bar "PlutoSim" logo only. Bundled, not fetched:
+   the CSP allows fonts from 'self' alone. Latin subset, OFL (Saira-OFL.txt). */
+@font-face {
+  font-family: 'Saira';
+  font-style: italic;
+  font-weight: 900;
+  font-display: block;
+  src: url('../assets/fonts/saira-latin-900-italic.woff2') format('woff2');
+}
+
 :root {
   --bg: #070b12;
   --bg-2: #0c121d;
@@ -515,7 +525,7 @@ button {
   grid-area: status;
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   padding: 0 14px;
   background: #070b12;
   border-top: 1px solid var(--line);
@@ -571,8 +581,13 @@ button {
   gap: 13px;
 }
 .logo-mark {
-  color: var(--accent);
-  filter: drop-shadow(0 0 14px rgba(56, 189, 248, 0.65));
+  display: flex;
+}
+/* The artwork carries its own glow, so no drop-shadow here. */
+.logo-mark img {
+  display: block;
+  height: 38px;
+  width: auto;
 }
 .logo-text {
   display: flex;
@@ -581,10 +596,11 @@ button {
   line-height: 1;
 }
 .logo-text b {
+  font-family: 'Saira', 'Inter', system-ui, sans-serif;
   font-size: 30px;
-  font-weight: 800;
+  font-weight: 900;
   font-style: italic;
-  letter-spacing: -0.02em;
+  letter-spacing: 0;
 }
 .logo-text b i {
   font-style: italic;
@@ -1885,6 +1901,64 @@ button {
 .about-row b {
   color: var(--text);
   font-weight: 600;
+}
+
+/* About page (sidebar and Settings → About). The wordmark reuses the top
+   bar's .logo classes; only spacing and the Drona Aviation card are new. */
+.about-logo {
+  margin-bottom: 6px;
+}
+.about-row > span {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+.about-heading {
+  margin: 22px 0 6px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+.about-drona {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  max-width: 420px;
+  margin: 28px auto 0;
+  padding: 16px 20px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel);
+  text-align: center;
+}
+.about-drona img {
+  width: 96px;
+  height: auto;
+}
+.about-drona p {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-dim);
+}
+.about-explore {
+  margin-top: 4px;
+  padding: 8px 18px;
+  border: 1px solid var(--accent-2);
+  border-radius: 999px;
+  background: rgba(56, 189, 248, 0.1);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--accent);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.about-explore:hover {
+  background: rgba(56, 189, 248, 0.22);
 }
 
 /* ---- Back button ---- */

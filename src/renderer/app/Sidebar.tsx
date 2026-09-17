@@ -7,6 +7,7 @@ import {
   IconDrone,
   IconGear,
   IconHome,
+  IconInfo,
   IconMedal,
   IconTools,
   IconUser,
@@ -20,6 +21,7 @@ const NAV: { id: Section; label: string; icon: React.ReactNode }[] = [
   { id: 'studio', label: 'Studio', icon: <IconTools /> },
   { id: 'profile', label: 'Profile', icon: <IconUser /> },
   { id: 'settings', label: 'Settings', icon: <IconGear /> },
+  { id: 'about', label: 'About', icon: <IconInfo /> },
 ];
 
 export function Sidebar({ compact = false }: { compact?: boolean }) {

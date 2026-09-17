@@ -26,7 +26,6 @@ import { HELIPAD_LAND_RADIUS, NEW_YORK_HELIPAD_AT, NEW_YORK_HELIPAD_GROUND } fro
 //     node scripts/check-search-sites.mjs
 // ----------------------------------------------------------------------------
 
-
 /**
  * The rescue zone, built from a site rather than written three times.
  *
@@ -121,7 +120,7 @@ export const searchRescue: Mission = {
   blurb:
     'Someone is stranded on a rooftop with no food, and there is no GPS fix. Collect a food box, find them inside the red search zone, drop it to them, and land back at base.',
   story:
-    'A person is stranded on a rooftop somewhere in this sector and has had nothing to eat. Their signal is too weak to place — the best we can do is the red zone on your map. Collect the food box from the drone pickup deck at Lotus Kitchen, get up over the roofline, search the zone until you find them, and hold a steady hover over them so the box comes down beside them. Then bring the drone home and land.',
+    'A person is stranded on a rooftop somewhere in this sector and has had nothing to eat. Their signal is too weak to place. The best we can do is the red zone on your map. Collect the food box from the drone pickup deck at Lotus Kitchen, get up over the roofline, search the zone until you find them, and hold a steady hover over them so the box comes down beside them. Then bring the drone home and land.',
   flow: [
     { label: 'Pick up', note: 'The food box', art: 'collect' },
     { label: 'Search', note: 'A person on a roof', art: 'city' },
@@ -292,11 +291,11 @@ export const searchRescue: Mission = {
   radio: {
     start: {
       id: 'sr-start',
-      text: 'Pilot, someone is stranded on a rooftop in this sector with no food, and the GPS fix is too weak to place them. Collect the food box from the pickup deck at Lotus Kitchen first — it is on the block just west of you.',
+      text: 'Pilot, someone is stranded on a rooftop in this sector with no food, and the GPS fix is too weak to place them. Collect the food box from the pickup deck at Lotus Kitchen first. It is on the block just west of you.',
     },
     pickup: {
       id: 'sr-pickup',
-      text: 'Food box on board. Now search the red zone on your map — look for someone on a roof.',
+      text: 'Food box on board. Now search the red zone on your map, look for someone on a roof.',
     },
     /* Never played by name — `radio` is an open record and nothing calls for
      * this key. It is the line the briefing quotes, kept beside the others so
@@ -310,11 +309,11 @@ export const searchRescue: Mission = {
      * Mission Control narrating a number the pilot is already watching. */
     detected: {
       id: 'sr-detected',
-      text: 'We have something. Weak emergency signal — you are in the right area. Slow down and look.',
+      text: 'We have something. Weak emergency signal, you are in the right area. Slow down and look.',
     },
     located: {
       id: 'sr-located',
-      text: 'That is them. Get over them and hold a steady hover — the box will come down beside them.',
+      text: 'That is them. Get over them and hold a steady hover, the box will come down beside them.',
     },
     delivered: {
       id: 'sr-confirmed',

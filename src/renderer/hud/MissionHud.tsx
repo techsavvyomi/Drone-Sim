@@ -73,8 +73,8 @@ function TargetArrow({
           className={`ms-climb ${climb > 0 ? 'up' : 'down'}`}
           title={
             climb > 0
-              ? 'The marker is ABOVE you — climb this far'
-              : 'The marker is BELOW you — descend this far'
+              ? 'The marker is ABOVE you, climb this far'
+              : 'The marker is BELOW you, descend this far'
           }
         >
           {climb > 0 ? '▲' : '▼'} {Math.round(Math.abs(climb))} m
@@ -304,10 +304,10 @@ function TrackingLock({ seconds }: { seconds: number }) {
       </svg>
       <span className="ms-checks-note">
         {tooClose
-          ? 'Back off — you are disturbing the animal'
+          ? 'Back off, you are disturbing the animal'
           : lit
             ? 'Hold it. Stay above it and keep your distance'
-            : 'Out of the light. Find it again — the lock drains, it does not reset'}
+            : 'Out of the light. Find it again. The lock drains, it does not reset'}
       </span>
     </div>
   );
@@ -845,12 +845,12 @@ export function MissionHud() {
                that the shape in the beam is the shape the runtime can see. */
             <div className={`ms-cell ${tooClose ? 'warn' : lit ? 'good' : ''}`}>
               <span>{tooClose ? 'TOO CLOSE' : 'LOCK'}</span>
-              <b>{lit || lock > 0 ? `${Math.round(lock * 100)}%` : '— — —'}</b>
+              <b>{lit || lock > 0 ? `${Math.round(lock * 100)}%` : '- - -'}</b>
             </div>
           ) : hidden ? (
             <div className={`ms-cell ${signal > 0 ? 'warn' : ''}`}>
               <span>SIGNAL</span>
-              <b>{signal > 0 ? `${Math.round(signal * 100)}%` : '— — —'}</b>
+              <b>{signal > 0 ? `${Math.round(signal * 100)}%` : '- - -'}</b>
             </div>
           ) : (
             <div className="ms-cell">
@@ -996,14 +996,14 @@ export function MissionHud() {
                   than a deduction on purpose: a wildlife survey that drives the
                   animal off has not been flown badly, it has not been flown. */}
               {failReason === 'disturbed'
-                ? 'You had the tiger and then flew down onto it, and it broke off into the trees. Give it room and pick it up again — within 9 m to count, but never on top of the animal.'
+                ? 'You had the tiger and then flew down onto it, and it broke off into the trees. Give it room and pick it up again: within 9 m to count, but never on top of the animal.'
                 : failReason === 'payload'
                   ? 'The drone dropped into the flames and the tank went with it. Hold the hover above the fire: the height band on the checklist is where the spray reaches from.'
                   : failReason === 'strayed'
                     ? fire
                       ? 'The drone flew out of the response area and did not come back. The arrow on the strip points at the fire the whole way.'
                       : track
-                        ? 'The drone flew out of the survey area and did not come back. The tiger is inside it — the clues say where.'
+                        ? 'The drone flew out of the survey area and did not come back. The tiger is inside it. The clues say where.'
                         : 'The drone flew out of the delivery area and did not come back. The arrow on the strip points at your next target.'
                     : failReason === 'timeout'
                       ? fire

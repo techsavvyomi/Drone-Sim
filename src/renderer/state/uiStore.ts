@@ -12,7 +12,8 @@ export type Section =
   | 'studio'
   | 'stem'
   | 'profile'
-  | 'settings';
+  | 'settings'
+  | 'about';
 
 export type CameraMode = 'fpv' | 'chase' | 'orbit';
 
