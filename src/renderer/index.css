@@ -6828,3 +6828,104 @@ button {
   border: 1px solid rgba(255, 92, 92, 0.2);
   overflow-wrap: anywhere;
 }
+
+/* ---- Loading resources (LoadingScreen) ---- */
+.loading-screen {
+  position: relative;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  overflow: hidden;
+  background:
+    radial-gradient(90% 70% at 50% 38%, rgba(56, 189, 248, 0.14) 0%, transparent 60%),
+    linear-gradient(180deg, #0b1424 0%, #04060b 100%);
+}
+.loading-grid {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgba(56, 189, 248, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(56, 189, 248, 0.05) 1px, transparent 1px);
+  background-size: 44px 44px;
+  mask-image: radial-gradient(70% 60% at 50% 45%, black, transparent);
+}
+.loading-center {
+  position: relative;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+.loading-logo {
+  width: 150px;
+  height: auto;
+  filter: drop-shadow(0 0 30px rgba(56, 189, 248, 0.45));
+  animation: loading-float 3.2s ease-in-out infinite;
+}
+@keyframes loading-float {
+  50% {
+    transform: translateY(-8px);
+  }
+}
+.loading-title {
+  margin: 0;
+  font-size: 56px;
+  font-weight: 900;
+  font-style: italic;
+  letter-spacing: -0.02em;
+}
+.loading-title i {
+  color: var(--accent);
+}
+.loading-footer {
+  position: relative;
+  width: min(760px, calc(100% - 64px));
+  margin: 0 auto 64px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.loading-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 16px;
+}
+.loading-label {
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: var(--text);
+}
+.loading-pct {
+  font-size: 22px;
+  font-weight: 900;
+  font-style: italic;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+.loading-bar {
+  display: grid;
+  grid-template-columns: repeat(32, 1fr);
+  gap: 4px;
+}
+.loading-bar span {
+  height: 12px;
+  background: rgba(56, 189, 248, 0.1);
+  transform: skewX(-20deg);
+  transition: background 0.2s ease;
+}
+.loading-bar span.on {
+  background: var(--accent);
+  box-shadow: 0 0 12px rgba(56, 189, 248, 0.6);
+}
+.loading-detail {
+  font-size: 12.5px;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}

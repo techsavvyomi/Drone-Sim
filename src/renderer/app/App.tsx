@@ -11,6 +11,7 @@ import { TrainingScreen } from './TrainingScreen';
 import { MissionScreen } from './MissionScreen';
 import { ProfileScreen } from './ProfileScreen';
 import { SignIn } from './SignIn';
+import { LoadingScreen, useResourcesReady } from './LoadingScreen';
 import { Viewport } from '../scene/Viewport';
 import { useUiStore } from '../state/uiStore';
 import { useFlightStore } from '../state/flightStore';
@@ -72,6 +73,7 @@ export function App() {
   const activeMission = useMissionStore((s) => s.mission);
   const accountStatus = useAccountStore((s) => s.status);
   const needsSignIn = useAccountStore((s) => s.needsSignIn);
+  const resourcesReady = useResourcesReady();
 
   // A running lesson or mission is a flight view: full-bleed, no nav rail.
   //
@@ -158,6 +160,13 @@ export function App() {
   // mid-flight waits for the flight to end: the queue holds its data meanwhile.
   if (accountStatus === 'signedOut' || (accountStatus === 'signedIn' && needsSignIn && !flightLike)) {
     return <SignIn />;
+  }
+
+  // Signed in (or profiles off): finish loading the models before the menu, so
+  // no map opens onto files that are still arriving. Usually already done by
+  // the time someone has signed in; a returning pilot sees it at startup.
+  if (!resourcesReady) {
+    return <LoadingScreen />;
   }
 
   return (
