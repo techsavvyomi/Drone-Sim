@@ -2,6 +2,8 @@ node_modules/
 .vite/
 out/
 dist/
+# The Apps Script backend is built into here and pasted into Google, so it is kept.
+!backend/dist/
 *.log
 .DS_Store
 
