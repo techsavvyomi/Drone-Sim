@@ -20,6 +20,7 @@ const SHEET = {
   MISSIONS: 'Missions',
   TRAINING: 'TrainingModules',
   SETTINGS: 'Settings',
+  CRASHES: 'CrashReports',
 };
 
 const SCHEMA = {
@@ -112,6 +113,28 @@ const SCHEMA = {
   [SHEET.MISSIONS]: ['Mission ID', 'Mission Name', 'Sim Key', 'Max Score', 'Order', 'Status'],
   [SHEET.TRAINING]: ['Training ID', 'Training Name', 'Sim Key', 'Order', 'Status'],
   [SHEET.SETTINGS]: ['Key', 'Value', 'Description'],
+  // One row per crash. `Fingerprint` groups repeats of the same fault; the
+  // `Report: Crashes` sheet counts them. User columns are blank when nobody was
+  // signed in.
+  [SHEET.CRASHES]: [
+    'Report ID',
+    'Occurred At',
+    'Received At',
+    'Kind',
+    'Fatal',
+    'Message',
+    'Fingerprint',
+    'User ID',
+    'Email',
+    'Device ID',
+    'Device Name',
+    'App Version',
+    'Platform',
+    'OS Version',
+    'Electron Version',
+    'Context',
+    'Stack',
+  ],
 };
 
 /** Columns written as timestamps, formatted as date-times in the sheet. */
@@ -126,6 +149,7 @@ const DATETIME_COLUMNS = [
   'End Time',
   'Timestamp',
   'Received At',
+  'Occurred At',
 ];
 
 /**
@@ -136,6 +160,8 @@ const DEFAULT_SETTINGS = [
   ['SEQ_USER', 0, 'Last issued USR- number. Do not lower it.'],
   ['SEQ_SESSION', 0, 'Last issued SES- number. Do not lower it.'],
   ['SEQ_EVENT', 0, 'Last issued EVT- number. Do not lower it.'],
+  ['SEQ_CRASH', 0, 'Last issued CRS- number. Do not lower it.'],
+  ['MAX_CRASH_REPORTS_PER_HOUR', 60, 'Crash reports accepted per device per hour; the rest are dropped.'],
   ['LEVEL_POINTS', 500, 'Points per level. Level = 1 + floor(total points / this).'],
   ['MISSION_COMPLETE_POINTS', 50, 'Points for completing a mission.'],
   ['MISSION_SCORE_POINTS', 10, 'Extra points per mission score point.'],

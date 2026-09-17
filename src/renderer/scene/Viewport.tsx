@@ -7,6 +7,7 @@ import { useControls } from '../input/useControls';
 import { useSettingsStore } from '../state/settingsStore';
 import { qualityFor } from './quality';
 import { SceneReady, SceneVeil } from './SceneReady';
+import { reportRenderError } from '../analytics/crashReporting';
 
 /**
  * Catches errors thrown inside the 3D scene.
@@ -24,8 +25,10 @@ export class SceneBoundary extends Component<{ children: ReactNode }, { error: E
     return { error };
   }
 
-  componentDidCatch(error: Error) {
+  componentDidCatch(error: Error, info: { componentStack?: string | null }) {
     console.error('[scene] failed to render:', error);
+    // Not fatal: the boundary shows the message and a Retry.
+    reportRenderError(error, info.componentStack ?? undefined, false);
   }
 
   render() {

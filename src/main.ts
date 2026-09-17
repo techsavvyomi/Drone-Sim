@@ -1,6 +1,11 @@
 import { app, BrowserWindow } from 'electron';
 import path from 'node:path';
 import { registerIpcHandlers } from './main/ipc/handlers';
+import { installCrashReporting } from './main/crash';
+
+// Before anything else: the native crash reporter must start before other
+// processes do, and an exception during startup is worth a report too.
+const crashReporting = installCrashReporting();
 
 // Globals injected by the Electron Forge Vite plugin at build time.
 declare const MAIN_WINDOW_VITE_DEV_SERVER_URL: string | undefined;
@@ -39,8 +44,9 @@ function createWindow(): void {
 }
 
 app.whenReady().then(() => {
-  registerIpcHandlers();
+  const backend = registerIpcHandlers();
   createWindow();
+  void backend.then((service) => crashReporting.attach(service));
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();

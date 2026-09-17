@@ -10,6 +10,11 @@ const PUBLIC_ACTIONS_ = {
   loginUser: loginUser_,
 };
 
+/** Accepted signed out; attributed to the pilot when a valid token comes with it. */
+const OPTIONAL_AUTH_ACTIONS_ = {
+  reportCrashes: reportCrashes_,
+};
+
 const AUTHENTICATED_ACTIONS_ = {
   getUserProfile: getUserProfile_,
   getUserDashboard: getUserDashboard_,
@@ -56,6 +61,17 @@ function handleRequest_(rawBody) {
   try {
     if (Object.prototype.hasOwnProperty.call(PUBLIC_ACTIONS_, action)) {
       return { success: true, data: PUBLIC_ACTIONS_[action](payload) };
+    }
+    if (Object.prototype.hasOwnProperty.call(OPTIONAL_AUTH_ACTIONS_, action)) {
+      let auth = null;
+      if (body.authToken) {
+        try {
+          auth = authenticate_(body.authToken);
+        } catch (err) {
+          if (!(err instanceof ApiError_)) throw err;
+        }
+      }
+      return { success: true, data: OPTIONAL_AUTH_ACTIONS_[action](payload, auth) };
     }
     if (Object.prototype.hasOwnProperty.call(AUTHENTICATED_ACTIONS_, action)) {
       const auth = authenticate_(body.authToken);

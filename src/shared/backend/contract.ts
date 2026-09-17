@@ -348,6 +348,71 @@ export interface UserDashboard {
   missionCompletionRate: number;
 }
 
+// ---------------------------------------------------------------------------
+// Crash reports
+// ---------------------------------------------------------------------------
+
+export type CrashKind =
+  /** Uncaught exception in the Electron main process. */
+  | 'MAIN_EXCEPTION'
+  | 'MAIN_REJECTION'
+  /** Uncaught exception in the game window's JavaScript. */
+  | 'RENDERER_EXCEPTION'
+  | 'RENDERER_REJECTION'
+  /** A React screen threw while rendering. */
+  | 'RENDER_ERROR'
+  /** The game window's process died (crash, out of memory, killed). */
+  | 'RENDERER_GONE'
+  /** The GPU or another helper process died. */
+  | 'CHILD_PROCESS_GONE'
+  /** The 3D view lost its WebGL context (driver reset, GPU memory). */
+  | 'WEBGL_CONTEXT_LOST'
+  /** A native crash; Electron wrote a minidump, reported on the next launch. */
+  | 'NATIVE_CRASH';
+
+export const CRASH_KINDS: readonly CrashKind[] = [
+  'MAIN_EXCEPTION',
+  'MAIN_REJECTION',
+  'RENDERER_EXCEPTION',
+  'RENDERER_REJECTION',
+  'RENDER_ERROR',
+  'RENDERER_GONE',
+  'CHILD_PROCESS_GONE',
+  'WEBGL_CONTEXT_LOST',
+  'NATIVE_CRASH',
+];
+
+export interface CrashReport {
+  kind: CrashKind;
+  /** First line of the error, at most 1000 characters. */
+  message: string;
+  /** Stack trace with user paths removed, at most 8000 characters. */
+  stack?: string;
+  /** Whether the app (or its window) went down, rather than recovering. */
+  fatal: boolean;
+  occurredAt: string;
+  appVersion: string;
+  platform: string;
+  osVersion: string;
+  electronVersion: string;
+  deviceId?: string;
+  deviceName?: string;
+  /**
+   * What the pilot was doing: screen, mission or lesson, drone, map, graphics
+   * preset, frame rate, uptime, memory. Small and JSON-serialisable.
+   */
+  context?: Record<string, unknown>;
+}
+
+export interface ReportCrashesRequest {
+  /** At most 20 per request. */
+  reports: CrashReport[];
+}
+
+export interface ReportCrashesResult {
+  reportIds: string[];
+}
+
 /** Every action, its request and its success payload. */
 export interface ApiActions {
   activateUser: { request: ActivateUserRequest; response: AuthResult };
@@ -358,6 +423,8 @@ export interface ApiActions {
   endSession: { request: EndSessionRequest; response: EndSessionResult };
   recordEvent: { request: RecordEventRequest; response: RecordEventsResult };
   recordEvents: { request: RecordEventsRequest; response: RecordEventsResult };
+  /** Works signed out too: a crash on the sign-in screen still matters. */
+  reportCrashes: { request: ReportCrashesRequest; response: ReportCrashesResult };
 }
 
 export type ApiAction = keyof ApiActions;

@@ -39,6 +39,10 @@ beforeEach(() => {
       dashboard: vi.fn(),
       onChanged: vi.fn(() => () => undefined),
     },
+    crash: {
+      report: vi.fn(),
+      setContext: vi.fn(),
+    },
     telemetry: {
       startSession: vi.fn(),
       checkpoint: vi.fn(),

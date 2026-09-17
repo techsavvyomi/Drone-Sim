@@ -93,6 +93,7 @@ describe('setup', () => {
       'Missions',
       'TrainingModules',
       'Settings',
+      'CrashReports',
     ]) {
       expect(be.ss.getSheetByName(name), name).not.toBeNull();
     }
@@ -532,6 +533,82 @@ describe('events', () => {
     expect(bad.code).toBe('VALIDATION');
     expect(be.call('recordEvents', { events: [] }, authToken).code).toBe('VALIDATION');
     expect(be.ss.sheet('GameplayEvents').objects()).toHaveLength(0);
+  });
+});
+
+describe('crash reports', () => {
+  const crash = (over: Record<string, unknown> = {}) => ({
+    kind: 'RENDERER_EXCEPTION',
+    message: "Cannot read properties of undefined (reading 'position')",
+    stack: "TypeError: Cannot read properties of undefined (reading 'position')\n    at tick (app://src/renderer/missions/MissionDirector.tsx:412:17)\n    at loop (app://node_modules/three.js:9:9)",
+    fatal: false,
+    occurredAt: minutesAgo(3),
+    appVersion: '0.1.0',
+    platform: 'win32',
+    osVersion: 'Windows 11',
+    electronVersion: '43.2.0',
+    deviceId: DEVICE.deviceId,
+    deviceName: DEVICE.deviceName,
+    context: { section: 'missions', mission: 'forest-fire', fps: 58 },
+    ...over,
+  });
+
+  it('accepts a report from someone who is not signed in', () => {
+    const res = be.call('reportCrashes', { reports: [crash()] });
+    expect(res).toMatchObject({ success: true, data: { reportIds: ['CRS-000001'] } });
+    const row = be.ss.sheet('CrashReports').objects()[0];
+    expect(row).toMatchObject({ Kind: 'RENDERER_EXCEPTION', Fatal: false, 'User ID': '', 'Device Name': 'Lab PC 1 (Windows)' });
+    expect(JSON.parse(String(row.Context))).toMatchObject({ mission: 'forest-fire' });
+  });
+
+  it('attributes it to the pilot when a valid token comes with it, and still accepts an expired one', () => {
+    const { userId, authToken } = activate();
+    be.call('reportCrashes', { reports: [crash()] }, authToken);
+    be.call('reportCrashes', { reports: [crash()] }, 'expired-token');
+    const rows = be.ss.sheet('CrashReports').objects();
+    expect(rows.map((r) => r['User ID'])).toEqual([userId, '']);
+  });
+
+  it('groups the same fault under one fingerprint, whatever the line numbers and values', () => {
+    be.call('reportCrashes', {
+      reports: [
+        crash(),
+        crash({
+          message: "Cannot read properties of undefined (reading 'rotation')",
+          stack: "TypeError: x\n    at tick (app://src/renderer/missions/MissionDirector.tsx:418:3)",
+        }),
+        crash({ message: 'WebGL context lost', kind: 'WEBGL_CONTEXT_LOST', stack: '' }),
+      ],
+    });
+    const [a, b, c] = be.ss.sheet('CrashReports').objects().map((r) => r.Fingerprint);
+    expect(a).toBe(b);
+    expect(c).not.toBe(a);
+
+    const report = be.fn.buildAnalytics_(new Date())['Report: Crashes'];
+    const issues = report[3].rows;
+    expect(issues[0].slice(1, 4)).toEqual(['RENDERER_EXCEPTION', 2, 0]);
+    expect(report[0].rows[0]).toEqual(['Reports, last 24 hours', 3]);
+  });
+
+  it('rejects malformed reports and caps a crash loop per device', () => {
+    expect(be.call('reportCrashes', { reports: [] }).code).toBe('VALIDATION');
+    expect(be.call('reportCrashes', { reports: [crash({ kind: 'OOPS' })] }).code).toBe('VALIDATION');
+    expect(be.call('reportCrashes', { reports: [crash({ message: '' })] }).code).toBe('VALIDATION');
+
+    setCell('Settings', (r) => r.Key === 'MAX_CRASH_REPORTS_PER_HOUR', 'Value', 3);
+    const first = be.call('reportCrashes', { reports: [crash(), crash()] });
+    const second = be.call('reportCrashes', { reports: [crash(), crash()] });
+    const third = be.call('reportCrashes', { reports: [crash()] });
+    expect([first.data.reportIds.length, second.data.reportIds.length, third.data.reportIds.length]).toEqual([2, 1, 0]);
+    expect(third.success).toBe(true);
+    expect(be.ss.sheet('CrashReports').objects()).toHaveLength(3);
+  });
+
+  it('creates the CrashReports sheet on a database set up before it existed', () => {
+    be.ss.sheets.delete('CrashReports');
+    be.fn.resetTableCache_();
+    expect(be.call('reportCrashes', { reports: [crash()] }).success).toBe(true);
+    expect(be.ss.getSheetByName('CrashReports')).not.toBeNull();
   });
 });
 

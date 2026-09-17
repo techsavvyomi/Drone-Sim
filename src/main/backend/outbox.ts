@@ -4,6 +4,7 @@ import {
   type ApiAction,
   type ApiActions,
   type ApiResponse,
+  type CrashReport,
   type EndSessionRequest,
   type EndSessionResult,
   type GameplayEventInput,
@@ -29,6 +30,7 @@ import {
 //     launch closes it as ABORTED with the last checkpoint's numbers.
 //   - Items belong to the user who created them and are sent with that user's
 //     token, so signing out or switching accounts cannot misattribute them.
+//   - Crash reports need no user: with nobody signed in they go anonymously.
 
 export type EndSnapshot = Omit<EndSessionRequest, 'sessionId'>;
 
@@ -41,6 +43,15 @@ type Item =
       kind: 'events';
       key: string | null;
       payload: GameplayEventInput[];
+      tries: number;
+    }
+  | {
+      id: string;
+      /** The pilot signed in when it happened, or null. */
+      userId: string | null;
+      kind: 'crashes';
+      key: null;
+      payload: CrashReport[];
       tries: number;
     };
 
@@ -65,7 +76,7 @@ export interface OutboxDeps {
   send: <A extends ApiAction>(
     action: A,
     payload: ApiActions[A]['request'],
-    authToken: string,
+    authToken?: string,
   ) => Promise<ApiResponse<ApiActions[A]['response']>>;
   tokenFor: (userId: string) => string | undefined;
   onAuthInvalid?: (userId: string) => void;
@@ -78,6 +89,10 @@ export interface OutboxDeps {
 
 /** Most events one request carries. The server accepts 100. */
 const EVENT_BATCH = 50;
+/** Most crash reports one request carries; the server's limit. */
+const CRASH_BATCH = 20;
+/** A crash loop offline must not grow the queue without bound. */
+const MAX_QUEUED_CRASHES = 100;
 const BASE_RETRY_MS = 5000;
 const MAX_RETRY_MS = 5 * 60 * 1000;
 /** Enqueues are coalesced for this long, so a burst of events is one request. */
@@ -114,24 +129,54 @@ export class Outbox {
         open: loaded.open ?? {},
       };
     }
-    const orphans = Object.entries(this.state.open);
-    if (orphans.length > 0) {
-      const at = this.now().toISOString();
-      for (const [key, { userId, end }] of orphans) {
-        this.push({
-          id: randomUUID(),
-          userId,
-          kind: 'events',
-          key,
-          payload: [{ eventType: 'SESSION_RECOVERED', eventData: { reason: 'app closed' }, timestamp: at }],
-          tries: 0,
-        });
-        this.push({ id: randomUUID(), userId, kind: 'end', key, payload: { ...end, result: 'ABORTED' }, tries: 0 });
-      }
-      this.state.open = {};
+    if (Object.keys(this.state.open).length > 0) {
+      this.abortOpenSessions('app closed');
       await this.persist();
     }
     this.schedule(0);
+  }
+
+  /**
+   * End every open session as ABORTED with its last checkpoint. For sessions a
+   * previous run left open, and for the game window crashing mid-flight.
+   */
+  abortOpenSessions(reason: string): void {
+    const at = this.now().toISOString();
+    for (const [key, { userId, end }] of Object.entries(this.state.open)) {
+      this.push({
+        id: randomUUID(),
+        userId,
+        kind: 'events',
+        key,
+        payload: [{ eventType: 'SESSION_RECOVERED', eventData: { reason }, timestamp: at }],
+        tries: 0,
+      });
+      this.push({ id: randomUUID(), userId, kind: 'end', key, payload: { ...end, result: 'ABORTED' }, tries: 0 });
+    }
+    this.state.open = {};
+    void this.persist();
+    this.kick();
+  }
+
+  recordCrash(userId: string | null, report: CrashReport): void {
+    const queued = this.state.items.filter((i) => i.kind === 'crashes').reduce((n, i) => n + i.payload.length, 0);
+    if (queued >= MAX_QUEUED_CRASHES) return;
+    const last = this.state.items[this.state.items.length - 1];
+    if (
+      last &&
+      last.kind === 'crashes' &&
+      last !== this.sending &&
+      last.userId === userId &&
+      last.tries === 0 &&
+      last.payload.length < CRASH_BATCH
+    ) {
+      last.payload.push(report);
+    } else {
+      this.push({ id: randomUUID(), userId, kind: 'crashes', key: null, payload: [report], tries: 0 });
+    }
+    // Written straight away: the process that reported it may be about to go.
+    void this.persist();
+    this.kick();
   }
 
   status(): OutboxStatus {
@@ -139,7 +184,10 @@ export class Outbox {
   }
 
   hasPendingFor(userId: string): boolean {
-    return this.state.items.some((i) => i.userId === userId) || Object.values(this.state.open).some((o) => o.userId === userId);
+    return (
+      this.state.items.some((i) => i.userId === userId) ||
+      Object.values(this.state.open).some((o) => o.userId === userId)
+    );
   }
 
   startSession(userId: string, payload: StartSessionRequest): void {
@@ -247,8 +295,10 @@ export class Outbox {
     let index = 0;
     while (index < this.state.items.length) {
       const item = this.state.items[index];
-      const token = this.blocked.has(item.userId) ? undefined : this.deps.tokenFor(item.userId);
-      if (!token) {
+      const token =
+        item.userId === null || this.blocked.has(item.userId) ? undefined : this.deps.tokenFor(item.userId);
+      // A crash report is sent whether or not its pilot can still sign in.
+      if (!token && item.kind !== 'crashes') {
         // Held until this user signs in again. Their later items stay behind it,
         // so one session's start, events and end never go out of order.
         index += 1;
@@ -312,7 +362,7 @@ export class Outbox {
         return;
       }
 
-      if (res.code === 'AUTH_INVALID' || res.code === 'USER_INACTIVE') {
+      if ((res.code === 'AUTH_INVALID' || res.code === 'USER_INACTIVE') && item.userId !== null) {
         this.blocked.add(item.userId);
         this.lastError = res.message;
         this.deps.onAuthInvalid?.(item.userId);
@@ -330,7 +380,7 @@ export class Outbox {
     await this.persist();
   }
 
-  private sendItem(item: Item, token: string, sessionId: string | undefined): Promise<ApiResponse<unknown>> {
+  private sendItem(item: Item, token: string | undefined, sessionId: string | undefined): Promise<ApiResponse<unknown>> {
     switch (item.kind) {
       case 'start':
         return this.deps.send('startSession', item.payload, token);
@@ -338,6 +388,8 @@ export class Outbox {
         return this.deps.send('endSession', { ...item.payload, sessionId: sessionId! }, token);
       case 'events':
         return this.deps.send('recordEvents', { sessionId, events: item.payload }, token);
+      case 'crashes':
+        return this.deps.send('reportCrashes', { reports: item.payload }, token);
     }
   }
 

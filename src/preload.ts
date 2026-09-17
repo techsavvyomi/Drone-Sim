@@ -22,6 +22,10 @@ const api: IpcApi = {
       return () => ipcRenderer.removeListener(IPC.accountChanged, handler);
     },
   },
+  crash: {
+    report: (input) => ipcRenderer.send(IPC.crashReport, input),
+    setContext: (context) => ipcRenderer.send(IPC.crashContext, context),
+  },
   telemetry: {
     startSession: (req) => ipcRenderer.send(IPC.telemetryStart, req),
     checkpoint: (key, end) => ipcRenderer.send(IPC.telemetryCheckpoint, key, end),

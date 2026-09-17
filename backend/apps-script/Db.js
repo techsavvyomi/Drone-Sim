@@ -50,7 +50,9 @@ function table_(name) {
 }
 
 function Table_(name) {
-  const sheet = spreadsheet_().getSheetByName(name);
+  let sheet = spreadsheet_().getSheetByName(name);
+  // A table added in a later version is created on first use, like a column.
+  if (!sheet && SCHEMA[name]) sheet = ensureSheet_(spreadsheet_(), name, SCHEMA[name]);
   if (!sheet) throw new Error('Missing sheet "' + name + '". Run setupDatabase.');
   this.name = name;
   this.sheet = sheet;

@@ -16,6 +16,7 @@ const REPORT = {
   MISSIONS: 'Report: Missions',
   TRAINING: 'Report: Training',
   DRONES: 'Report: Drones',
+  CRASHES: 'Report: Crashes',
 };
 
 function refreshAnalytics() {
@@ -225,6 +226,7 @@ function buildAnalytics_(now) {
     .sort((a, b) => b[2] - a[2]);
 
   const reports = {};
+  reports[REPORT.CRASHES] = crashReport_(now);
   reports[REPORT.OVERVIEW] = overview;
   reports[REPORT.USERS] = [
     {
@@ -290,6 +292,99 @@ function buildAnalytics_(now) {
 // ---------------------------------------------------------------------------
 // Writing
 // ---------------------------------------------------------------------------
+
+/** Crash totals, a daily count, and issues grouped by fingerprint. */
+function crashReport_(now) {
+  const crashes = table_(SHEET.CRASHES).rows();
+  const at = (r) => timeOf_(r['Occurred At']);
+  const dayMs = 86400000;
+  const recent = (ms) => crashes.filter((r) => now.getTime() - at(r) <= ms);
+  const devices = (rows) => distinct_(rows.map((r) => r['Device ID'] || r['Report ID']));
+
+  const byKind = {};
+  crashes.forEach((r) => (byKind[r.Kind] = (byKind[r.Kind] || 0) + 1));
+
+  const issues = {};
+  crashes.forEach((r) => {
+    const key = r.Fingerprint;
+    const issue =
+      issues[key] ||
+      (issues[key] = { rows: [], first: at(r), last: at(r), latest: r });
+    issue.rows.push(r);
+    issue.first = Math.min(issue.first, at(r));
+    if (at(r) >= issue.last) {
+      issue.last = at(r);
+      issue.latest = r;
+    }
+  });
+  const issueRows = Object.keys(issues)
+    .map((key) => {
+      const i = issues[key];
+      return [
+        key,
+        i.latest.Kind,
+        i.rows.length,
+        i.rows.filter((r) => r.Fatal === true || r.Fatal === 'TRUE').length,
+        distinct_(i.rows.filter((r) => r['User ID']).map((r) => r['User ID'])),
+        devices(i.rows),
+        new Date(i.first),
+        new Date(i.last),
+        i.latest['App Version'],
+        i.latest.Message,
+      ];
+    })
+    .sort((a, b) => b[2] - a[2]);
+
+  const daily = [];
+  for (let d = 29; d >= 0; d--) {
+    const key = dayKey_(new Date(now.getTime() - d * dayMs));
+    daily.push([key, crashes.filter((r) => dayKey_(new Date(at(r))) === key).length]);
+  }
+
+  return [
+    {
+      title: 'Crashes',
+      headers: ['Metric', 'Value'],
+      rows: [
+        ['Reports, last 24 hours', recent(dayMs).length],
+        ['Reports, last 7 days', recent(7 * dayMs).length],
+        ['Reports, all time', crashes.length],
+        ['Fatal, last 7 days', recent(7 * dayMs).filter((r) => r.Fatal === true || r.Fatal === 'TRUE').length],
+        ['Devices affected, last 7 days', devices(recent(7 * dayMs))],
+        ['Distinct issues', issueRows.length],
+      ],
+    },
+    {
+      title: 'By kind',
+      headers: ['Kind', 'Reports'],
+      rows: Object.keys(byKind)
+        .sort((a, b) => byKind[b] - byKind[a])
+        .map((k) => [k, byKind[k]]),
+    },
+    {
+      title: 'Crashes per day, last 30 days',
+      headers: ['Date', 'Reports'],
+      rows: daily,
+      charts: [{ type: 'COLUMN', title: 'Crash reports per day', columns: [0, 1] }],
+    },
+    {
+      title: 'Issues (same fingerprint = same fault)',
+      headers: [
+        'Fingerprint',
+        'Kind',
+        'Reports',
+        'Fatal',
+        'Pilots',
+        'Devices',
+        'First seen',
+        'Last seen',
+        'Latest app version',
+        'Message',
+      ],
+      rows: issueRows,
+    },
+  ];
+}
 
 /** One row per day, oldest first: date, sessions, pilots, flight hours, points. */
 function dailyRows_(finished, now, days) {

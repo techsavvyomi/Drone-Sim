@@ -2,6 +2,7 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { useGLTF } from '@react-three/drei';
 import { App } from './app/App';
+import { AppErrorBoundary } from './app/AppErrorBoundary';
 import { loadBuiltinPlugins } from './plugins';
 import './index.css';
 
@@ -26,6 +27,8 @@ if (!container) throw new Error('Root element #root not found');
 
 createRoot(container).render(
   <StrictMode>
-    <App />
+    <AppErrorBoundary>
+      <App />
+    </AppErrorBoundary>
   </StrictMode>,
 );

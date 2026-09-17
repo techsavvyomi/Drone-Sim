@@ -6,6 +6,7 @@ import type { AppSettings, AppInfo } from './types';
 import type {
   ActivateUserRequest,
   ApiResponse,
+  CrashKind,
   DeviceInfo,
   GetUserDashboardRequest,
   LoginUserRequest,
@@ -38,7 +39,18 @@ export const IPC = {
   telemetryEnd: 'telemetry:end',
   telemetryEvents: 'telemetry:events',
   telemetryStatus: 'telemetry:status',
+  crashReport: 'crash:report',
+  crashContext: 'crash:context',
 } as const;
+
+/** A crash as the game window reports it. */
+export interface RendererCrashInput {
+  kind: Extract<CrashKind, 'RENDERER_EXCEPTION' | 'RENDERER_REJECTION' | 'RENDER_ERROR' | 'WEBGL_CONTEXT_LOST'>;
+  message: string;
+  stack?: string;
+  fatal: boolean;
+  context?: Record<string, unknown>;
+}
 
 export type IpcChannel = (typeof IPC)[keyof typeof IPC];
 
@@ -58,6 +70,12 @@ export interface IpcApi {
     dashboard(req: Omit<GetUserDashboardRequest, 'userId'>): Promise<ApiResponse<UserDashboard>>;
     /** Subscribe to account changes. Returns an unsubscribe function. */
     onChanged(listener: (account: AccountInfo) => void): () => void;
+  };
+  /** Crash reporting. Fire-and-forget; the main process adds device and app details. */
+  crash: {
+    report(input: RendererCrashInput): void;
+    /** What the pilot is doing now, attached to a report the window cannot send itself. */
+    setContext(context: Record<string, unknown>): void;
   };
   /** Session and event telemetry. Fire-and-forget; queued in the main process. */
   telemetry: {

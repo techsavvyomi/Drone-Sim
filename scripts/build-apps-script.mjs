@@ -18,7 +18,7 @@ const src = path.join(root, 'backend/apps-script');
 const out = path.join(root, 'backend/dist/DroneSimulatorAPI.gs');
 
 /** Constants first, then the layers that use them. */
-export const ORDER = ['Schema.js', 'Catalog.js', 'Db.js', 'Api.js', 'Code.js', 'Setup.js', 'Analytics.js'];
+export const ORDER = ['Schema.js', 'Catalog.js', 'Db.js', 'Api.js', 'Code.js', 'Setup.js', 'Crashes.js', 'Analytics.js'];
 
 export function bundle() {
   const header = [

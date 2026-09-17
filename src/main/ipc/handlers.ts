@@ -3,10 +3,11 @@ import { IPC } from '@shared/ipc-contract';
 import type { AppInfo, AppSettings } from '@shared/types';
 import { loadSettings, saveSettings } from '../settings';
 import { registerBackend } from '../backend';
+import type { BackendService } from '../backend/service';
 
 // Registers all main-process IPC handlers. Every channel here has a matching
 // entry in the IPC contract and a typed wrapper in the preload.
-export function registerIpcHandlers(): void {
+export function registerIpcHandlers(): Promise<BackendService> {
   ipcMain.handle(IPC.settingsLoad, (): Promise<AppSettings> => loadSettings());
 
   ipcMain.handle(IPC.settingsSave, (_event, settings: AppSettings): Promise<void> =>
@@ -20,5 +21,5 @@ export function registerIpcHandlers(): void {
     electron: process.versions.electron,
   }));
 
-  void registerBackend();
+  return registerBackend();
 }

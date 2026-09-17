@@ -4,6 +4,7 @@ import type {
   ApiActions,
   ApiResponse,
   AuthResult,
+  CrashReport,
   DeviceInfo,
   GameplayEventInput,
   GetUserDashboardRequest,
@@ -172,6 +173,21 @@ export class BackendService {
     const userId = this.file.current;
     if (!userId || !this.deps.configured) return;
     this.outbox.recordEvents(userId, key, events);
+  }
+
+  /** Queue a crash report, attributed to whoever is signed in. */
+  recordCrash(report: CrashReport): void {
+    if (!this.deps.configured) return;
+    this.outbox.recordCrash(this.file.current, report);
+  }
+
+  /** The game window died mid-flight: close whatever it had open. */
+  abortOpenSessions(reason: string): void {
+    this.outbox.abortOpenSessions(reason);
+  }
+
+  device(): Promise<DeviceInfo> {
+    return this.deps.device();
   }
 
   telemetryStatus(): TelemetryStatus {

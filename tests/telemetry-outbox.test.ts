@@ -6,7 +6,7 @@ import { Outbox, type EndSnapshot, type OutboxState } from '../src/main/backend/
 // Wi-Fi, an app quit mid-mission, a token revoked by the admin. These pin that
 // nothing recorded is dropped, sent out of order, or sent as the wrong user.
 
-type Sent = { action: string; payload: any; token: string };
+type Sent = { action: string; payload: any; token: string | undefined };
 
 function harness(opts: { tokens?: Record<string, string>; initial?: OutboxState | null } = {}) {
   const sent: Sent[] = [];
@@ -29,6 +29,9 @@ function harness(opts: { tokens?: Record<string, string>; initial?: OutboxState 
       if (override) return override as any;
       if (action === 'startSession') {
         return { success: true, data: { sessionId: `SES-${String(nextSession++).padStart(6, '0')}` } } as any;
+      }
+      if (action === 'reportCrashes') {
+        return { success: true, data: { reportIds: (payload as any).reports.map(() => 'CRS') } } as any;
       }
       if (action === 'endSession') {
         return { success: true, data: { sessionId: (payload as any).sessionId, pointsEarned: 0, profile: {} } } as any;
@@ -196,6 +199,45 @@ describe('telemetry outbox', () => {
     await h.outbox.flush();
     expect(h.sent).toHaveLength(0);
     expect(h.outbox.hasPendingFor('USR-000009')).toBe(true);
+  });
+
+  it('sends crash reports signed out, batched, and with the token when there is one', async () => {
+    const h = harness({ tokens: { 'USR-000001': 'tok-1' } });
+    await h.outbox.init();
+    const report = (message: string) =>
+      ({ kind: 'RENDERER_EXCEPTION', message, fatal: false, occurredAt: '2026-09-17T10:00:00Z' }) as any;
+    h.outbox.recordCrash(null, report('a'));
+    h.outbox.recordCrash(null, report('b'));
+    h.outbox.recordCrash('USR-000001', report('c'));
+    await h.outbox.flush();
+    expect(h.sent.map((s) => [s.action, s.token, s.payload.reports.length])).toEqual([
+      ['reportCrashes', undefined, 2],
+      ['reportCrashes', 'tok-1', 1],
+    ]);
+  });
+
+  it('still sends a signed-in pilot\'s crash report after their token is refused', async () => {
+    const h = harness({ tokens: {} });
+    await h.outbox.init();
+    h.outbox.recordCrash('USR-000009', { kind: 'RENDERER_GONE', message: 'crashed', fatal: true } as any);
+    await h.outbox.flush();
+    expect(h.sent.map((s) => [s.action, s.token])).toEqual([['reportCrashes', undefined]]);
+  });
+
+  it('ends open sessions as ABORTED when the game window crashes', async () => {
+    const h = harness();
+    await h.outbox.init();
+    h.outbox.startSession('USR-000001', start('k1'));
+    h.outbox.checkpoint('k1', endOf({ result: 'ABORTED', duration: 90 }));
+    h.outbox.abortOpenSessions('window crashed');
+    await h.outbox.flush();
+    expect(h.sent.map((s) => s.action)).toEqual(['startSession', 'recordEvents', 'endSession']);
+    expect(h.sent[1].payload.events[0].eventData).toEqual({ reason: 'window crashed' });
+    expect(h.sent[2].payload).toMatchObject({ result: 'ABORTED', duration: 90 });
+    // A later endSession for it from the (reloaded) window is a no-op.
+    h.outbox.endSession('k1', endOf());
+    await h.outbox.flush();
+    expect(h.sent.filter((s) => s.action === 'endSession')).toHaveLength(1);
   });
 
   it('gives up on an item the server keeps failing on, instead of blocking forever', async () => {
