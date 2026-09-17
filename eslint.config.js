@@ -13,13 +13,24 @@ export default tseslint.config(
   {
     files: ['scripts/**/*.{js,mjs,cjs}'],
     languageOptions: {
-      globals: { process: 'readonly', console: 'readonly' },
+      globals: { process: 'readonly', console: 'readonly', URL: 'readonly' },
     },
   },
   {
     rules: {
       '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
       '@typescript-eslint/no-explicit-any': 'off',
+    },
+  },
+  // Apps Script joins every file of a project into one global scope and calls
+  // entry points (doPost, onOpen, menu items) by name. Undefined and "unused"
+  // globals are how that code is supposed to look; tests/backend-api.test.ts
+  // runs it for real instead.
+  {
+    files: ['backend/apps-script/**/*.js'],
+    rules: {
+      'no-undef': 'off',
+      '@typescript-eslint/no-unused-vars': 'off',
     },
   },
 );
