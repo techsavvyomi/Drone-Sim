@@ -5,7 +5,7 @@ import {
   overallProgress,
   useResourceStore,
 } from '../assets/resourceTracker';
-import logoMark from '../../assets/brand/plutosim-logo-mark.webp';
+import logoMark from '../../assets/brand/plutosim-mark.svg';
 
 // "Loading resources": the models the app preloads, shown as they arrive.
 //

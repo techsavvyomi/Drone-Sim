@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import type { ApiErrorCode } from '@shared/backend/contract';
 import { useAccountStore } from '../state/accountStore';
-import logoMark from '../../assets/brand/plutosim-logo-mark.webp';
+import logoMark from '../../assets/brand/plutosim-mark.svg';
 
 // The door into the simulator: activate a key the first time, sign in after.
 //

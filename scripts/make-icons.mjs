@@ -1,4 +1,4 @@
-// Builds the PlutoSim app icons from the brand logo.
+// Builds the PlutoSim app icons from the brand mark.
 //
 //   node scripts/make-icons.mjs
 //
@@ -17,7 +17,9 @@ const require = createRequire(import.meta.url);
 const sharp = require('sharp');
 
 const root = fileURLToPath(new URL('..', import.meta.url));
-const logo = path.join(root, 'src/assets/brand/plutosim-logo.png');
+// The drone mark with its glow, the same artwork the app's top bar shows. Its
+// source is resources/brand/drone-mark-source.png, traced to vector with potrace.
+const logo = path.join(root, 'src/assets/brand/plutosim-mark.svg');
 const outDir = path.join(root, 'resources/icons');
 mkdirSync(outDir, { recursive: true });
 
@@ -46,9 +48,8 @@ async function masterIcon() {
             rx="${RADIUS}" fill="url(#glow)"/>
     </svg>`);
 
-  const mark = await sharp(logo)
-    .trim()
-    .resize({ width: Math.round(TILE * 0.8), height: Math.round(TILE * 0.8), fit: 'inside' })
+  const mark = await sharp(logo, { density: 400 })
+    .resize({ width: Math.round(TILE * 0.86), height: Math.round(TILE * 0.86), fit: 'inside' })
     .toBuffer();
   const meta = await sharp(mark).metadata();
 

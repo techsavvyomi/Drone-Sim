@@ -4,7 +4,7 @@ import { useAccountStore } from '../state/accountStore';
 import { getDrone, listDrones, listEnvironments } from '../plugins/registry';
 import { ChipSelect, type SelectOption } from './ChipSelect';
 import { IconArena, IconCeiling, IconDrone, IconGear, IconTarget, IconUser } from './icons';
-import logoMark from '../../assets/brand/plutosim-logo-mark.webp';
+import logoMark from '../../assets/brand/plutosim-mark.svg';
 
 /** Accent tints for option thumbnails, cycled by index. */
 const TINTS = ['#3b82f6', '#22c55e', '#f5a524', '#a855f7', '#38bdf8'];
