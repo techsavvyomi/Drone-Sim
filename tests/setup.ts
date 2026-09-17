@@ -50,7 +50,6 @@ beforeEach(() => {
       recordEvents: vi.fn(),
       status: vi.fn(async () => ({ pending: 0, lastError: null, authBlocked: [] })),
     },
-    openExternal: vi.fn(async () => undefined),
   };
 
   // Only `api` is ours to define. A file that opts into jsdom

@@ -1903,64 +1903,6 @@ button {
   font-weight: 600;
 }
 
-/* About page (sidebar and Settings → About). The wordmark reuses the top
-   bar's .logo classes; only spacing and the Drona Aviation card are new. */
-.about-logo {
-  margin-bottom: 6px;
-}
-.about-row > span {
-  flex-shrink: 0;
-  white-space: nowrap;
-}
-.about-heading {
-  margin: 22px 0 6px;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--text-dim);
-}
-.about-drona {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  max-width: 420px;
-  margin: 28px auto 0;
-  padding: 16px 20px;
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  background: var(--panel);
-  text-align: center;
-}
-.about-drona img {
-  width: 96px;
-  height: auto;
-}
-.about-drona p {
-  margin: 0;
-  font-size: 12px;
-  line-height: 1.5;
-  color: var(--text-dim);
-}
-.about-explore {
-  margin-top: 4px;
-  padding: 8px 18px;
-  border: 1px solid var(--accent-2);
-  border-radius: 999px;
-  background: rgba(56, 189, 248, 0.1);
-  font: inherit;
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  color: var(--accent);
-  cursor: pointer;
-  transition: background 0.15s;
-}
-.about-explore:hover {
-  background: rgba(56, 189, 248, 0.22);
-}
-
 /* ---- Back button ---- */
 .back-btn {
   display: inline-flex;
