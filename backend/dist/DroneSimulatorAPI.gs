@@ -1,4 +1,4 @@
-// Drone Simulator API: Google Apps Script backend (generated file).
+// PlutoSim API: Google Apps Script backend (generated file).
 //
 // Paste this whole file into Code.gs of the Apps Script project, set the
 // manifest from backend/apps-script/appsscript.json, then deploy as a web app.
@@ -11,7 +11,7 @@
 // Schema.js
 // ==========================================================================
 
-// Drone Simulator DB: sheet definitions.
+// PlutoSim DB: sheet definitions.
 //
 // Every sheet is a table whose first row is its header. Code addresses columns
 // by header NAME (see Db.js), never by letter, so an admin can add columns or
@@ -1272,7 +1272,7 @@ function doPost(e) {
 function doGet() {
   return json_({
     success: true,
-    data: { service: 'drone-simulator-api', apiVersion: API_VERSION },
+    data: { service: 'plutosim-api', apiVersion: API_VERSION },
   });
 }
 
@@ -1345,14 +1345,14 @@ function touchToken_(token) {
 
 // Admin tools: create the database, seed the catalog, issue activation keys.
 //
-// Run from the "Drone Simulator" menu in the spreadsheet (a script bound to the
+// Run from the "PlutoSim" menu in the spreadsheet (a script bound to the
 // sheet), or pick the function in the Apps Script editor and press Run.
 // Everything here is safe to run again: it adds what is missing and leaves
 // existing rows and edits alone.
 
 function onOpen() {
   SpreadsheetApp.getUi()
-    .createMenu('Drone Simulator')
+    .createMenu('PlutoSim')
     .addItem('Set up / repair database', 'setupDatabase')
     .addItem('Generate activation keys…', 'promptGenerateKeys')
     .addSeparator()

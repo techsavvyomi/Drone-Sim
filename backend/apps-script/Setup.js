@@ -1,13 +1,13 @@
 // Admin tools: create the database, seed the catalog, issue activation keys.
 //
-// Run from the "Drone Simulator" menu in the spreadsheet (a script bound to the
+// Run from the "PlutoSim" menu in the spreadsheet (a script bound to the
 // sheet), or pick the function in the Apps Script editor and press Run.
 // Everything here is safe to run again: it adds what is missing and leaves
 // existing rows and edits alone.
 
 function onOpen() {
   SpreadsheetApp.getUi()
-    .createMenu('Drone Simulator')
+    .createMenu('PlutoSim')
     .addItem('Set up / repair database', 'setupDatabase')
     .addItem('Generate activation keys…', 'promptGenerateKeys')
     .addSeparator()

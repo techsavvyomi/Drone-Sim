@@ -32,7 +32,7 @@ function doPost(e) {
 function doGet() {
   return json_({
     success: true,
-    data: { service: 'drone-simulator-api', apiVersion: API_VERSION },
+    data: { service: 'plutosim-api', apiVersion: API_VERSION },
   });
 }
 

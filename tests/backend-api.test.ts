@@ -108,7 +108,7 @@ describe('setup', () => {
   });
 
   it('answers a health check on GET', () => {
-    expect(be.get()).toEqual({ success: true, data: { service: 'drone-simulator-api', apiVersion: 1 } });
+    expect(be.get()).toEqual({ success: true, data: { service: 'plutosim-api', apiVersion: 1 } });
   });
 
   it('generates unique, well-formed, AVAILABLE keys', () => {

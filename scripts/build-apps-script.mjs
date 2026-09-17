@@ -22,7 +22,7 @@ export const ORDER = ['Schema.js', 'Catalog.js', 'Db.js', 'Api.js', 'Code.js', '
 
 export function bundle() {
   const header = [
-    '// Drone Simulator API: Google Apps Script backend (generated file).',
+    '// PlutoSim API: Google Apps Script backend (generated file).',
     '//',
     '// Paste this whole file into Code.gs of the Apps Script project, set the',
     '// manifest from backend/apps-script/appsscript.json, then deploy as a web app.',

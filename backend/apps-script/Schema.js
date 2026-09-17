@@ -1,4 +1,4 @@
-// Drone Simulator DB: sheet definitions.
+// PlutoSim DB: sheet definitions.
 //
 // Every sheet is a table whose first row is its header. Code addresses columns
 // by header NAME (see Db.js), never by letter, so an admin can add columns or

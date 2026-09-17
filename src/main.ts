@@ -3,6 +3,11 @@ import path from 'node:path';
 import { registerIpcHandlers } from './main/ipc/handlers';
 import { installCrashReporting } from './main/crash';
 import { enforceLockdown } from './main/security';
+import { keepExistingUserData } from './main/userDataPath';
+
+// Before any path is read: an install from before the PlutoSim rename keeps its
+// settings, sign-in and queued uploads.
+keepExistingUserData();
 
 // A packaged build refuses debugger switches and never opens DevTools.
 const lockdown = enforceLockdown();
@@ -27,7 +32,7 @@ function createWindow(): void {
     minWidth: 1100,
     minHeight: 720,
     backgroundColor: '#0b0f17',
-    title: 'Drone Flight Simulator',
+    title: 'PlutoSim',
     show: false,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),

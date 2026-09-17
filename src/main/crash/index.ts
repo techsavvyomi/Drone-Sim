@@ -136,7 +136,7 @@ export function installCrashReporting(): CrashReporting {
       const win = BrowserWindow.fromWebContents(contents);
       const options = {
         type: 'error' as const,
-        title: 'Drone Flight Simulator',
+        title: 'PlutoSim',
         message: 'The simulator keeps crashing.',
         detail: 'A crash report has been sent. Try lowering the graphics preset, or restart the app.',
       };

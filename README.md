@@ -1,4 +1,4 @@
-# Drone Flight Simulator
+# PlutoSim
 
 A realistic multirotor flight simulator for STEM education and pilot training, built around
 the [Drona Aviation](https://www.dronaaviation.com/) **Pluto** airframes.

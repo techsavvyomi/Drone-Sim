@@ -1,10 +1,10 @@
-# Drone Simulator: profiles & analytics backend (prototype)
+# PlutoSim: profiles & analytics backend (prototype)
 
 User activation, pilot profiles, flight-session telemetry and admin analytics,
 stored in Google Sheets behind a Google Apps Script web app.
 
 ```
-Drone Simulator (renderer)                 UserService / SessionService / AnalyticsService
+PlutoSim (renderer)                        UserService / SessionService / AnalyticsService
         │  IPC (window.api.account / .telemetry)
         ▼
 Electron main process                      token storage, offline outbox, HTTPS transport
@@ -46,7 +46,7 @@ The whole backend is one generated file, **`backend/dist/DroneSimulatorAPI.gs`**
    Version: New version → Deploy**. (Deploy → *New deployment* creates a new URL, which
    then has to go in `src/main/backend/config.ts`.)
 7. Check it: open the web app URL in a browser. It should return
-   `{"success":true,"data":{"service":"drone-simulator-api","apiVersion":1}}`.
+   `{"success":true,"data":{"service":"plutosim-api","apiVersion":1}}`.
 8. Optional: run **`installAnalyticsTrigger`** so the report sheets refresh hourly, and
    **`refreshAnalytics`** to build them now.
 
@@ -62,7 +62,7 @@ bundle is stale.
 
 | Task | How |
 | --- | --- |
-| Issue keys | Run `generateTenActivationKeys`, or use the **Drone Simulator → Generate activation keys…** menu (shown when the script is bound to the sheet). |
+| Issue keys | Run `generateTenActivationKeys`, or use the **PlutoSim → Generate activation keys…** menu (shown when the script is bound to the sheet). |
 | Disable a key | Set its `Status` to `DISABLED` in `ActivationKeys`. |
 | Fix users typed into the sheet by hand | Run `repairUsers`. It links their keys, fills blank columns and moves the ID counter past them. |
 | Deactivate a user | Set their `Status` to `INACTIVE` in `Users`. |

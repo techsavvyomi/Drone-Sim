@@ -1,8 +1,8 @@
 {
   "name": "drone-sim-game",
-  "productName": "Drone Flight Simulator",
+  "productName": "PlutoSim",
   "version": "0.1.0",
-  "description": "Realistic multirotor drone flight simulator for STEM education and pilot training",
+  "description": "PlutoSim: realistic drone flight simulator for STEM education and pilot training, by Drona Aviation",
   "author": "Drona Aviation",
   "license": "MIT",
   "main": ".vite/build/main.js",
