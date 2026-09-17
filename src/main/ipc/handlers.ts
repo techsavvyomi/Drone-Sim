@@ -2,6 +2,7 @@ import { app, ipcMain } from 'electron';
 import { IPC } from '@shared/ipc-contract';
 import type { AppInfo, AppSettings } from '@shared/types';
 import { loadSettings, saveSettings } from '../settings';
+import { registerBackend } from '../backend';
 
 // Registers all main-process IPC handlers. Every channel here has a matching
 // entry in the IPC contract and a typed wrapper in the preload.
@@ -18,4 +19,6 @@ export function registerIpcHandlers(): void {
     platform: process.platform,
     electron: process.versions.electron,
   }));
+
+  void registerBackend();
 }

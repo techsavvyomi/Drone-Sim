@@ -1,8 +1,8 @@
 import { beforeEach, vi } from 'vitest';
 
 // The renderer talks to the main process through `window.api`, which does not
-// exist in Node. Only the settings channels are reached by anything under test,
-// so this stands in for them with an in-memory document.
+// exist in Node. The settings channels get an in-memory document; the profile
+// and telemetry channels are inert spies a test can inspect.
 //
 // It is a `globalThis.window` rather than a module mock because the stores read
 // `window.api` at call time, not at import time.
@@ -29,6 +29,23 @@ beforeEach(() => {
       platform: 'darwin',
       electron: '43.0.0',
     })),
+    // Profiles and telemetry: signed out, nothing configured, nothing sent.
+    account: {
+      get: vi.fn(async () => ({ configured: false, profile: null, needsSignIn: false })),
+      activate: vi.fn(),
+      login: vi.fn(),
+      signOut: vi.fn(async () => undefined),
+      refreshProfile: vi.fn(),
+      dashboard: vi.fn(),
+      onChanged: vi.fn(() => () => undefined),
+    },
+    telemetry: {
+      startSession: vi.fn(),
+      checkpoint: vi.fn(),
+      endSession: vi.fn(),
+      recordEvents: vi.fn(),
+      status: vi.fn(async () => ({ pending: 0, lastError: null, authBlocked: [] })),
+    },
   };
 
   // Only `api` is ours to define. A file that opts into jsdom
