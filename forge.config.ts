@@ -119,6 +119,15 @@ const config: ForgeConfig = {
       {
         name: PRODUCT,
         icon: 'resources/icons/icon.icns',
+        // Drawn by scripts/make-dmg-background.mjs around the icon positions
+        // below (a background@2x.png beside it is picked up for Retina).
+        background: 'resources/dmg/background.png',
+        iconSize: 100,
+        contents: (opts) => [
+          { x: 180, y: 290, type: 'file', path: opts.appPath },
+          { x: 478, y: 290, type: 'link', path: '/Applications' },
+        ],
+        additionalDMGOptions: { window: { size: { width: 658, height: 498 } } },
         format: 'ULFO',
         overwrite: true,
       },

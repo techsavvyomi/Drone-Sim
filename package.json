@@ -20,7 +20,7 @@
     "make:mac": "electron-forge make --platform=darwin --arch=arm64 && electron-forge make --platform=darwin --arch=x64",
     "make:win": "electron-forge make --platform=win32 --arch=x64",
     "make:release": "npm run make:mac && npm run make:win && npm run verify:build",
-    "make:icons": "node scripts/make-icons.mjs"
+    "make:icons": "node scripts/make-icons.mjs && node scripts/make-dmg-background.mjs"
   },
   "devDependencies": {
     "@electron-forge/cli": "^7.11.2",
