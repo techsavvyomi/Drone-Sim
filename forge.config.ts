@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { existsSync, readdirSync } from 'node:fs';
+import { existsSync, readdirSync, renameSync } from 'node:fs';
 import path from 'node:path';
 import type { ForgeConfig } from '@electron-forge/shared-types';
 import { MakerSquirrel } from '@electron-forge/maker-squirrel';
@@ -9,11 +9,49 @@ import { VitePlugin } from '@electron-forge/plugin-vite';
 import { AutoUnpackNativesPlugin } from '@electron-forge/plugin-auto-unpack-natives';
 import { FusesPlugin } from '@electron-forge/plugin-fuses';
 import { FuseV1Options, FuseVersion } from '@electron/fuses';
+import pkg from './package.json';
+
+// ---------------------------------------------------------------------------
+// Build identity: name, version and build, stamped into the app and the files.
+//
+//   version  package.json "version" (bump it for a release)
+//   build    the short commit, the same one Settings -> About shows
+//   number   the commit count, an always-increasing integer for the OS fields
+//            that must be numeric (macOS CFBundleVersion, Windows FileVersion)
+// ---------------------------------------------------------------------------
+
+function git(args: string[], fallback: string): string {
+  try {
+    return execFileSync('git', args, { stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim();
+  } catch {
+    return fallback;
+  }
+}
+
+const PRODUCT = 'PlutoSim';
+const VERSION = pkg.version;
+const BUILD = git(['rev-parse', '--short', 'HEAD'], 'unknown');
+const BUILD_NUMBER = git(['rev-list', '--count', 'HEAD'], '0');
+const PLATFORM_LABELS: Record<string, string> = { darwin: 'macOS', win32: 'Windows', linux: 'Linux' };
 
 const config: ForgeConfig = {
   packagerConfig: {
     asar: true,
-    name: 'PlutoSim',
+    name: PRODUCT,
+    executableName: PRODUCT,
+    appVersion: VERSION,
+    buildVersion: `${VERSION}.${BUILD_NUMBER}`,
+    appCopyright: `© ${new Date().getFullYear()} Drona Aviation`,
+    appBundleId: 'com.dronaaviation.plutosim',
+    appCategoryType: 'public.app-category.education',
+    // What Windows shows under the .exe's Properties -> Details.
+    win32metadata: {
+      CompanyName: 'Drona Aviation',
+      ProductName: PRODUCT,
+      FileDescription: `${PRODUCT} flight simulator`,
+      InternalName: PRODUCT,
+      OriginalFilename: `${PRODUCT}.exe`,
+    },
   },
   rebuildConfig: {},
   makers: [
@@ -32,6 +70,27 @@ const config: ForgeConfig = {
     ...(process.platform === 'linux' ? [new MakerDeb({})] : []),
   ],
   hooks: {
+    /**
+     * Name every artifact after what it is:
+     *   PlutoSim-0.1.0-9f35b05-macOS-arm64.zip
+     * Forge's default ("PlutoSim-darwin-arm64-0.1.0.zip") says neither which
+     * build it is nor, to a tester, which file is for their computer.
+     */
+    postMake: async (_config, results) => {
+      for (const result of results) {
+        const label = PLATFORM_LABELS[result.platform] ?? result.platform;
+        result.artifacts = result.artifacts.map((artifact) => {
+          if (!artifact.endsWith('.zip')) return artifact;
+          const renamed = path.join(
+            path.dirname(artifact),
+            `${PRODUCT}-${VERSION}-${BUILD}-${label}-${result.arch}.zip`,
+          );
+          renameSync(artifact, renamed);
+          return renamed;
+        });
+      }
+      return results;
+    },
     /**
      * Ad-hoc sign the macOS bundle after packaging.
      *
