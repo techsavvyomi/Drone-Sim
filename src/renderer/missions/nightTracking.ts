@@ -64,7 +64,7 @@ const GOLD = 1;
 export const nightTracking: Mission = {
   id: 'night-tracking',
   order: 6,
-  name: 'Wildlife Tracker',
+  name: 'Search and Rescue',
   subtitle: 'A tiger in the dark, and nothing on the map',
   kind: 'tracking',
   envId: 'forest',

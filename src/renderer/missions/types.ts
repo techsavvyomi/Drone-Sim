@@ -391,7 +391,7 @@ export interface MissionTracking {
    */
   maxTrackAgl: number;
   /** Draw the tiger's live position on the corner radar as a red dot. Mission 5
-   *  (Tiger Tracker) sets it; Mission 6 (Wildlife Tracker) is searched blind. */
+   *  (Animal Rescue) sets it; Mission 6 (Search and Rescue) is searched blind. */
   showOnMap?: boolean;
 }
 

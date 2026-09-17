@@ -11,7 +11,7 @@ import { tigerPose } from './tigerPose';
 import type { Mission } from './types';
 
 // ----------------------------------------------------------------------------
-// The searchlight under the drone, on Mission 5 (Wildlife Tracker).
+// The searchlight under the drone, on Missions 5 and 6 (Animal Rescue, Search and Rescue).
 //
 // Mounted strictly UNDERNEATH the drone fuselage, flush against the underbelly
 // (beneath the battery and between the landing legs), pointing downward and

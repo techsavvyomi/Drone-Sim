@@ -3,13 +3,13 @@ import { tigerTracker } from '../src/renderer/missions/tigerTracker';
 import { nightTracking } from '../src/renderer/missions/nightTracking';
 import { MISSIONS } from '../src/renderer/missions';
 
-// Mission 5 — Tiger Tracker is Mission 6 with the tiger on the map. These tests
+// Mission 5 — Animal Rescue is Mission 6 with the tiger on the map. These tests
 // hold it to exactly that: one flag and the words that describe it.
 
 const M = tigerTracker;
 
-describe('Tiger Tracker', () => {
-  it('is the fifth mission, between Logistics Drones and Wildlife Tracker', () => {
+describe('Animal Rescue', () => {
+  it('is the fifth mission, between Logistics Drones and Search and Rescue', () => {
     expect(M.order).toBe(5);
     const ids = MISSIONS.map((m) => m.id);
     expect(ids.indexOf(M.id)).toBe(4);
@@ -17,12 +17,12 @@ describe('Tiger Tracker', () => {
     expect(new Set(ids).size).toBe(ids.length);
   });
 
-  it('shows the tiger on the map, and Wildlife Tracker does not', () => {
+  it('shows the tiger on the map, and Search and Rescue does not', () => {
     expect(M.tracking!.showOnMap).toBe(true);
     expect(nightTracking.tracking!.showOnMap).toBeFalsy();
   });
 
-  it('flies exactly like Wildlife Tracker', () => {
+  it('flies exactly like Search and Rescue', () => {
     expect({ ...M.tracking!, showOnMap: undefined }).toEqual({
       ...nightTracking.tracking!,
       showOnMap: undefined,

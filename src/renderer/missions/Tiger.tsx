@@ -14,7 +14,7 @@ import tigerModelUrl from '../../assets/models/tiger.glb?url';
 import type { Mission } from './types';
 
 // ----------------------------------------------------------------------------
-// The Bengal Tiger — Mission 5: Wildlife Tracker (Nightfall Predator Tracking)
+// The Bengal Tiger — Mission 6: Search and Rescue (Nightfall Predator Tracking)
 //
 // Photorealistic 3D Bengal Tiger model with:
 // 1. FULL SKELETAL QUADRUPED LOCOMOTION:
