@@ -100,7 +100,18 @@ export const useAccountStore = create<AccountState>((set) => {
           });
         })
         .catch(() => set({ status: 'disabled' }));
-      return off;
+
+      // A computer that was offline when another took its profile finds out as
+      // soon as it is back, not at the next 30 s check.
+      const onOnline = () => {
+        const { status, needsSignIn } = useAccountStore.getState();
+        if (status === 'signedIn' && !needsSignIn) void UserService.refreshProfile().catch(() => undefined);
+      };
+      window.addEventListener('online', onOnline);
+      return () => {
+        off();
+        window.removeEventListener('online', onOnline);
+      };
     },
 
     activate: (name, email, key, signOutOtherDevices) =>

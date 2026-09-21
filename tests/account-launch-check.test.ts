@@ -83,3 +83,32 @@ describe('launch sign-in check', () => {
     expect(api().account.refreshProfile).not.toHaveBeenCalled();
   });
 });
+
+describe('back online', () => {
+  it('asks the backend straight away, so a profile taken over meanwhile signs out', async () => {
+    const refresh = vi.fn(async () => ({ success: true }));
+    signedInOnDisk(refresh);
+    off = useAccountStore.getState().init();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(refresh).toHaveBeenCalledTimes(1);
+
+    window.dispatchEvent(new Event('online'));
+    expect(refresh).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not ask once signed out, or after the store stops listening', async () => {
+    const refresh = vi.fn(async () => ({ success: true }));
+    signedInOnDisk(refresh);
+    off = useAccountStore.getState().init();
+    await vi.advanceTimersByTimeAsync(0);
+    useAccountStore.setState({ needsSignIn: true });
+    window.dispatchEvent(new Event('online'));
+    expect(refresh).toHaveBeenCalledTimes(1);
+
+    useAccountStore.setState({ needsSignIn: false });
+    off();
+    off = undefined;
+    window.dispatchEvent(new Event('online'));
+    expect(refresh).toHaveBeenCalledTimes(1);
+  });
+});

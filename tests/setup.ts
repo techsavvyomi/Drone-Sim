@@ -56,13 +56,13 @@ beforeEach(() => {
   // Only `api` is ours to define. A file that opts into jsdom
   // (`// @vitest-environment jsdom`) has a REAL window — listeners, focus, the
   // DOM — and this used to replace the whole object, so `addEventListener`
-  // stopped being a function in every such test. A Node test still gets the bare
-  // stand-in, which is all it ever needed.
+  // stopped being a function in every such test. A Node test gets a stand-in
+  // that can hold listeners (the account store listens for `online`).
   const g = globalThis as Record<string, unknown>;
   const existing = g.window as { addEventListener?: unknown } | undefined;
   if (existing && typeof existing.addEventListener === 'function') {
     (existing as Record<string, unknown>).api = api;
   } else {
-    g.window = { api };
+    g.window = Object.assign(new EventTarget(), { api });
   }
 });
