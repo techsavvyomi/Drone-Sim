@@ -6,6 +6,7 @@ import { MakerSquirrel } from '@electron-forge/maker-squirrel';
 import { MakerZIP } from '@electron-forge/maker-zip';
 import { MakerDMG } from '@electron-forge/maker-dmg';
 import { MakerDeb } from '@electron-forge/maker-deb';
+import { MakerAppImage } from '@reforged/maker-appimage';
 import { VitePlugin } from '@electron-forge/plugin-vite';
 import { AutoUnpackNativesPlugin } from '@electron-forge/plugin-auto-unpack-natives';
 import { FusesPlugin } from '@electron-forge/plugin-fuses';
@@ -134,6 +135,21 @@ const config: ForgeConfig = {
       ['darwin'],
     ),
 
+    // The Linux download: one AppImage file that runs on double-click, no
+    // install. Cross-builds from macOS (needs `brew install squashfs`).
+    new MakerAppImage(
+      {
+        options: {
+          bin: PRODUCT,
+          name: PRODUCT,
+          productName: PRODUCT,
+          icon: 'resources/icons/icon.png',
+          categories: ['Education'],
+        },
+      },
+      ['linux'],
+    ),
+
     // The native installers, each only on the OS that can actually build it.
     // Squirrel shells out to Windows tooling (wine/mono elsewhere) and Deb to
     // dpkg/fakeroot; listing them unconditionally made `make` fail on this Mac
@@ -155,7 +171,7 @@ const config: ForgeConfig = {
       for (const result of results) {
         result.artifacts = result.artifacts.map((artifact) => {
           const ext = path.extname(artifact);
-          if (ext !== '.zip' && ext !== '.dmg') return artifact;
+          if (ext !== '.zip' && ext !== '.dmg' && ext !== '.AppImage') return artifact;
           const renamed = path.join(path.dirname(artifact), `${artifactName(result.platform, result.arch)}${ext}`);
           renameSync(artifact, renamed);
           return renamed;
@@ -236,6 +252,11 @@ const config: ForgeConfig = {
     // Remote debugging and DevTools are refused separately, in src/main.ts.
     new FusesPlugin({
       version: FuseVersion.V1,
+      // The plugin ad-hoc re-signs only arm64 after flipping, which leaves the
+      // arm64 and x64 halves of a universal build with different signature
+      // files and stops them being merged. postPackage signs the finished
+      // bundle for every macOS arch instead, so skip the per-arch signature.
+      resetAdHocDarwinSignature: false,
       [FuseV1Options.RunAsNode]: false,
       [FuseV1Options.EnableCookieEncryption]: true,
       [FuseV1Options.EnableNodeOptionsEnvironmentVariable]: false,
