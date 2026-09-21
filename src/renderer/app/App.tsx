@@ -86,6 +86,11 @@ export function App() {
   const inMission = section === 'missions' && !!activeMission;
   const inBriefedFlight = inLesson || inMission;
   const flightLike = section === 'fly' || inBriefedFlight;
+  // A lesson or mission runs to its end; Free Flight has none, so it counts as a
+  // flight only while the drone is armed. Parked on the Fly screen, a computer
+  // whose profile was taken over must still be signed out.
+  const armed = useFlightStore((s) => s.armed);
+  const midFlight = inBriefedFlight || (section === 'fly' && armed);
 
   useEffect(() => {
     void hydrate();
@@ -158,8 +163,9 @@ export function App() {
 
   // With profiles on, the simulator is used through a profile: nothing past
   // this point until someone has activated or signed in. A token that expires
-  // mid-flight waits for the flight to end: the queue holds its data meanwhile.
-  if (accountStatus === 'signedOut' || (accountStatus === 'signedIn' && needsSignIn && !flightLike)) {
+  // mid-flight waits for the flight to end (in Free Flight, for the drone to be
+  // disarmed): the queue holds its data meanwhile.
+  if (accountStatus === 'signedOut' || (accountStatus === 'signedIn' && needsSignIn && !midFlight)) {
     return <SignIn />;
   }
 
