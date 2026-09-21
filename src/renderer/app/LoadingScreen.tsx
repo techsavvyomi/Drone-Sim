@@ -30,7 +30,8 @@ export function useResourcesReady(): boolean {
   return settled || timedOut;
 }
 
-export function LoadingScreen() {
+/** `checkingSignIn`: the launch check that this computer is still signed in is out. */
+export function LoadingScreen({ checkingSignIn = false }: { checkingSignIn?: boolean }) {
   const entries = useResourceStore((s) => s.entries);
   const progress = overallProgress(entries);
   const current = currentEntry(entries);
@@ -68,7 +69,9 @@ export function LoadingScreen() {
           ))}
         </div>
         <div className="loading-row loading-detail">
-          <span>{current ? `Preparing ${current.label}…` : 'Ready'}</span>
+          <span>
+            {current ? `Preparing ${current.label}…` : checkingSignIn ? 'Checking your sign-in…' : 'Ready'}
+          </span>
           <span>
             {done} / {all.length}
             {failed > 0 ? ` · ${failed} failed` : ''}

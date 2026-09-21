@@ -73,6 +73,7 @@ export function App() {
   const activeMission = useMissionStore((s) => s.mission);
   const accountStatus = useAccountStore((s) => s.status);
   const needsSignIn = useAccountStore((s) => s.needsSignIn);
+  const verifying = useAccountStore((s) => s.verifying);
   const resourcesReady = useResourcesReady();
 
   // A running lesson or mission is a flight view: full-bleed, no nav rail.
@@ -164,9 +165,10 @@ export function App() {
 
   // Signed in (or profiles off): finish loading the models before the menu, so
   // no map opens onto files that are still arriving. Usually already done by
-  // the time someone has signed in; a returning pilot sees it at startup.
-  if (!resourcesReady) {
-    return <LoadingScreen />;
+  // the time someone has signed in; a returning pilot sees it at startup, and
+  // it also waits for the launch check that this computer is still signed in.
+  if (!resourcesReady || verifying) {
+    return <LoadingScreen checkingSignIn={verifying} />;
   }
 
   return (

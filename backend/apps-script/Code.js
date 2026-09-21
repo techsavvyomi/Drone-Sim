@@ -22,6 +22,7 @@ const AUTHENTICATED_ACTIONS_ = {
   endSession: endSession_,
   recordEvent: recordEvent_,
   recordEvents: recordEvents_,
+  signOut: signOut_,
 };
 
 function doPost(e) {
@@ -80,7 +81,9 @@ function handleRequest_(rawBody) {
     }
     return { success: false, code: 'UNKNOWN_ACTION', message: 'Unknown action: ' + action };
   } catch (err) {
-    if (err instanceof ApiError_) return { success: false, code: err.code, message: err.message };
+    if (err instanceof ApiError_) {
+      return Object.assign({ success: false, code: err.code, message: err.message }, err.extra);
+    }
     console.error('Unhandled error in ' + action + ': ' + (err && err.stack ? err.stack : err));
     return { success: false, code: 'SERVER_ERROR', message: 'Something went wrong on the server' };
   }

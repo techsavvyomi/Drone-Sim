@@ -159,7 +159,7 @@ export function ProfileScreen() {
             <b>{p.userId}</b>
             <span>{p.email}</span>
             <span>Pilot since {since}</span>
-            {p.device && <span title="This profile can only be used on this computer">🔒 {p.device.name}</span>}
+            {p.device && <span title="Signed in on this computer, one device at a time">🔒 {p.device.name}</span>}
           </span>
 
           <div className="pro-xp">

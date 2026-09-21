@@ -127,7 +127,7 @@ describe('request envelope', () => {
   });
 
   it('requires a valid token for everything but activation and login', () => {
-    for (const action of ['getUserProfile', 'getUserDashboard', 'startSession', 'endSession', 'recordEvents']) {
+    for (const action of ['getUserProfile', 'getUserDashboard', 'startSession', 'endSession', 'recordEvents', 'signOut']) {
       expect(be.call(action, {}).code, action).toBe('AUTH_INVALID');
       expect(be.call(action, {}, 'forged-token').code, action).toBe('AUTH_INVALID');
     }
@@ -211,7 +211,7 @@ describe('activation', () => {
   });
 });
 
-describe('one device per profile', () => {
+describe('one device at a time', () => {
   it('binds the profile to the computer it was activated on', () => {
     const { userId, key } = activate();
     expect(userRow(userId)).toMatchObject({ 'Device ID': DEVICE.deviceId, 'Device Name': 'Lab PC 1 (Windows)' });
@@ -220,15 +220,100 @@ describe('one device per profile', () => {
     });
   });
 
-  it('refuses another computer, by name, for sign-in and for re-activation', () => {
+  it('asks, naming the computer, before taking the profile from one still signed in', () => {
     const { key } = activate();
     const login = be.call('loginUser', { ...OTHER_DEVICE, email: 'omkar@example.com', activationKey: key });
-    expect(login).toMatchObject({ success: false, code: 'DEVICE_MISMATCH' });
+    expect(login).toMatchObject({ success: false, code: 'SIGNED_IN_ELSEWHERE', deviceName: 'Lab PC 1 (Windows)' });
     expect(login.message).toContain('Lab PC 1 (Windows)');
     const again = be.call('activateUser', { ...OTHER_DEVICE, name: 'Omkar', email: 'omkar@example.com', activationKey: key });
-    expect(again.code).toBe('DEVICE_MISMATCH');
-    // No token was issued to the refused computer.
+    expect(again).toMatchObject({ code: 'SIGNED_IN_ELSEWHERE', deviceName: 'Lab PC 1 (Windows)' });
+    // No token was issued to the computer that was asked.
     expect(be.ss.sheet('AuthTokens').objects()).toHaveLength(1);
+  });
+
+  it('never names the computer to wrong credentials', () => {
+    const { key } = activate();
+    const other = activate('Other', 'other@example.com');
+    const res = be.call('loginUser', { ...OTHER_DEVICE, email: 'omkar@example.com', activationKey: other.key });
+    expect(res.code).toBe('INVALID_CREDENTIALS');
+    expect(res.deviceName).toBeUndefined();
+    expect(be.call('loginUser', { ...OTHER_DEVICE, email: 'nobody@example.com', activationKey: key }).code).toBe(
+      'INVALID_CREDENTIALS',
+    );
+  });
+
+  it('signs the other computer out when the pilot confirms "Sign out of all devices"', () => {
+    const { userId, key, authToken: oldToken } = activate();
+    setCell('Users', (r) => r['User ID'] === userId, 'Device Bound At', new Date('2026-01-01T00:00:00Z'));
+
+    const moved = be.call('loginUser', {
+      ...OTHER_DEVICE,
+      email: 'omkar@example.com',
+      activationKey: key,
+      signOutOtherDevices: true,
+    });
+    expect(moved.success).toBe(true);
+    expect(moved.data.userId).toBe(userId);
+    expect(moved.data.profile.device.name).toBe('Home Mac (macOS)');
+    const user = userRow(userId);
+    expect(user).toMatchObject({ 'Device ID': OTHER_DEVICE.deviceId, 'Device Name': 'Home Mac (macOS)' });
+    // Device Bound At is the time of the move.
+    expect((user['Device Bound At'] as Date).getTime()).toBeGreaterThan(Date.parse('2026-01-01T00:00:00Z'));
+    // The key is untouched.
+    expect(keyRow(key)).toMatchObject({ Status: 'ACTIVATED', 'User ID': userId });
+
+    // The old computer is told where the profile went on its next request.
+    const old = be.call('getUserProfile', { userId }, oldToken);
+    expect(old.code).toBe('AUTH_INVALID');
+    expect(old.message).toContain('Home Mac (macOS)');
+    expect(be.call('getUserProfile', { userId }, moved.data.authToken).success).toBe(true);
+
+    // The sheet shows it: the old computer REVOKED, the new one the only ACTIVE.
+    const tokens = be.ss.sheet('AuthTokens').objects();
+    expect(tokens.map((t) => [t['Device ID'], t.Status])).toEqual([
+      [DEVICE.deviceId, 'REVOKED'],
+      [OTHER_DEVICE.deviceId, 'ACTIVE'],
+    ]);
+
+    // And the old computer, signing in again, is the one asked now.
+    const back = be.call('loginUser', { ...DEVICE, email: 'omkar@example.com', activationKey: key });
+    expect(back).toMatchObject({ code: 'SIGNED_IN_ELSEWHERE', deviceName: 'Home Mac (macOS)' });
+  });
+
+  it('moves without asking once the old computer has signed out', () => {
+    const { userId, key, authToken } = activate();
+    expect(be.call('signOut', {}, authToken)).toMatchObject({ success: true, data: { signedOut: true } });
+    expect(be.ss.sheet('AuthTokens').objects()[0].Status).toBe('REVOKED');
+    expect(be.call('getUserProfile', { userId }, authToken).code).toBe('AUTH_INVALID');
+
+    const moved = be.call('loginUser', { ...OTHER_DEVICE, email: 'omkar@example.com', activationKey: key });
+    expect(moved.success).toBe(true);
+    expect(userRow(userId)['Device ID']).toBe(OTHER_DEVICE.deviceId);
+  });
+
+  it('signs back in on the same computer after signing out, without asking or rebinding', () => {
+    const { userId, key, authToken } = activate();
+    const boundAt = userRow(userId)['Device Bound At'];
+    be.call('signOut', {}, authToken);
+    const again = be.call('loginUser', { ...DEVICE, email: 'omkar@example.com', activationKey: key });
+    expect(again.success).toBe(true);
+    expect(userRow(userId)['Device Bound At']).toEqual(boundAt);
+    expect(be.ss.sheet('AuthTokens').objects().map((t) => t.Status)).toEqual(['REVOKED', 'ACTIVE']);
+  });
+
+  it('keeps one ACTIVE token per profile, and leaves other profiles alone', () => {
+    const a = activate('A', 'a@example.com');
+    const b = activate('B', 'b@example.com');
+    const again = be.call('loginUser', { ...DEVICE, email: 'a@example.com', activationKey: a.key });
+    expect(again.success).toBe(true);
+    // A's first token is revoked; B's row, between A's two, is untouched.
+    expect(be.ss.sheet('AuthTokens').objects().map((t) => [t['User ID'], t.Status])).toEqual([
+      [a.userId, 'REVOKED'],
+      [b.userId, 'ACTIVE'],
+      [a.userId, 'ACTIVE'],
+    ]);
+    expect(be.call('getUserProfile', { userId: a.userId }, a.authToken).code).toBe('AUTH_INVALID');
+    expect(be.call('getUserProfile', { userId: b.userId }, b.authToken).success).toBe(true);
   });
 
   it('moves to a new computer when the admin clears the binding, and signs the old one out', () => {
@@ -243,7 +328,9 @@ describe('one device per profile', () => {
     expect(moved.success).toBe(true);
     expect(userRow(userId)['Device ID']).toBe(OTHER_DEVICE.deviceId);
     expect(be.call('getUserProfile', { userId }, moved.data.authToken).success).toBe(true);
-    expect(be.call('loginUser', { ...DEVICE, email: 'omkar@example.com', activationKey: key }).code).toBe('DEVICE_MISMATCH');
+    expect(be.call('loginUser', { ...DEVICE, email: 'omkar@example.com', activationKey: key }).code).toBe(
+      'SIGNED_IN_ELSEWHERE',
+    );
   });
 
   it('binds an account that predates device locking on its next sign-in', () => {

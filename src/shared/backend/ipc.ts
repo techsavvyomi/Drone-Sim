@@ -17,6 +17,8 @@ export interface AccountInfo {
   profile: UserProfile | null;
   /** The backend refused the stored token; the user must sign in again. */
   needsSignIn: boolean;
+  /** Why, when the backend said: e.g. the profile is now signed in on another computer. */
+  signInReason: string | null;
 }
 
 export type AccountResult =

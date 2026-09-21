@@ -58,8 +58,9 @@ const SCHEMA = {
     'Score Percent Sum',
     'Current Level',
     'Status',
-    // The one computer this profile may sign in on. Clear both to let the pilot
-    // move to a new computer: the next one to sign in is bound.
+    // The computer this profile is signed in on, one at a time. Another computer
+    // takes it over when the pilot confirms "Sign out of all devices", or straight
+    // away once this one is signed out. Clearing both frees the profile as well.
     'Device ID',
     'Device Name',
     'Device Bound At',
@@ -73,9 +74,10 @@ const SCHEMA = {
     'Activated Date',
     'Notes',
   ],
-  // One row per signed-in device. Only a SHA-256 of the token is stored, so the
-  // sheet cannot be used to impersonate anyone. Set Status to REVOKED to sign a
-  // device out.
+  // One row per sign-in. Only a SHA-256 of the token is stored, so the sheet
+  // cannot be used to impersonate anyone. At most one row per user is ACTIVE: a
+  // new sign-in, and signing out, set the others REVOKED, so the rows are the
+  // profile's sign-in history. Set Status to REVOKED to sign a device out.
   [SHEET.TOKENS]: ['Token Hash', 'User ID', 'Device ID', 'Created Date', 'Last Used', 'Status'],
   [SHEET.SESSIONS]: [
     'Session ID',
@@ -292,6 +294,10 @@ function table_(name) {
   return tableCache_[name];
 }
 
+// Every Sheets call is a round trip to Google that costs 0.5-1.5 s on the live
+// deployment, so a table is read ONCE: headers and rows in one getValues. An
+// activation used to spend 20+ calls (last column, header row, last row, data,
+// per sheet) and ran past the client's timeout.
 function Table_(name) {
   let sheet = spreadsheet_().getSheetByName(name);
   // A table added in a later version is created on first use, like a column.
@@ -299,11 +305,10 @@ function Table_(name) {
   if (!sheet) throw new Error('Missing sheet "' + name + '". Run setupDatabase.');
   this.name = name;
   this.sheet = sheet;
-  const width = Math.max(sheet.getLastColumn(), 1);
-  this.headers = sheet
-    .getRange(1, 1, 1, width)
-    .getValues()[0]
-    .map((h) => String(h).trim());
+  const values = sheet.getDataRange().getValues();
+  this.headers = (values[0] || ['']).map((h) => String(h).trim());
+  // The sheet's last row, so an append needs no getLastRow of its own.
+  this.lastRow = values.length > 1 || this.headers.some((h) => h !== '') ? values.length : 0;
   // A column added to the schema in a later version is added to the sheet the
   // first time it is needed, so deploying new code never breaks a live sheet
   // that `setupDatabase` has not been re-run on.
@@ -313,29 +318,28 @@ function Table_(name) {
     sheet.getRange(1, used + 1, 1, missing.length).setValues([missing]);
     this.headers = this.headers.slice(0, used).concat(missing);
   }
-  this.rowsCache = null;
+  this.rowsCache = this.toObjects_(values);
 }
 
-/** All data rows as objects. `_row` is the 1-based sheet row. */
-Table_.prototype.rows = function () {
-  if (this.rowsCache) return this.rowsCache;
-  const last = this.sheet.getLastRow();
+/** Data rows (everything under the header) as objects. `_row` is the 1-based sheet row. */
+Table_.prototype.toObjects_ = function (values) {
   const out = [];
-  if (last >= 2) {
-    const values = this.sheet.getRange(2, 1, last - 1, this.headers.length).getValues();
-    for (let i = 0; i < values.length; i++) {
-      const obj = { _row: i + 2 };
-      let blank = true;
-      for (let c = 0; c < this.headers.length; c++) {
-        const v = values[i][c];
-        if (v !== '' && v !== null) blank = false;
-        if (this.headers[c]) obj[this.headers[c]] = v;
-      }
-      if (!blank) out.push(obj);
+  for (let i = 1; i < values.length; i++) {
+    const obj = { _row: i + 1 };
+    let blank = true;
+    for (let c = 0; c < this.headers.length; c++) {
+      const v = c < values[i].length ? values[i][c] : '';
+      if (v !== '' && v !== null) blank = false;
+      if (this.headers[c]) obj[this.headers[c]] = v;
     }
+    if (!blank) out.push(obj);
   }
-  this.rowsCache = out;
   return out;
+};
+
+/** All data rows as objects. */
+Table_.prototype.rows = function () {
+  return this.rowsCache;
 };
 
 Table_.prototype.find = function (predicate) {
@@ -357,14 +361,13 @@ Table_.prototype.append = function (objs) {
   const list = Array.isArray(objs) ? objs : [objs];
   if (list.length === 0) return;
   const values = list.map((o) => this.toValues_(o));
-  const start = this.sheet.getLastRow() + 1;
+  const start = Math.max(this.lastRow, 1) + 1;
   this.sheet.getRange(start, 1, values.length, this.headers.length).setValues(values);
-  if (this.rowsCache) {
-    list.forEach((o, i) => {
-      const copy = Object.assign({}, o, { _row: start + i });
-      this.rowsCache.push(copy);
-    });
-  }
+  this.lastRow = start + values.length - 1;
+  list.forEach((o, i) => {
+    const copy = Object.assign({}, o, { _row: start + i });
+    this.rowsCache.push(copy);
+  });
 };
 
 /** Write the given fields of an existing row object back to its sheet row. */
@@ -372,6 +375,30 @@ Table_.prototype.update = function (row, patch) {
   Object.assign(row, patch);
   const values = [this.headers.map((h) => (h && row[h] !== undefined ? cellSafe_(row[h]) : ''))];
   this.sheet.getRange(row._row, 1, 1, this.headers.length).setValues(values);
+};
+
+/**
+ * Set one column of several rows in a single write, rather than a round trip
+ * per row: the column's cells from the first of them to the last, the rows in
+ * between written back as they were read. Hold the script lock around the read
+ * and this write, or a row in between could lose a concurrent change.
+ */
+Table_.prototype.updateColumn = function (rows, column, value) {
+  if (rows.length === 0) return;
+  const col = this.headers.indexOf(column);
+  if (col < 0) throw new Error('No column "' + column + '" in ' + this.name);
+  rows.forEach((r) => (r[column] = value));
+  const byRow = {};
+  this.rowsCache.forEach((r) => (byRow[r._row] = r));
+  const numbers = rows.map((r) => r._row);
+  const first = Math.min.apply(null, numbers);
+  const last = Math.max.apply(null, numbers);
+  const values = [];
+  for (let n = first; n <= last; n++) {
+    const row = byRow[n];
+    values.push([row && row[column] !== undefined ? cellSafe_(row[column]) : '']);
+  }
+  this.sheet.getRange(first, col + 1, values.length, 1).setValues(values);
 };
 
 // ---------------------------------------------------------------------------
@@ -451,13 +478,15 @@ function dayKey_(date) {
 // comes from the auth token, points and levels are computed here, and catalog
 // ids are checked against the catalog sheets.
 
-function ApiError_(code, message) {
+/** `extra` fields go into the error envelope beside `code` and `message`. */
+function ApiError_(code, message, extra) {
   this.code = code;
   this.message = message;
+  this.extra = extra;
 }
 
-function fail_(code, message) {
-  throw new ApiError_(code, message);
+function fail_(code, message, extra) {
+  throw new ApiError_(code, message, extra);
 }
 
 const FLIGHT_TYPES_ = ['TRAINING', 'MISSION', 'FREE_FLIGHT'];
@@ -558,33 +587,51 @@ function device_(payload) {
 }
 
 /**
- * One profile, one computer.
+ * One profile, one computer at a time.
  *
- * The first computer to sign in binds the profile; any other is refused until an
- * admin clears `Device ID` in the Users sheet, after which the next computer to
- * sign in is bound instead. Returns the patch that records a new binding.
+ * The profile is bound to the computer it last signed in on. Another computer
+ * takes it over straight away when that one is signed out, and only with
+ * `signOutOthers` (the pilot confirmed "Sign out of all devices") while it is
+ * still signed in; until then SIGNED_IN_ELSEWHERE names it so the app can ask.
+ * The old computer's tokens are revoked by issueToken_, and a token for a
+ * computer the profile is no longer bound to is refused by authenticate_.
+ * Returns the patch that records a new binding.
  */
-function bindDevice_(user, device, now) {
+function bindDevice_(user, device, now, signOutOthers) {
   const bound = cell_(user['Device ID']);
-  if (!bound) {
-    return { 'Device ID': device.id, 'Device Name': device.name, 'Device Bound At': now };
+  if (bound === device.id) {
+    return cell_(user['Device Name']) === device.name ? {} : { 'Device Name': device.name };
   }
-  if (bound !== device.id) {
+  const boundSignedIn = activeTokens_(user['User ID']).some((t) => cell_(t['Device ID']) === bound);
+  if (bound && boundSignedIn && !signOutOthers) {
     const where = cell_(user['Device Name']) || 'another computer';
     fail_(
-      'DEVICE_MISMATCH',
-      'This profile is locked to ' + where + '. Ask your administrator to move it to this computer.',
+      'SIGNED_IN_ELSEWHERE',
+      'This profile is signed in on ' + where + '. Update PlutoSim to sign it out there and continue here.',
+      { deviceName: where },
     );
   }
-  return cell_(user['Device Name']) === device.name ? {} : { 'Device Name': device.name };
+  return { 'Device ID': device.id, 'Device Name': device.name, 'Device Bound At': now };
+}
+
+function activeTokens_(userId) {
+  return table_(SHEET.TOKENS).filter(
+    (r) => cell_(r['User ID']) === cell_(userId) && cell_(r.Status) === 'ACTIVE',
+  );
 }
 
 function newToken_() {
   return (Utilities.getUuid() + Utilities.getUuid()).replace(/-/g, '');
 }
 
+/**
+ * Sign a computer in. Its token becomes the profile's only ACTIVE one: every
+ * other is revoked, including older ones from this same computer, so the
+ * AuthTokens sheet reads as the profile's sign-in status and history.
+ */
 function issueToken_(userId, deviceId, now) {
   const token = newToken_();
+  table_(SHEET.TOKENS).updateColumn(activeTokens_(userId), 'Status', 'REVOKED');
   table_(SHEET.TOKENS).append({
     'Token Hash': sha256_(token),
     'User ID': userId,
@@ -601,15 +648,24 @@ function authenticate_(authToken) {
   if (!authToken || typeof authToken !== 'string') fail_('AUTH_INVALID', 'Sign in required');
   const hash = sha256_(authToken);
   const token = table_(SHEET.TOKENS).find((r) => r['Token Hash'] === hash);
-  if (!token || token.Status !== 'ACTIVE') fail_('AUTH_INVALID', 'Session expired. Sign in again.');
+  if (!token) fail_('AUTH_INVALID', 'Session expired. Sign in again.');
   const user = table_(SHEET.USERS).find((r) => r['User ID'] === token['User ID']);
   if (!user) fail_('AUTH_INVALID', 'Account not found. Sign in again.');
-  if (user.Status !== 'ACTIVE') fail_('USER_INACTIVE', 'This account has been deactivated');
-  // A token only works on the computer the profile is bound to. Moving the
-  // profile to another computer (or clearing the binding) signs this one out.
+  // A token only works on the computer the profile is bound to. Another
+  // computer taking the profile over (or an admin clearing the binding) signs
+  // this one out, and says where the profile went. Checked before Status: the
+  // takeover also revoked this token, and "expired" would not explain it.
   if (cell_(token['Device ID']) !== cell_(user['Device ID'])) {
-    fail_('AUTH_INVALID', 'This profile has been moved to another computer. Sign in again.');
+    const where = cell_(user['Device Name']);
+    fail_(
+      'AUTH_INVALID',
+      where
+        ? 'This profile is now signed in on ' + where + '. Sign in again to use it here.'
+        : 'This profile has been moved to another computer. Sign in again.',
+    );
   }
+  if (cell_(token.Status) !== 'ACTIVE') fail_('AUTH_INVALID', 'Session expired. Sign in again.');
+  if (user.Status !== 'ACTIVE') fail_('USER_INACTIVE', 'This account has been deactivated');
   return { user: user, token: token };
 }
 
@@ -635,7 +691,9 @@ function assertSelf_(payload, user) {
 function checkThrottle_(email) {
   const cache = CacheService.getScriptCache();
   const count = Number(cache.get('authfail:' + email) || 0);
-  if (count >= setting_('MAX_LOGIN_FAILURES', 10)) {
+  // Only read the limit when there is something to compare: this runs before
+  // the lock, whose table reset would make the Settings read a wasted round trip.
+  if (count > 0 && count >= setting_('MAX_LOGIN_FAILURES', 10)) {
     fail_('VALIDATION', 'Too many failed attempts. Try again in 15 minutes.');
   }
 }
@@ -738,7 +796,8 @@ function activateUser_(payload) {
         const existing = users.find((r) => cell_(r['User ID']) === cell_(keyRow['User ID']));
         if (!existing) fail_('SERVER_ERROR', 'Activated key has no user. Contact the admin.');
         if (existing.Status !== 'ACTIVE') fail_('USER_INACTIVE', 'This account has been deactivated');
-        users.update(existing, Object.assign({ 'Last Active': now }, bindDevice_(existing, device, now)));
+        const binding = bindDevice_(existing, device, now, signOutOthers_(payload));
+        users.update(existing, Object.assign({ 'Last Active': now }, binding));
         return {
           userId: existing['User ID'],
           authToken: issueToken_(existing['User ID'], device.id, now),
@@ -821,7 +880,8 @@ function loginUser_(payload) {
       if (keyRow.Status === 'DISABLED') fail_('KEY_DISABLED', 'That activation key has been disabled');
       if (user.Status !== 'ACTIVE') fail_('USER_INACTIVE', 'This account has been deactivated');
 
-      table_(SHEET.USERS).update(user, Object.assign({ 'Last Active': now }, bindDevice_(user, device, now)));
+      const binding = bindDevice_(user, device, now, signOutOthers_(payload));
+      table_(SHEET.USERS).update(user, Object.assign({ 'Last Active': now }, binding));
       return {
         userId: user['User ID'],
         authToken: issueToken_(user['User ID'], device.id, now),
@@ -829,6 +889,24 @@ function loginUser_(payload) {
       };
     }),
   );
+}
+
+/** The pilot confirmed "Sign out of all devices" for a profile signed in elsewhere. */
+function signOutOthers_(payload) {
+  return payload.signOutOtherDevices === true;
+}
+
+/**
+ * Sign this computer out: revoke the caller's token, so the sheet shows it and
+ * the next computer to sign in does so without being asked.
+ */
+function signOut_(payload, auth) {
+  return withLock_(() => {
+    const hash = auth.token['Token Hash'];
+    const token = table_(SHEET.TOKENS).find((r) => r['Token Hash'] === hash);
+    if (token) table_(SHEET.TOKENS).updateColumn([token], 'Status', 'REVOKED');
+    return { signedOut: true };
+  });
 }
 
 function getUserProfile_(payload, auth) {
@@ -1262,6 +1340,7 @@ const AUTHENTICATED_ACTIONS_ = {
   endSession: endSession_,
   recordEvent: recordEvent_,
   recordEvents: recordEvents_,
+  signOut: signOut_,
 };
 
 function doPost(e) {
@@ -1320,7 +1399,9 @@ function handleRequest_(rawBody) {
     }
     return { success: false, code: 'UNKNOWN_ACTION', message: 'Unknown action: ' + action };
   } catch (err) {
-    if (err instanceof ApiError_) return { success: false, code: err.code, message: err.message };
+    if (err instanceof ApiError_) {
+      return Object.assign({ success: false, code: err.code, message: err.message }, err.extra);
+    }
     console.error('Unhandled error in ' + action + ': ' + (err && err.stack ? err.stack : err));
     return { success: false, code: 'SERVER_ERROR', message: 'Something went wrong on the server' };
   }

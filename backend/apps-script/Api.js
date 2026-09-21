@@ -10,13 +10,15 @@
 // comes from the auth token, points and levels are computed here, and catalog
 // ids are checked against the catalog sheets.
 
-function ApiError_(code, message) {
+/** `extra` fields go into the error envelope beside `code` and `message`. */
+function ApiError_(code, message, extra) {
   this.code = code;
   this.message = message;
+  this.extra = extra;
 }
 
-function fail_(code, message) {
-  throw new ApiError_(code, message);
+function fail_(code, message, extra) {
+  throw new ApiError_(code, message, extra);
 }
 
 const FLIGHT_TYPES_ = ['TRAINING', 'MISSION', 'FREE_FLIGHT'];
@@ -117,33 +119,51 @@ function device_(payload) {
 }
 
 /**
- * One profile, one computer.
+ * One profile, one computer at a time.
  *
- * The first computer to sign in binds the profile; any other is refused until an
- * admin clears `Device ID` in the Users sheet, after which the next computer to
- * sign in is bound instead. Returns the patch that records a new binding.
+ * The profile is bound to the computer it last signed in on. Another computer
+ * takes it over straight away when that one is signed out, and only with
+ * `signOutOthers` (the pilot confirmed "Sign out of all devices") while it is
+ * still signed in; until then SIGNED_IN_ELSEWHERE names it so the app can ask.
+ * The old computer's tokens are revoked by issueToken_, and a token for a
+ * computer the profile is no longer bound to is refused by authenticate_.
+ * Returns the patch that records a new binding.
  */
-function bindDevice_(user, device, now) {
+function bindDevice_(user, device, now, signOutOthers) {
   const bound = cell_(user['Device ID']);
-  if (!bound) {
-    return { 'Device ID': device.id, 'Device Name': device.name, 'Device Bound At': now };
+  if (bound === device.id) {
+    return cell_(user['Device Name']) === device.name ? {} : { 'Device Name': device.name };
   }
-  if (bound !== device.id) {
+  const boundSignedIn = activeTokens_(user['User ID']).some((t) => cell_(t['Device ID']) === bound);
+  if (bound && boundSignedIn && !signOutOthers) {
     const where = cell_(user['Device Name']) || 'another computer';
     fail_(
-      'DEVICE_MISMATCH',
-      'This profile is locked to ' + where + '. Ask your administrator to move it to this computer.',
+      'SIGNED_IN_ELSEWHERE',
+      'This profile is signed in on ' + where + '. Update PlutoSim to sign it out there and continue here.',
+      { deviceName: where },
     );
   }
-  return cell_(user['Device Name']) === device.name ? {} : { 'Device Name': device.name };
+  return { 'Device ID': device.id, 'Device Name': device.name, 'Device Bound At': now };
+}
+
+function activeTokens_(userId) {
+  return table_(SHEET.TOKENS).filter(
+    (r) => cell_(r['User ID']) === cell_(userId) && cell_(r.Status) === 'ACTIVE',
+  );
 }
 
 function newToken_() {
   return (Utilities.getUuid() + Utilities.getUuid()).replace(/-/g, '');
 }
 
+/**
+ * Sign a computer in. Its token becomes the profile's only ACTIVE one: every
+ * other is revoked, including older ones from this same computer, so the
+ * AuthTokens sheet reads as the profile's sign-in status and history.
+ */
 function issueToken_(userId, deviceId, now) {
   const token = newToken_();
+  table_(SHEET.TOKENS).updateColumn(activeTokens_(userId), 'Status', 'REVOKED');
   table_(SHEET.TOKENS).append({
     'Token Hash': sha256_(token),
     'User ID': userId,
@@ -160,15 +180,24 @@ function authenticate_(authToken) {
   if (!authToken || typeof authToken !== 'string') fail_('AUTH_INVALID', 'Sign in required');
   const hash = sha256_(authToken);
   const token = table_(SHEET.TOKENS).find((r) => r['Token Hash'] === hash);
-  if (!token || token.Status !== 'ACTIVE') fail_('AUTH_INVALID', 'Session expired. Sign in again.');
+  if (!token) fail_('AUTH_INVALID', 'Session expired. Sign in again.');
   const user = table_(SHEET.USERS).find((r) => r['User ID'] === token['User ID']);
   if (!user) fail_('AUTH_INVALID', 'Account not found. Sign in again.');
-  if (user.Status !== 'ACTIVE') fail_('USER_INACTIVE', 'This account has been deactivated');
-  // A token only works on the computer the profile is bound to. Moving the
-  // profile to another computer (or clearing the binding) signs this one out.
+  // A token only works on the computer the profile is bound to. Another
+  // computer taking the profile over (or an admin clearing the binding) signs
+  // this one out, and says where the profile went. Checked before Status: the
+  // takeover also revoked this token, and "expired" would not explain it.
   if (cell_(token['Device ID']) !== cell_(user['Device ID'])) {
-    fail_('AUTH_INVALID', 'This profile has been moved to another computer. Sign in again.');
+    const where = cell_(user['Device Name']);
+    fail_(
+      'AUTH_INVALID',
+      where
+        ? 'This profile is now signed in on ' + where + '. Sign in again to use it here.'
+        : 'This profile has been moved to another computer. Sign in again.',
+    );
   }
+  if (cell_(token.Status) !== 'ACTIVE') fail_('AUTH_INVALID', 'Session expired. Sign in again.');
+  if (user.Status !== 'ACTIVE') fail_('USER_INACTIVE', 'This account has been deactivated');
   return { user: user, token: token };
 }
 
@@ -194,7 +223,9 @@ function assertSelf_(payload, user) {
 function checkThrottle_(email) {
   const cache = CacheService.getScriptCache();
   const count = Number(cache.get('authfail:' + email) || 0);
-  if (count >= setting_('MAX_LOGIN_FAILURES', 10)) {
+  // Only read the limit when there is something to compare: this runs before
+  // the lock, whose table reset would make the Settings read a wasted round trip.
+  if (count > 0 && count >= setting_('MAX_LOGIN_FAILURES', 10)) {
     fail_('VALIDATION', 'Too many failed attempts. Try again in 15 minutes.');
   }
 }
@@ -297,7 +328,8 @@ function activateUser_(payload) {
         const existing = users.find((r) => cell_(r['User ID']) === cell_(keyRow['User ID']));
         if (!existing) fail_('SERVER_ERROR', 'Activated key has no user. Contact the admin.');
         if (existing.Status !== 'ACTIVE') fail_('USER_INACTIVE', 'This account has been deactivated');
-        users.update(existing, Object.assign({ 'Last Active': now }, bindDevice_(existing, device, now)));
+        const binding = bindDevice_(existing, device, now, signOutOthers_(payload));
+        users.update(existing, Object.assign({ 'Last Active': now }, binding));
         return {
           userId: existing['User ID'],
           authToken: issueToken_(existing['User ID'], device.id, now),
@@ -380,7 +412,8 @@ function loginUser_(payload) {
       if (keyRow.Status === 'DISABLED') fail_('KEY_DISABLED', 'That activation key has been disabled');
       if (user.Status !== 'ACTIVE') fail_('USER_INACTIVE', 'This account has been deactivated');
 
-      table_(SHEET.USERS).update(user, Object.assign({ 'Last Active': now }, bindDevice_(user, device, now)));
+      const binding = bindDevice_(user, device, now, signOutOthers_(payload));
+      table_(SHEET.USERS).update(user, Object.assign({ 'Last Active': now }, binding));
       return {
         userId: user['User ID'],
         authToken: issueToken_(user['User ID'], device.id, now),
@@ -388,6 +421,24 @@ function loginUser_(payload) {
       };
     }),
   );
+}
+
+/** The pilot confirmed "Sign out of all devices" for a profile signed in elsewhere. */
+function signOutOthers_(payload) {
+  return payload.signOutOtherDevices === true;
+}
+
+/**
+ * Sign this computer out: revoke the caller's token, so the sheet shows it and
+ * the next computer to sign in does so without being asked.
+ */
+function signOut_(payload, auth) {
+  return withLock_(() => {
+    const hash = auth.token['Token Hash'];
+    const token = table_(SHEET.TOKENS).find((r) => r['Token Hash'] === hash);
+    if (token) table_(SHEET.TOKENS).updateColumn([token], 'Status', 'REVOKED');
+    return { signedOut: true };
+  });
 }
 
 function getUserProfile_(payload, auth) {

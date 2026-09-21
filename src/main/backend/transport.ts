@@ -65,6 +65,8 @@ export async function sendRequest<A extends ApiAction>(
     }
   } catch (e) {
     const aborted = (e as Error)?.name === 'AbortError';
+    // The renderer only sees NETWORK; the cause is what a support log needs.
+    console.warn(`[backend] ${action} failed:`, aborted ? `no answer in ${opts.timeoutMs ?? 30000} ms` : e);
     return error('NETWORK', aborted ? 'The backend did not answer in time' : 'Could not reach the backend');
   } finally {
     clearTimeout(timer);

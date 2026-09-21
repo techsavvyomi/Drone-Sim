@@ -79,7 +79,7 @@ export interface OutboxDeps {
     authToken?: string,
   ) => Promise<ApiResponse<ApiActions[A]['response']>>;
   tokenFor: (userId: string) => string | undefined;
-  onAuthInvalid?: (userId: string) => void;
+  onAuthInvalid?: (userId: string, message: string) => void;
   onSessionEnded?: (userId: string, result: EndSessionResult) => void;
   /** Injected for tests. */
   setTimer?: (fn: () => void, ms: number) => unknown;
@@ -365,7 +365,7 @@ export class Outbox {
       if ((res.code === 'AUTH_INVALID' || res.code === 'USER_INACTIVE') && item.userId !== null) {
         this.blocked.add(item.userId);
         this.lastError = res.message;
-        this.deps.onAuthInvalid?.(item.userId);
+        this.deps.onAuthInvalid?.(item.userId, res.message);
         index += 1;
         continue;
       }

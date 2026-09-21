@@ -81,7 +81,15 @@ export type ApiErrorCode =
   | 'KEY_DISABLED'
   | 'EMAIL_ALREADY_REGISTERED'
   | 'INVALID_CREDENTIALS'
-  /** The profile is bound to a different computer. An admin must release it. */
+  /**
+   * The profile is signed in on another computer. The app offers "Sign out of
+   * all devices", which signs in again with `signOutOtherDevices`.
+   */
+  | 'SIGNED_IN_ELSEWHERE'
+  /**
+   * From a backend older than SIGNED_IN_ELSEWHERE: the profile was locked to
+   * another computer until an admin released it. The message names it.
+   */
   | 'DEVICE_MISMATCH'
   | 'USER_INACTIVE'
   /** Missing, unknown or revoked auth token. The client must sign in again. */
@@ -97,6 +105,8 @@ export interface ApiError {
   success: false;
   code: ApiErrorCode;
   message: string;
+  /** SIGNED_IN_ELSEWHERE: the computer the profile is signed in on. */
+  deviceName?: string;
 }
 
 export interface ApiSuccess<T> {
@@ -142,7 +152,7 @@ export interface UserProfile {
   status: UserStatus;
   registeredAt: string;
   lastActiveAt: string;
-  /** The computer this profile is locked to, or null before the first sign-in. */
+  /** The computer this profile last signed in on, or null before the first sign-in. */
   device: { name: string; boundAt: string } | null;
   stats: UserStats;
 }
@@ -152,8 +162,9 @@ export interface UserProfile {
 // ---------------------------------------------------------------------------
 
 /**
- * The computer a sign-in comes from. A profile is bound to the first one and
- * refused on any other (DEVICE_MISMATCH) until an admin releases it.
+ * The computer a sign-in comes from. A profile is signed in on one computer at a
+ * time: another one gets SIGNED_IN_ELSEWHERE while it is, and takes the profile
+ * over with `signOutOtherDevices`, which signs the first one out.
  */
 export interface DeviceInfo {
   /** Stable random id for this installation. */
@@ -166,11 +177,22 @@ export interface ActivateUserRequest extends DeviceInfo {
   name: string;
   email: string;
   activationKey: string;
+  /** Sign the profile out of every other computer (after SIGNED_IN_ELSEWHERE). */
+  signOutOtherDevices?: boolean;
 }
 
 export interface LoginUserRequest extends DeviceInfo {
   email: string;
   activationKey: string;
+  /** Sign the profile out of every other computer (after SIGNED_IN_ELSEWHERE). */
+  signOutOtherDevices?: boolean;
+}
+
+/** Revokes the caller's token. Nothing to send; the token says who. */
+export type SignOutRequest = Record<string, never>;
+
+export interface SignOutResult {
+  signedOut: true;
 }
 
 /** What activation and login both hand back. */
@@ -423,6 +445,7 @@ export interface ApiActions {
   endSession: { request: EndSessionRequest; response: EndSessionResult };
   recordEvent: { request: RecordEventRequest; response: RecordEventsResult };
   recordEvents: { request: RecordEventsRequest; response: RecordEventsResult };
+  signOut: { request: SignOutRequest; response: SignOutResult };
   /** Works signed out too: a crash on the sign-in screen still matters. */
   reportCrashes: { request: ReportCrashesRequest; response: ReportCrashesResult };
 }

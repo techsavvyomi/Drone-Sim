@@ -45,8 +45,9 @@ const SCHEMA = {
     'Score Percent Sum',
     'Current Level',
     'Status',
-    // The one computer this profile may sign in on. Clear both to let the pilot
-    // move to a new computer: the next one to sign in is bound.
+    // The computer this profile is signed in on, one at a time. Another computer
+    // takes it over when the pilot confirms "Sign out of all devices", or straight
+    // away once this one is signed out. Clearing both frees the profile as well.
     'Device ID',
     'Device Name',
     'Device Bound At',
@@ -60,9 +61,10 @@ const SCHEMA = {
     'Activated Date',
     'Notes',
   ],
-  // One row per signed-in device. Only a SHA-256 of the token is stored, so the
-  // sheet cannot be used to impersonate anyone. Set Status to REVOKED to sign a
-  // device out.
+  // One row per sign-in. Only a SHA-256 of the token is stored, so the sheet
+  // cannot be used to impersonate anyone. At most one row per user is ACTIVE: a
+  // new sign-in, and signing out, set the others REVOKED, so the rows are the
+  // profile's sign-in history. Set Status to REVOKED to sign a device out.
   [SHEET.TOKENS]: ['Token Hash', 'User ID', 'Device ID', 'Created Date', 'Last Used', 'Status'],
   [SHEET.SESSIONS]: [
     'Session ID',

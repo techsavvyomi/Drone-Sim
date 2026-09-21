@@ -44,6 +44,8 @@ function fromProfile(p: UserProfile): PilotStanding {
 export function usePilotStanding(): PilotStanding {
   const pilot = usePilotStore();
   const profile = useAccountStore((s) => (s.status === 'signedIn' ? s.profile : null));
-  if (profile) return fromProfile(profile);
+  // The main process only stores whole profiles; this is the last guard, since a
+  // throw here takes the whole window down.
+  if (profile?.levelPoints) return fromProfile(profile);
   return { name: pilot.callsign, rank: pilot.rank, current: pilot.xp, next: pilot.xpNext, unit: 'XP' };
 }

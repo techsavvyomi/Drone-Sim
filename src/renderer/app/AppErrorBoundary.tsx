@@ -32,10 +32,7 @@ export class AppErrorBoundary extends Component<{ children: ReactNode }, State> 
         <div className="app-crash-card">
           <span className="app-crash-tag">System fault</span>
           <h1>Something went wrong</h1>
-          <p>
-            The simulator hit an error and stopped this screen. A crash report has been sent so it can be fixed.
-          </p>
-          <code>{error.message}</code>
+          {/* The error itself goes in the crash report, not in front of the pilot. */}
           <button className="pro-btn" onClick={() => window.location.reload()}>
             Reload simulator
           </button>

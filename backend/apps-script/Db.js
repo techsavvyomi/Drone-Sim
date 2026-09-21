@@ -49,6 +49,10 @@ function table_(name) {
   return tableCache_[name];
 }
 
+// Every Sheets call is a round trip to Google that costs 0.5-1.5 s on the live
+// deployment, so a table is read ONCE: headers and rows in one getValues. An
+// activation used to spend 20+ calls (last column, header row, last row, data,
+// per sheet) and ran past the client's timeout.
 function Table_(name) {
   let sheet = spreadsheet_().getSheetByName(name);
   // A table added in a later version is created on first use, like a column.
@@ -56,11 +60,10 @@ function Table_(name) {
   if (!sheet) throw new Error('Missing sheet "' + name + '". Run setupDatabase.');
   this.name = name;
   this.sheet = sheet;
-  const width = Math.max(sheet.getLastColumn(), 1);
-  this.headers = sheet
-    .getRange(1, 1, 1, width)
-    .getValues()[0]
-    .map((h) => String(h).trim());
+  const values = sheet.getDataRange().getValues();
+  this.headers = (values[0] || ['']).map((h) => String(h).trim());
+  // The sheet's last row, so an append needs no getLastRow of its own.
+  this.lastRow = values.length > 1 || this.headers.some((h) => h !== '') ? values.length : 0;
   // A column added to the schema in a later version is added to the sheet the
   // first time it is needed, so deploying new code never breaks a live sheet
   // that `setupDatabase` has not been re-run on.
@@ -70,29 +73,28 @@ function Table_(name) {
     sheet.getRange(1, used + 1, 1, missing.length).setValues([missing]);
     this.headers = this.headers.slice(0, used).concat(missing);
   }
-  this.rowsCache = null;
+  this.rowsCache = this.toObjects_(values);
 }
 
-/** All data rows as objects. `_row` is the 1-based sheet row. */
-Table_.prototype.rows = function () {
-  if (this.rowsCache) return this.rowsCache;
-  const last = this.sheet.getLastRow();
+/** Data rows (everything under the header) as objects. `_row` is the 1-based sheet row. */
+Table_.prototype.toObjects_ = function (values) {
   const out = [];
-  if (last >= 2) {
-    const values = this.sheet.getRange(2, 1, last - 1, this.headers.length).getValues();
-    for (let i = 0; i < values.length; i++) {
-      const obj = { _row: i + 2 };
-      let blank = true;
-      for (let c = 0; c < this.headers.length; c++) {
-        const v = values[i][c];
-        if (v !== '' && v !== null) blank = false;
-        if (this.headers[c]) obj[this.headers[c]] = v;
-      }
-      if (!blank) out.push(obj);
+  for (let i = 1; i < values.length; i++) {
+    const obj = { _row: i + 1 };
+    let blank = true;
+    for (let c = 0; c < this.headers.length; c++) {
+      const v = c < values[i].length ? values[i][c] : '';
+      if (v !== '' && v !== null) blank = false;
+      if (this.headers[c]) obj[this.headers[c]] = v;
     }
+    if (!blank) out.push(obj);
   }
-  this.rowsCache = out;
   return out;
+};
+
+/** All data rows as objects. */
+Table_.prototype.rows = function () {
+  return this.rowsCache;
 };
 
 Table_.prototype.find = function (predicate) {
@@ -114,14 +116,13 @@ Table_.prototype.append = function (objs) {
   const list = Array.isArray(objs) ? objs : [objs];
   if (list.length === 0) return;
   const values = list.map((o) => this.toValues_(o));
-  const start = this.sheet.getLastRow() + 1;
+  const start = Math.max(this.lastRow, 1) + 1;
   this.sheet.getRange(start, 1, values.length, this.headers.length).setValues(values);
-  if (this.rowsCache) {
-    list.forEach((o, i) => {
-      const copy = Object.assign({}, o, { _row: start + i });
-      this.rowsCache.push(copy);
-    });
-  }
+  this.lastRow = start + values.length - 1;
+  list.forEach((o, i) => {
+    const copy = Object.assign({}, o, { _row: start + i });
+    this.rowsCache.push(copy);
+  });
 };
 
 /** Write the given fields of an existing row object back to its sheet row. */
@@ -129,6 +130,30 @@ Table_.prototype.update = function (row, patch) {
   Object.assign(row, patch);
   const values = [this.headers.map((h) => (h && row[h] !== undefined ? cellSafe_(row[h]) : ''))];
   this.sheet.getRange(row._row, 1, 1, this.headers.length).setValues(values);
+};
+
+/**
+ * Set one column of several rows in a single write, rather than a round trip
+ * per row: the column's cells from the first of them to the last, the rows in
+ * between written back as they were read. Hold the script lock around the read
+ * and this write, or a row in between could lose a concurrent change.
+ */
+Table_.prototype.updateColumn = function (rows, column, value) {
+  if (rows.length === 0) return;
+  const col = this.headers.indexOf(column);
+  if (col < 0) throw new Error('No column "' + column + '" in ' + this.name);
+  rows.forEach((r) => (r[column] = value));
+  const byRow = {};
+  this.rowsCache.forEach((r) => (byRow[r._row] = r));
+  const numbers = rows.map((r) => r._row);
+  const first = Math.min.apply(null, numbers);
+  const last = Math.max.apply(null, numbers);
+  const values = [];
+  for (let n = first; n <= last; n++) {
+    const row = byRow[n];
+    values.push([row && row[column] !== undefined ? cellSafe_(row[column]) : '']);
+  }
+  this.sheet.getRange(first, col + 1, values.length, 1).setValues(values);
 };
 
 // ---------------------------------------------------------------------------

@@ -21,18 +21,26 @@ export const UserService = {
     return profileBackend().account.get();
   },
 
-  activate(name: string, email: string, activationKey: string): Promise<AccountResult> {
+  /** `signOutOtherDevices` after SIGNED_IN_ELSEWHERE, once the pilot has confirmed. */
+  activate(
+    name: string,
+    email: string,
+    activationKey: string,
+    signOutOtherDevices = false,
+  ): Promise<AccountResult> {
     return profileBackend().account.activate({
       name: name.trim(),
       email: email.trim().toLowerCase(),
       activationKey: normaliseActivationKey(activationKey),
+      signOutOtherDevices,
     });
   },
 
-  login(email: string, activationKey: string): Promise<AccountResult> {
+  login(email: string, activationKey: string, signOutOtherDevices = false): Promise<AccountResult> {
     return profileBackend().account.login({
       email: email.trim().toLowerCase(),
       activationKey: normaliseActivationKey(activationKey),
+      signOutOtherDevices,
     });
   },
 

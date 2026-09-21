@@ -56,6 +56,11 @@ export class FakeSheet {
     return new FakeRange(this, row, col, numRows, numCols);
   }
 
+  /** Like Apps Script: A1 through the last cell with content, A1 alone when empty. */
+  getDataRange(): FakeRange {
+    return new FakeRange(this, 1, 1, Math.max(this.getLastRow(), 1), Math.max(this.getLastColumn(), 1));
+  }
+
   getCharts(): FakeChart[] {
     return [...this.charts];
   }

@@ -32,7 +32,7 @@ beforeEach(() => {
     })),
     // Profiles and telemetry: signed out, nothing configured, nothing sent.
     account: {
-      get: vi.fn(async () => ({ configured: false, profile: null, needsSignIn: false })),
+      get: vi.fn(async () => ({ configured: false, profile: null, needsSignIn: false, signInReason: null })),
       activate: vi.fn(),
       login: vi.fn(),
       signOut: vi.fn(async () => undefined),

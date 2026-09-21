@@ -8,6 +8,10 @@ import logoMark from '../../assets/brand/plutosim-mark.svg';
 // A key is typed off a card or an email, so the field forgives case, spaces and
 // missing dashes (see normaliseActivationKey). Errors say what to do next rather
 // than naming the failure.
+//
+// A profile is signed in on one computer at a time. Signing in while another
+// computer still is brings up "Sign out of all devices"; confirming signs in
+// again with that flag, and the other computer is signed out.
 
 type Mode = 'activate' | 'login';
 
@@ -17,7 +21,7 @@ const MESSAGES: Partial<Record<ApiErrorCode, string>> = {
   KEY_DISABLED: 'That activation key has been disabled. Ask your administrator for a new one.',
   EMAIL_ALREADY_REGISTERED: 'This email already has a profile. Use "I already have a profile" to sign in.',
   INVALID_CREDENTIALS: 'That email and activation key do not match.',
-  // DEVICE_MISMATCH uses the server's message, which names the computer.
+  // DEVICE_MISMATCH (an older backend) uses the server's message, which names the computer.
   USER_INACTIVE: 'This profile has been deactivated. Ask your administrator.',
   NETWORK: 'Could not reach the server. Check your internet connection and try again.',
   SERVER_ERROR: 'The server had a problem. Try again in a moment.',
@@ -27,6 +31,7 @@ const MESSAGES: Partial<Record<ApiErrorCode, string>> = {
 export function SignIn() {
   const profile = useAccountStore((s) => s.profile);
   const needsSignIn = useAccountStore((s) => s.needsSignIn);
+  const signInReason = useAccountStore((s) => s.signInReason);
   const activate = useAccountStore((s) => s.activate);
   const login = useAccountStore((s) => s.login);
 
@@ -38,24 +43,41 @@ export function SignIn() {
   const [key, setKey] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // The computer this profile is signed in on, while asking whether to sign it out there.
+  const [elsewhere, setElsewhere] = useState<string | null>(null);
 
-  const submit = async (e: FormEvent) => {
-    e.preventDefault();
+  const send = async (signOutOtherDevices: boolean) => {
     if (busy) return;
     setBusy(true);
     setError(null);
     try {
-      const res = mode === 'activate' ? await activate(name, email, key) : await login(email, key);
+      const res =
+        mode === 'activate'
+          ? await activate(name, email, key, signOutOtherDevices)
+          : await login(email, key, signOutOtherDevices);
       // On success the main process pushes the new account and this screen
       // unmounts; nothing more to do here.
       if (!res.success) {
-        setError(res.code === 'DEVICE_MISMATCH' ? res.message : (MESSAGES[res.code] ?? res.message));
+        if (res.code === 'SIGNED_IN_ELSEWHERE') {
+          setElsewhere(res.deviceName ?? 'another computer');
+        } else {
+          setElsewhere(null);
+          setError(res.code === 'DEVICE_MISMATCH' ? res.message : (MESSAGES[res.code] ?? res.message));
+        }
       }
     } catch {
-      setError(MESSAGES.NETWORK!);
+      // A failure inside the app, not the connection. The server may already
+      // have the activation, and trying again signs in.
+      setElsewhere(null);
+      setError('Something went wrong. Try again.');
     } finally {
       setBusy(false);
     }
+  };
+
+  const submit = (e: FormEvent) => {
+    e.preventDefault();
+    void send(false);
   };
 
   const switchMode = (next: Mode) => {
@@ -126,12 +148,13 @@ export function SignIn() {
         )}
 
         <button className="signin-submit" type="submit" disabled={busy}>
-          {busy ? 'Checking…' : mode === 'activate' ? 'Activate' : 'Sign in'}
+          {busy ? (mode === 'activate' ? 'Activating…' : 'Signing in…') : mode === 'activate' ? 'Activate' : 'Sign in'}
         </button>
+        {busy && <p className="signin-note">This can take up to a minute. Keep this window open.</p>}
 
         <p className="signin-note">
           {needsSignIn
-            ? 'Your sign-in has expired. Enter your email and activation key to continue.'
+            ? (signInReason ?? 'Your sign-in has expired. Enter your email and activation key to continue.')
             : mode === 'activate'
               ? 'Enter the activation key you were given. It will be linked to your email, and your flights and points will be saved to your profile.'
               : 'Sign in with the email and activation key you activated with.'}
@@ -149,6 +172,38 @@ export function SignIn() {
           )}
         </div>
       </form>
+
+      {elsewhere && (
+        <div className="signin-modal">
+          <div
+            className="signin-card signin-elsewhere"
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="signin-elsewhere-title"
+            aria-describedby="signin-elsewhere-text"
+          >
+            <h2 id="signin-elsewhere-title">Signed in on another device</h2>
+            <p id="signin-elsewhere-text" className="signin-note">
+              This profile is signed in on <b>{elsewhere}</b>. A profile can be used on one device
+              at a time, so continuing here signs it out there.
+            </p>
+            <button
+              className="signin-submit"
+              type="button"
+              onClick={() => void send(true)}
+              disabled={busy}
+              autoFocus
+            >
+              {busy ? 'Signing out…' : 'Sign out of all devices'}
+            </button>
+            <div className="signin-switch">
+              <button type="button" onClick={() => setElsewhere(null)} disabled={busy}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, safeStorage } from 'electron';
+import { app, BrowserWindow, ipcMain, net, safeStorage } from 'electron';
 import { randomUUID } from 'node:crypto';
 import { promises as fs } from 'node:fs';
 import os from 'node:os';
@@ -33,6 +33,31 @@ async function writeJson(file: string, value: unknown): Promise<void> {
   const tmp = `${file}.tmp`;
   await fs.writeFile(tmp, JSON.stringify(value), 'utf-8');
   await fs.rename(tmp, file);
+}
+
+// Activation and sign-in hold the backend's script lock and write several sheet
+// rows; on the Apps Script prototype that measured 10-30 s, past the default
+// 30 s abort. Someone is watching a button spin, so they get far longer.
+const SIGN_IN_ACTIONS = new Set<string>(['activateUser', 'loginUser']);
+const SIGN_IN_TIMEOUT_MS = 90_000;
+
+// A profile is signed in on one computer at a time. A computer signed out from
+// another one finds out within this, plus the answer's 2-5 s, while it is open:
+// under a minute, as asked. Each check is one getUserProfile call, which reads
+// the sheet and writes at most hourly: ~120 an hour per open app.
+const SIGN_IN_CHECK_MS = 30_000;
+
+// The sign-in check is a light read the script answers in 1-3 s. Measured on
+// 2026-09-21, the hop that carries Apps Script's answer back
+// (script.googleusercontent.com) hung for the full 30 s on about one call in
+// seven while the script itself had finished; a short timeout and the service's
+// one retry get the answer instead of waiting on a dead connection.
+const PROFILE_CHECK_TIMEOUT_MS = 10_000;
+
+function timeoutFor(action: string): number | undefined {
+  if (SIGN_IN_ACTIONS.has(action)) return SIGN_IN_TIMEOUT_MS;
+  if (action === 'getUserProfile') return PROFILE_CHECK_TIMEOUT_MS;
+  return undefined;
 }
 
 const PLATFORM_NAMES: Partial<Record<NodeJS.Platform, string>> = {
@@ -74,7 +99,16 @@ export async function registerBackend(): Promise<BackendService> {
 
   const service = new BackendService({
     configured: !!url,
-    send: (action, payload, token) => sendRequest({ url }, action, payload, token),
+    send: (action, payload, token) =>
+      // Chromium's network stack, not Node's fetch: on 2026-09-21 Node's hung on
+      // the hop that carries Apps Script's answer back for most calls, while the
+      // script had answered in 1-3 s.
+      sendRequest(
+        { url, timeoutMs: timeoutFor(action), fetchImpl: (input, init) => net.fetch(input as string, init) },
+        action,
+        payload,
+        token,
+      ),
     loadAccounts: () => readJson<AccountFile>(accountsFile),
     saveAccounts: (file) => writeJson(accountsFile, file),
     loadOutbox: () => readJson<OutboxState>(outboxFile),
@@ -95,6 +129,7 @@ export async function registerBackend(): Promise<BackendService> {
   // Handlers go in before the (async) load so an early renderer call waits on
   // `ready` instead of finding no handler.
   const ready = service.init();
+  void ready.then(() => service.watchSignIn(SIGN_IN_CHECK_MS));
 
   ipcMain.handle(IPC.accountGet, async () => {
     await ready;
