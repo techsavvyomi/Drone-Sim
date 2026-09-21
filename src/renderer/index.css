@@ -6093,23 +6093,46 @@ button {
   opacity: 0.6;
   cursor: progress;
 }
-/* "Signed in on another device": the same card, raised over the form. */
-.signin-modal {
-  position: fixed;
-  inset: 0;
-  z-index: 50;
-  display: grid;
-  place-items: center;
-  padding: 24px;
-  background: rgba(2, 4, 8, 0.72);
+/* "Signed in on another device": the same card, in place of the form. */
+.signin-device {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: rgba(56, 189, 248, 0.06);
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
 }
-.signin-elsewhere h2 {
-  margin: 0;
-  font-size: 20px;
-  font-weight: 800;
-  letter-spacing: -0.01em;
+.signin-device svg {
+  flex: none;
+  width: 26px;
+  height: 26px;
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 1.6;
+  stroke-linecap: round;
+}
+.signin-device span {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.signin-device em {
+  font-style: normal;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+.signin-device b {
+  font-size: 14.5px;
+  color: var(--text);
+  overflow-wrap: anywhere;
 }
 .signin-elsewhere .signin-note b {
+  overflow-wrap: anywhere;
   color: var(--text);
 }
 

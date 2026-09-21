@@ -85,20 +85,77 @@ export function SignIn() {
     setError(null);
   };
 
+  const brand = (
+    <div className="signin-brand">
+      <span className="logo-mark">
+        <img src={logoMark} alt="" />
+      </span>
+      <span>
+        <b>
+          Pluto<i>Sim</i>
+        </b>
+        <em>Pilot profile</em>
+      </span>
+    </div>
+  );
+
+  // "Signed in on another device" takes the card's place rather than floating
+  // over it: the form showed through behind a modal. The fields keep their
+  // values, so Cancel returns to them as they were.
+  if (elsewhere) {
+    return (
+      <div className="signin">
+        <div
+          className="signin-card signin-elsewhere"
+          role="alertdialog"
+          aria-labelledby="signin-elsewhere-title"
+          aria-describedby="signin-elsewhere-text"
+        >
+          {brand}
+          <h1 id="signin-elsewhere-title">Signed in on another device</h1>
+          <div className="signin-device">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <rect x="3" y="4" width="18" height="12" rx="1.5" />
+              <path d="M1.5 19.5h21" />
+            </svg>
+            <span>
+              <em>Currently signed in on</em>
+              <b>{elsewhere}</b>
+            </span>
+          </div>
+          <p id="signin-elsewhere-text" className="signin-note">
+            A profile can be used on one device at a time. Continuing here signs{' '}
+            {email ? <b>{email}</b> : 'this profile'} out of that device.
+          </p>
+          {error && (
+            <p className="signin-error" role="alert">
+              {error}
+            </p>
+          )}
+          <button
+            className="signin-submit"
+            type="button"
+            onClick={() => void send(true)}
+            disabled={busy}
+            autoFocus
+          >
+            {busy ? 'Signing out…' : 'Sign out of all devices'}
+          </button>
+          {busy && <p className="signin-note">This can take up to a minute. Keep this window open.</p>}
+          <div className="signin-switch">
+            <button type="button" onClick={() => setElsewhere(null)} disabled={busy}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="signin">
       <form className="signin-card" onSubmit={submit}>
-        <div className="signin-brand">
-          <span className="logo-mark">
-            <img src={logoMark} alt="" />
-          </span>
-          <span>
-            <b>
-              Pluto<i>Sim</i>
-            </b>
-            <em>Pilot profile</em>
-          </span>
-        </div>
+        {brand}
 
         <h1>{mode === 'activate' ? 'Activate your simulator' : 'Welcome back'}</h1>
 
@@ -173,37 +230,6 @@ export function SignIn() {
         </div>
       </form>
 
-      {elsewhere && (
-        <div className="signin-modal">
-          <div
-            className="signin-card signin-elsewhere"
-            role="alertdialog"
-            aria-modal="true"
-            aria-labelledby="signin-elsewhere-title"
-            aria-describedby="signin-elsewhere-text"
-          >
-            <h2 id="signin-elsewhere-title">Signed in on another device</h2>
-            <p id="signin-elsewhere-text" className="signin-note">
-              This profile is signed in on <b>{elsewhere}</b>. A profile can be used on one device
-              at a time, so continuing here signs it out there.
-            </p>
-            <button
-              className="signin-submit"
-              type="button"
-              onClick={() => void send(true)}
-              disabled={busy}
-              autoFocus
-            >
-              {busy ? 'Signing out…' : 'Sign out of all devices'}
-            </button>
-            <div className="signin-switch">
-              <button type="button" onClick={() => setElsewhere(null)} disabled={busy}>
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
