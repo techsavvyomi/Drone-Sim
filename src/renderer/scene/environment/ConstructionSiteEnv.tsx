@@ -6,6 +6,28 @@ import * as THREE from 'three';
 import type { EnvironmentSpec } from '@shared/types';
 import sitePropsUrl from '../../../assets/models/site_props.opt.glb?url';
 import { useSiteMaterials, tiled, PROP_IDS, type SiteMaterials } from './siteMaterials';
+import {
+  BAY,
+  CABINS,
+  CABIN_SIZE,
+  cabinY,
+  COL_W,
+  CORE,
+  CORE_T,
+  HALF_X,
+  HALF_Z,
+  INFILL,
+  LEVELS,
+  levelY,
+  mulberry32,
+  SITE_HALF,
+  SKIPS,
+  SKIP_SIZE,
+  SLAB_T,
+  STOREY,
+  XS,
+  ZS,
+} from './siteLayout';
 
 // Construction Site — a topped-out concrete frame with no cladding on it yet.
 //
@@ -22,29 +44,6 @@ import { useSiteMaterials, tiled, PROP_IDS, type SiteMaterials } from './siteMat
 
 const DRACO_DECODER_PATH = 'draco/gltf/';
 
-const BAY = 6;
-const STOREY = 3.6;
-/** Slab levels 0..LEVELS; level 0 is the ground raft, LEVELS is the roof. */
-const LEVELS = 7;
-const SLAB_T = 0.25;
-const COL_W = 0.5;
-
-/** Column grid lines. The frame spans 36 m x 24 m. */
-const XS = [-18, -12, -6, 0, 6, 12, 18];
-const ZS = [-12, -6, 0, 6, 12];
-const HALF_X = 18;
-const HALF_Z = 12;
-
-/**
- * The lift/stair core, one full bay.
- *
- * Deliberately off-centre: it lands on four real column positions, which a
- * centred 6 m shaft could not do on a 6 m grid without a column standing in
- * the middle of its own void.
- */
-const CORE = { x0: -6, x1: 0, z0: -6, z1: 0 };
-const CORE_T = 0.25;
-
 /**
  * Retiles a BoxGeometry's UVs so its texture reads at `metres` per tile.
  *
@@ -60,21 +59,6 @@ function retileBox(geo: THREE.BoxGeometry, su: number, sv: number, metres: numbe
   }
   uv.needsUpdate = true;
   return geo;
-}
-
-/** Level y of a slab's TOP surface — what you land on. */
-const levelY = (k: number) => k * STOREY;
-
-/** Deterministic PRNG so the site is laid out identically every run. */
-function mulberry32(seed: number) {
-  let a = seed;
-  return () => {
-    a |= 0;
-    a = (a + 0x6d2b79f5) | 0;
-    let t = Math.imul(a ^ (a >>> 15), 1 | a);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
 }
 
 /** Slab plates for one level, as [cx, cz, sizeX, sizeZ] boxes. */
@@ -95,37 +79,6 @@ function slabPlates(k: number): [number, number, number, number][] {
     [(HALF_X + CORE.x1) / 2, (CORE.z0 + CORE.z1) / 2, HALF_X - CORE.x1, CORE.z1 - CORE.z0],
   ];
 }
-
-/** Perimeter bays that got their blockwork infill, thinning as you go up. */
-function infillWalls(): { x: number; y: number; z: number; w: number; h: number; rot: number }[] {
-  const rnd = mulberry32(0x51e7);
-  const out: { x: number; y: number; z: number; w: number; h: number; rot: number }[] = [];
-  const h = STOREY - SLAB_T;
-
-  for (let k = 0; k < LEVELS; k++) {
-    // The trade works bottom-up, so the low floors are nearly closed in and the
-    // top ones are still bare frame.
-    const fill = [0.72, 0.5, 0.28, 0.12, 0.06, 0, 0][k];
-    if (fill <= 0) continue;
-    const y = levelY(k) + h / 2;
-
-    for (let i = 0; i < XS.length - 1; i++) {
-      const cx = (XS[i] + XS[i + 1]) / 2;
-      for (const z of [-HALF_Z, HALF_Z]) {
-        if (rnd() < fill) out.push({ x: cx, y, z, w: BAY, h, rot: 0 });
-      }
-    }
-    for (let i = 0; i < ZS.length - 1; i++) {
-      const cz = (ZS[i] + ZS[i + 1]) / 2;
-      for (const x of [-HALF_X, HALF_X]) {
-        if (rnd() < fill) out.push({ x, y, z: cz, w: BAY, h, rot: Math.PI / 2 });
-      }
-    }
-  }
-  return out;
-}
-
-const INFILL = infillWalls();
 
 /** Where every piece of scanned debris sits. */
 interface Placement {
@@ -152,7 +105,6 @@ const SMALL = PROP_IDS.filter(
   (id) => !BIG_PROPS.includes(id) && !BEAMS.includes(id) && !COLUMNS.includes(id),
 );
 
-const SITE_HALF = 58;
 /** How far the visible ground runs past the hoarding. */
 const GROUND_HALF = 3000;
 
@@ -362,28 +314,20 @@ function buildSiteFurniture(mat: SiteMaterials): THREE.Group {
   skipMat.metalness = 0.18;
 
   // Welfare cabins, stacked two high the way they always are.
-  const cabinBox = new THREE.BoxGeometry(6, 2.6, 2.8);
-  for (const [x, z, up] of [
-    [44, 6, 0],
-    [44, 9.4, 0],
-    [44, 6, 1],
-  ] as [number, number, number][]) {
+  const cabinBox = new THREE.BoxGeometry(...CABIN_SIZE);
+  for (const [x, z, up] of CABINS) {
     const m = new THREE.Mesh(cabinBox, cabin);
-    m.position.set(x, 1.4 + up * 2.9, z);
+    m.position.set(x, cabinY(up), z);
     m.castShadow = true;
     m.receiveShadow = true;
     g.add(m);
   }
 
   // Muck-away skips.
-  const skipBox = new THREE.BoxGeometry(5.4, 1.7, 2.3);
-  for (const [x, z, r] of [
-    [24, 42, 0.2],
-    [16, 44, -0.1],
-    [-26, 40, 0.9],
-  ] as [number, number, number][]) {
+  const skipBox = new THREE.BoxGeometry(...SKIP_SIZE);
+  for (const [x, z, r] of SKIPS) {
     const m = new THREE.Mesh(skipBox, skipMat);
-    m.position.set(x, 0.85, z);
+    m.position.set(x, SKIP_SIZE[1] / 2, z);
     m.rotation.y = r;
     m.castShadow = true;
     g.add(m);
@@ -719,6 +663,28 @@ function SiteColliders({ env }: { env: EnvironmentSpec }) {
           args={[w.w / 2, w.h / 2, 0.1]}
           position={[w.x, w.y, w.z]}
           rotation={[0, w.rot, 0]}
+        />
+      ))}
+
+      {/* The site office and the skips. They were drawn with nothing behind
+          them, so a drone flew straight through the cabins — and Mission 8
+          launches from, and lands back beside, that office. Boxes match the
+          drawn ones exactly: both are one BoxGeometry with no overhang. */}
+      {CABINS.map(([x, z, tier], i) => (
+        <CuboidCollider
+          key={`cab${i}`}
+          args={[CABIN_SIZE[0] / 2, CABIN_SIZE[1] / 2, CABIN_SIZE[2] / 2]}
+          position={[x, cabinY(tier), z]}
+          friction={0.6}
+        />
+      ))}
+      {SKIPS.map(([x, z, yaw], i) => (
+        <CuboidCollider
+          key={`skip${i}`}
+          args={[SKIP_SIZE[0] / 2, SKIP_SIZE[1] / 2, SKIP_SIZE[2] / 2]}
+          position={[x, SKIP_SIZE[1] / 2, z]}
+          rotation={[0, yaw, 0]}
+          friction={0.6}
         />
       ))}
 
