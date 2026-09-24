@@ -13,6 +13,7 @@ import { MissionHero, StepArt, missionImage } from './MissionArt';
 import { getEnvironment } from '../plugins/registry';
 import { MISSIONS } from '../missions';
 import { targetScreen } from '../missions/targetScreen';
+import type { Mission } from '../missions/types';
 
 // ----------------------------------------------------------------------------
 // The mission overlay.
@@ -314,6 +315,79 @@ function TrackingLock({ seconds }: { seconds: number }) {
   );
 }
 
+/**
+ * The inspection hold, in the brief's own layout:
+ *
+ *     NIGHT INSPECTION
+ *     ZONE 2 / 3
+ *     INSPECTION ███████░░░ 70%
+ *
+ * with the five things the hold is watching underneath. Two more than the
+ * delivery checklist — the light and the clearance — because at night those
+ * are the two a pilot loses without noticing, and a bar that stops filling
+ * with no row going red is a pilot guessing which of five things broke.
+ */
+function InspectionCard({ mission }: { mission: Mission }) {
+  const checks = useMissionStore((s) => s.checks);
+  const runIndex = useMissionStore((s) => s.runIndex);
+  const points = mission.inspection?.points ?? [];
+  if (points.length === 0) return null;
+  const i = Math.min(runIndex, points.length - 1);
+  const point = points[i];
+  const clear = checks.clear !== false;
+  const lit = checks.lit === true;
+  const armed = checks.centred && checks.inBand && checks.steady && lit && clear;
+  const filled = Math.round(checks.hold * 10);
+  return (
+    <div className={`ms-checks inspect ${clear ? '' : 'blocked'} ${armed ? 'armed' : ''}`}>
+      <span className="ms-checks-head">
+        NIGHT INSPECTION
+        <em>
+          ZONE {i + 1} / {points.length}
+        </em>
+      </span>
+      <span className="ms-checks-sub">{point.label}</span>
+      <span
+        className="ms-inspect-meter"
+        aria-label={`Inspection ${Math.round(checks.hold * 100)}%`}
+      >
+        <b>INSPECTION</b>
+        <span>
+          {'█'.repeat(filled)}
+          <i>{'░'.repeat(10 - filled)}</i>
+        </span>
+        <em>{Math.round(checks.hold * 100)}%</em>
+      </span>
+      <span className={`ms-check ${checks.centred ? 'ok' : ''}`}>
+        <i />
+        <b>In position</b>
+      </span>
+      <span className={`ms-check ${checks.inBand ? 'ok' : ''}`}>
+        <i />
+        <b>Height</b>
+      </span>
+      <span className={`ms-check ${lit ? 'ok' : ''}`}>
+        <i />
+        <b>Light on marker</b>
+      </span>
+      <span className={`ms-check ${checks.steady ? 'ok' : ''}`}>
+        <i />
+        <b>Steady</b>
+      </span>
+      <span className={`ms-check ${clear ? 'ok' : 'miss'}`}>
+        <i />
+        <b>Clear of structure</b>
+      </span>
+      {!clear && (
+        <span className="ms-checks-note">Obstacle too close. Back away from the structure</span>
+      )}
+      {clear && checks.hold > 0 && checks.hold < 1 && (
+        <span className="ms-checks-note">Hold it. Move away and the inspection restarts</span>
+      )}
+    </div>
+  );
+}
+
 /** A star row that lights one star at a time, with a chime for each. */
 function StarReveal({ value }: { value: number }) {
   const [shown, setShown] = useState(0);
@@ -438,6 +512,8 @@ export function MissionHud() {
   /** The tracking mission, for the handful of lines whose wording would
    *  otherwise call a wildlife survey a delivery. */
   const track = !!mission.tracking;
+  /** The night inspection: nothing carried, three holds to count. */
+  const inspect = !!mission.inspection;
   /** Every piece of target guidance is off while this is true — see the store.
    *  One answer, read by the strip here and by the map and the pointer. */
   const hidden = guidanceHidden(mission, located, leg);
@@ -543,7 +619,7 @@ export function MissionHud() {
                 <span className="ms-story-icon" aria-hidden="true">
                   {/* One glyph per kind of job. A red cross over a wildlife
                       survey said the wrong thing about what the flight is for. */}
-                  {fire ? '🔥' : mission.tracking ? '🐅' : '✚'}
+                  {mission.icon ?? (fire ? '🔥' : mission.tracking ? '🐅' : '✚')}
                 </span>
                 <div>
                   <b>The story</b>
@@ -725,7 +801,8 @@ export function MissionHud() {
 
       {flying && <TargetPointerHud />}
 
-      {flying && leg === 'toDrop' && <DeliveryChecklist fire={fire} />}
+      {flying && leg === 'toDrop' && !inspect && <DeliveryChecklist fire={fire} />}
+      {flying && leg === 'toDrop' && inspect && <InspectionCard mission={mission} />}
 
       {/* The five second hover that confirms the rescue location — and, on the
           tracking mission, the five seconds of light that replace it. The same
@@ -776,7 +853,7 @@ export function MissionHud() {
               food box. Except the survey, which carries nothing: a cell reading
               'WAITING' for the whole flight is a cell the pilot learns to
               ignore, and this one would never change. */}
-          {!track && (
+          {!track && !inspect && (
             <div className={`ms-cell payload ${payload}`}>
               <span>PAYLOAD</span>
               {/* One word each, with the state's colour carried by the dot the
@@ -794,7 +871,11 @@ export function MissionHud() {
                   them. 'On board' answers "am I holding something"; only the
                   name answers "which one", and on this mission that is the
                   question the pilot is actually asking. */}
-                {payload === 'attached' ? (fire ? 'Ready' : (run?.name ?? 'On board')) : null}
+                {payload === 'attached'
+                  ? fire
+                    ? 'Ready'
+                    : (run?.name ?? mission.wording?.onBoard ?? 'On board')
+                  : null}
                 {payload === 'delivered' ? (fire ? 'Empty' : 'Delivered') : null}
               </b>
             </div>
@@ -807,7 +888,10 @@ export function MissionHud() {
             <div className="ms-cell">
               <span>PROGRESS</span>
               <b>
-                {deliveredCount} <i>/ {run.total} delivered</i>
+                {deliveredCount}{' '}
+                <i>
+                  / {run.total} {inspect ? 'inspected' : 'delivered'}
+                </i>
               </b>
             </div>
           )}
@@ -886,34 +970,38 @@ export function MissionHud() {
                 // A multi-point delivery reports each package by name. One
                 // 'Payload delivered' tick for three separate flights would be
                 // the result card summarising away most of the mission.
-                ...(mission.deliveries
-                  ? mission.deliveries.map((d) => [`${d.name} delivered`, '✓', true] as const)
-                  : mission.kind === 'search'
-                    ? // A search reports its own beats: the box, the find, the drop.
-                      ([
-                        ['Food box collected', '✓', true],
-                        ['Person found', '✓', true],
-                        ['Food box delivered', '✓', true],
-                      ] as const)
-                    : mission.kind === 'tracking'
-                      ? // A survey reports the two things it is judged on, and
-                        // 'not disturbed' is one of them: the pilot passed a
-                        // test whose whole content is something they did NOT do,
-                        // and a card that only ticked the sighting would never
-                        // say so.
+                // A mission that states its own rows, in the brief's words, gets
+                // exactly those — and they cover the flight home as well.
+                ...(mission.resultRows
+                  ? mission.resultRows.map((label) => [label, '✓', true] as const)
+                  : mission.deliveries
+                    ? mission.deliveries.map((d) => [`${d.name} delivered`, '✓', true] as const)
+                    : mission.kind === 'search'
+                      ? // A search reports its own beats: the box, the find, the drop.
                         ([
-                          ['Tiger located', '✓', true],
-                          ['Observation complete', '✓', true],
-                          ['Animal not disturbed', '✓', true],
+                          ['Food box collected', '✓', true],
+                          ['Person found', '✓', true],
+                          ['Food box delivered', '✓', true],
                         ] as const)
-                      : ([
-                          [fire ? 'Payload collected' : 'Payload picked up', '✓', true],
-                          [fire ? 'Fire suppressed' : 'Payload delivered', '✓', true],
-                        ] as const)),
+                      : mission.kind === 'tracking'
+                        ? // A survey reports the two things it is judged on, and
+                          // 'not disturbed' is one of them: the pilot passed a
+                          // test whose whole content is something they did NOT do,
+                          // and a card that only ticked the sighting would never
+                          // say so.
+                          ([
+                            ['Tiger located', '✓', true],
+                            ['Observation complete', '✓', true],
+                            ['Animal not disturbed', '✓', true],
+                          ] as const)
+                        : ([
+                            [fire ? 'Payload collected' : 'Payload picked up', '✓', true],
+                            [fire ? 'Fire suppressed' : 'Payload delivered', '✓', true],
+                          ] as const)),
                 // A mission that ends at the drop has no homeward leg to report.
                 // Rows that always read '✓' are noise; rows for a leg that was
                 // never flown are worse than noise.
-                ...(mission.endsAtDrop
+                ...(mission.endsAtDrop || mission.resultRows
                   ? []
                   : ([
                       ['Returned to base', '✓', true],
@@ -1008,19 +1096,23 @@ export function MissionHud() {
                       : track
                         ? 'The drone flew out of the survey area and did not come back. The tiger is inside it. The clues say where.'
                         : 'The drone flew out of the delivery area and did not come back. The arrow on the strip points at your next target.'
-                    : failReason === 'timeout'
-                      ? fire
-                        ? 'The fire got away from you. Take the marked line east next time.'
-                        : track
-                          ? 'The survey window closed without a sighting. Read the clues before you launch and fly straight to the line the tiger is walking.'
-                          : 'The delivery window closed. Take a straighter line through the city.'
-                      : payload === 'attached'
+                    : failReason === 'timeout' && mission.timeoutLine
+                      ? mission.timeoutLine
+                      : failReason === 'timeout'
                         ? fire
-                          ? 'The aircraft is wrecked and the suppression tank went down with it.'
-                          : 'The aircraft is wrecked and the package went down with it.'
-                        : fire || track
-                          ? 'The aircraft is wrecked. A tree is solid all the way up to its own treetop.'
-                          : 'The aircraft is wrecked. Watch the street furniture on the approach.'}
+                          ? 'The fire got away from you. Take the marked line east next time.'
+                          : track
+                            ? 'The survey window closed without a sighting. Read the clues before you launch and fly straight to the line the tiger is walking.'
+                            : 'The delivery window closed. Take a straighter line through the city.'
+                        : mission.crashLine
+                          ? mission.crashLine
+                          : payload === 'attached'
+                            ? fire
+                              ? 'The aircraft is wrecked and the suppression tank went down with it.'
+                              : 'The aircraft is wrecked and the package went down with it.'
+                            : fire || track
+                              ? 'The aircraft is wrecked. A tree is solid all the way up to its own treetop.'
+                              : 'The aircraft is wrecked. Watch the street furniture on the approach.'}
             </p>
             <div className="ms-sheet">
               <div className="ms-sheet-row">

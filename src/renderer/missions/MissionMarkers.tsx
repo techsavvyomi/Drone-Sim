@@ -490,7 +490,11 @@ export function MissionMarkers({ mission }: { mission: Mission }) {
           the scene mounted would be furniture in a forest pointing at nothing.
           The list is emptied rather than each mark being gated, so a fifth kind
           of mark added below inherits the rule. */}
-      {(mission.tracking
+      {/* An INSPECTION draws none of it either: its zones are hovers up the
+          side of a structure, marked on the structure — see
+          `InspectionMarkers`. A ring on the ground under a hover ten metres up
+          would be a mark in the wrong place. */}
+      {(mission.tracking || mission.inspection
         ? []
         : (mission.deliveries ??
           mission.search?.sites ?? [{ id: 'drop', zone: mission.zones.drop }])

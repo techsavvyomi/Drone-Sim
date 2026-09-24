@@ -134,6 +134,21 @@ export interface MissionZone {
    * ring from every direction, which is the whole job of the thing.
    */
   ringLift?: number;
+  /**
+   * The storey this mark stands on, when it is INSIDE a building.
+   *
+   * A mark on an open floor of a frame has a slab over it as well as under it,
+   * and a flat distance cannot tell the two apart: a pilot two floors down,
+   * directly under the mark, is "on the mark" as far as `flatDist` knows. With
+   * this set, arriving counts only between this deck and the underside of the
+   * slab above it, and anywhere else under the mark is the WRONG FLOOR — which
+   * the Director says, with the level the pilot is on and the one they want.
+   *
+   * `level` is what the pilot is told ("Level 4"); `height` is the floor-to-
+   * floor height the aircraft's own level is worked out from; `clear` is the
+   * headroom over the deck, metres.
+   */
+  storey?: { level: number; height: number; clear: number };
 }
 
 /** One rung of the mission's rating, best first. */
@@ -196,7 +211,15 @@ export type MissionArt =
   /** The night sweep: the beam down over a dark wood, nothing in it yet. */
   | 'sweep'
   /** The sighting: two eyes in the pool of light, and the lock filling. */
-  | 'track';
+  | 'track'
+  /** A cement bag waiting on the material store's pad. */
+  | 'cement'
+  /** The Construction Site: a drone flying a floor of the open frame. */
+  | 'frame'
+  /** The site after dark: the frame black, one floodlight, amber markers. */
+  | 'nightsite'
+  /** An inspection: the beam on a marked column, the hold filling. */
+  | 'inspect';
 
 /** A line from Mission Control, played once when its leg begins. */
 export interface RadioLine {
@@ -216,7 +239,7 @@ export interface RadioLine {
  * right height and stopped. What differs is how long, and what the holding is
  * FOR.
  */
-export type MissionKind = 'delivery' | 'suppression' | 'search' | 'tracking';
+export type MissionKind = 'delivery' | 'suppression' | 'search' | 'tracking' | 'inspection';
 
 /**
  * One of the places the casualty can be, on a SEARCH mission.
@@ -393,6 +416,57 @@ export interface MissionTracking {
   /** Draw the tiger's live position on the corner radar as a red dot. Mission 5
    *  (Animal Rescue) sets it; Mission 6 (Search and Rescue) is searched blind. */
   showOnMap?: boolean;
+}
+
+/**
+ * One place on a structure to inspect, on an INSPECTION mission.
+ *
+ * Two things, and they are deliberately separate: WHERE THE DRONE HOLDS
+ * (`zone`, an ordinary hover volume judged by the same `probeZone` every other
+ * placement uses) and WHAT IT IS LOOKING AT (`target`, the point the spotlight
+ * has to be on). A hover over the mark with the light pointed at the sky is not
+ * an inspection, and the brief is explicit that the light is how the pilot
+ * sees the structure at all.
+ */
+export interface MissionInspectionPoint {
+  /** Short id, for the run-specific radio keys: 'z1' -> `done-z1`. */
+  id: string;
+  /** What the HUD calls it: 'Zone 1'. */
+  name: string;
+  /** Where on the building, in the pilot's words: 'East face, Level 1'. */
+  label: string;
+  /** The hover volume. `kind` is 'drop' — it is the middle of the mission, the
+   *  way a delivery's mark is — and it carries its own `groundY`, because the
+   *  deck under a hover inside Level 3 is Level 3's slab, not the site. */
+  zone: MissionZone;
+  /** The point on the structure the light must be on, world metres. Also where
+   *  the amber marker is fixed. */
+  target: Vec3;
+  /**
+   * The inspected element as a box, world metres — the column, the wall, the
+   * slab edge. What OBSTACLE TOO CLOSE is measured against. Its own box rather
+   * than "any collider", because the brief's warning is about the structure
+   * being inspected, and a slab two metres under a legitimate hover is not it.
+   */
+  structure: { min: Vec3; max: Vec3 };
+}
+
+/**
+ * The inspection, on an INSPECTION mission: the points, in the order they are
+ * flown, and the rules of the hold.
+ */
+export interface MissionInspection {
+  points: readonly MissionInspectionPoint[];
+  /** Seconds the hold has to be kept, unbroken. */
+  holdSec: number;
+  /** Half-angle of the spotlight cone that counts, degrees. The lamp is the one
+   *  `DroneSpotlight` draws, and this is its cone. */
+  coneDeg: number;
+  /** How far the light counts from, metres, 3-D from the lamp. */
+  lightRange: number;
+  /** Closer than this to the inspected structure, metres, and the hold stops
+   *  with OBSTACLE TOO CLOSE. */
+  minClearance: number;
 }
 
 /**
@@ -601,6 +675,51 @@ export interface Mission {
    */
   throttleScale?: number;
   /**
+   * Where the drone launches from, when it is not the map's own spawn.
+   *
+   * Every mission before these launched from the environment's spawn, and on
+   * New York and the forest that is where the base belongs. Mission 8 is told
+   * to take off from the SITE OFFICE, and the map's spawn is a pad on the
+   * hardstanding forty metres from it. Moving the map's spawn would move free
+   * flight's with it; this moves only the mission's. `zones.base` sits on it.
+   */
+  spawn?: { position: Vec3; heading: number };
+  /** The inspection, on an inspection mission. Absent on every other kind. */
+  inspection?: MissionInspection;
+  /**
+   * The result card's ticks, in the brief's own words. Unset means the card
+   * derives them from the kind, which is what the first six missions do.
+   */
+  resultRows?: readonly string[];
+  /**
+   * What is slung under the drone on a delivery. Unset means the kind's own:
+   * a medical case, a food box on a search, a tank on a suppression. Mission 7
+   * carries a cement bag.
+   */
+  cargo?: 'cement';
+  /** The glyph beside the story on the briefing. Unset means the kind's own. */
+  icon?: string;
+  /** The failure card's line for a wreck, when the kind's default names the
+   *  wrong scenery — "street furniture" over a construction site. */
+  crashLine?: string;
+  /** The failure card's line for running out of time. */
+  timeoutLine?: string;
+  /**
+   * The brief's own words for the delivery beats, where it gives them. Each
+   * unset line falls back to the runtime's generic one, so a mission that
+   * says nothing here reads exactly as before.
+   */
+  wording?: {
+    /** Banner title when the load latches: 'PACKAGE ATTACHED ✓'. */
+    attached?: string;
+    /** Banner title on arriving at the drop: 'DELIVERY ZONE REACHED'. */
+    reached?: string;
+    /** Banner title when it is put down: 'PACKAGE DELIVERED ✓'. */
+    delivered?: string;
+    /** The strip's PAYLOAD cell while it is on board: 'Attached'. */
+    onBoard?: string;
+  };
+  /**
    * The packages, on a MULTI-POINT delivery. Absent on a single-drop mission.
    *
    * The order is the order they are flown, and it cannot be skipped: the runtime
@@ -684,7 +803,12 @@ export function toMissionSpec(m: Mission): MissionSpec {
      * wildlife survey is a search flown to the end, and calling it a rescue
      * would tell anything that reads the registry there is someone in trouble
      * out there. */
-    type: m.kind === 'delivery' ? 'delivery' : m.kind === 'tracking' ? 'search' : 'rescue',
+    type:
+      m.kind === 'delivery'
+        ? 'delivery'
+        : m.kind === 'tracking' || m.kind === 'inspection'
+          ? 'search'
+          : 'rescue',
     description: m.blurb,
     medalThresholds: m.medals,
   };
@@ -841,13 +965,67 @@ export function trackingLit(
   axis: { x: number; y: number; z: number },
   reach: number = track.lockRange,
 ): boolean {
+  return coneLit(track.coneDeg, track.minSafeDistance, reach, to, axis);
+}
+
+/**
+ * Is the light on the inspection target?
+ *
+ * The tracking test's own cone, with the inspection's numbers: inside the
+ * half-angle, in front of the lamp, and within `lightRange`. No near limit —
+ * too close is its own rule on this mission, measured against the structure
+ * rather than the point, and it says so rather than quietly not counting.
+ */
+export function inspectionLit(
+  insp: MissionInspection,
+  to: { x: number; y: number; z: number },
+  axis: { x: number; y: number; z: number },
+): boolean {
+  return coneLit(insp.coneDeg, 0, insp.lightRange, to, axis);
+}
+
+/** The cone test both lights share. `to` runs lamp -> target, `axis` is unit. */
+function coneLit(
+  coneDeg: number,
+  minRange: number,
+  reach: number,
+  to: { x: number; y: number; z: number },
+  axis: { x: number; y: number; z: number },
+): boolean {
   const range = Math.hypot(to.x, to.y, to.z);
-  if (range < track.minSafeDistance || range > reach) return false;
+  if (range < minRange || range > reach || range < 1e-6) return false;
   const along = (to.x * axis.x + to.y * axis.y + to.z * axis.z) / range;
   if (along <= 0) return false;
   const off = Math.acos(Math.min(1, along));
-  const half = (track.coneDeg * Math.PI) / 180;
+  const half = (coneDeg * Math.PI) / 180;
   return off <= Math.max(half, Math.atan2(0.5, range));
+}
+
+/** Distance from a point to an axis-aligned box, metres. Zero inside it. */
+export function boxDistance(
+  p: { x: number; y: number; z: number },
+  box: { min: Vec3; max: Vec3 },
+): number {
+  const dx = Math.max(box.min[0] - p.x, 0, p.x - box.max[0]);
+  const dy = Math.max(box.min[1] - p.y, 0, p.y - box.max[1]);
+  const dz = Math.max(box.min[2] - p.z, 0, p.z - box.max[2]);
+  return Math.hypot(dx, dy, dz);
+}
+
+/**
+ * Which storey of a building a height is on, by a mark's own floor-to-floor
+ * height. Rounded from a little above the true height, so an aircraft resting a
+ * centimetre into a slab's thickness is on the floor it is resting on.
+ */
+export function storeyAt(y: number, groundY: number, height: number): number {
+  return Math.max(0, Math.floor((y - groundY + 0.3) / height));
+}
+
+/** The inspection point being flown to, or null off an inspection mission. */
+export function inspectionOf(m: Mission, runIndex: number): MissionInspectionPoint | null {
+  const list = m.inspection?.points;
+  if (!list || list.length === 0) return null;
+  return list[Math.min(Math.max(runIndex, 0), list.length - 1)];
 }
 
 export function tigerRouteOf(m: Mission, routeIndex: number): TigerRoute | null {
@@ -865,7 +1043,10 @@ export function searchSiteOf(m: Mission, siteIndex: number): MissionSearchSite |
 
 /** How many packages this mission puts down. One, unless it says otherwise. */
 export function deliveryCount(m: Mission): number {
-  return m.deliveries?.length ?? 1;
+  // An inspection mission's "deliveries" are its zones: each is a hold that
+  // scores one point, is flown in order and cannot be skipped — exactly the
+  // shape of a multi-point run, which is why it reuses the run index.
+  return m.inspection?.points.length ?? m.deliveries?.length ?? 1;
 }
 
 /**
@@ -879,6 +1060,8 @@ export function deliveryCount(m: Mission): number {
  * of that flight home the answer should be the mark it was just put on.
  */
 export function dropZoneOf(m: Mission, runIndex: number): MissionZone {
+  const point = inspectionOf(m, runIndex);
+  if (point) return point.zone;
   const list = m.deliveries;
   if (!list || list.length === 0) return m.zones.drop;
   return list[Math.min(Math.max(runIndex, 0), list.length - 1)].zone;
@@ -899,7 +1082,8 @@ export function deliveryOf(m: Mission, runIndex: number): MissionDelivery | null
  * a record of three and cannot grow, so this is the honest list.
  */
 export function allZonesOf(m: Mission): readonly MissionZone[] {
-  const drops = m.deliveries?.map((d) => d.zone) ??
+  const drops = m.inspection?.points.map((p) => p.zone) ??
+    m.deliveries?.map((d) => d.zone) ??
     m.search?.sites.map((s) => s.zone) ?? [m.zones.drop];
   return [m.zones.pickup, ...drops, m.zones.base];
 }

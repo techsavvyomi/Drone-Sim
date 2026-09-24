@@ -5101,6 +5101,51 @@ button {
   content: '✕';
 }
 
+/* The night inspection's card: where on the building, and the brief's own
+   block meter. Wider than the delivery card — its rows are longer — and still
+   a fixed width, for the reason the delivery card is. */
+.ms-checks.inspect {
+  width: 246px;
+}
+.ms-checks-sub {
+  margin-top: -3px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text);
+  opacity: 0.8;
+}
+.ms-inspect-meter {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0 2px;
+  font-variant-numeric: tabular-nums;
+}
+.ms-inspect-meter b {
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  color: var(--text-dim);
+}
+.ms-inspect-meter span {
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 12px;
+  letter-spacing: -0.5px;
+  color: var(--good);
+  white-space: nowrap;
+}
+.ms-inspect-meter span i {
+  font-style: normal;
+  color: rgba(148, 163, 184, 0.45);
+}
+.ms-inspect-meter em {
+  font-style: normal;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text);
+}
+
 .ms-checks-note {
   margin-top: 1px;
   font-size: 10.5px;

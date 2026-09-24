@@ -53,8 +53,10 @@ export function LaunchPad({ mission }: { mission: Mission }) {
   );
 
   if (!env) return null;
-  const [x, , z] = env.spawn.position;
-  const heading = (env.spawn.heading * Math.PI) / 180;
+  // The mission's own launch point where it has one — Mission 8's site office.
+  const spawn = mission.spawn ?? env.spawn;
+  const [x, , z] = spawn.position;
+  const heading = (spawn.heading * Math.PI) / 180;
 
   return (
     <group

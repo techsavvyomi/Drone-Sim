@@ -251,7 +251,9 @@ function castAlong(from: THREE.Vector3, dir: THREE.Vector3, end: THREE.Vector3):
 export function DroneSpotlight({ mission, shadows }: { mission: Mission; shadows: boolean }) {
   const rig = useRef<THREE.Group>(null);
   const light = useRef<THREE.SpotLight>(null);
-  const track = mission.tracking;
+  // The lamp's cone: the tiger survey's, or the night inspection's. A mission
+  // with neither carries no lamp.
+  const coneDeg = mission.tracking?.coneDeg ?? mission.inspection?.coneDeg;
 
   // Scratch vectors to avoid allocations in frame loop
   const forward = useMemo(() => new THREE.Vector3(), []);
@@ -280,7 +282,7 @@ export function DroneSpotlight({ mission, shadows }: { mission: Mission; shadows
   shadowsOn.current = shadows;
 
   // SpotLight cone half-angle
-  const angle = ((track?.coneDeg ?? 26) * Math.PI) / 180;
+  const angle = ((coneDeg ?? 26) * Math.PI) / 180;
 
   const lensBase = useMemo(() => new THREE.Color('#93a9cc'), []);
   const lensMat = useMemo(
@@ -468,7 +470,7 @@ export function DroneSpotlight({ mission, shadows }: { mission: Mission; shadows
     beamPose.present = on > LAMP_LIVE;
   });
 
-  if (!track) return null;
+  if (coneDeg === undefined) return null;
 
   return (
     <group ref={rig}>

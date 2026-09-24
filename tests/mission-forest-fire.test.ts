@@ -318,6 +318,11 @@ describe('what the briefing card needs from a mission', () => {
         // The tiger missions' two: the empty beam over the wood, and the animal in it.
         'sweep',
         'track',
+        // The Construction Site's three: the frame, the site at night, the inspection.
+        'cement',
+        'frame',
+        'nightsite',
+        'inspect',
       ];
       for (const step of m.flow) expect(drawable).toContain(step.art);
       // And every objective is a sentence rather than a label.

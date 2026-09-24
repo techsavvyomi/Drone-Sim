@@ -115,6 +115,10 @@ export interface DeliveryChecks {
   steady: boolean;
   /** 0..1 of the required hold that has been served. */
   hold: number;
+  /** Inspection only: the spotlight is on the marked structure. */
+  lit?: boolean;
+  /** Inspection only: far enough from the structure being inspected. */
+  clear?: boolean;
 }
 
 export interface CompletedResult extends MissionResult {
@@ -326,7 +330,15 @@ function freshAttempt(mission: Mission | null) {
     // is no box to fetch and no shop to fetch it from, so a `toPickup` leg
     // would open the attempt by sending the pilot to a zone the mission does
     // not use. It starts where its job starts, which is looking.
-    leg: (mission?.tracking ? 'searching' : 'toPickup') as MissionLeg,
+    //
+    // An INSPECTION carries nothing either, and it does not search: every zone
+    // is marked. It opens on the navigation leg to the first of them, which is
+    // `carrying` — the leg that means "on the way to the middle mark".
+    leg: (mission?.tracking
+      ? 'searching'
+      : mission?.inspection
+        ? 'carrying'
+        : 'toPickup') as MissionLeg,
     // WHICH SITE, decided here and only here. It is re-rolled on every attempt
     // — including a restart — so a pilot who failed at site B is not handed
     // site B again to fly from memory.
@@ -684,6 +696,24 @@ export function objectiveFor(
 ): string {
   const fire = kind === 'suppression';
   const track = kind === 'tracking';
+  if (kind === 'inspection') {
+    // Its own table: nothing is picked up or put down, and the middle of the
+    // mission is three holds rather than one.
+    switch (leg) {
+      case 'carrying':
+        return run ? `Fly to ${run.name}: ${run.to}.` : 'Fly to the next inspection zone.';
+      case 'toDrop':
+        return 'Hold still with your spotlight on the marked structure.';
+      case 'delivered':
+        return 'Inspection complete. Return to the site office.';
+      case 'returning':
+        return 'Land the drone safely.';
+      case 'landing':
+        return 'Hold it still on the pad.';
+      default:
+        return 'Mission complete.';
+    }
+  }
   switch (leg) {
     case 'searching':
       if (track) return 'Sweep the forest with your spotlight and find the tiger.';
@@ -731,6 +761,12 @@ export function objectiveFor(
  * actually has a list of packages.
  */
 export function runContextOf(mission: Mission | null, runIndex: number): RunContext | null {
+  // An inspection's zones are its runs: 'Zone 2', 'Lift core doorway, Level 3'.
+  const points = mission?.inspection?.points;
+  if (points && points.length > 0) {
+    const i = Math.min(Math.max(runIndex, 0), points.length - 1);
+    return { name: points[i].name, to: points[i].label, index: i, total: points.length };
+  }
   const list = mission?.deliveries;
   if (!mission || !list || list.length === 0) return null;
   const i = Math.min(Math.max(runIndex, 0), list.length - 1);

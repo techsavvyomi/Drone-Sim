@@ -12,10 +12,14 @@ import {
 } from '../state/missionStore';
 import { dronePose } from '../sim/drone/pose';
 import {
+  boxDistance,
   deliveryCount,
   deliveryOf,
   dropZoneOf,
   flatDist,
+  inspectionLit,
+  inspectionOf,
+  storeyAt,
   requiredCheckpoints,
   requiredLeft,
   nextTargetOf,
@@ -69,6 +73,20 @@ const FAR_HINT_RANGE = 25;
  *  nothing in a frame loop allocates. */
 const _toAnimal = { x: 0, y: 0, z: 0 };
 const _beamAxis = { x: 0, y: -1, z: 0 };
+/** Scratch for the inspection light test: lamp to the inspected point. */
+const _toTarget = { x: 0, y: 0, z: 0 };
+
+/**
+ * How far above or below an inspection hover's band the pilot may be and still
+ * have ARRIVED, metres. Flat distance alone would announce Zone 1 to a drone
+ * skimming the ground under it; the band itself would make arriving a thing
+ * that only happens once the hover is already perfect.
+ */
+const ARRIVE_SLACK = 3;
+
+/** Seconds between two WRONG FLOOR or OBSTACLE TOO CLOSE calls. Re-said while
+ *  it is still true, but never so often that it is the whole screen. */
+const REPEAT_WARN_SEC = 3;
 
 /** Distances the destination is called out at, metres. Three calls across a
  *  90 m crossing, and nothing between them — guidance, not a killstreak. */
@@ -260,6 +278,16 @@ export function MissionDirector() {
   /** Last tracking numbers published, so an unchanged set is not written. */
   const lastTrack = useRef('');
 
+  // ---- The inspection mission's own timers --------------------------------
+
+  /** Seconds of unbroken hold at the live inspection zone. RESETS when any
+   *  condition breaks — the brief asks for five seconds held, not accumulated. */
+  const inspectHold = useRef(0);
+  /** When OBSTACLE TOO CLOSE was last said, on the mission clock. */
+  const clearSaidAt = useRef(-99);
+  /** When WRONG FLOOR was last said, on the mission clock. */
+  const floorSaidAt = useRef(-99);
+
   /** Everything the attempt accumulates, in one place. A new timer added to the
    *  runtime has to be cleared here, and the compiler will not remind you — so
    *  they all live together rather than beside the code that uses them. */
@@ -288,6 +316,9 @@ export function MissionDirector() {
     farSaid.current = false;
     sightedFor.current = 0;
     lastTrack.current = '';
+    inspectHold.current = 0;
+    clearSaidAt.current = -99;
+    floorSaidAt.current = -99;
     // The animal's own walk clock is NOT reset — it has been out there since
     // before the drone armed, and putting it back to the head of the path on
     // every retry is the one thing that would make the patrol memorisable. What
@@ -444,6 +475,8 @@ export function MissionDirector() {
     // any other — which is the whole of the brief's "no skipping".
     const run = deliveryOf(mission, store.runIndex);
     const runs = deliveryCount(mission);
+    /** The inspection zone being flown to, on an inspection mission. */
+    const point = inspectionOf(mission, store.runIndex);
     // The mark in the middle of the mission: whichever package this run is for,
     // or — on a search — whichever site this attempt drew. Both are an index
     // into a list held by the store, and reading `zones.drop` instead would send
@@ -961,7 +994,7 @@ export function MissionDirector() {
                   }
                 : {
                     kind: 'good',
-                    title: 'PAYLOAD ATTACHED',
+                    title: mission.wording?.attached ?? 'PAYLOAD ATTACHED',
                     sub: 'Package secured under the airframe',
                   },
           BANNER_SEC,
@@ -979,34 +1012,220 @@ export function MissionDirector() {
 
       // Entering the zone is a change of JOB, not a score: from navigating the
       // city to positioning over a mark. That is why it gets its own leg.
-      if (z.flat <= enterRadius(mission, dropZone)) {
+      //
+      // At the right HEIGHT as well, on a mark inside a building or up a
+      // structure: under the Level 4 mark on Level 2 is not the delivery zone,
+      // it is the wrong floor, and the pilot is told which one they are on.
+      const over = z.flat <= enterRadius(mission, dropZone);
+      const atHeight = arrivalHeight(dropZone, z.agl, !!mission.inspection);
+      if (
+        over &&
+        !atHeight &&
+        dropZone.storey &&
+        clock.current - floorSaidAt.current > REPEAT_WARN_SEC
+      ) {
+        floorSaidAt.current = clock.current;
+        const s = dropZone.storey;
+        const onLevel = storeyAt(dronePose.position.y, mission.groundY, s.height);
+        const what = point ? point.name : 'The delivery';
+        store.showBanner(
+          {
+            kind: 'warn',
+            title: 'WRONG FLOOR',
+            sub: `${what} is on Level ${s.level}. You are ${
+              onLevel === 0 ? 'at ground level' : `on Level ${onLevel}`
+            }`,
+          },
+          BANNER_SEC,
+        );
+        playFail();
+      }
+      if (over && atHeight) {
         leg = 'toDrop';
         store.setLeg(leg);
         if (!announcedDrop.current) {
           announcedDrop.current = true;
           store.showBanner(
-            mission.fire
+            point
               ? {
                   kind: 'info',
-                  title: 'FIRE ZONE REACHED',
-                  sub: 'Get over the affected area and hold your position',
+                  title: 'INSPECTION AREA REACHED',
+                  sub: `${point.name}: hold still with your light on the amber marker`,
                 }
-              : {
-                  kind: 'info',
-                  title: run ? `${run.zone.label.toUpperCase()} REACHED` : 'DELIVERY ZONE REACHED',
-                  // A rooftop delivery is a HOVER, not a landing. The band
-                  // starts a third of a metre over the slab and the aircraft is
-                  // meant to stay there: touching a roof is touching a building,
-                  // which the sim counts as a collision and the rating takes
-                  // off. The wording has to say hold, not land.
-                  sub:
-                    run && run.zone.groundY !== undefined
-                      ? 'Come in over the deck, centre on the mark and hold it just above the slab'
-                      : 'Slow down, centre over the mark, then descend',
-                },
+              : mission.fire
+                ? {
+                    kind: 'info',
+                    title: 'FIRE ZONE REACHED',
+                    sub: 'Get over the affected area and hold your position',
+                  }
+                : {
+                    kind: 'info',
+                    title: run
+                      ? `${run.zone.label.toUpperCase()} REACHED`
+                      : (mission.wording?.reached ?? 'DELIVERY ZONE REACHED'),
+                    // A rooftop delivery is a HOVER, not a landing. The band
+                    // starts a third of a metre over the slab and the aircraft is
+                    // meant to stay there: touching a roof is touching a building,
+                    // which the sim counts as a collision and the rating takes
+                    // off. The wording has to say hold, not land.
+                    sub:
+                      (run && run.zone.groundY !== undefined) || dropZone.storey
+                        ? 'Come in over the deck, centre on the mark and hold it just above the slab'
+                        : 'Slow down, centre over the mark, then descend',
+                  },
             BANNER_SEC,
           );
           playWhoosh();
+        }
+      }
+    } else if (leg === 'toDrop' && mission.inspection && point) {
+      // ---- The inspection hold -----------------------------------------------
+      //
+      // The delivery's hover — centred, in the band, stopped — plus the two
+      // things an inspection adds: the LIGHT has to be on the structure, and the
+      // aircraft must not be too close to it. Five seconds of all of it,
+      // unbroken; any condition lost puts the hold back to zero, which is what
+      // "maintain position for 5 seconds" means.
+      const insp = mission.inspection;
+      const zone = point.zone;
+      const z = probeZone(mission, zone);
+      const p = dronePose.position;
+
+      if (z.flat > zone.radius * 4.5 || !arrivalHeight(zone, z.agl, true)) {
+        // Left the zone altogether: back to finding it. Said only if a hold was
+        // actually running — a pilot overshooting on the way in has not been
+        // interrupted, they have not begun.
+        if (inspectHold.current > 0) {
+          store.showBanner(
+            {
+              kind: 'warn',
+              title: 'INSPECTION INTERRUPTED',
+              sub: 'Get back to the zone and hold still',
+            },
+            BANNER_SEC,
+          );
+          playFail();
+        }
+        inspectHold.current = 0;
+        steadyFor.current = 0;
+        lastChecks.current = '';
+        store.setLeg('carrying');
+        store.setChecks({ centred: false, inBand: false, steady: false, hold: 0 });
+      } else {
+        steadyFor.current = z.steady ? steadyFor.current + dt : 0;
+        const settled = steadyFor.current >= STEADY_ARM_SEC;
+
+        // The light, judged against the beam the lamp DREW — see `beamPose`.
+        _toTarget.x = point.target[0] - beamPose.x;
+        _toTarget.y = point.target[1] - beamPose.y;
+        _toTarget.z = point.target[2] - beamPose.z;
+        _beamAxis.x = beamPose.dx;
+        _beamAxis.y = beamPose.dy;
+        _beamAxis.z = beamPose.dz;
+        const lit = beamPose.present && inspectionLit(insp, _toTarget, _beamAxis);
+
+        // Too close to the structure being inspected. A warning and a stopped
+        // hold, never a failure: touching it is already a collision.
+        const tooClose = boxDistance(p, point.structure) < insp.minClearance;
+        if (tooClose && clock.current - clearSaidAt.current > REPEAT_WARN_SEC) {
+          clearSaidAt.current = clock.current;
+          store.showBanner(
+            {
+              kind: 'warn',
+              title: 'OBSTACLE TOO CLOSE',
+              sub: `Back away from the structure, keep ${insp.minClearance} m clear`,
+            },
+            BANNER_SEC,
+          );
+          playFail();
+        }
+
+        const on = z.centred && z.inBand && settled && lit && !tooClose;
+        if (on) {
+          const before = inspectHold.current;
+          inspectHold.current = Math.min(insp.holdSec, inspectHold.current + dt);
+          // One tick per second served, the tracking lock's cue: the pilot is
+          // looking at the structure, not at the top of the HUD.
+          if (Math.floor(inspectHold.current) > Math.floor(before)) playCollect();
+        } else {
+          // INTERRUPTED, on the edge only, and not on top of TOO CLOSE — that
+          // banner has already said why. The sub names what broke, because
+          // "interrupted" alone leaves a pilot at night guessing which of four
+          // things they lost.
+          if (inspectHold.current > 0 && !tooClose) {
+            store.showBanner(
+              {
+                kind: 'warn',
+                title: 'INSPECTION INTERRUPTED',
+                sub:
+                  !z.centred || !z.inBand
+                    ? 'You moved off the zone. Get back over it and hold still'
+                    : !lit
+                      ? 'Keep your spotlight on the amber marker'
+                      : 'Hold it steady',
+              },
+              BANNER_SEC,
+            );
+            playFail();
+          }
+          inspectHold.current = 0;
+        }
+
+        const hold = Math.round(Math.min(1, inspectHold.current / insp.holdSec) * 20) / 20;
+        const key = `${z.centred}${z.inBand}${settled}${lit}${tooClose}${hold}`;
+        if (key !== lastChecks.current) {
+          lastChecks.current = key;
+          store.setChecks({
+            centred: z.centred,
+            inBand: z.inBand,
+            steady: settled,
+            hold,
+            lit,
+            clear: !tooClose,
+          });
+        }
+
+        if (inspectHold.current >= insp.holdSec) {
+          // INSPECTED. Scored as a run, the way a multi-point package is — the
+          // run index is the zone, and it only ever moves forward from here.
+          store.takeDelivery(point.name.toUpperCase());
+          inspectHold.current = 0;
+          steadyFor.current = 0;
+          lastChecks.current = '';
+          store.setChecks({ centred: false, inBand: false, steady: false, hold: 0 });
+          playSuccess();
+
+          const last = store.runIndex + 1 >= runs;
+          if (!last) {
+            const next = inspectionOf(mission, store.runIndex + 1);
+            store.showBanner(
+              {
+                kind: 'good',
+                title: `${point.name.toUpperCase()} INSPECTED ✓`,
+                sub: next ? `Next: ${next.name}, ${next.label}` : undefined,
+              },
+              BANNER_SEC,
+            );
+            say(mission, 'delivered', point.id);
+            store.advanceRun();
+            announcedDrop.current = false;
+            floorSaidAt.current = -99;
+            leg = 'carrying';
+            store.setLeg(leg);
+          } else {
+            // The brief's own ending: complete, then home.
+            store.showBanner(
+              {
+                kind: 'good',
+                title: 'NIGHT INSPECTION COMPLETE',
+                sub: 'All assigned sections have been inspected. Return to the site office and land safely.',
+              },
+              BANNER_SEC * 1.6,
+            );
+            say(mission, 'delivered');
+            leg = 'delivered';
+            store.setLeg(leg);
+          }
         }
       }
     } else if (leg === 'toDrop' && mission.fire) {
@@ -1135,8 +1354,9 @@ export function MissionDirector() {
       const zone = dropZone;
       const z = probeZone(mission, zone);
       // Drifting back out of the approach ring is not a failure — it puts the
-      // pilot back on the navigation leg without re-announcing anything.
-      if (z.flat > zone.radius * 4.5) {
+      // pilot back on the navigation leg without re-announcing anything. Nor is
+      // leaving the storey a mark stands on, which is the same thing vertically.
+      if (z.flat > zone.radius * 4.5 || !arrivalHeight(zone, z.agl, false)) {
         dropHold.current = 0;
         lastChecks.current = '';
         // Leaving the zone re-arms the gate warning. It used to be announced
@@ -1223,7 +1443,11 @@ export function MissionDirector() {
           } else {
             store.takeZone('drop', 'DELIVERY');
             store.showBanner(
-              { kind: 'good', title: 'PAYLOAD DELIVERED', sub: 'Package is on the mark' },
+              {
+                kind: 'good',
+                title: mission.wording?.delivered ?? 'PAYLOAD DELIVERED',
+                sub: 'Package is on the mark',
+              },
               BANNER_SEC,
             );
             say(mission, 'delivered');
@@ -1284,7 +1508,11 @@ export function MissionDirector() {
             // A survey delivered nothing. The line is the last thing the pilot
             // reads before the result card, and 'Package delivered' on a
             // wildlife flight is the runtime describing a different mission.
-            sub: mission.tracking ? 'Sighting logged, drone home' : 'Package delivered, drone home',
+            sub: mission.tracking
+              ? 'Sighting logged, drone home'
+              : mission.inspection
+                ? 'Inspection logged, drone home'
+                : 'Package delivered, drone home',
           },
           LAND_DWELL,
         );
@@ -1426,7 +1654,11 @@ export function MissionDirector() {
        */
       const confirming = leg === 'confirming';
       targetMark.at.set(target[0], target[1], target[2]);
-      targetMark.active = !confirming;
+      // No in-picture chevron on the inspection. The brief is explicit that the
+      // night mission gives no route: the pilot finds each zone by its marker,
+      // the site lights and the spotlight, with the corner radar as the one
+      // instrument that answers "which way".
+      targetMark.active = !confirming && !mission.inspection;
       store.setFlightData({
         distance: confirming ? Math.hypot(dx, dz) : Math.hypot(dx, dy, dz),
         altitude: p.y - mission.groundY,
@@ -1455,6 +1687,19 @@ export function MissionDirector() {
  * ground, so the call is made at the edge of the fire itself — which is where a
  * pilot would say they had reached it.
  */
+/**
+ * Whether the aircraft is at a height that counts as having ARRIVED at a mark.
+ *
+ * A mark on a storey counts from its deck to the soffit over it, so the floors
+ * above and below it do not. An inspection hover counts within `ARRIVE_SLACK`
+ * of its band. Every other mark counts at any height, as it always has.
+ */
+function arrivalHeight(zone: MissionZone, agl: number, inspection: boolean): boolean {
+  if (zone.storey) return agl >= -0.5 && agl <= zone.storey.clear;
+  if (inspection) return agl >= zone.band.min - ARRIVE_SLACK && agl <= zone.band.max + ARRIVE_SLACK;
+  return true;
+}
+
 function enterRadius(mission: Mission, drop: MissionZone): number {
   return mission.fire ? mission.fire.breakRadius : drop.radius * 3;
 }

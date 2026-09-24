@@ -1,3 +1,4 @@
+import type { EnvironmentSpec } from '@shared/types';
 import { useMemo } from 'react';
 import type { ReactNode } from 'react';
 import { Physics } from '@react-three/rapier';
@@ -29,12 +30,20 @@ import { DroneAudio } from '../audio/DroneAudio';
 // `envIdOverride` lets callers (e.g. Flight School) force a specific environment
 // without changing the pilot's saved selection; the Fly view passes nothing.
 // `children` are mounted inside the Rapier world, for callers that add solid
-// things of their own (a mission's casualty).
+// things of their own (a mission's casualty). `spawnOverride` launches the
+// drone somewhere other than the map's own spawn, for a mission that starts
+// from a place of its own (Mission 8, the site office) — R returns it there.
 export function FlightScene({
   envIdOverride,
   ceilingOverride,
+  spawnOverride,
   children,
-}: { envIdOverride?: string; ceilingOverride?: number; children?: ReactNode } = {}) {
+}: {
+  envIdOverride?: string;
+  ceilingOverride?: number;
+  spawnOverride?: EnvironmentSpec['spawn'];
+  children?: ReactNode;
+} = {}) {
   const droneId = useSettingsStore((s) => s.settings.selectedDroneId);
   const selectedEnvId = useSettingsStore((s) => s.settings.selectedEnvironmentId);
   const envId = envIdOverride ?? selectedEnvId;
@@ -69,7 +78,13 @@ export function FlightScene({
         : base,
     [base, ceilingOverride],
   );
-  const env = getEnvironment(envId);
+  const mapEnv = getEnvironment(envId);
+  // One object for the life of the scene: the drone's reset effect is keyed on
+  // the spawn's identity, and a fresh copy every render would re-run it.
+  const env = useMemo(
+    () => (mapEnv && spawnOverride ? { ...mapEnv, spawn: spawnOverride } : mapEnv),
+    [mapEnv, spawnOverride],
+  );
 
   if (!spec || !env) return null;
 

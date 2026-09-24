@@ -159,6 +159,35 @@ function Towers() {
   );
 }
 
+/**
+ * The concrete frame, side on: slabs and columns, open between them. `night`
+ * warms the slab edges for the night pictures, where a floodlight is catching
+ * them and nothing else is.
+ */
+function Frame({ night = false }: { night?: boolean }) {
+  const slab = night ? '#3a3f47' : '#8b9099';
+  const col = night ? '#2a2e35' : '#6d737c';
+  const floors = [70, 56, 42, 28, 14];
+  return (
+    <g>
+      {[14, 38, 62, 86, 110].map((x) => (
+        <rect key={x} x={x - 1.5} y="14" width="3" height="56" fill={col} />
+      ))}
+      {floors.map((y, i) => (
+        <rect
+          key={y}
+          x="8"
+          y={y}
+          width="108"
+          height="2.6"
+          fill={slab}
+          opacity={night && i > 2 ? 0.6 : 1}
+        />
+      ))}
+    </g>
+  );
+}
+
 /** A stand of conifers along the bottom. */
 function Trees({ dark = false }: { dark?: boolean }) {
   const xs = [6, 18, 29, 41, 52, 66, 78, 90, 102, 113];
@@ -302,6 +331,78 @@ const SCENES: Record<ArtKey, () => ReactElement> = {
       <Drone x={60} y={26} s={1.1} />
     </g>
   ),
+  // The collection: a cement bag on its lit pad, the drone coming down onto it.
+  cement: () => (
+    <g>
+      <rect x="0" y="58" width="120" height="18" fill="#141d2e" />
+      <Mark x={60} y={62} color="#37e08a" w={22} />
+      <rect x="51" y="54" width="18" height="7.5" rx="2.6" fill="#aaa396" />
+      <rect x="55" y="55.6" width="10" height="4" rx="0.6" fill="#f1ece2" />
+      <rect x="56.5" y="56.8" width="7" height="1.6" fill="#b3261e" />
+      <Drone x={60} y={30} s={1.1} />
+      <line
+        x1="60"
+        y1="34"
+        x2="60"
+        y2="50"
+        stroke="#37e08a"
+        strokeWidth="0.8"
+        strokeDasharray="2 3"
+        opacity="0.7"
+      />
+    </g>
+  ),
+  // The site: the drone flying a floor of the frame, carrying the load in.
+  frame: () => (
+    <g>
+      <Frame />
+      <Drone x={50} y={50} s={1.05} cargo="#aaa396" />
+      <path
+        d="M66 50 h 16"
+        stroke="#ffcf4d"
+        strokeWidth="1"
+        strokeDasharray="2 2.5"
+        opacity="0.8"
+      />
+      <Mark x={96} y={55.5} color="#ffcf4d" w={9} />
+    </g>
+  ),
+  // The site after dark: the frame black, a floodlight on one mast, the amber
+  // markers dotted up the building — the only lights to steer by.
+  nightsite: () => (
+    <g>
+      <rect width="120" height="76" fill="#05080f" opacity="0.55" />
+      <Frame night />
+      <rect x="4" y="30" width="1.6" height="40" fill="#2a2e35" />
+      <path d="M5 30 L 60 70 L 30 76 Z" fill="#ffe7c4" opacity="0.08" />
+      <circle cx="5" cy="30" r="3.4" fill="#fff3dc" opacity="0.9" />
+      {[
+        [110, 58],
+        [62, 44],
+        [86, 16],
+      ].map(([x, y], i) => (
+        <g key={x}>
+          <circle cx={x} cy={y} r="4" fill="#ffb020" opacity={i === 0 ? 0.35 : 0.15} />
+          <circle cx={x} cy={y} r="1.3" fill="#ffb020" opacity={i === 0 ? 1 : 0.5} />
+        </g>
+      ))}
+      <Drone x={34} y={50} s={0.9} />
+    </g>
+  ),
+  // The inspection: the beam on the marked column, the hold filling.
+  inspect: () => (
+    <g>
+      <rect width="120" height="76" fill="#05080f" opacity="0.5" />
+      <rect x="84" y="10" width="6" height="66" fill="#3a3f47" />
+      <path d="M40 30 L 86 34 L 86 58 Z" fill="#ffe9c0" opacity="0.25" />
+      <ellipse cx="86" cy="46" rx="3.5" ry="11" fill="#ffe9c0" opacity="0.3" />
+      <circle cx="86" cy="45" r="4.5" fill="#ffb020" opacity="0.35" />
+      <circle cx="86" cy="45" r="1.6" fill="#ffb020" />
+      <Drone x={40} y={28} s={1.1} />
+      <rect x="14" y="62" width="50" height="4" rx="2" fill="#1d2b3f" />
+      <rect x="14" y="62" width="35" height="4" rx="2" fill="#37e08a" />
+    </g>
+  ),
   // Home: the pad, and the drone settling onto it.
   land: () => (
     <g>
@@ -347,7 +448,13 @@ export function MissionHero({ envId, src }: { envId: string; src?: string }) {
         </linearGradient>
       </defs>
       <rect width="120" height="200" fill="url(#hero-sky)" />
-      {envId === 'forest' ? <ForestHero /> : <CityHero />}
+      {envId === 'forest' ? (
+        <ForestHero />
+      ) : envId === 'construction-site' ? (
+        <SiteHero />
+      ) : (
+        <CityHero />
+      )}
     </svg>
   );
 }
@@ -383,6 +490,27 @@ function CityHero() {
         </g>
       ))}
       <Drone x={62} y={48} s={1.9} cargo="#eef3f9" />
+    </g>
+  );
+}
+
+/** The Construction Site: the frame against the sky, and the crane over it. */
+function SiteHero() {
+  const floors = [196, 170, 144, 118, 92, 66];
+  return (
+    <g>
+      {/* The crane: mast, jib, the load on its hook. */}
+      <rect x="20" y="30" width="4" height="170" fill="#b08a2e" opacity="0.8" />
+      <rect x="4" y="30" width="112" height="3" fill="#b08a2e" opacity="0.8" />
+      <line x1="88" y1="33" x2="88" y2="70" stroke="#93a7c4" strokeWidth="0.6" />
+      <rect x="84" y="70" width="8" height="6" fill="#6d737c" />
+      {[34, 58, 82, 106].map((x) => (
+        <rect key={x} x={x - 2} y="66" width="4" height="134" fill="#4b5059" />
+      ))}
+      {floors.map((y) => (
+        <rect key={y} x="28" y={y} width="88" height="4" fill="#7c828b" />
+      ))}
+      <Drone x={70} y={132} s={1.9} cargo="#aaa396" />
     </g>
   );
 }
