@@ -801,6 +801,10 @@ export function Director() {
       enterPhase(phase, lesson);
       phaseRef.current = phase;
     }
+    // Practice paused with P: the lesson's own clock — hold timers, the
+    // validators' windows — waits with the drone. A demonstration cannot be
+    // paused at all; the scripted flag swallows P with every other key.
+    if (phase === 'practice' && useFlightStore.getState().paused) return;
     phaseTime.current += delta;
 
     switch (phase) {

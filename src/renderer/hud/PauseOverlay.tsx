@@ -1,9 +1,15 @@
 import { useFlightStore } from '../state/flightStore';
 import { useUiStore } from '../state/uiStore';
 
-// Pause menu, opened with Esc while flying. Physics is halted underneath, so
+// The pause card. P (anywhere the flight controls are mounted) and Esc (Free
+// Flight) open it, and the same keys close it. Physics is halted underneath, so
 // the drone hangs exactly where you left it rather than falling out of the sky.
-export function PauseOverlay() {
+//
+// `menu` is Free Flight's: Settings and Main Menu are safe there because there
+// is nothing to leave. A mission or a lesson has an attempt under way, and
+// leaving it is `exit` / `exitLesson`'s job — so those views get the card
+// without the menu, and the Exit button they already carry does the leaving.
+export function PauseOverlay({ menu = true }: { menu?: boolean }) {
   const paused = useFlightStore((s) => s.paused);
   const togglePause = useFlightStore((s) => s.togglePause);
   const setSection = useUiStore((s) => s.setSection);
@@ -17,26 +23,37 @@ export function PauseOverlay() {
         <button className="pause-btn primary" onClick={togglePause}>
           Resume
         </button>
-        <button
-          className="pause-btn"
-          onClick={() => {
-            togglePause();
-            setSection('settings');
-          }}
-        >
-          Settings
-        </button>
-        <button
-          className="pause-btn"
-          onClick={() => {
-            togglePause();
-            setSection('home');
-          }}
-        >
-          Main Menu
-        </button>
+        {menu && (
+          <>
+            <button
+              className="pause-btn"
+              onClick={() => {
+                togglePause();
+                setSection('settings');
+              }}
+            >
+              Settings
+            </button>
+            <button
+              className="pause-btn"
+              onClick={() => {
+                togglePause();
+                setSection('home');
+              }}
+            >
+              Main Menu
+            </button>
+          </>
+        )}
         <span className="pause-hint">
-          Press <kbd>Esc</kbd> to resume
+          Press <kbd>P</kbd>
+          {menu && (
+            <>
+              {' '}
+              or <kbd>Esc</kbd>
+            </>
+          )}{' '}
+          to resume
         </span>
       </div>
     </div>

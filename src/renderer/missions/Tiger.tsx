@@ -4,6 +4,7 @@ import { useFrame } from '@react-three/fiber';
 import { useGLTF } from '@react-three/drei';
 import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { useMissionStore } from '../state/missionStore';
+import { useFlightStore } from '../state/flightStore';
 import { dronePose } from '../sim/drone/pose';
 import { useDisposable } from '../scene/useDisposable';
 import { staticHitDistance } from '../scene/cameraProbe';
@@ -259,6 +260,9 @@ export function Tiger({ mission }: { mission: Mission }) {
 
   useFrame((_, dt) => {
     if (!route || !root.current) return;
+    // A paused flight stops the animal too: a tiger that walked on under a
+    // frozen drone would be somewhere else when the pilot came back.
+    if (useFlightStore.getState().paused) return;
 
     walk.current += dt;
     const speed = mission.tracking?.speed ?? 0.9;

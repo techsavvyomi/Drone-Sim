@@ -7,6 +7,7 @@ import { playClick, playStar, playSuccess } from '../audio/sfx';
 import { RAD2DEG } from '../sim/mathx';
 import { useModalKeyLock } from '../input/useModalKeyLock';
 import { MissionMap } from './MissionMap';
+import { PauseOverlay } from './PauseOverlay';
 import { MissionCityMap } from './MissionCityMap';
 import { MissionHero, StepArt, missionImage } from './MissionArt';
 import { getEnvironment } from '../plugins/registry';
@@ -473,6 +474,8 @@ export function MissionHud() {
 
   return (
     <div className="ms-hud">
+      {/* P while flying. Without the menu: Exit at the top right is the way out. */}
+      {flying && <PauseOverlay menu={false} />}
       <div className="ms-top">
         <div className="ms-badge">
           <span className="ms-badge-tag">Mission {mission.order}</span>

@@ -20,6 +20,7 @@ const GROUPS: { title: string; rows: [string, string][] }[] = [
       ['S then W', 'After arming: throttle down, then up'],
       ['Space', 'Auto take-off / land'],
       ['M', 'Cycle flight mode'],
+      ['P', 'Pause / resume'],
       ['R', 'Reset to spawn'],
     ],
   },

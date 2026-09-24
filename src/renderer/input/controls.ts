@@ -214,6 +214,7 @@ const CODE = {
   mode: 'KeyM',
   reset: 'KeyR',
   help: 'KeyH',
+  pause: 'KeyP',
 } as const;
 
 const COMMAND_CODES = new Set<string>([
@@ -223,7 +224,21 @@ const COMMAND_CODES = new Set<string>([
   CODE.mode,
   CODE.reset,
   CODE.help,
+  CODE.pause,
 ]);
+
+/**
+ * The commands a paused flight still answers.
+ *
+ * P is how the pause ends, and the physics is stopped underneath it, so the
+ * view can be turned and the help read without anything moving. R is a fresh
+ * start, and a fresh start is not paused. Arming, take-off and a mode change
+ * are refused: each one changes what the aircraft is doing, and nothing is
+ * doing anything — the pilot would find out what they had asked for at the
+ * moment they pressed P again, which is the one moment they expect nothing
+ * to have changed.
+ */
+const WHILE_PAUSED = new Set<string>([CODE.pause, CODE.camera, CODE.help, CODE.reset]);
 
 function axis(neg: boolean, pos: boolean): number {
   return (pos ? 1 : 0) - (neg ? 1 : 0);
@@ -234,6 +249,11 @@ export function updateStick(dt: number): void {
   // A scripted demo owns the sticks outright — do not let easing or live input
   // overwrite the values the Director just wrote.
   if (scripted) return;
+  // A paused flight holds its sticks where they were. The physics is stopped,
+  // but this runs from the render loop, which is not: a W held while paused
+  // would otherwise walk a direct-thrust throttle all the way up, and the
+  // aircraft would leap the moment the flight resumed.
+  if (useFlightStore.getState().paused) return;
 
   const up = pressed.has(CODE.throttleUp);
   const down = pressed.has(CODE.throttleDown);
@@ -341,7 +361,11 @@ export function throttleSafeToArm(): boolean {
 }
 
 function runCommand(code: string): void {
+  if (useFlightStore.getState().paused && !WHILE_PAUSED.has(code)) return;
   switch (code) {
+    case CODE.pause:
+      useFlightStore.getState().togglePause();
+      break;
     case CODE.arm: {
       const flight = useFlightStore.getState();
       // Block arming with the throttle up; disarming is always allowed.
@@ -361,12 +385,18 @@ function runCommand(code: string): void {
     case CODE.help:
       useUiStore.getState().toggleControls();
       break;
-    case CODE.reset:
+    case CODE.reset: {
       useSimStore.getState().requestReset();
-      useFlightStore.getState().disarm();
-      useFlightStore.getState().clearCrash();
+      const flight = useFlightStore.getState();
+      flight.disarm();
+      flight.clearCrash();
+      // The reset itself happens in the physics step, which a pause holds
+      // back: R on a paused flight would otherwise do nothing until P, and
+      // then two things at once.
+      if (flight.paused) flight.togglePause();
       resetStick();
       break;
+    }
   }
 }
 
@@ -374,6 +404,8 @@ function runGamepadAction(action: GamepadAction): void {
   // Scripted demo in progress: ignore controller buttons too.
   if (scripted) return;
   const flight = useFlightStore.getState();
+  // Same rule as the keyboard: a paused flight answers only the view and a reset.
+  if (flight.paused && action !== 'cameraCycle' && action !== 'reset') return;
   switch (action) {
     case 'arm':
       if (!flight.armed && throttleSafeToArm()) flight.toggleArm();

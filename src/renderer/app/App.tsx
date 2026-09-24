@@ -130,8 +130,15 @@ export function App() {
       if (e.key !== 'Escape') return;
       e.preventDefault();
       const ui = useUiStore.getState();
+      const flight = useFlightStore.getState();
       if (ui.section === 'fly') {
-        useFlightStore.getState().togglePause();
+        flight.togglePause();
+      } else if (flight.paused) {
+        // A mission or a lesson paused with P: Esc takes the pause off, it does
+        // not leave. Leaving is what Esc does to a RUNNING attempt, and a pilot
+        // who stopped to think should not lose the attempt to the key they
+        // reach for to get back to it.
+        flight.togglePause();
       } else if (ui.section === 'training') {
         // Inside a lesson: back out to the lesson list; on the list: back home.
         const training = useTrainingStore.getState();

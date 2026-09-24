@@ -353,6 +353,10 @@ export function MissionDirector() {
       targetMark.active = false;
       return;
     }
+    // Paused (P): the drone is frozen under this, so every hold, countdown and
+    // stray timer below has to freeze with it, or a pause over a mark would
+    // finish the hold by itself.
+    if (useFlightStore.getState().paused) return;
 
     // A frame lost to a shader compile or a window drag must not push a whole
     // hold through in one step — every timer below is fed from this.

@@ -8,6 +8,7 @@ import type { Lesson } from '../training/lessons';
 import { StickIndicator } from './StickIndicator';
 import { KeyActions, KeyHints } from './KeyHints';
 import { CrashOverlay } from './CrashOverlay';
+import { PauseOverlay } from './PauseOverlay';
 import { playClick, playSuccess, playStar, playRankUp } from '../audio/sfx';
 import { LessonMap } from './LessonMap';
 import { useModalKeyLock } from '../input/useModalKeyLock';
@@ -417,6 +418,9 @@ export function TrainingHud() {
           Practice only: the demonstration resets itself, and a card thrown over
           it would be covering the very thing the pilot is meant to be watching. */}
       {phase === 'practice' && <CrashOverlay />}
+      {/* P during practice. Without the menu: Esc on the card leaves the lesson
+          the way it always has, once the pause is off. */}
+      {phase === 'practice' && <PauseOverlay menu={false} />}
 
       {/* Step 5 — Reward (celebration) */}
       {phase === 'reward' && (
