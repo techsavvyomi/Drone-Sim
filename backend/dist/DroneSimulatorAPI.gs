@@ -216,6 +216,8 @@ const CATALOG = {
     { id: 'MISSION-004', name: 'Logistics Drones', simKey: 'search-rescue', maxScore: 2, order: 4 },
     { id: 'MISSION-005', name: 'Animal Rescue', simKey: 'tiger-tracker', maxScore: 1, order: 5 },
     { id: 'MISSION-006', name: 'Search and Rescue', simKey: 'night-tracking', maxScore: 1, order: 6 },
+    { id: 'MISSION-007', name: 'Construction Material Delivery', simKey: 'construction-material-delivery', maxScore: 2, order: 7 },
+    { id: 'MISSION-008', name: 'Night Shift Inspection', simKey: 'night-shift-inspection', maxScore: 4, order: 8 },
   ],
   training: [
     { id: 'TRAINING-001', name: 'Arm & Take Off', simKey: 'arm-takeoff', order: 1 },

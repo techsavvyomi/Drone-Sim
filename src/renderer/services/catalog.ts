@@ -23,6 +23,8 @@ export const MISSION_IDS: Readonly<Record<string, string>> = {
   'search-rescue': 'MISSION-004',
   'tiger-tracker': 'MISSION-005',
   'night-tracking': 'MISSION-006',
+  'construction-material-delivery': 'MISSION-007',
+  'night-shift-inspection': 'MISSION-008',
 };
 
 export const TRAINING_IDS: Readonly<Record<string, string>> = {
