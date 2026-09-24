@@ -8,6 +8,7 @@ import { flightSchool } from './environments/flightSchool';
 import { classroom2 } from './environments/classroom2';
 import { forest } from './environments/forest';
 import { newYork } from './environments/newYork';
+import { constructionSite } from './environments/constructionSite';
 import { MISSIONS } from '../missions';
 import { toMissionSpec } from '../missions/types';
 import { preloadDroneModel } from '../sim/drone/DroneModel';
@@ -24,6 +25,7 @@ export function loadBuiltinPlugins(): void {
   registerEnvironment(classroom2);
   registerEnvironment(forest);
   registerEnvironment(newYork);
+  registerEnvironment(constructionSite);
   MISSIONS.forEach((m) => registerMission(toMissionSpec(m)));
 
   // Warm the model cache immediately so nothing shows a stand-in airframe while
