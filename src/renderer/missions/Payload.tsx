@@ -6,6 +6,7 @@ import { useSettingsStore } from '../state/settingsStore';
 import { useMissionStore } from '../state/missionStore';
 import { getDrone } from '../plugins/registry';
 import { allZonesOf, zoneGroundY, type Mission, type MissionDelivery } from './types';
+import { CementBag, BAG_H } from './CementBag';
 
 // ----------------------------------------------------------------------------
 // The package.
@@ -85,7 +86,13 @@ export function Payload({ mission }: { mission: Mission }) {
    * case's including the `skin` its decals stand proud by: the underside plate
    * is the lowest thing on it, not the box face.
    */
-  const belly = keepsPayload ? size * 0.549 : size * 0.504;
+  // A cement bag is a flat sack, not a cube: half its own height, plus the
+  // label's skin on top and bottom.
+  const belly = keepsPayload
+    ? size * 0.549
+    : mission.cargo === 'cement'
+      ? size * (BAG_H / 2 + 0.004)
+      : size * 0.504;
 
   const deliveries = mission.deliveries;
 
@@ -335,6 +342,15 @@ export function Payload({ mission }: { mission: Mission }) {
     return (
       <group ref={group}>
         <RetardantTank size={size} spent={spent} />
+      </group>
+    );
+  }
+
+  // Mission 7's load: a cement bag for the crew on Level 4.
+  if (mission.cargo === 'cement') {
+    return (
+      <group ref={group}>
+        <CementBag size={size} />
       </group>
     );
   }

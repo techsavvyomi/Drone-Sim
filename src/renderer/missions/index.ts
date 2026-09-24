@@ -4,6 +4,8 @@ import { multiPointDelivery } from './multiPointDelivery';
 import { searchRescue } from './searchRescue';
 import { nightTracking } from './nightTracking';
 import { tigerTracker } from './tigerTracker';
+import { materialDelivery } from './materialDelivery';
+import { nightInspection } from './nightInspection';
 import type { Mission } from './types';
 
 // The mission list.
@@ -25,6 +27,8 @@ export const MISSIONS: readonly Mission[] = [
   searchRescue,
   tigerTracker,
   nightTracking,
+  materialDelivery,
+  nightInspection,
 ].sort((a, b) => a.order - b.order);
 
 export function getMission(id: string): Mission | undefined {
@@ -38,4 +42,6 @@ export {
   searchRescue,
   tigerTracker,
   nightTracking,
+  materialDelivery,
+  nightInspection,
 };

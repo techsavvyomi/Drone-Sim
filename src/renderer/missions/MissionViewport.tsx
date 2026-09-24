@@ -24,6 +24,10 @@ import { Spray } from './Spray';
 import { Payload } from './Payload';
 import { Tiger } from './Tiger';
 import { DroneSpotlight } from './DroneSpotlight';
+import { SiteNightLights } from './SiteNightLights';
+import { InspectionMarkers } from './InspectionMarkers';
+import { MaterialStore } from './MaterialStore';
+import { getEnvironment } from '../plugins/registry';
 import type { Mission } from './types';
 
 // The mission flight view: the same 3D scene as free flight, pinned to the
@@ -114,7 +118,11 @@ export function MissionViewport({ mission }: { mission: Mission }) {
           }}
           camera={{ position: [8, 5, 9], fov: 60, near: 0.15, far: 700 }}
         >
-          <FlightScene envIdOverride={mission.envId} ceilingOverride={mission.ceiling}>
+          <FlightScene
+            envIdOverride={mission.envId}
+            ceilingOverride={mission.ceiling}
+            spawnOverride={mission.spawn}
+          >
             {/* The person on the roof is solid. Inside the scene because that is
                 where `<Physics>` is. */}
             {mission.search && <CasualtyCollider mission={mission} />}
@@ -129,6 +137,16 @@ export function MissionViewport({ mission }: { mission: Mission }) {
             )}
             {/* The hydrant fill point the suppression tank waits at. */}
             {mission.fire && <HydrantFillPoint mission={mission} />}
+            {/* The site after dark: floodlight masts (solid, hence in here) and
+                the lit office. Only on the night mission — the delivery on the
+                same map flies at the shared evening hour. */}
+            {/* The site's material store, where Mission 7's cement bag waits. */}
+            {mission.envId === 'construction-site' && mission.cargo === 'cement' && (
+              <MaterialStore />
+            )}
+            {mission.envId === 'construction-site' && mission.hour === 'night' && (
+              <SiteNightLights />
+            )}
           </FlightScene>
           <MissionMarkers mission={mission} />
           {/* The helipad the drone takes off from, under the spawn. */}
@@ -144,11 +162,17 @@ export function MissionViewport({ mission }: { mission: Mission }) {
               the mission already has a distance rule that says it better. */}
           {mission.tracking && <Tiger mission={mission} />}
           {mission.tracking && <DroneSpotlight mission={mission} shadows={q.shadows} />}
+          {/* The night inspection flies the same lamp, WITHOUT shadows: its
+              shadow map is only redrawn while the tiger is near the beam, so on
+              a mission with no tiger it would be frozen on its first frame and
+              drag stale shadows across the frame. */}
+          {mission.inspection && <DroneSpotlight mission={mission} shadows={false} />}
+          {mission.inspection && <InspectionMarkers mission={mission} />}
           {/* Every mission carries something — except the tracking one, which
               carries nothing at all: there is no box to fetch and nothing to put
               down, and a payload mounted for it would hang a food box under a
               drone out watching wildlife. */}
-          {!mission.tracking && <Payload mission={mission} />}
+          {!mission.tracking && !mission.inspection && <Payload mission={mission} />}
           <MissionDirector />
           {/* Projects the Director's target into screen space every frame, for
               the chevron the HUD draws over it. Inside the Canvas because that
@@ -163,7 +187,11 @@ export function MissionViewport({ mission }: { mission: Mission }) {
       {!ready && (
         <SceneVeil
           label={
-            mission.envId === 'new-york' ? 'Getting the city ready' : 'Getting the forest ready'
+            mission.envId === 'new-york'
+              ? 'Getting the city ready'
+              : mission.envId === 'forest'
+                ? 'Getting the forest ready'
+                : `Getting the ${(getEnvironment(mission.envId)?.name ?? 'map').toLowerCase()} ready`
           }
         />
       )}

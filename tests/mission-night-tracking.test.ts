@@ -70,9 +70,12 @@ const GURU_CEILING = 30;
 describe('the shape of the mission', () => {
   it('TC-500 is the sixth mission and unlocks behind Animal Rescue', () => {
     expect(M.order).toBe(6);
-    expect(MISSIONS[MISSIONS.length - 1].id).toBe(M.id);
-    expect(MISSIONS[MISSIONS.length - 2].id).toBe('tiger-tracker');
-    expect(MISSIONS.map((m) => m.order)).toEqual([1, 2, 3, 4, 5, 6]);
+    // By position rather than as the last entry: Missions 7 and 8 (the
+    // Construction Site) now sit behind it.
+    const i = MISSIONS.findIndex((m) => m.id === M.id);
+    expect(i).toBe(5);
+    expect(MISSIONS[i - 1].id).toBe('tiger-tracker');
+    expect(MISSIONS.map((m) => m.order)).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
   });
 
   it('TC-500 never shows the tiger on the map', () => {

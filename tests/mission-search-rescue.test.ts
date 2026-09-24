@@ -86,7 +86,7 @@ describe('the shape of the mission', () => {
     expect(M.order).toBe(4);
     // The list is asserted in FULL rather than by index, so a mission inserted
     // in the wrong place — which is how the unlock chain breaks — fails here.
-    // Missions 5 and 6 sit behind it.
+    // Missions 5 to 8 sit behind it.
     expect(MISSIONS.map((m) => m.id)).toEqual([
       precisionDelivery.id,
       forestFire.id,
@@ -94,6 +94,8 @@ describe('the shape of the mission', () => {
       searchRescue.id,
       tigerTracker.id,
       nightTracking.id,
+      'construction-material-delivery',
+      'night-shift-inspection',
     ]);
   });
 
