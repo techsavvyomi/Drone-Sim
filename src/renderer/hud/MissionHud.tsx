@@ -388,6 +388,9 @@ function InspectionCard({ mission }: { mission: Mission }) {
   );
 }
 
+/** The environments `MissionCityMap` can draw a plan of. */
+const PLANNED_ENVS = new Set(['new-york', 'forest', 'construction-site']);
+
 /** A star row that lights one star at a time, with a chime for each. */
 function StarReveal({ value }: { value: number }) {
   const [shown, setShown] = useState(0);
@@ -836,8 +839,10 @@ export function MissionHud() {
           zone on it. Every other mission gets the drone-centred radar, which
           answers 'where now' with one dot and has nothing to say when the whole
           point is that nothing may answer that. */}
+      {/* Every map with a plan gets the plan map — the ground, where it ends,
+          and the aircraft on it. The radar is left for a map that has none. */}
       {flying &&
-        (mission.envId === 'new-york' ? (
+        (PLANNED_ENVS.has(mission.envId) ? (
           <MissionCityMap mission={mission} />
         ) : (
           <MissionMap mission={mission} />

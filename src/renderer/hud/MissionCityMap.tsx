@@ -1,6 +1,8 @@
 import { useEffect, useRef } from 'react';
 import { dronePose } from '../sim/drone/pose';
-import { activeZone, legOf, useMissionStore } from '../state/missionStore';
+import { activeZone, guidanceHidden, legOf, useMissionStore } from '../state/missionStore';
+import { tigerPose } from '../missions/tigerPose';
+import { drawForestPlan, drawSitePlan } from './planLayers';
 import type { MissionLeg } from '../state/missionStore';
 import {
   NYC_EDGES,
@@ -52,6 +54,12 @@ import { nextTargetOf, requiredCheckpoints } from '../missions/types';
 // grey silhouette, and the city came out as nine blobs: a search area with
 // nothing in it to search. A block of this city is a dozen buildings, and the
 // search is harder and more honest when the map says so.
+//
+// ONE MAP FOR EVERY ENVIRONMENT. It started as New York's, and the forest and
+// the Construction Site now draw theirs through it too — see `planLayers.ts` —
+// so every mission gets the same plan: the ground, where it ends, and the
+// aircraft on it. Their radar, a disc with one dot, said where the next mark was
+// and nothing about where the map was.
 //
 // It carries NO compass and no N/E/S/W. The sector clues those served are gone,
 // and on a north-up plan of a city the pilot is looking at, they were labelling
@@ -150,6 +158,8 @@ const MARK_BASE = '#7dd3fc';
 const MARK_DONE = 'rgba(148, 163, 184, 0.6)';
 /** The next ring on a route, in the pink the rings wear in the world. */
 const MARK_RING = '#ff5fa2';
+/** The tiger, on a mission that shows it (`tracking.showOnMap`). */
+const TIGER = '#ff3b3b';
 
 export function MissionCityMap({ mission }: { mission: Mission }) {
   const canvas = useRef<HTMLCanvasElement>(null);
@@ -248,8 +258,14 @@ export function MissionCityMap({ mission }: { mission: Mission }) {
         ctx.rect(sx(land.x0), sz(land.z0), (land.x1 - land.x0) * k, (land.z1 - land.z0) * k);
         ctx.clip();
       }
-      ctx.fillStyle = ROAD;
-      ctx.fillRect(0, 0, SIZE, SIZE);
+      const view = { sx, sz, k };
+      const city = mission.envId === 'new-york';
+      if (mission.envId === 'forest') drawForestPlan(ctx, view);
+      else if (mission.envId === 'construction-site') drawSitePlan(ctx, view, mission);
+      else {
+        ctx.fillStyle = ROAD;
+        ctx.fillRect(0, 0, SIZE, SIZE);
+      }
       const rects = (list: readonly number[], colour: string) => {
         ctx.fillStyle = colour;
         for (let i = 0; i < list.length; i += 4) {
@@ -261,9 +277,11 @@ export function MissionCityMap({ mission }: { mission: Mission }) {
           ctx.fillRect(x, y, w, d);
         }
       };
-      rects(NYC_WALKS, WALK);
-      rects(NYC_LANES, LANE);
-      rects(NYC_GRASS, GRASS);
+      if (city) {
+        rects(NYC_WALKS, WALK);
+        rects(NYC_LANES, LANE);
+        rects(NYC_GRASS, GRASS);
+      }
 
       // The grid, in world metres so it scrolls with the city rather than
       // sitting still over it.
@@ -284,7 +302,7 @@ export function MissionCityMap({ mission }: { mission: Mission }) {
       // Roofs first, then the edges over them. Off the disc entirely is skipped
       // rather than clipped: at this zoom most of the city is off it most of
       // the time, and there are well over a thousand roofs.
-      for (let i = 0; i < NYC_ROOFS.length; i += 5) {
+      for (let i = 0; city && i < NYC_ROOFS.length; i += 5) {
         const x = sx(NYC_ROOFS[i]);
         const y = sz(NYC_ROOFS[i + 1]);
         const w = NYC_ROOFS[i + 2] * k;
@@ -298,7 +316,7 @@ export function MissionCityMap({ mission }: { mission: Mission }) {
       ctx.strokeStyle = EDGE;
       ctx.lineWidth = 0.7;
       ctx.beginPath();
-      for (let i = 0; i < NYC_EDGES.length; i += 4) {
+      for (let i = 0; city && i < NYC_EDGES.length; i += 4) {
         const x1 = sx(NYC_EDGES[i]);
         const y1 = sz(NYC_EDGES[i + 1]);
         const x2 = sx(NYC_EDGES[i + 2]);
@@ -312,9 +330,9 @@ export function MissionCityMap({ mission }: { mission: Mission }) {
 
       // Canopies over the roofs they overhang, and props over everything: seen
       // from above a tree covers the sidewalk and a lamp stands clear of both.
-      rects(NYC_TREES, TREE);
+      if (city) rects(NYC_TREES, TREE);
       ctx.fillStyle = PROP;
-      for (let i = 0; i < NYC_PROPS.length; i += 2) {
+      for (let i = 0; city && i < NYC_PROPS.length; i += 2) {
         const x = sx(NYC_PROPS[i]);
         const y = sz(NYC_PROPS[i + 1]);
         if (x < 0 || y < 0 || x > SIZE || y > SIZE) continue;
@@ -325,12 +343,7 @@ export function MissionCityMap({ mission }: { mission: Mission }) {
         ctx.restore();
         ctx.strokeStyle = LAND_EDGE;
         ctx.lineWidth = 1;
-        ctx.strokeRect(
-          sx(land.x0),
-          sz(land.z0),
-          (land.x1 - land.x0) * k,
-          (land.z1 - land.z0) * k,
-        );
+        ctx.strokeRect(sx(land.x0), sz(land.z0), (land.x1 - land.x0) * k, (land.z1 - land.z0) * k);
       }
 
       // --- The red zone ------------------------------------------------------
@@ -385,21 +398,33 @@ export function MissionCityMap({ mission }: { mission: Mission }) {
       // letters: the one being flown to breathes, a package already placed goes
       // grey, the rest are outlines. The live one rides the rim when it is off
       // the frame, the same way the red zone's pip does.
-      if (!mission.search) {
+      if (!mission.search && !guidanceHidden(mission, located, live.current.leg)) {
         const { leg, runIndex, deliveredCount, collected } = live.current;
         // A route's next ring comes first, exactly as on the radar: while one is
         // owed it is the thing being flown to, and no zone is lit over it.
         const cp = nextTargetOf(mission, legOf(leg), collected);
         const here = cp ? null : activeZone(leg);
         const beat = 0.5 + 0.5 * Math.sin((clock / 1000) * Math.PI * 1.4);
-        const drops = mission.deliveries ?? [{ id: 'd', zone: mission.zones.drop }];
+        // An inspection's destinations are its zones, flown in order; a
+        // tracking mission has none worth drawing — the animal walks.
+        const drops = mission.inspection
+          ? mission.inspection.points
+          : mission.tracking
+            ? []
+            : (mission.deliveries ?? [{ id: 'd', zone: mission.zones.drop }]);
+        // Nothing is collected on an inspection or a survey: no pickup mark.
+        const collects = !mission.inspection && !mission.tracking;
         const marks = [
-          {
-            at: mission.zones.pickup.at,
-            colour: MARK_PICKUP,
-            active: here === 'pickup',
-            done: false,
-          },
+          ...(collects
+            ? [
+                {
+                  at: mission.zones.pickup.at,
+                  colour: MARK_PICKUP,
+                  active: here === 'pickup',
+                  done: false,
+                },
+              ]
+            : []),
           ...drops.map((d, i) => ({
             at: d.zone.at,
             colour: MARK_DROP,
@@ -471,7 +496,13 @@ export function MissionCityMap({ mission }: { mission: Mission }) {
           ctx.fillStyle = MARK_RING;
           if (away > half - 6) {
             ctx.beginPath();
-            ctx.arc(half + (dx / away) * (half - 9), half + (dy / away) * (half - 9), 3.5, 0, Math.PI * 2);
+            ctx.arc(
+              half + (dx / away) * (half - 9),
+              half + (dy / away) * (half - 9),
+              3.5,
+              0,
+              Math.PI * 2,
+            );
             ctx.fill();
           } else {
             ctx.strokeStyle = MARK_RING;
@@ -499,6 +530,30 @@ export function MissionCityMap({ mission }: { mission: Mission }) {
           ctx.fillStyle = MARK_RING;
           ctx.fillText(`${owed} left`, half, SIZE - 8);
         }
+      }
+
+      // --- The tiger, on the mission that shows it -----------------------------
+      if (mission.tracking?.showOnMap && tigerPose.present) {
+        const x = sx(tigerPose.x);
+        const y = sz(tigerPose.z);
+        const dx = x - half;
+        const dy = y - half;
+        const away = Math.hypot(dx, dy);
+        const far = away > half - 6;
+        const tx = far ? half + (dx / away) * (half - 9) : x;
+        const ty = far ? half + (dy / away) * (half - 9) : y;
+        const t = (clock % 1200) / 1200;
+        ctx.strokeStyle = TIGER;
+        ctx.lineWidth = 1.6;
+        ctx.globalAlpha = 0.75 * (1 - t);
+        ctx.beginPath();
+        ctx.arc(tx, ty, 5 + t * 8, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.globalAlpha = 1;
+        ctx.fillStyle = TIGER;
+        ctx.beginPath();
+        ctx.arc(tx, ty, far ? 3.5 : 4.5, 0, Math.PI * 2);
+        ctx.fill();
       }
 
       // --- The aircraft ------------------------------------------------------

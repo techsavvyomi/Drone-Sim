@@ -18,6 +18,8 @@ import {
 import type { MissionResult, MissionZone } from '../src/renderer/missions/types';
 import { objectiveFor, runContextOf, useMissionStore } from '../src/renderer/state/missionStore';
 import { constructionSite } from '../src/renderer/plugins/environments/constructionSite';
+import { forest } from '../src/renderer/plugins/environments/forest';
+import { FOREST_PLAN } from '../src/renderer/scene/environment/ForestPlan';
 import {
   SITE_STORE_AT,
   SITE_STORE_FRONT_Z,
@@ -373,5 +375,52 @@ describe('the shared geometry helpers', () => {
     expect(inspectionLit(insp, at(0, 0, 5), fwd)).toBe(false);
     expect(inspectionLit(insp, at(5, 0, -5), fwd)).toBe(false);
     expect(inspectionLit(insp, at(0, 0, -(insp.lightRange + 1)), fwd)).toBe(false);
+  });
+});
+
+describe('the forest plan the mission map draws', () => {
+  // Generated off the GLB by scripts/generate-forest-plan.mjs. Decoded here the
+  // way `planLayers.ts` decodes it, so a regeneration that breaks the format —
+  // or produces a plan with no road or no canopy on it — fails here instead of
+  // drawing a blank disc in the corner of three missions.
+  const bytes = Buffer.from(FOREST_PLAN.data, 'base64');
+  const cellAt = (x: number, z: number) => {
+    const ix = Math.floor((x - FOREST_PLAN.x0) / FOREST_PLAN.cell);
+    const iz = Math.floor((z - FOREST_PLAN.z0) / FOREST_PLAN.cell);
+    const i = (iz * FOREST_PLAN.w + ix) * 2;
+    return { kind: bytes[i] & 7, y: bytes[i + 1] / 2 + FOREST_PLAN.yFloor };
+  };
+
+  it('has two bytes for every cell, and covers the whole play area', () => {
+    expect(bytes.length).toBe(FOREST_PLAN.w * FOREST_PLAN.h * 2);
+    expect(FOREST_PLAN.x0).toBeLessThanOrEqual(forest.bounds.min[0]);
+    expect(FOREST_PLAN.z0).toBeLessThanOrEqual(forest.bounds.min[2]);
+    expect(FOREST_PLAN.x0 + FOREST_PLAN.w * FOREST_PLAN.cell).toBeGreaterThanOrEqual(
+      forest.bounds.max[0],
+    );
+    expect(FOREST_PLAN.z0 + FOREST_PLAN.h * FOREST_PLAN.cell).toBeGreaterThanOrEqual(
+      forest.bounds.max[2],
+    );
+  });
+
+  it('finds ground at the clearing the missions launch from, at its height', () => {
+    const c = cellAt(forest.spawn.position[0], forest.spawn.position[2]);
+    expect(c.kind).not.toBe(0);
+    expect(Math.abs(c.y)).toBeLessThan(1.5);
+  });
+
+  it('has road, rock and canopy on it — a forest, not a green disc', () => {
+    let road = 0;
+    let rock = 0;
+    let canopy = 0;
+    for (let i = 0; i < bytes.length; i += 2) {
+      if ((bytes[i] & 7) === 3) road++;
+      if ((bytes[i] & 7) === 4) rock++;
+      if (bytes[i] & FOREST_PLAN.canopyBit) canopy++;
+    }
+    const cells = FOREST_PLAN.w * FOREST_PLAN.h;
+    expect(road / cells).toBeGreaterThan(0.02);
+    expect(rock / cells).toBeGreaterThan(0.01);
+    expect(canopy / cells).toBeGreaterThan(0.2);
   });
 });
