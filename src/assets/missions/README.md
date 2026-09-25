@@ -20,6 +20,8 @@ The mission ids are the ones in `src/renderer/missions/`:
 |---|---|
 | Precision Delivery | `precision-delivery` |
 | Forest Fire Emergency | `forest-fire` |
+| Construction Material Delivery | `construction-material-delivery` |
+| Night Shift Inspection | `night-shift-inspection` |
 
 So Precision Delivery's five files are:
 
@@ -55,6 +57,11 @@ centre-cropped to fit — check that the subject survives, or crop it yourself.
 |---|---|---|
 | Hero | tall, roughly 2:3 | ~700 x 900 |
 | Step | square | ~420 x 420 |
+| Step, on a tight card | wide, 120:76 | ~600 x 380 |
+
+Missions 7 and 8 brief on the TIGHT card (`compactBrief`): no hero, and the step
+slots are cut wide, 120:76, so the card fits the screen. Export their steps at
+that shape instead of square.
 
 Keep each one under ~300 KB. They are bundled into the app rather than fetched —
 a strict CSP blocks every external URL — so their size is the app's size, and the

@@ -214,6 +214,8 @@ export type MissionArt =
   | 'track'
   /** A cement bag waiting on the material store's pad. */
   | 'cement'
+  /** The cement bag set down on the yellow mark inside the frame. */
+  | 'bagdrop'
   /** The Construction Site: a drone flying a floor of the open frame. */
   | 'frame'
   /** The site after dark: the frame black, one floodlight, amber markers. */
@@ -697,6 +699,12 @@ export interface Mission {
    * carries a cement bag.
    */
   cargo?: 'cement';
+  /**
+   * Brief on the tight card: no map picture down the side, short wide step
+   * pictures, a narrower card. For a mission whose steps carry the story and
+   * whose map picture is only a drawing — the Construction Site's two.
+   */
+  compactBrief?: boolean;
   /** The glyph beside the story on the briefing. Unset means the kind's own. */
   icon?: string;
   /** The failure card's line for a wreck, when the kind's default names the

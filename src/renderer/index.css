@@ -5346,7 +5346,10 @@ button {
   grid-column: 3;
   grid-row: 1 / 3;
 }
-.brief-compact .ms-flow[data-steps='2'] {
+.brief-compact .ms-flow[data-steps='3'] {
+  grid-template-columns: repeat(3, 1fr);
+}
+.ms-flow[data-steps='2'] {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 14px;
   margin: 0;
@@ -5373,6 +5376,98 @@ button {
   margin: 0;
 }
 .brief-compact .ms-brief-foot {
+  margin-top: 12px;
+  padding-top: 12px;
+}
+/* The tight briefing — Missions 7 and 8. No map picture down the side, and the
+   step pictures cut short and wide rather than square: four squares across a
+   card this wide were each the size of a small window, and made the card taller
+   than the screen it sits on. Everything else is the ordinary card, set a size
+   smaller. */
+.ms-card.brief.brief-tight {
+  width: min(940px, 96%);
+  padding: 18px 22px 14px;
+}
+.brief-tight .ms-brief-top {
+  gap: 18px;
+  padding-bottom: 12px;
+}
+.brief-tight .ms-brief-title h2 {
+  font-size: 25px;
+}
+.brief-tight .ms-brief-sub {
+  font-size: 13px;
+}
+.brief-tight .ms-story {
+  padding: 10px 12px;
+}
+.brief-tight .ms-story p {
+  font-size: 12px;
+  line-height: 1.45;
+}
+.brief-tight .ms-brief-body {
+  margin-top: 14px;
+}
+.brief-tight .ms-flow {
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.brief-tight .ms-flow-num {
+  width: 24px;
+  height: 24px;
+  font-size: 11px;
+}
+.brief-tight .ms-flow li:not(:last-child)::after {
+  top: 12px;
+}
+.brief-tight .ms-flow b {
+  font-size: 10.5px;
+}
+.brief-tight .ms-flow i {
+  font-size: 10.5px;
+}
+.brief-tight .ms-flow[data-steps='3'] {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+.brief-tight .ms-flow-art {
+  margin-top: 6px;
+  aspect-ratio: 120 / 76;
+}
+/* The lower half as three panels side by side — objectives, rules, stars —
+   all the same height. Stacked, the rules and the stars ran a hand's height
+   past the objectives and left a hole under them. */
+.brief-tight .ms-brief-cols {
+  grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, 1fr);
+  gap: 12px;
+  align-items: stretch;
+}
+.brief-tight .ms-brief-side {
+  display: contents;
+}
+.brief-tight .ms-rules,
+.brief-tight .ms-rubric {
+  margin: 0;
+}
+.brief-tight .ms-objectives {
+  padding: 12px 14px;
+}
+.brief-tight .ms-objectives ol {
+  gap: 7px;
+}
+.brief-tight .ms-objectives li {
+  font-size: 12.5px;
+  line-height: 1.4;
+}
+.brief-tight .ms-brief-side {
+  gap: 10px;
+}
+.brief-tight .ms-rule-row,
+.brief-tight .ms-rubric-row {
+  font-size: 12px;
+  line-height: 1.4;
+}
+.brief-tight .ms-brief-foot {
   margin-top: 12px;
   padding-top: 12px;
 }

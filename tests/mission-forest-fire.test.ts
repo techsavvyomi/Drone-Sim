@@ -301,7 +301,9 @@ describe('what the briefing card needs from a mission', () => {
       // (the fire going out) even though nothing flies home after it.
       // The tiger missions brief in two beats, each with a photograph: the
       // helipad and the tiger found.
-      expect(m.flow).toHaveLength(m.tracking ? 2 : 4);
+      // Four beats as a rule; Mission 7 briefs in three (its delivery hold is the
+      // end of the climb), and the tracking missions in two.
+      expect(m.tracking ? [2] : [3, 4]).toContain(m.flow.length);
       // The objectives are their own list and no longer march with the beats:
       // a mission may draw a beat it does not set an objective for.
       expect(m.objectives.length).toBeGreaterThanOrEqual(3);
@@ -320,6 +322,7 @@ describe('what the briefing card needs from a mission', () => {
         'track',
         // The Construction Site's three: the frame, the site at night, the inspection.
         'cement',
+        'bagdrop',
         'frame',
         'nightsite',
         'inspect',

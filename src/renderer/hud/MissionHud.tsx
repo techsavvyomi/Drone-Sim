@@ -607,7 +607,13 @@ export function MissionHud() {
       {phase === 'briefing' && (
         <div className="ms-center">
           <div
-            className={mission.tracking ? 'ms-card brief brief-compact' : 'ms-card brief'}
+            className={
+              mission.tracking
+                ? 'ms-card brief brief-compact'
+                : mission.compactBrief
+                  ? 'ms-card brief brief-tight'
+                  : 'ms-card brief'
+            }
             ref={cardRef}
           >
             <header className="ms-brief-top">
@@ -633,11 +639,13 @@ export function MissionHud() {
 
             <div
               className={
-                mission.tracking ? 'ms-brief-body ms-brief-body--no-hero' : 'ms-brief-body'
+                mission.tracking || mission.compactBrief
+                  ? 'ms-brief-body ms-brief-body--no-hero'
+                  : 'ms-brief-body'
               }
             >
               {/* Mission 5 briefs without the tall map picture. */}
-              {!mission.tracking && (
+              {!mission.tracking && !mission.compactBrief && (
                 <>
                   {/* The map, drawn rather than photographed — see MissionArt. */}
                   <figure className="ms-hero">

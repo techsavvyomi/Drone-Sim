@@ -130,14 +130,16 @@ export const nightInspection: Mission = {
   kind: 'inspection',
   envId: 'construction-site',
   icon: '🔦',
+  compactBrief: true,
   blurb:
     'Take off from the site office at night, inspect three marked sections of the frame by spotlight, then land back at the office.',
   story:
     'The site has shut down for the night. Before the crew is back in the morning, the site manager needs three sections of the unfinished structure checked for damage. There is no route. Use your light.',
   flow: [
     { label: 'Find', note: 'Look for the amber marker', art: 'nightsite' },
-    { label: 'Inspect', note: 'Light on it, hold for 5 s', art: 'inspect' },
-    { label: 'Climb', note: 'Zones 1, 2 and 3, in order', art: 'frame' },
+    // Three beats: the climb up the building is the order the zones are
+    // inspected in, and it says so here rather than on a card of its own.
+    { label: 'Inspect', note: 'Light on it, 5 s, zones 1 to 3', art: 'inspect' },
     { label: 'Land', note: 'Back at the site office', art: 'land' },
   ],
   objectives: [

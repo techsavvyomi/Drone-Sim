@@ -352,6 +352,17 @@ const SCENES: Record<ArtKey, () => ReactElement> = {
       />
     </g>
   ),
+  // The delivery: the cement bag set down on the yellow mark, the drone over it.
+  bagdrop: () => (
+    <g>
+      <rect x="0" y="56" width="120" height="20" fill="#141d2e" />
+      <Mark x={60} y={60} color="#ffcf4d" w={24} />
+      <rect x="51" y="52" width="18" height="7.5" rx="2.6" fill="#aaa396" />
+      <rect x="55" y="53.6" width="10" height="4" rx="0.6" fill="#f1ece2" />
+      <rect x="56.5" y="54.8" width="7" height="1.6" fill="#b3261e" />
+      <Drone x={60} y={26} s={1.1} />
+    </g>
+  ),
   // The site: the drone flying a floor of the frame, carrying the load in.
   frame: () => (
     <g>

@@ -46,14 +46,16 @@ export const materialDelivery: Mission = {
   envId: 'construction-site',
   icon: '🏗️',
   cargo: 'cement',
+  compactBrief: true,
   blurb:
     'Collect a cement bag from the site material store, fly it into the frame and set it down on Level 4, then land back at the launch area.',
   story:
     'The crew on Level 4 needs cement now, and there is no way up for it: the frame is unclad, the hoist is out and the stairs are full of formwork. A bag is waiting at the site material store. You are the lift.',
   flow: [
     { label: 'Collect', note: 'The bag at the material store', art: 'cement' },
-    { label: 'Climb', note: 'Up to Level 4, into the frame', art: 'frame' },
-    { label: 'Deliver', note: 'Hold still on the yellow mark', art: 'deliver' },
+    // Three beats, not four: the delivery hold is the end of the climb, and a
+    // fourth card for it made the briefing taller for no new information.
+    { label: 'Climb', note: 'Up to Level 4, set the bag down', art: 'frame' },
     { label: 'Come home', note: 'Land back at the launch pad', art: 'land' },
   ],
   objectives: [
