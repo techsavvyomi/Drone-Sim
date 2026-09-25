@@ -73,8 +73,15 @@ export function Payload({ mission }: { mission: Mission }) {
     // thickness. It was nearly twice this, which left the box hanging in open
     // air under the aircraft with daylight between them; clamped cargo sits
     // against the airframe.
-    return { size: s, drop: s * 0.5 + span * 0.06 + 0.015 };
-  }, [droneId]);
+    // A cement bag is a flat sack, not a cube, and it is strapped UP against
+    // the belly rather than slung: the half-cube gap left it hanging a hand's
+    // width under the aircraft. Its top sits at the airframe's underside.
+    const drop =
+      mission.cargo === 'cement'
+        ? s * (BAG_H / 2) + span * 0.02 + 0.01
+        : s * 0.5 + span * 0.06 + 0.015;
+    return { size: s, drop };
+  }, [droneId, mission.cargo]);
 
   /**
    * How far the load's lowest point sits under its own origin.
