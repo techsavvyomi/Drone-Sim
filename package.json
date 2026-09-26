@@ -65,6 +65,9 @@
     "zustand": "^5.0.14"
   },
   "overrides": {
-    "extract-zip": "npm:@electron-internal/extract-zip@^1.0.5"
+    "extract-zip": "npm:@electron-internal/extract-zip@^1.0.5",
+    "@react-three/rapier": {
+      "@dimforge/rapier3d-compat": "$@dimforge/rapier3d-compat"
+    }
   }
 }

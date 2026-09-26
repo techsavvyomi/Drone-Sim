@@ -48,6 +48,11 @@ function createWindow(): void {
   if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
     win.loadURL(MAIN_WINDOW_VITE_DEV_SERVER_URL);
     win.webContents.openDevTools();
+    // Dev only: the renderer's PerfProbe lines, to the terminal, where a log of
+    // a whole flight can be read after it rather than watched in the devtools.
+    win.webContents.on('console-message', (event) => {
+      if (event.message.startsWith('[perf')) console.log(event.message);
+    });
   } else {
     win.loadFile(path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`));
   }

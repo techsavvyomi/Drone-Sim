@@ -12,6 +12,7 @@ import { GRAVITY, SIM_DT } from '../sim/constants';
 import { Drone } from '../sim/drone/Drone';
 import { CameraRig, OrbitCamera } from './CameraRig';
 import { CameraProbe } from './cameraProbe';
+import { PerfProbe } from './PerfProbe';
 import { GroundMarker } from './GroundMarker';
 import { getEnvironmentComponent } from './environment';
 import { SkyClouds } from './SkyClouds';
@@ -21,6 +22,7 @@ import { LocalEnvironment } from './LocalEnvironment';
 import { PostFX } from './PostFX';
 import { SunLight } from './SunLight';
 import { AdaptiveResolution } from './AdaptiveResolution';
+import { FrameDeltaCap } from './FrameDeltaCap';
 import { DroneAudio } from '../audio/DroneAudio';
 
 // The Fly view's 3D contents: sky + lighting for the selected time of day, the
@@ -207,6 +209,8 @@ export function FlightScene({
         <PropDebris spec={spec} />
         {/* Hands the physics world to CameraRig, which lives outside <Physics>. */}
         <CameraProbe />
+        {/* Dev only: frame and physics timings to the terminal. */}
+        {import.meta.env.DEV && <PerfProbe />}
         {children}
       </Physics>
 
@@ -220,6 +224,8 @@ export function FlightScene({
       {cameraMode === 'orbit' && <OrbitCamera spec={spec} env={env} />}
 
       <PostFX />
+      {/* A stall is dropped, not replayed at 250 Hz — see FrameDeltaCap. */}
+      <FrameDeltaCap />
       {/* Last, and inside the Canvas: it watches the frames the whole tree above
           it produces and walks the resolution down when they stop arriving. */}
       <AdaptiveResolution />
