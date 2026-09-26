@@ -102,7 +102,7 @@ describe('setup', () => {
 
     be.fn.setupDatabase();
     expect(be.ss.sheet('Drones').objects()).toHaveLength(3);
-    expect(be.ss.sheet('Missions').objects()).toHaveLength(8);
+    expect(be.ss.sheet('Missions').objects()).toHaveLength(10);
     expect(be.ss.sheet('TrainingModules').objects()).toHaveLength(15);
     expect(be.ss.sheet('Settings').objects().filter((r) => r.Key === 'SEQ_USER')).toHaveLength(1);
   });

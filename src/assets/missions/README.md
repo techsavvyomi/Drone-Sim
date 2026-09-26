@@ -22,6 +22,8 @@ The mission ids are the ones in `src/renderer/missions/`:
 | Forest Fire Emergency | `forest-fire` |
 | Construction Material Delivery | `construction-material-delivery` |
 | Night Shift Inspection | `night-shift-inspection` |
+| Truck Loading | `supermarket-delivery` |
+| Truck Unloading | `supermarket-stock-check` |
 
 So Precision Delivery's five files are:
 

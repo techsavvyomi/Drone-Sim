@@ -5,8 +5,16 @@ import { dronePose } from '../sim/drone/pose';
 import { useSettingsStore } from '../state/settingsStore';
 import { useMissionStore } from '../state/missionStore';
 import { getDrone } from '../plugins/registry';
-import { allZonesOf, zoneGroundY, type Mission, type MissionDelivery } from './types';
+import {
+  allZonesOf,
+  pickupZoneOf,
+  zoneGroundY,
+  type Mission,
+  type MissionDelivery,
+  type MissionZone,
+} from './types';
 import { CementBag, BAG_H } from './CementBag';
+import { slotOffset, yardSlots } from './yard';
 
 // ----------------------------------------------------------------------------
 // The package.
@@ -362,8 +370,9 @@ export function Payload({ mission }: { mission: Mission }) {
     );
   }
 
-  // The search mission's supply drop: a food box rather than a medical case.
-  if (mission.kind === 'search') {
+  // The search mission's supply drop, and the Supermarket's parcel: a
+  // cardboard box rather than a medical case.
+  if (mission.kind === 'search' || mission.cargo === 'parcel') {
     return (
       <group ref={group}>
         <FoodBox size={size} />
@@ -700,6 +709,25 @@ function PackageSet({
   const hub = mission.zones.pickup;
   const hubY = zoneGroundY(mission, hub) + belly;
 
+  /**
+   * A LOADING YARD STACKS ITS BOXES.
+   *
+   * Every box waits in a stack on a pallet — five on the store's pallet, or
+   * one to three on each truck's — and is put down in one: the next free place
+   * on the pallet it is carried to. `yardSlots` says which place, taking the
+   * top of a stack first, and a place is a fixed offset in box sizes, so the
+   * stack keeps its shape under any airframe's cargo.
+   */
+  const slots = useMemo(() => (mission.yard ? yardSlots(mission) : null), [mission]);
+  const inStack = (zone: MissionZone, slot: number): [number, number, number] => {
+    const [ox, layer, oz] = slotOffset(slot);
+    return [
+      zone.at[0] + ox * size,
+      zoneGroundY(mission, zone) + belly + layer * size,
+      zone.at[1] + oz * size,
+    ];
+  };
+
   return (
     <group>
       {deliveries.map((d, i) => {
@@ -708,13 +736,17 @@ function PackageSet({
         // is down exactly when the mission says that many are down.
         const placed = i < deliveredCount;
         const carried = !placed && i === runIndex && payload === 'attached';
-        const at: [number, number, number] = placed
-          ? [d.zone.at[0], zoneGroundY(mission, d.zone) + belly, d.zone.at[1]]
-          : [
-              hub.at[0] + (i === runIndex ? 0 : STANDBY[i % STANDBY.length][0]),
-              hubY,
-              hub.at[1] + (i === runIndex ? 0 : STANDBY[i % STANDBY.length][1]),
-            ];
+        const at: [number, number, number] = slots
+          ? placed
+            ? inStack(d.zone, slots.to[i])
+            : inStack(pickupZoneOf(mission, i), slots.from[i])
+          : placed
+            ? [d.zone.at[0], zoneGroundY(mission, d.zone) + belly, d.zone.at[1]]
+            : [
+                hub.at[0] + (i === runIndex ? 0 : STANDBY[i % STANDBY.length][0]),
+                hubY,
+                hub.at[1] + (i === runIndex ? 0 : STANDBY[i % STANDBY.length][1]),
+              ];
         return (
           <OnePackage
             key={d.id}
@@ -725,6 +757,9 @@ function PackageSet({
             rest={at}
             carried={carried}
             placed={placed}
+            // Stock in a stack stands still; only the box the pilot is being
+            // sent for moves, and it does not spin on top of the others.
+            wait={!slots ? 'spin' : i === runIndex ? 'bob' : 'still'}
           />
         );
       })}
@@ -740,6 +775,7 @@ function OnePackage({
   rest,
   carried,
   placed,
+  wait,
 }: {
   size: number;
   drop: number;
@@ -748,6 +784,9 @@ function OnePackage({
   rest: readonly [number, number, number];
   carried: boolean;
   placed: boolean;
+  /** How it waits: turning and bobbing on a hub pad, bobbing on top of a stack,
+   *  or standing still in one. */
+  wait: 'spin' | 'bob' | 'still';
 }) {
   const group = useRef<THREE.Group>(null);
   const at = useMemo(() => new THREE.Vector3(), []);
@@ -761,6 +800,10 @@ function OnePackage({
   const pull = useRef(0);
   const wasCarried = useRef(false);
   const started = useRef(false);
+  /** The put-down: falling from where the aircraft let go to its place. */
+  const wasPlaced = useRef(false);
+  const falling = useRef(false);
+  const fall = useRef(0);
 
   useFrame(({ clock }, rawDt) => {
     const dt = Math.min(rawDt, 0.1);
@@ -832,9 +875,39 @@ function OnePackage({
       // Down, and staying down. No bob and no spin: a package that has been
       // delivered is finished, and a box still dancing on its mark would read as
       // one more thing to go and collect.
+      //
+      // It FALLS there. The release is a hover up to two metres over the mark,
+      // and the box used to appear on it the same frame; now it drops from
+      // where the aircraft let go, drifting onto its own place as it comes down
+      // — which on a yard pallet is its place in the stack.
+      if (!wasPlaced.current) {
+        falling.current = at.y > rest[1] + 0.02;
+        fall.current = 0;
+        from.copy(at);
+      }
+      if (falling.current) {
+        fall.current += DROP_G * dt;
+        at.y -= fall.current * dt;
+        const k = Math.min(1, (from.y - at.y) / Math.max(1e-3, from.y - rest[1]));
+        at.x = from.x + (rest[0] - from.x) * k;
+        at.z = from.z + (rest[2] - from.z) * k;
+        if (at.y <= rest[1]) falling.current = false;
+      }
+      if (!falling.current) at.set(rest[0], rest[1], rest[2]);
+      g.rotation.set(0, 0, 0);
+      g.scale.setScalar(1);
+    } else if (wait === 'still') {
       at.set(rest[0], rest[1], rest[2]);
       g.rotation.set(0, 0, 0);
       g.scale.setScalar(1);
+      pull.current = 0;
+    } else if (wait === 'bob') {
+      // On top of the stack, lifting a hand's width off it and settling back:
+      // the one box in the stack that is the pilot's.
+      at.set(rest[0], rest[1] + 0.05 + Math.sin(clock.elapsedTime * 1.6) * 0.04, rest[2]);
+      g.rotation.set(0, 0, 0);
+      g.scale.setScalar(1);
+      pull.current = 0;
     } else {
       // Waiting on the pad: a slow turn and a shallow bob, so a white box on a
       // grey street is something the eye finds.
@@ -844,12 +917,13 @@ function OnePackage({
       pull.current = 0;
     }
 
+    wasPlaced.current = placed;
     g.position.copy(at);
   });
 
   return (
     <group ref={group}>
-      <MedicalCase size={size} />
+      {mission.cargo === 'parcel' ? <FoodBox size={size} /> : <MedicalCase size={size} />}
     </group>
   );
 }

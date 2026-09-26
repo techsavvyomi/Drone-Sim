@@ -75,7 +75,7 @@ describe('the shape of the mission', () => {
     const i = MISSIONS.findIndex((m) => m.id === M.id);
     expect(i).toBe(5);
     expect(MISSIONS[i - 1].id).toBe('tiger-tracker');
-    expect(MISSIONS.map((m) => m.order)).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
+    expect(MISSIONS.map((m) => m.order)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
   });
 
   it('TC-500 never shows the tiger on the map', () => {

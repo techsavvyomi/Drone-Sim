@@ -5,7 +5,7 @@ import { CheckpointSphere } from '../scene/CheckpointSphere';
 import { useMissionStore, activeZone, legOf } from '../state/missionStore';
 import { SearchBeacon } from './SearchBeacon';
 import { playCollect } from '../audio/sfx';
-import { nextCheckpointOf, zoneGroundY } from './types';
+import { dropZoneOf, nextCheckpointOf, pickupZoneOf, zoneGroundY } from './types';
 import type { Mission, MissionZone, MissionZoneKind } from './types';
 
 // ----------------------------------------------------------------------------
@@ -438,7 +438,10 @@ export function MissionMarkers({ mission }: { mission: Mission }) {
           drawn as two marks, because they are two different tests with two
           different bands. Only one of them is ever live, so what the pilot sees
           is one ring that changes its job, not two rings arguing. */}
-      {(['pickup', 'base'] as const).map((kind) => (
+      {mission.yard && (
+        <YardMarks mission={mission} runIndex={runIndex} flying={flying} ready={ready} />
+      )}
+      {(mission.yard ? (['base'] as const) : (['pickup', 'base'] as const)).map((kind) => (
         <ZoneMark
           key={kind}
           zone={mission.zones[kind]}
@@ -494,9 +497,17 @@ export function MissionMarkers({ mission }: { mission: Mission }) {
           side of a structure, marked on the structure — see
           `InspectionMarkers`. A ring on the ground under a hover ten metres up
           would be a mark in the wrong place. */}
-      {(mission.tracking || mission.inspection
+      {/* A DAYLIGHT patrol does draw them: its stations are low hovers over the
+          car park, found by eye, and a ring on the tarmac under each is where
+          the pilot is being sent — the dispatch's loading point included. */}
+      {/* A LOADING YARD draws its own, above: five runs over two pallets,
+          so a mark per run would be five rings on one pallet. */}
+      {(mission.tracking ||
+      mission.yard ||
+      (mission.inspection && mission.inspection.needsLight !== false)
         ? []
-        : (mission.deliveries ??
+        : (mission.inspection?.points ??
+          mission.deliveries ??
           mission.search?.sites ?? [{ id: 'drop', zone: mission.zones.drop }])
       ).map((d, i) => (
         <group key={d.id}>
@@ -525,5 +536,56 @@ export function MissionMarkers({ mission }: { mission: Mission }) {
         </group>
       ))}
     </group>
+  );
+}
+
+/**
+ * A loading yard's marks: one ring per pallet — the warehouse's and each
+ * truck's — rather than one per run, because five runs share four pallets.
+ *
+ * Which ring is lit is decided the way every other mark's is, by the run the
+ * pilot is on: the pallet this box is collected from while collecting, the one
+ * it goes to while carrying. A pallet with boxes still waiting on it for a
+ * later run keeps a low standby light, as a hub does.
+ */
+function YardMarks({
+  mission,
+  runIndex,
+  flying,
+  ready,
+}: {
+  mission: Mission;
+  runIndex: number;
+  flying: boolean;
+  ready: number;
+}) {
+  const leg = useMissionStore((s) => s.leg);
+  const yard = mission.yard;
+  if (!yard) return null;
+  const kind = activeZone(leg);
+  const pickup = pickupZoneOf(mission, runIndex);
+  const drop = dropZoneOf(mission, runIndex);
+  const runs = mission.deliveries ?? [];
+  /** Boxes still standing on a pallet for a run after this one. */
+  const waitingOn = (zone: MissionZone) =>
+    runs.some((_, j) => j > runIndex && pickupZoneOf(mission, j) === zone);
+  const pallets = [yard.warehouse, yard.truck.bay];
+  return (
+    <>
+      {pallets.map((zone) => {
+        const live =
+          flying && ((kind === 'pickup' && zone === pickup) || (kind === 'drop' && zone === drop));
+        return (
+          <ZoneMark
+            key={zone.label}
+            zone={zone}
+            groundY={zoneGroundY(mission, zone)}
+            live={live}
+            standby={flying && !live && waitingOn(zone)}
+            ready={zone === drop && kind === 'drop' ? ready : undefined}
+          />
+        );
+      })}
+    </>
   );
 }

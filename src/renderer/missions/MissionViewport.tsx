@@ -26,6 +26,7 @@ import { Tiger } from './Tiger';
 import { DroneSpotlight } from './DroneSpotlight';
 import { SiteNightLights } from './SiteNightLights';
 import { InspectionMarkers } from './InspectionMarkers';
+import { LoadingYard } from './LoadingYard';
 import { MaterialStore } from './MaterialStore';
 import { getEnvironment } from '../plugins/registry';
 import type { Mission } from './types';
@@ -132,9 +133,15 @@ export function MissionViewport({ mission }: { mission: Mission }) {
                 too: the restaurant for the food box, the pharmacy for the
                 medical packages of missions 1 and 3. */}
             {mission.search && <Storefront site={LOTUS_KITCHEN} kind="restaurant" />}
-            {(mission.deliveries || mission.id === 'precision-delivery') && (
-              <Storefront site={LAKE_CITY_PHARMACY} kind="pharmacy" />
-            )}
+            {/* New York only: the Supermarket's two are multi-point runs too,
+                and would otherwise get a pharmacy dropped into their car park. */}
+            {mission.envId === 'new-york' &&
+              (mission.deliveries || mission.id === 'precision-delivery') && (
+                <Storefront site={LAKE_CITY_PHARMACY} kind="pharmacy" />
+              )}
+            {/* The loading yard: the warehouse stock and the pallets, one of
+                them on the trailer floor. Solid, so in here. */}
+            {mission.yard && <LoadingYard mission={mission} />}
             {/* The hydrant fill point the suppression tank waits at. */}
             {mission.fire && <HydrantFillPoint mission={mission} />}
             {/* The site after dark: floodlight masts (solid, hence in here) and
@@ -166,13 +173,20 @@ export function MissionViewport({ mission }: { mission: Mission }) {
               shadow map is only redrawn while the tiger is near the beam, so on
               a mission with no tiger it would be frozen on its first frame and
               drag stale shadows across the frame. */}
-          {mission.inspection && <DroneSpotlight mission={mission} shadows={false} />}
+          {mission.inspection && mission.inspection.needsLight !== false && (
+            <DroneSpotlight mission={mission} shadows={false} />
+          )}
           {mission.inspection && <InspectionMarkers mission={mission} />}
           {/* Every mission carries something — except the tracking one, which
               carries nothing at all: there is no box to fetch and nothing to put
               down, and a payload mounted for it would hang a food box under a
               drone out watching wildlife. */}
-          {!mission.tracking && !mission.inspection && <Payload mission={mission} />}
+          {/* An inspection carries something only when it has a dispatch in it:
+              Mission 10's stock item, collected mid-patrol. */}
+          {!mission.tracking &&
+            (!mission.inspection || mission.inspection.points.some((p) => p.dispatch)) && (
+              <Payload mission={mission} />
+            )}
           <MissionDirector />
           {/* Projects the Director's target into screen space every frame, for
               the chevron the HUD draws over it. Inside the Canvas because that

@@ -19,6 +19,7 @@ import {
   flatDist,
   inspectionLit,
   inspectionOf,
+  pickupZoneOf,
   storeyAt,
   requiredCheckpoints,
   requiredLeft,
@@ -402,8 +403,11 @@ export function MissionDirector() {
       armAttempt();
       store.restart();
       // A restart is a fresh attempt, so it gets the opening call again — the
-      // phase has not changed, so the effect above will not fire for it.
-      say(mission, 'start');
+      // phase has not changed, so the effect above will not fire for it. Said
+      // off the store's mission, not the one this frame began with, so a
+      // restart that re-arms the mission opens on what it armed.
+      const fresh = useMissionStore.getState().mission;
+      if (fresh) say(fresh, 'start');
       return;
     }
 
@@ -484,6 +488,9 @@ export function MissionDirector() {
     const dropZone = mission.search
       ? rescueZoneOf(mission, store.siteIndex)
       : dropZoneOf(mission, store.runIndex);
+    // And where this run's box is collected: the one pickup on every mission
+    // but Mission 10, whose boxes each wait on the truck they came in on.
+    const pickupZone = pickupZoneOf(mission, store.runIndex);
 
     if (mission.tracking && (leg === 'searching' || leg === 'confirming')) {
       // ---- The tracking mission --------------------------------------------
@@ -930,7 +937,7 @@ export function MissionDirector() {
         }
       }
     } else if (leg === 'toPickup') {
-      const z = probeZone(mission, mission.zones.pickup);
+      const z = probeZone(mission, pickupZone);
       pickupHold.current = z.ok ? pickupHold.current + dt : 0;
       // Collecting the package asks for the same hover the drop does — centred,
       // in the band, steady — so the pilot is shown the same three conditions
@@ -941,7 +948,7 @@ export function MissionDirector() {
       // take-off, so it only goes up inside the same approach ring the drop
       // uses — otherwise it hangs there from the pad, ticking Height and Steady
       // for a drone that has not left it.
-      const nearPickup = z.flat <= mission.zones.pickup.radius * 3;
+      const nearPickup = z.flat <= pickupZone.radius * 3;
       if (nearPickup !== useMissionStore.getState().atPickup) store.setAtPickup(nearPickup);
       if (!nearPickup) {
         if (lastChecks.current !== '') {
@@ -949,15 +956,14 @@ export function MissionDirector() {
           store.setChecks({ centred: false, inBand: false, steady: false, hold: 0 });
         }
       } else {
-        const hold =
-          Math.round(Math.min(1, pickupHold.current / mission.zones.pickup.hold) * 20) / 20;
+        const hold = Math.round(Math.min(1, pickupHold.current / pickupZone.hold) * 20) / 20;
         const key = `${z.centred}${z.inBand}${z.steady}${hold}`;
         if (key !== lastChecks.current) {
           lastChecks.current = key;
           store.setChecks({ centred: z.centred, inBand: z.inBand, steady: z.steady, hold });
         }
       }
-      if (pickupHold.current >= mission.zones.pickup.hold) {
+      if (pickupHold.current >= pickupZone.hold) {
         // A search carries its box into the SEARCH, not to a marked drop.
         leg = mission.search ? 'searching' : 'carrying';
         store.setLeg(leg);
@@ -1046,11 +1052,14 @@ export function MissionDirector() {
         if (!announcedDrop.current) {
           announcedDrop.current = true;
           store.showBanner(
-            point
+            point && !point.dispatch
               ? {
                   kind: 'info',
                   title: 'INSPECTION AREA REACHED',
-                  sub: `${point.name}: hold still with your light on the amber marker`,
+                  sub:
+                    mission.inspection?.needsLight === false
+                      ? `${point.name}: hold still over the station for the scan`
+                      : `${point.name}: hold still with your light on the amber marker`,
                 }
               : mission.fire
                 ? {
@@ -1068,8 +1077,13 @@ export function MissionDirector() {
                     // meant to stay there: touching a roof is touching a building,
                     // which the sim counts as a collision and the rating takes
                     // off. The wording has to say hold, not land.
-                    sub:
-                      (run && run.zone.groundY !== undefined) || dropZone.storey
+                    //
+                    // A yard pallet declares a deck too — a hand's width up, or
+                    // the trailer floor — and is not a roof: its line says
+                    // where to hold.
+                    sub: mission.yard
+                      ? 'Centre over the pallet and hold steady half a metre above it'
+                      : (run && run.zone.groundY !== undefined) || dropZone.storey
                         ? 'Come in over the deck, centre on the mark and hold it just above the slab'
                         : 'Slow down, centre over the mark, then descend',
                   },
@@ -1078,7 +1092,7 @@ export function MissionDirector() {
           playWhoosh();
         }
       }
-    } else if (leg === 'toDrop' && mission.inspection && point) {
+    } else if (leg === 'toDrop' && mission.inspection && point && !point.dispatch) {
       // ---- The inspection hold -----------------------------------------------
       //
       // The delivery's hover — centred, in the band, stopped — plus the two
@@ -1122,7 +1136,11 @@ export function MissionDirector() {
         _beamAxis.x = beamPose.dx;
         _beamAxis.y = beamPose.dy;
         _beamAxis.z = beamPose.dz;
-        const lit = beamPose.present && inspectionLit(insp, _toTarget, _beamAxis);
+        // A daylight patrol carries no lamp: the scan is the hover and the
+        // clearance, and the light row is never shown.
+        const lit =
+          insp.needsLight === false ||
+          (beamPose.present && inspectionLit(insp, _toTarget, _beamAxis));
 
         // Too close to the structure being inspected. A warning and a stopped
         // hold, never a failure: touching it is already a collision.
@@ -1196,8 +1214,28 @@ export function MissionDirector() {
           playSuccess();
 
           const last = store.runIndex + 1 >= runs;
-          if (!last) {
-            const next = inspectionOf(mission, store.runIndex + 1);
+          const next = last ? null : inspectionOf(mission, store.runIndex + 1);
+          if (next?.dispatch) {
+            // THE REDIRECTION. The patrol is suspended here — the run index
+            // moves on to the dispatch, which is where it resumes from — and the
+            // leg becomes the pickup, so every instrument that follows the leg
+            // (the lit mark, the pointer, the checklist) turns to the pickup.
+            store.showBanner(
+              {
+                kind: 'warn',
+                title: 'URGENT DISPATCH',
+                sub: `${point.name} logged. Patrol suspended: ${next.label}`,
+              },
+              BANNER_SEC * 1.4,
+            );
+            say(mission, 'dispatch');
+            store.advanceRun();
+            pickupHold.current = 0;
+            announcedDrop.current = false;
+            floorSaidAt.current = -99;
+            leg = 'toPickup';
+            store.setLeg(leg);
+          } else if (!last) {
             store.showBanner(
               {
                 kind: 'good',
@@ -1217,8 +1255,10 @@ export function MissionDirector() {
             store.showBanner(
               {
                 kind: 'good',
-                title: 'NIGHT INSPECTION COMPLETE',
-                sub: 'All assigned sections have been inspected. Return to the site office and land safely.',
+                title: insp.completeTitle ?? 'NIGHT INSPECTION COMPLETE',
+                sub:
+                  insp.completeSub ??
+                  'All assigned sections have been inspected. Return to the site office and land safely.',
               },
               BANNER_SEC * 1.6,
             );
@@ -1403,18 +1443,54 @@ export function MissionDirector() {
           playDrop();
           playSuccess();
 
-          if (run) {
+          if (point?.dispatch) {
+            // THE DISPATCH, LOADED. Scored as a run like the stations around it,
+            // and then the patrol resumes at the station after it — the flight
+            // home is only for the last point on the list.
+            store.takeDelivery(point.name.toUpperCase());
+            store.setPayload('delivered');
+            const resume = inspectionOf(mission, store.runIndex + 1);
+            const more = store.runIndex + 1 < runs;
+            store.showBanner(
+              {
+                kind: 'good',
+                title: mission.wording?.delivered ?? 'PAYLOAD DELIVERED',
+                sub:
+                  more && resume ? `Resume the patrol: ${resume.name}, ${resume.label}` : undefined,
+              },
+              BANNER_SEC,
+            );
+            say(mission, 'delivered', point.id);
+            if (more) {
+              store.advanceRun();
+              announcedDrop.current = false;
+              announcedGate.current = false;
+              leg = 'carrying';
+              store.setLeg(leg);
+              return;
+            }
+          } else if (run) {
             // A MULTI-POINT DELIVERY. The package is scored on its own rather
             // than through `takeZone`, which can only remember one drop, and the
             // run index moves on — that index is the only thing standing between
             // the pilot and package C, so it is advanced here and nowhere else.
             store.takeDelivery(`DELIVERY ${run.id.toUpperCase()}`);
+            const yard = mission.yard;
             store.showBanner(
-              {
-                kind: 'good',
-                title: `${run.name.toUpperCase()} DELIVERED`,
-                sub: `${store.runIndex + 1} of ${runs} on the mark`,
-              },
+              yard
+                ? {
+                    kind: 'good',
+                    title:
+                      yard.mode === 'load'
+                        ? `${run.name.toUpperCase()} LOADED IN THE TRUCK`
+                        : `${run.name.toUpperCase()} ON THE STORE'S PALLET`,
+                    sub: `${store.runIndex + 1} of ${runs} ${yard.mode === 'load' ? 'loaded' : 'unloaded'}`,
+                  }
+                : {
+                    kind: 'good',
+                    title: `${run.name.toUpperCase()} DELIVERED`,
+                    sub: `${store.runIndex + 1} of ${runs} on the mark`,
+                  },
               BANNER_SEC,
             );
             say(mission, 'delivered', run.id);
@@ -1624,7 +1700,8 @@ export function MissionDirector() {
       const p = dronePose.position;
       const taken = useMissionStore.getState().collected;
       const cp = nextTargetOf(mission, legOf(leg), taken);
-      const target: readonly [number, number, number] = cp ?? markerFor(mission, leg, dropZone);
+      const target: readonly [number, number, number] =
+        cp ?? markerFor(mission, leg, dropZone, pickupZone);
       const dx = target[0] - p.x;
       const dz = target[2] - p.z;
       const dy = target[1] - p.y;
@@ -1658,7 +1735,10 @@ export function MissionDirector() {
       // night mission gives no route: the pilot finds each zone by its marker,
       // the site lights and the spotlight, with the corner radar as the one
       // instrument that answers "which way".
-      targetMark.active = !confirming && !mission.inspection;
+      // The daylight patrol keeps it: it is flown between trucks, not found by
+      // a spotlight.
+      targetMark.active =
+        !confirming && (!mission.inspection || mission.inspection.needsLight === false);
       store.setFlightData({
         distance: confirming ? Math.hypot(dx, dz) : Math.hypot(dx, dy, dz),
         altitude: p.y - mission.groundY,
@@ -1730,7 +1810,12 @@ function say(mission: Mission, key: string, runId?: string): boolean {
 
 /** Where the active marker is, in world space — what DISTANCE and the direction
  *  arrow are both measured to. */
-function markerFor(mission: Mission, leg: MissionLeg, drop: MissionZone): [number, number, number] {
+function markerFor(
+  mission: Mission,
+  leg: MissionLeg,
+  drop: MissionZone,
+  pickup: MissionZone,
+): [number, number, number] {
   const kind = activeZone(leg);
   if (!kind) {
     return [
@@ -1742,7 +1827,7 @@ function markerFor(mission: Mission, leg: MissionLeg, drop: MissionZone): [numbe
   // The DROP is whichever destination this run is for — `mission.zones.drop` is
   // only ever the first one, so reading it here would point the arrow and the
   // DISTANCE readout at package A's mark for the whole flight.
-  const zone = kind === 'drop' ? drop : mission.zones[kind];
+  const zone = kind === 'drop' ? drop : kind === 'pickup' ? pickup : mission.zones[kind];
   // The MIDDLE OF THE BAND, not half its ceiling.
   //
   // Half the ceiling is the same thing for every zone that opens at the ground,

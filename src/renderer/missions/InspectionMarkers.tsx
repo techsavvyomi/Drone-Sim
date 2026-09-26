@@ -84,13 +84,14 @@ export function InspectionMarkers({ mission }: { mission: Mission }) {
     [],
   );
   useDisposable(mats);
+  // A dispatch is a delivery mark on the ground, not a structure to light.
   const points = mission.inspection?.points ?? [];
 
   return (
     <group name="inspection-markers">
-      {points.map((p, i) => (
-        <Marker key={p.id} point={p} index={i} mats={mats} />
-      ))}
+      {points.map((p, i) =>
+        p.dispatch ? null : <Marker key={p.id} point={p} index={i} mats={mats} />,
+      )}
     </group>
   );
 }

@@ -2,7 +2,13 @@ import { useEffect, useMemo, useRef } from 'react';
 import { dronePose } from '../sim/drone/pose';
 import { tigerPose } from '../missions/tigerPose';
 import { useMissionStore, legOf, activeZone, guidanceHidden } from '../state/missionStore';
-import { requiredCheckpoints, nextTargetOf, dropZoneOf, rescueZoneOf } from '../missions/types';
+import {
+  requiredCheckpoints,
+  nextTargetOf,
+  dropZoneOf,
+  pickupZoneOf,
+  rescueZoneOf,
+} from '../missions/types';
 import type { Mission } from '../missions/types';
 
 // ----------------------------------------------------------------------------
@@ -85,7 +91,9 @@ export function MissionMap({ mission }: { mission: Mission }) {
   const zonesFor = useMemo(
     () =>
       (runIndex: number, siteIndex: number): readonly Zone[] => [
-        { at: mission.zones.pickup.at, color: PICKUP, kind: 'pickup' },
+        // The pickup is a function of the run too: Mission 10's boxes each
+        // wait on the truck they came in on.
+        { at: pickupZoneOf(mission, runIndex).at, color: PICKUP, kind: 'pickup' },
         {
           // A search mission's middle mark is whichever SITE this attempt drew,
           // not whichever package a run is on. It is only ever drawn after the
@@ -232,7 +240,7 @@ export function MissionMap({ mission }: { mission: Mission }) {
       // filled one budged up against it, reading as two places to go.
       const pickupIsTarget = !cp && here === 'pickup';
       if (leg === 'toPickup' && !pickupIsTarget) {
-        const pickup = mission.zones.pickup;
+        const pickup = pickupZoneOf(mission, runIndex);
         const at0 = onDial(sx(pickup.at[0]), sz(pickup.at[1]));
         ctx.strokeStyle = PICKUP;
         ctx.lineWidth = 1.6;

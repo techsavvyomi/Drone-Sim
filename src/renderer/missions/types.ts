@@ -451,6 +451,16 @@ export interface MissionInspectionPoint {
    * being inspected, and a slab two metres under a legitimate hover is not it.
    */
   structure: { min: Vec3; max: Vec3 };
+  /**
+   * An URGENT DISPATCH rather than a station: the patrol is interrupted, the
+   * pilot collects `zones.pickup` and puts it down on THIS point's zone, and
+   * the patrol resumes at the next point. Mission 10's redirection.
+   *
+   * It is a point in the list rather than a second list so it keeps the run
+   * index's rules for free: flown in order, scored once, never skipped. It
+   * cannot be the first point — the attempt opens on the flight to point 1.
+   */
+  dispatch?: boolean;
 }
 
 /**
@@ -459,6 +469,18 @@ export interface MissionInspectionPoint {
  */
 export interface MissionInspection {
   points: readonly MissionInspectionPoint[];
+  /**
+   * Whether the hold needs the spotlight on the target. On by default: the
+   * night inspection is judged on the light. A daytime patrol scans in
+   * daylight, carries no lamp, and is judged on the hover and the clearance.
+   */
+  needsLight?: boolean;
+  /** Banner when the last point is done: 'NIGHT INSPECTION COMPLETE'. */
+  completeTitle?: string;
+  /** And its line: where to go now. */
+  completeSub?: string;
+  /** The HUD card's heading: 'NIGHT INSPECTION'. */
+  cardTitle?: string;
   /** Seconds the hold has to be kept, unbroken. */
   holdSec: number;
   /** Half-angle of the spotlight cone that counts, degrees. The lamp is the one
@@ -543,6 +565,53 @@ export interface MissionDelivery {
    * going to hit.
    */
   via?: readonly (readonly [number, number])[];
+  /**
+   * Where THIS box waits, when it is not the mission's one pickup.
+   *
+   * Every multi-point delivery before the yard collected from a single hub, so
+   * `zones.pickup` answered for all of them. Mission 10 unloads a truck: each
+   * box comes off the pallet inside it, so the collection is a run's own. Read
+   * through `pickupZoneOf`, never directly.
+   */
+  pickup?: MissionZone;
+}
+
+/**
+ * The truck in a loading yard, on Missions 9 and 10.
+ *
+ * ONE truck, and the boxes go INSIDE it: onto a pallet on the trailer floor, in
+ * through the open side. It used to be three numbered trucks with a pallet on
+ * the tarmac beside each, drawn per box — the user asked for the boxes in the
+ * truck, not next to it, and all in the one truck.
+ */
+export interface MissionTruck {
+  /** The trailer and cab as one box, world metres. */
+  body: { min: Vec3; max: Vec3 };
+  /** The cargo space inside the trailer, world metres: floor to the roof's
+   *  underside, and the open side's line at `max[2]`. */
+  hold: { min: Vec3; max: Vec3 };
+  /** The loading bay: a pallet on the trailer floor. `kind` is 'drop' on a load
+   *  and 'pickup' on an unload. */
+  bay: MissionZone;
+}
+
+/**
+ * A loading yard: boxes moved one at a time between a warehouse stock pallet
+ * and the inside of a truck.
+ *
+ * It rides on the multi-point delivery rather than beside it — every box is a
+ * run, flown in order and scored once. `withYardRuns` writes the run list.
+ */
+export interface MissionYard {
+  /** 'load' carries boxes from the warehouse into the truck; 'unload' the
+   *  other way. */
+  mode: 'load' | 'unload';
+  /** How many boxes the job moves. */
+  boxes: number;
+  truck: MissionTruck;
+  /** The warehouse stock pallet: where the boxes start on a load and end on an
+   *  unload. */
+  warehouse: MissionZone;
 }
 
 export interface Mission {
@@ -696,9 +765,9 @@ export interface Mission {
   /**
    * What is slung under the drone on a delivery. Unset means the kind's own:
    * a medical case, a food box on a search, a tank on a suppression. Mission 7
-   * carries a cement bag.
+   * carries a cement bag; the Supermarket's two carry a cardboard parcel.
    */
-  cargo?: 'cement';
+  cargo?: 'cement' | 'parcel';
   /**
    * Brief on the tight card: no map picture down the side, short wide step
    * pictures, a narrower card. For a mission whose steps carry the story and
@@ -737,6 +806,13 @@ export interface Mission {
    * without asking which run is live gets the opening one rather than nothing.
    */
   deliveries?: readonly MissionDelivery[];
+  /**
+   * The loading yard, on Missions 9 and 10. Absent everywhere else.
+   *
+   * `deliveries` on such a mission is one run per box, all between the
+   * store's stock pallet and the truck — see `withYardRuns`.
+   */
+  yard?: MissionYard;
   /**
    * The mission ENDS at the drop mark, with no flight home and no landing.
    *
@@ -1093,7 +1169,20 @@ export function allZonesOf(m: Mission): readonly MissionZone[] {
   const drops = m.inspection?.points.map((p) => p.zone) ??
     m.deliveries?.map((d) => d.zone) ??
     m.search?.sites.map((s) => s.zone) ?? [m.zones.drop];
-  return [m.zones.pickup, ...drops, m.zones.base];
+  // A box that waits somewhere other than the hub waits on a deck of its own.
+  const pickups = m.deliveries?.flatMap((d) => (d.pickup ? [d.pickup] : [])) ?? [];
+  return [m.zones.pickup, ...pickups, ...drops, m.zones.base];
+}
+
+/**
+ * The collection the pilot is being sent to right now.
+ *
+ * `dropZoneOf`'s other half. Every mission but one collects from `zones.pickup`;
+ * Mission 10 unloads a truck, and its boxes are collected from the pallet
+ * inside it. Everything that draws or tests the pickup comes through here.
+ */
+export function pickupZoneOf(m: Mission, runIndex: number): MissionZone {
+  return deliveryOf(m, runIndex)?.pickup ?? m.zones.pickup;
 }
 
 /** The rating an attempt earns: the best rung it passes, or one for finishing. */

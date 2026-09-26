@@ -7,7 +7,7 @@ import type {
   MissionResult,
   MissionZoneKind,
 } from '../missions/types';
-import { deliveryCount, maxPointsOf, rankFor } from '../missions/types';
+import { deliveryCount, maxPointsOf, pickupZoneOf, rankFor } from '../missions/types';
 import { zoneFor, type SearchZone } from '../missions/searchZone';
 import { useSettingsStore } from './settingsStore';
 
@@ -700,12 +700,21 @@ export function objectiveFor(
     // Its own table: nothing is picked up or put down, and the middle of the
     // mission is three holds rather than one.
     switch (leg) {
+      // The patrol's urgent dispatch: collect, then put it down, then resume.
+      case 'toPickup':
+        return 'Urgent dispatch: fly to the item and hold still over it to scan it.';
       case 'carrying':
+        if (run?.dispatch) return `Urgent dispatch: ${run.to}.`;
         return run ? `Fly to ${run.name}: ${run.to}.` : 'Fly to the next inspection zone.';
       case 'toDrop':
-        return 'Hold still with your spotlight on the marked structure.';
+        if (run?.dispatch) return 'Centre over the loading mark and descend.';
+        return run?.light === false
+          ? 'Hold still over the station for the scan.'
+          : 'Hold still with your spotlight on the marked structure.';
       case 'delivered':
-        return 'Inspection complete. Return to the site office.';
+        return run?.light === false
+          ? 'Patrol complete. Return to the launch pad.'
+          : 'Inspection complete. Return to the site office.';
       case 'returning':
         return 'Land the drone safely.';
       case 'landing':
@@ -727,18 +736,32 @@ export function objectiveFor(
       // second visit is a different instruction from the first: the pilot is
       // coming BACK, and the line has to say so or the objective reads as if
       // nothing has happened since the last one.
+      if (run?.yard === 'load') {
+        return run.index === 0
+          ? `Fly into the store and collect ${run.name} from the stock pallet.`
+          : `Back into the store for ${run.name}.`;
+      }
+      if (run?.yard === 'unload') {
+        return run.index === 0
+          ? `Fly into the truck and collect ${run.name}.`
+          : `Back into the truck for ${run.name}.`;
+      }
       if (run) {
         return run.index === 0
-          ? `Collect ${run.name} from Lake City Pharmacy.`
-          : `Return to Lake City Pharmacy for ${run.name}.`;
+          ? `Collect ${run.name} from ${run.from}.`
+          : `Return to ${run.from} for ${run.name}.`;
       }
       return fire ? 'Collect the firefighting payload.' : 'Fly to the pickup location.';
     case 'carrying':
+      if (run?.yard === 'load') return `Fly ${run.name} into the truck.`;
+      if (run?.yard === 'unload') return `Take ${run.name} into the store, to the stock pallet.`;
       if (run) return `Deliver ${run.name} to ${run.to}.`;
       return fire
         ? 'Reach the fire zone and suppress the fire.'
         : 'Deliver the payload to the marked location.';
     case 'toDrop':
+      if (run?.yard === 'load') return 'Hold steady over the pallet inside the truck.';
+      if (run?.yard === 'unload') return 'Hold steady over the stock pallet.';
       if (run) return `Centre over ${run.to} and descend.`;
       return fire ? 'Hold your position over the fire.' : 'Centre over the drop mark and descend.';
     case 'delivered':
@@ -765,19 +788,42 @@ export function runContextOf(mission: Mission | null, runIndex: number): RunCont
   const points = mission?.inspection?.points;
   if (points && points.length > 0) {
     const i = Math.min(Math.max(runIndex, 0), points.length - 1);
-    return { name: points[i].name, to: points[i].label, index: i, total: points.length };
+    return {
+      name: points[i].name,
+      to: points[i].label,
+      index: i,
+      total: points.length,
+      // Only said when it is so: the night inspection's runs read as they did.
+      ...(points[i].dispatch && { dispatch: true }),
+      ...(mission?.inspection?.needsLight === false && { light: false }),
+    };
   }
   const list = mission?.deliveries;
   if (!mission || !list || list.length === 0) return null;
   const i = Math.min(Math.max(runIndex, 0), list.length - 1);
   const d: MissionDelivery = list[i];
-  return { name: d.name, to: d.zone.label, index: i, total: deliveryCount(mission) };
+  return {
+    name: d.name,
+    to: d.zone.label,
+    from: pickupZoneOf(mission, i).label,
+    index: i,
+    total: deliveryCount(mission),
+    ...(mission.yard && { yard: mission.yard.mode }),
+  };
 }
 
 /** Which package the pilot is on, and where it goes. */
 export interface RunContext {
   name: string;
   to: string;
+  /** Where this run's box is collected from. Unset on an inspection. */
+  from?: string;
   index: number;
   total: number;
+  /** An inspection's urgent dispatch rather than a station. */
+  dispatch?: boolean;
+  /** Whether an inspection's holds need the spotlight. */
+  light?: boolean;
+  /** On a loading yard: which way the boxes go. */
+  yard?: 'load' | 'unload';
 }

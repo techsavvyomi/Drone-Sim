@@ -335,13 +335,15 @@ function InspectionCard({ mission }: { mission: Mission }) {
   const i = Math.min(runIndex, points.length - 1);
   const point = points[i];
   const clear = checks.clear !== false;
-  const lit = checks.lit === true;
+  // A daylight patrol has no lamp to aim, so no light row and nothing to wait on.
+  const needsLight = mission.inspection?.needsLight !== false;
+  const lit = !needsLight || checks.lit === true;
   const armed = checks.centred && checks.inBand && checks.steady && lit && clear;
   const filled = Math.round(checks.hold * 10);
   return (
     <div className={`ms-checks inspect ${clear ? '' : 'blocked'} ${armed ? 'armed' : ''}`}>
       <span className="ms-checks-head">
-        NIGHT INSPECTION
+        {mission.inspection?.cardTitle ?? 'NIGHT INSPECTION'}
         <em>
           ZONE {i + 1} / {points.length}
         </em>
@@ -366,10 +368,12 @@ function InspectionCard({ mission }: { mission: Mission }) {
         <i />
         <b>Height</b>
       </span>
-      <span className={`ms-check ${lit ? 'ok' : ''}`}>
-        <i />
-        <b>Light on marker</b>
-      </span>
+      {needsLight && (
+        <span className={`ms-check ${lit ? 'ok' : ''}`}>
+          <i />
+          <b>Light on marker</b>
+        </span>
+      )}
       <span className={`ms-check ${checks.steady ? 'ok' : ''}`}>
         <i />
         <b>Steady</b>
@@ -389,7 +393,7 @@ function InspectionCard({ mission }: { mission: Mission }) {
 }
 
 /** The environments `MissionCityMap` can draw a plan of. */
-const PLANNED_ENVS = new Set(['new-york', 'forest', 'construction-site']);
+const PLANNED_ENVS = new Set(['new-york', 'forest', 'construction-site', 'supermarket']);
 
 /** A star row that lights one star at a time, with a chime for each. */
 function StarReveal({ value }: { value: number }) {
@@ -517,6 +521,8 @@ export function MissionHud() {
   const track = !!mission.tracking;
   /** The night inspection: nothing carried, three holds to count. */
   const inspect = !!mission.inspection;
+  /** An inspection with an urgent dispatch in it carries something after all. */
+  const carriesDispatch = !!mission.inspection?.points.some((p) => p.dispatch);
   /** Every piece of target guidance is off while this is true — see the store.
    *  One answer, read by the strip here and by the map and the pointer. */
   const hidden = guidanceHidden(mission, located, leg);
@@ -812,8 +818,13 @@ export function MissionHud() {
 
       {flying && <TargetPointerHud />}
 
-      {flying && leg === 'toDrop' && !inspect && <DeliveryChecklist fire={fire} />}
-      {flying && leg === 'toDrop' && inspect && <InspectionCard mission={mission} />}
+      {/* A patrol's dispatch is a delivery, and gets the delivery's card. */}
+      {flying && leg === 'toDrop' && (!inspect || run?.dispatch) && (
+        <DeliveryChecklist fire={fire} />
+      )}
+      {flying && leg === 'toDrop' && inspect && !run?.dispatch && (
+        <InspectionCard mission={mission} />
+      )}
 
       {/* The five second hover that confirms the rescue location — and, on the
           tracking mission, the five seconds of light that replace it. The same
@@ -866,7 +877,7 @@ export function MissionHud() {
               food box. Except the survey, which carries nothing: a cell reading
               'WAITING' for the whole flight is a cell the pilot learns to
               ignore, and this one would never change. */}
-          {!track && !inspect && (
+          {!track && (!inspect || carriesDispatch) && (
             <div className={`ms-cell payload ${payload}`}>
               <span>PAYLOAD</span>
               {/* One word each, with the state's colour carried by the dot the
