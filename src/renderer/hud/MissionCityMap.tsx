@@ -2,7 +2,12 @@ import { useEffect, useRef } from 'react';
 import { dronePose } from '../sim/drone/pose';
 import { activeZone, guidanceHidden, legOf, useMissionStore } from '../state/missionStore';
 import { tigerPose } from '../missions/tigerPose';
-import { drawForestPlan, drawSitePlan } from './planLayers';
+import {
+  drawForestPlan,
+  drawSitePlan,
+  drawSupermarketPlan,
+  supermarketIndoorAt,
+} from './planLayers';
 import type { MissionLeg } from '../state/missionStore';
 import {
   NYC_EDGES,
@@ -16,7 +21,7 @@ import {
 } from '../scene/environment/NewYorkPlan';
 import type { Mission } from '../missions/types';
 import { getEnvironment } from '../plugins/registry';
-import { nextTargetOf, requiredCheckpoints } from '../missions/types';
+import { dropZoneOf, nextTargetOf, pickupZoneOf, requiredCheckpoints } from '../missions/types';
 
 // ----------------------------------------------------------------------------
 // The city map — a search mission's whole answer to "where do I go".
@@ -55,11 +60,17 @@ import { nextTargetOf, requiredCheckpoints } from '../missions/types';
 // nothing in it to search. A block of this city is a dozen buildings, and the
 // search is harder and more honest when the map says so.
 //
-// ONE MAP FOR EVERY ENVIRONMENT. It started as New York's, and the forest and
-// the Construction Site now draw theirs through it too — see `planLayers.ts` —
-// so every mission gets the same plan: the ground, where it ends, and the
-// aircraft on it. Their radar, a disc with one dot, said where the next mark was
-// and nothing about where the map was.
+// ONE MAP FOR EVERY ENVIRONMENT. It started as New York's, and the forest, the
+// Construction Site and the Supermarket now draw theirs through it too — see
+// `planLayers.ts` — so every mission gets the same plan: the ground, where it
+// ends, and the aircraft on it. Their radar, a disc with one dot, said where the
+// next mark was and nothing about where the map was.
+//
+// INDOORS IT TAKES THE ROOF OFF. The Supermarket's missions fly into the store,
+// and a plan of a roof says nothing about the shelves under it. Once the drone
+// is through the door the map lays the floor plan over the roof — walls,
+// shelves, checkouts, the doors — and closes in to `REACH_INDOOR_M`, easing both
+// over a moment so going through the door does not jump the map.
 //
 // It carries NO compass and no N/E/S/W. The sector clues those served are gone,
 // and on a north-up plan of a city the pilot is looking at, they were labelling
@@ -94,6 +105,17 @@ const PAD = 7;
  * context they navigate into the zone by.
  */
 const REACH_M = 66;
+/**
+ * The reach indoors, metres. At 66 m a 1.15 m aisle is under a pixel and the
+ * 1.5 m doorway is a pixel and a half: the floor plan would be a texture. At
+ * 25 m an aisle is two and a half pixels, and the disc still holds half the
+ * store — the door and the mark in front of the aisles together.
+ */
+const REACH_INDOOR_M = 25;
+/** Seconds the map takes to settle going in or out of the store. Long enough
+ *  to read as a zoom rather than a cut; short enough that it has finished by
+ *  the time the drone is through the door. */
+const INDOOR_EASE_S = 0.35;
 
 /**
  * Roofs shade from dark to light with height.
@@ -192,11 +214,6 @@ export function MissionCityMap({ mission }: { mission: Mission }) {
     [],
   );
 
-  /** Pixels per metre. One scale for both axes — a plan stretched to fill its
-   *  frame is a plan of a different city, and the pilot is meant to be able to
-   *  read distances off it. */
-  const k = (SIZE / 2 - PAD) / REACH_M;
-
   useEffect(() => {
     const el = canvas.current;
     if (!el) return;
@@ -227,10 +244,29 @@ export function MissionCityMap({ mission }: { mission: Mission }) {
      *  frame. Empty on a mission with no route. */
     const required = new Set(requiredCheckpoints(mission).map((c) => c.id));
 
+    /** 0 outside, 1 inside the store, eased between — see the header. */
+    let indoor = 0;
+    let last = -1;
+    const store = mission.envId === 'supermarket';
+
     let raf = 0;
     const draw = (clock: number) => {
       raf = requestAnimationFrame(draw);
       ctx.clearRect(0, 0, SIZE, SIZE);
+
+      if (store) {
+        const p = dronePose.position;
+        const target = supermarketIndoorAt(p.x, p.y, p.z) ? 1 : 0;
+        // A stalled frame must not be one giant step.
+        const dt = last < 0 ? 1 : Math.min(0.1, (clock - last) / 1000);
+        indoor += (target - indoor) * Math.min(1, dt / INDOOR_EASE_S);
+        if (Math.abs(target - indoor) < 0.005) indoor = target;
+      }
+      last = clock;
+      /** Pixels per metre. One scale for both axes — a plan stretched to fill
+       *  its frame is a plan of a different city, and the pilot is meant to be
+       *  able to read distances off it. */
+      const k = (SIZE / 2 - PAD) / (REACH_M + (REACH_INDOOR_M - REACH_M) * indoor);
       // Everything inside the rim, and now the clip is doing real work: a
       // scrolling map has blocks crossing its edge in every frame.
       ctx.save();
@@ -262,6 +298,7 @@ export function MissionCityMap({ mission }: { mission: Mission }) {
       const city = mission.envId === 'new-york';
       if (mission.envId === 'forest') drawForestPlan(ctx, view);
       else if (mission.envId === 'construction-site') drawSitePlan(ctx, view, mission);
+      else if (store) drawSupermarketPlan(ctx, view, indoor, SIZE);
       else {
         ctx.fillStyle = ROAD;
         ctx.fillRect(0, 0, SIZE, SIZE);
@@ -412,25 +449,40 @@ export function MissionCityMap({ mission }: { mission: Mission }) {
           : mission.tracking
             ? []
             : (mission.deliveries ?? [{ id: 'd', zone: mission.zones.drop }]);
-        // Nothing is collected on an inspection or a survey: no pickup mark.
-        const collects = !mission.inspection && !mission.tracking;
+        // Nothing is collected on an inspection or a survey: no pickup mark —
+        // unless the inspection has a dispatch in it.
+        const collects =
+          !mission.tracking &&
+          (!mission.inspection || mission.inspection.points.some((p) => p.dispatch));
         const marks = [
           ...(collects
             ? [
                 {
-                  at: mission.zones.pickup.at,
+                  at: pickupZoneOf(mission, runIndex).at,
                   colour: MARK_PICKUP,
                   active: here === 'pickup',
                   done: false,
                 },
               ]
             : []),
-          ...drops.map((d, i) => ({
-            at: d.zone.at,
-            colour: MARK_DROP,
-            active: here === 'drop' && i === runIndex,
-            done: i < deliveredCount,
-          })),
+          // A loading yard has five runs over two pallets: one mark per
+          // pallet, not per run, or the live dot is drawn under the outline of
+          // a later box bound for the same pallet.
+          ...(mission.yard
+            ? [mission.yard.warehouse, mission.yard.truck.bay]
+                .filter((z) => z !== pickupZoneOf(mission, runIndex))
+                .map((z) => ({
+                  at: z.at,
+                  colour: z.kind === 'pickup' ? MARK_PICKUP : MARK_DROP,
+                  active: here === 'drop' && z === dropZoneOf(mission, runIndex),
+                  done: false,
+                }))
+            : drops.map((d, i) => ({
+                at: d.zone.at,
+                colour: MARK_DROP,
+                active: here === 'drop' && i === runIndex,
+                done: i < deliveredCount,
+              }))),
           {
             at: mission.zones.base.at,
             colour: MARK_BASE,
@@ -583,7 +635,7 @@ export function MissionCityMap({ mission }: { mission: Mission }) {
 
     raf = requestAnimationFrame(draw);
     return () => cancelAnimationFrame(raf);
-  }, [mission, k, zone, located]);
+  }, [mission, zone, located]);
 
   // No caption. A label under the circle was there to say what the red ring
   // was, and at this zoom it does not need saying: the ring is most of the
