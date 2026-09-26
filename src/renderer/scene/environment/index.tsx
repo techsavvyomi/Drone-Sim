@@ -6,6 +6,7 @@ import { Classroom2Env } from './Classroom2Env';
 import { ForestEnv } from './ForestEnv';
 import { NewYorkEnv } from './NewYorkEnv';
 import { ConstructionSiteEnv } from './ConstructionSiteEnv';
+import { SupermarketEnv } from './SupermarketEnv';
 
 // Renderer-side lookup from environment id to its scene component.
 //
@@ -23,6 +24,7 @@ const ENV_COMPONENTS: Record<string, EnvComponent> = {
   forest: ForestEnv,
   'new-york': NewYorkEnv,
   'construction-site': ConstructionSiteEnv,
+  supermarket: SupermarketEnv,
 };
 
 export function getEnvironmentComponent(id: string): EnvComponent {
