@@ -610,7 +610,10 @@ button {
 .logo-text em {
   font-style: normal;
   font-size: 10.5px;
-  letter-spacing: 0.44em;
+  /* One line. At 0.44em it was wider than the wordmark and wrapped under it
+     into three ragged lines ("Flight / Simulator by / Drona Aviation"). */
+  letter-spacing: 0.12em;
+  white-space: nowrap;
   color: var(--text-dim);
   margin-top: 5px;
 }
@@ -1865,8 +1868,7 @@ button {
 /* ---- Branding ---- */
 .logo-by {
   color: var(--accent);
-  letter-spacing: 0.18em;
-  margin-left: 6px;
+  margin-left: 3px;
 }
 .boot {
   flex-direction: column;
