@@ -1056,52 +1056,6 @@ button {
   padding-top: 6px;
 }
 
-.sysready {
-  position: absolute;
-  right: 0;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 12px 18px;
-  border-radius: 14px;
-  background: rgba(10, 16, 27, 0.78);
-  border: 1px solid var(--line);
-}
-.sysready-bars {
-  color: var(--good);
-  filter: drop-shadow(0 0 10px rgba(55, 224, 138, 0.6));
-}
-.sysready-txt {
-  display: flex;
-  flex-direction: column;
-  line-height: 1.25;
-}
-.sysready-txt i {
-  font-style: normal;
-  font-size: 9.5px;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-  color: var(--text-dim);
-}
-.sysready-txt b {
-  font-size: 13px;
-  color: var(--good);
-  letter-spacing: 0.06em;
-}
-.sysready-ring {
-  width: 26px;
-  height: 26px;
-  border-radius: 50%;
-  border: 2px solid rgba(55, 224, 138, 0.28);
-  border-top-color: var(--good);
-  animation: spin 2.4s linear infinite;
-}
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
 /* ---- Home refinements: wider cards, corner accent, pilot badge ---- */
 .mode-row {
   /* No cap: the three cards take the full frame, the way the four used to.

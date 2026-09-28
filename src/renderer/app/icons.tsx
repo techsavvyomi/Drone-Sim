@@ -90,12 +90,6 @@ export const IconChevron = ({ size }: P) => (
   </svg>
 );
 
-export const IconSignal = ({ size }: P) => (
-  <svg {...base(size)}>
-    <path d="M4 20v-4M9 20v-8M14 20v-12M19 20V4" />
-  </svg>
-);
-
 export const IconArena = ({ size }: P) => (
   <svg {...base(size)}>
     <path d="M3 15a9 9 0 0 1 18 0" />

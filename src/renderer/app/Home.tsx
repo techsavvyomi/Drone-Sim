@@ -3,7 +3,7 @@ import { getDrone } from '../plugins/registry';
 import { usePilotStanding } from './pilotRank';
 import { useAccountStore } from '../state/accountStore';
 import { ArenaShowcase } from '../scene/ArenaShowcase';
-import { IconChevron, IconDrone, IconMedal, IconSignal, IconCap } from './icons';
+import { IconChevron, IconDrone, IconMedal, IconCap } from './icons';
 
 /** Compact pilot/progression badge shown in the menu's bottom-left corner. */
 function PilotBadge() {
@@ -126,17 +126,6 @@ export function Home() {
 
         <footer className="home-bottom">
           <PilotBadge />
-
-          <div className="sysready">
-            <span className="sysready-bars">
-              <IconSignal size={20} />
-            </span>
-            <span className="sysready-txt">
-              <i>System</i>
-              <b>Ready</b>
-            </span>
-            <span className="sysready-ring" />
-          </div>
         </footer>
       </div>
     </div>
