@@ -246,6 +246,18 @@ function NewYorkModel({ url }: { url: string }) {
             std.polygonOffsetUnits = -1;
             if (std.map) std.map.anisotropy = maxAniso;
             std.needsUpdate = true;
+          } else if ((std as THREE.MeshPhysicalMaterial).transmission > 0) {
+            // Glass without transmission. One transmissive material anywhere
+            // in view makes three render every opaque object a second time,
+            // into the buffer the glass refracts. The city has one (the GLB's
+            // CityGenGlass, 1244 triangles, zero thickness, so it bends
+            // nothing) and it cost 35 -> 56 fps, 531k -> 273k triangles a
+            // frame, measured over the spawn. It is already 25% opaque and
+            // blended, which is what reads as glass. Classroom does the same.
+            (std as THREE.MeshPhysicalMaterial).transmission = 0;
+            std.transparent = true;
+            std.depthWrite = false;
+            std.needsUpdate = true;
           } else if (/bark/i.test(matName)) {
             std.roughness = 0.92;
             std.metalness = 0.0;
