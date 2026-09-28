@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { isAllowedExternalUrl } from '../src/main/externalLinks';
-import { aboutRows } from '../src/renderer/app/AboutSection';
+import { aboutRows, withSoftwareFlag } from '../src/renderer/app/AboutSection';
 
 // Settings → About shows what build this is and where it is running, and its
 // "Report a bug" is the one thing allowed to open something outside the app.
@@ -31,6 +31,17 @@ describe('About', () => {
       Electron: '43.2.0',
     });
     expect(Object.fromEntries(aboutRows({ ...info, packaged: false }, '')).Build).toBe('ded9531 (development)');
+  });
+
+  it('flags a software renderer, and only that', () => {
+    const angle = 'ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero)), SwiftShader driver)';
+    expect(withSoftwareFlag(angle)).toMatch(/software, no GPU/);
+    expect(withSoftwareFlag('ANGLE (Microsoft, Microsoft Basic Render Driver Direct3D11)')).toMatch(/software/);
+    expect(withSoftwareFlag('llvmpipe (LLVM 15.0.7, 256 bits)')).toMatch(/software/);
+    expect(withSoftwareFlag('ANGLE (Intel, Intel(R) UHD Graphics 620 Direct3D11)')).toBe(
+      'ANGLE (Intel, Intel(R) UHD Graphics 620 Direct3D11)',
+    );
+    expect(withSoftwareFlag('Apple M2')).toBe('Apple M2');
   });
 
   it('only lets the page open the support email', () => {

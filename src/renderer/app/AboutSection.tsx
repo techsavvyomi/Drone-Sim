@@ -22,10 +22,21 @@ function graphicsRenderer(): string {
     const debug = gl.getExtension('WEBGL_debug_renderer_info');
     const name = debug ? gl.getParameter(debug.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER);
     gl.getExtension('WEBGL_lose_context')?.loseContext();
-    return String(name);
+    return withSoftwareFlag(String(name));
   } catch {
     return 'Unknown';
   }
+}
+
+/** Renderers that draw on the CPU: the GPU driver is blocklisted or missing. */
+const SOFTWARE_RENDERER = /swiftshader|llvmpipe|softpipe|basic render/i;
+
+/**
+ * Marks a software renderer, the one cause of "the sim lags on this laptop"
+ * that a packaged build (no DevTools) cannot otherwise show.
+ */
+export function withSoftwareFlag(name: string): string {
+  return SOFTWARE_RENDERER.test(name) ? `${name} (software, no GPU; update the graphics driver)` : name;
 }
 
 function formatBuildDate(iso: string): string {

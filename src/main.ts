@@ -4,6 +4,7 @@ import { registerIpcHandlers } from './main/ipc/handlers';
 import { installCrashReporting } from './main/crash';
 import { enforceLockdown } from './main/security';
 import { keepExistingUserData } from './main/userDataPath';
+import { preferHighPerformanceGpu } from './main/gpu';
 
 // Before any path is read: an install from before the PlutoSim rename keeps its
 // settings, sign-in and queued uploads.
@@ -15,6 +16,10 @@ const lockdown = enforceLockdown();
 // Before anything else: the native crash reporter must start before other
 // processes do, and an exception during startup is worth a report too.
 const crashReporting = installCrashReporting();
+
+// Before the GPU process starts: the discrete GPU where there is one, and no
+// silent fall back to software rendering on a blocklisted driver.
+preferHighPerformanceGpu();
 
 // Globals injected by the Electron Forge Vite plugin at build time.
 declare const MAIN_WINDOW_VITE_DEV_SERVER_URL: string | undefined;
