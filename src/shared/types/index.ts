@@ -63,6 +63,11 @@ export interface AppSettings {
   /** Persisted schema version, for future migrations. */
   version: number;
   graphics: GraphicsPreset;
+  /**
+   * Step `graphics` down on its own when the frame rate cannot hold it (see
+   * scene/AutoQuality.tsx). Settings → Video.
+   */
+  autoGraphics: boolean;
   physics: PhysicsPreset;
   /** Currently selected drone / environment plugin ids. */
   selectedDroneId: string;
@@ -449,6 +454,7 @@ export const SETTINGS_VERSION = 1;
 export const DEFAULT_SETTINGS: AppSettings = {
   version: SETTINGS_VERSION,
   graphics: 'medium',
+  autoGraphics: true,
   physics: 'beginner',
   selectedDroneId: 'pluto',
   selectedEnvironmentId: 'drone-academy',

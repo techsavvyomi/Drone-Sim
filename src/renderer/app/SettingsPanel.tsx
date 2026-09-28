@@ -82,6 +82,14 @@ export function SettingsPanel() {
               Low: no post-processing (best for integrated GPUs). Medium: Bloom + Vignette. High: +
               SMAA anti-aliasing and sharper shadows.
             </p>
+            <label className="hud-toggle">
+              <input
+                type="checkbox"
+                checked={settings.autoGraphics}
+                onChange={(e) => set('autoGraphics', e.target.checked)}
+              />
+              Lower the graphics quality automatically when the frame rate drops
+            </label>
 
             <div className="setting-row">
               <label>Camera zoom</label>

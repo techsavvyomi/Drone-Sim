@@ -12,6 +12,7 @@ import { MissionScreen } from './MissionScreen';
 import { ProfileScreen } from './ProfileScreen';
 import { SignIn } from './SignIn';
 import { LoadingScreen, useResourcesReady } from './LoadingScreen';
+import { QualityNotice } from './QualityNotice';
 import { allLoaded, useResourceStore } from '../assets/resourceTracker';
 import { Viewport } from '../scene/Viewport';
 import { useUiStore } from '../state/uiStore';
@@ -237,6 +238,7 @@ export function App() {
         </button>
       )}
       {section !== 'home' && <StatusBar />}
+      <QualityNotice />
     </div>
   );
 }

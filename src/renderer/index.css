@@ -899,6 +899,25 @@ button {
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
+/* Automatic graphics change: one line, top centre, over the flight view. */
+.quality-notice {
+  position: fixed;
+  top: 18px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 90;
+  padding: 10px 16px;
+  border-radius: 10px;
+  background: rgba(9, 13, 21, 0.92);
+  border: 1px solid var(--line);
+  color: var(--text-dim);
+  font-size: 13px;
+  pointer-events: none;
+}
+.quality-notice b {
+  color: var(--text);
+  text-transform: capitalize;
+}
 @keyframes scene-veil-spin {
   to {
     transform: rotate(360deg);

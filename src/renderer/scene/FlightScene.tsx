@@ -23,6 +23,7 @@ import { LocalEnvironment } from './LocalEnvironment';
 import { PostFX } from './PostFX';
 import { SunLight } from './SunLight';
 import { AdaptiveResolution } from './AdaptiveResolution';
+import { AutoQuality } from './AutoQuality';
 import { FrameDeltaCap } from './FrameDeltaCap';
 import { DroneAudio } from '../audio/DroneAudio';
 
@@ -231,6 +232,8 @@ export function FlightScene({
       {/* Last, and inside the Canvas: it watches the frames the whole tree above
           it produces and walks the resolution down when they stop arriving. */}
       <AdaptiveResolution />
+      {/* And when resolution is not enough, the preset itself — see AutoQuality. */}
+      <AutoQuality />
     </>
   );
 }
