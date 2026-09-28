@@ -38,7 +38,7 @@ import { useFlightStore, type AutoState } from '../../state/flightStore';
 import { usePhysicsStore } from '../../state/physicsStore';
 import { DroneModel } from './DroneModel';
 import { Propellers } from './Propellers';
-import { addShake } from '../effects';
+import { addShake, clearShake } from '../effects';
 import { dronePose } from './pose';
 import { propHubs, resetPropSpin } from './propHubs';
 
@@ -136,6 +136,14 @@ const OBSTACLE_CRASH_SPEED = 2.2;
 const WALL_BUMP_HOLD = 0.85;
 /** Remember peak speed this long so a tunneled hit still counts as a fast crash. */
 const PEAK_SPEED_HOLD = 0.25;
+/**
+ * After a spawn or reset, how long the drop onto the pad is not an impact, s.
+ *
+ * Spawns sit 0.2-0.35 m above the pad, so the aircraft falls onto it at ~2 m/s
+ * — past MINOR_IMPACT — and every R and every map entry shook the whole screen
+ * as hard as a crash. The fall from 0.35 m takes ~0.27 s; chosen by judgement.
+ */
+const SPAWN_SETTLE = 0.6;
 
 /**
  * Attitude / lateral-G crash detection, ported from the Magis V2 firmware's
@@ -253,6 +261,8 @@ export function Drone({ spec, spawn, bounds, outdoor = false, groundY }: DronePr
   const batteryState = useRef({ voltage: 0, current: 0, soc: 1, thrustScale: 1 });
   const stepCount = useRef(0);
   const simTime = useRef(0);
+  /** Sim time until which contacts are the spawn drop settling — see SPAWN_SETTLE. */
+  const settleUntil = useRef(0);
   const flightTime = useRef(0);
   const fpsAccum = useRef({ frames: 0, elapsed: 0 });
   /** Last full frame's renderer counters — see the read in the frame loop. */
@@ -325,6 +335,8 @@ export function Drone({ spec, spawn, bounds, outdoor = false, groundY }: DronePr
     peakSpeed.current = 0;
     peakSpeedUntil.current = 0;
     prevVel.current = { x: 0, z: 0 };
+    settleUntil.current = simTime.current + SPAWN_SETTLE;
+    clearShake();
     useFlightStore.getState().setOnGround(lift <= 0);
     useFlightStore.getState().clearCrash();
     useFlightStore.getState().recharge();
@@ -1368,7 +1380,7 @@ export function Drone({ spec, spawn, bounds, outdoor = false, groundY }: DronePr
           // torque that rolls a drone over on touching a wall was never damped.
           wallBumpUntil.current = simTime.current + WALL_BUMP_HOLD;
         }
-        if (v >= MINOR_IMPACT) {
+        if (v >= MINOR_IMPACT && simTime.current > settleUntil.current) {
           addShake(Math.min(0.35, (v - MINOR_IMPACT) / (MAJOR_IMPACT - MINOR_IMPACT)));
         }
       }}
