@@ -524,7 +524,7 @@ function Gltf({ spec, idleSpin = 0 }: { spec: DroneSpec; idleSpin?: number }) {
   const rawOffset = spec.modelOffset ?? [0, 0, 0];
   const offset: [number, number, number] = [
     rawOffset[0] * sizeScale,
-    rawOffset[1] * sizeScale,
+    rawOffset[1] * sizeScale + PAINT_CLEARANCE,
     rawOffset[2] * sizeScale,
   ];
 
@@ -540,6 +540,18 @@ function Gltf({ spec, idleSpin = 0 }: { spec: DroneSpec; idleSpin?: number }) {
     />
   );
 }
+
+/**
+ * How far the drawn airframe stands above the collider floor, metres.
+ *
+ * Each spec's `modelOffset` Y puts the lowest geometry exactly ON the collider's
+ * underside — the bare ground. Ground paint is not at the ground: the helipads
+ * sit 12-13 mm proud with a polygon offset pulling them further toward the
+ * camera, so parked on one the legs vanished into the paint. 2 cm clears every
+ * painted pad in the game and is invisible on bare ground at chase distance.
+ * Presentation only: the colliders, and so the flight, are untouched.
+ */
+const PAINT_CLEARANCE = 0.02;
 
 /** Renders `fallback` if the model subtree throws (missing/corrupt asset). */
 class ModelBoundary extends Component<
