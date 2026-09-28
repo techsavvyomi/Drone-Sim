@@ -46,6 +46,9 @@ const DROP_TIME = 0.9;
  *  in its way, m — it is also how far the camera stays off a wall. Smaller on a
  *  small drone, whose whole chase distance is barely a metre and a half. */
 const WALL_GAP = 0.3;
+/** How far above the drone's origin the swept ball's underside starts, m —
+ *  clear of the 24 mm the airframe rests above the ground, and of small bumps. */
+const PIVOT_CLEAR = 0.08;
 /** Roughly how long the camera takes to slide in toward the drone when
  *  something comes between them, and to drift back out once it has gone, s.
  *  In is quick, so the drone is not hidden for long; out is slow, the way an
@@ -110,9 +113,17 @@ export function CameraRig({ spec, env }: { spec: DroneSpec; env?: EnvironmentSpe
       // lines are swept with a ball the camera's size, so skimming past an
       // edge does not flicker between blocked and clear.
       const outdoor = !env || env.kind !== 'indoor';
-      _pivot.copy(dronePose.position).addScaledVector(UP, spec.armLength * 1.5);
       const len = CHASE_OFFSET.length();
       const camRadius = THREE.MathUtils.clamp(len * 0.12, 0.08, WALL_GAP);
+      // The sweeps start with the ball CLEAR of whatever the drone stands on.
+      // At armLength x 1.5 alone the ball (up to 0.3 m) began sunk into the
+      // ground under a parked drone — 0.23 m up on the Racing Drone, 0.17 m on
+      // the Guru — so on uneven ground (the Forest's terrain, a kerb) the first
+      // bump behind read as "blocked": the camera went overhead and the
+      // pull-in dragged it into the airframe.
+      _pivot
+        .copy(dronePose.position)
+        .addScaledVector(UP, Math.max(spec.armLength * 1.5, camRadius + PIVOT_CLEAR));
       if (outdoor) {
         // A little behind as well as above, so lookAt never points straight
         // down along the camera's up vector.
