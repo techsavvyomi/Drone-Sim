@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
-import type { WebGLProgram } from 'three';
+import type { Camera, WebGLProgram } from 'three';
 import { create } from 'zustand';
 import { allSettled, overallProgress, useResourceStore } from '../assets/resourceTracker';
 
@@ -44,13 +44,33 @@ const RESCAN_FRAMES = 30;
 const STABLE_SCANS = 2;
 
 /**
- * How far the shader warm-up has got, 0..1, for the veil's percentage.
+ * Where the veil's scene has got, for its percentage.
  *
  * A store rather than a prop: `SceneReady` is inside the canvas and the veil is
  * DOM beside it, and a percentage passed up through React state would re-render
  * the whole viewport on every step. Only one flight view is open at a time.
+ *
+ * `since` is when `SceneReady` mounted. A veil opened after it reads the store
+ * as stale: the last view left it at the end, and that read as 100% for the
+ * whole of the next map's build.
  */
-export const useVeilProgress = create<{ shaders: number }>(() => ({ shaders: 0 }));
+export interface VeilProgress {
+  /** building: the scene is being put together, before `SceneReady` mounts.
+   *  compiling: `compileAsync` is out. warming: compiled, counting frames. */
+  stage: 'building' | 'compiling' | 'warming';
+  /** Shader programs finished over programs created, 0..1. */
+  shaders: number;
+  /** Warm frames drawn since the compile finished. */
+  frames: number;
+  since: number;
+}
+
+export const useVeilProgress = create<VeilProgress>(() => ({
+  stage: 'building',
+  shaders: 0,
+  frames: 0,
+  since: 0,
+}));
 
 /**
  * Shader programs finished over programs created.
@@ -119,17 +139,50 @@ export function SceneReady({ onReady }: { onReady: () => void }) {
 
   useEffect(() => {
     let cancelled = false;
-    useVeilProgress.setState({ shaders: 0 });
+    useVeilProgress.setState({ stage: 'compiling', shaders: 0, frames: 0, since: performance.now() });
+
+    // Reading a program's error log waits for the driver to finish compiling
+    // it, so three's default check turns every first draw into a stall. Kept in
+    // development, where a shader error is worth seeing; a release build has no
+    // console to show one in.
+    gl.debug.checkShaderErrors = import.meta.env.DEV;
+
+    // Draw nothing while the compile runs.
+    //
+    // The render loop does not stop behind the veil, and a draw that uses a
+    // program the driver has not finished blocks until it has — which is the
+    // parallel compile turned back into a serial one, on the main thread.
+    // Measured opening Mission 1: ~3.2 s of the veil was that wait (2.1 s of it
+    // the transmission pass redrawing the scene for the glass), and in one
+    // stretch no script ran for 4.4 s, so the percentage could not move at all.
+    //
+    // With every layer off, the camera sees nothing and the programs are left to
+    // the driver. The compile gets a copy with the real layers: three picks the
+    // lights a program is built for by the camera's layers, and programs built
+    // for no lights would all be rebuilt on the first real frame.
+    const layers = camera.layers.mask;
+    // Without its children (three's `clone` would copy those too).
+    const compileCamera = new (camera.constructor as new () => Camera)().copy(camera as Camera, false);
+    camera.layers.disableAll();
+    let restored = false;
+    const restore = () => {
+      if (restored) return;
+      restored = true;
+      camera.layers.mask = layers;
+    };
+
     const finish = () => {
+      restore();
       if (cancelled) return;
       compiled.current = true;
-      useVeilProgress.setState({ shaders: 1 });
+      useVeilProgress.setState({ stage: 'warming', shaders: 1 });
     };
     // Rejects on a lost context, which is not a reason to sit behind the veil
     // forever — both paths release it.
-    gl.compileAsync(scene, camera).then(finish, finish);
+    gl.compileAsync(scene, compileCamera).then(finish, finish);
 
     const bail = setTimeout(() => {
+      restore();
       if (cancelled || fired.current) return;
       fired.current = true;
       onReady();
@@ -137,19 +190,22 @@ export function SceneReady({ onReady }: { onReady: () => void }) {
 
     return () => {
       cancelled = true;
+      restore();
       clearTimeout(bail);
     };
   }, [gl, scene, camera, onReady]);
 
   useFrame(() => {
-    // Only while the veil is up, and only on a whole-percent change.
-    if (!fired.current && !compiled.current) {
+    // Only while the compile is out, and only on a whole-percent change.
+    const progress = useVeilProgress.getState();
+    if (!fired.current && !compiled.current && progress.stage === 'compiling') {
       const next = Math.floor(shaderProgress(gl.info.programs) * 100) / 100;
-      if (next > useVeilProgress.getState().shaders) useVeilProgress.setState({ shaders: next });
+      if (next > progress.shaders) useVeilProgress.setState({ shaders: next });
     }
 
     if (!fired.current && compiled.current) {
       frames.current += 1;
+      useVeilProgress.setState({ frames: frames.current });
       if (frames.current >= WARM_FRAMES) {
         fired.current = true;
         onReady();
@@ -187,26 +243,65 @@ export function SceneReady({ onReady }: { onReady: () => void }) {
   return null;
 }
 
+/** Share of the bar each stage fills; the rest is the stages before it. */
+const BUILD_SHARE = 0.35;
+const COMPILE_SHARE = 0.6;
+
 /**
- * The veil's percentage: models still loading, then shaders compiling.
+ * How long building the scene usually takes, for the bar while it is unmeasured.
  *
- * Models count only if some were still arriving when the veil went up — after
- * the first launch they load behind the menu, so a map opened early waits on
- * them. Otherwise the whole bar is the shader warm-up. Never goes backwards: a
- * .glb that lands mid-compile adds programs, which would pull the ratio down.
+ * React and Rapier putting a map together report no progress, so this stage
+ * eases towards its share on the clock instead: ~63% of it by this many ms,
+ * never all of it. Chosen by judgement from one measurement (0.8-1.5 s on this
+ * Mac, Mission 1); where models are still loading, their bytes are used instead.
  */
-export function veilPercent(models: number, shaders: number, waitingOnModels: boolean): number {
-  const p = waitingOnModels ? 0.6 * models + 0.4 * shaders : shaders;
-  return Math.floor(Math.min(1, Math.max(0, p)) * 100);
+const BUILD_TIME_MS = 1500;
+
+/**
+ * The veil's percentage, 0..100, stage by stage: the scene being built (models
+ * still loading, or the clock), then the shader compile, then the warm frames.
+ * 100 only on the last warm frame, the one that lifts the veil.
+ */
+export function veilPercent(
+  progress: Pick<VeilProgress, 'stage' | 'shaders' | 'frames'>,
+  building: number,
+): number {
+  const clamp = (v: number) => Math.min(1, Math.max(0, v));
+  let p: number;
+  if (progress.stage === 'building') p = BUILD_SHARE * clamp(building);
+  else if (progress.stage === 'compiling') p = BUILD_SHARE + COMPILE_SHARE * clamp(progress.shaders);
+  else p = BUILD_SHARE + COMPILE_SHARE + (1 - BUILD_SHARE - COMPILE_SHARE) * clamp(progress.frames / WARM_FRAMES);
+  // The epsilon keeps 0.35 + 0.6 * 0.5 from flooring to 64.
+  return Math.floor(clamp(p) * 100 + 1e-9);
 }
+
+/** How often the veil redraws its percentage, ms. */
+const VEIL_TICK_MS = 100;
 
 /** The DOM cover shown while `SceneReady` is warming the scene. */
 export function SceneVeil({ label }: { label: string }) {
   const models = useResourceStore((s) => overallProgress(s.entries));
-  const shaders = useVeilProgress((s) => s.shaders);
+  const stored = useVeilProgress();
+  const [openedAt] = useState(() => performance.now());
   const [waitingOnModels] = useState(() => !allSettled(useResourceStore.getState().entries));
+
+  // Redraw on a clock while building, when nothing else changes. The spinner is
+  // a CSS animation and turns even while a script is running; this does not,
+  // so a long block on the main thread still shows as a pause in the number.
+  const [now, setNow] = useState(openedAt);
+  useEffect(() => {
+    const id = setInterval(() => setNow(performance.now()), VEIL_TICK_MS);
+    return () => clearInterval(id);
+  }, []);
+
+  // Left over from the last view until this one's `SceneReady` mounts.
+  const progress = stored.since >= openedAt ? stored : { stage: 'building' as const, shaders: 0, frames: 0 };
+  const building = waitingOnModels ? models : 1 - Math.exp(-(now - openedAt) / BUILD_TIME_MS);
+
+  // Never backwards: a .glb that lands mid-compile adds programs, which would
+  // pull the ratio down, and a bar that retreats reads as broken.
   const shown = useRef(0);
-  shown.current = Math.max(shown.current, veilPercent(models, shaders, waitingOnModels));
+  shown.current = Math.max(shown.current, veilPercent(progress, building));
   const pct = shown.current;
 
   return (
