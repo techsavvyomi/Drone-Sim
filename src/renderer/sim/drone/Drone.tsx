@@ -134,6 +134,8 @@ const WALL_CRASH_SPEED = 3.2;
 const OBSTACLE_CRASH_SPEED = 2.2;
 /** After a non-crash bump, keep roll/pitch locked so contact torque cannot tumble Pluto. */
 const WALL_BUMP_HOLD = 0.85;
+/** After a touchdown, how long further level contacts count as the same landing, s. */
+const TOUCHDOWN_WINDOW = 0.5;
 /** Remember peak speed this long so a tunneled hit still counts as a fast crash. */
 const PEAK_SPEED_HOLD = 0.25;
 /**
@@ -282,12 +284,16 @@ export function Drone({ spec, spawn, bounds, outdoor = false, groundY }: DronePr
   const peakSpeedUntil = useRef(0);
   /** Seconds the pack has been continuously below LOW_VOLTAGE. */
   const lowVoltageFor = useRef(0);
-  /** Previous horizontal velocity, for deriving lateral G. */
-  const prevVel = useRef({ x: 0, z: 0 });
+  /** Velocity at the start of the last step, for deriving lateral G — and, in
+   *  `onCollisionEnter`, the approach a contact is graded on, since the solver
+   *  has usually zeroed the live velocity by then. */
+  const prevVel = useRef({ x: 0, y: 0, z: 0 });
   const smoothLateralG = useRef(0);
   const crashHold = useRef(0);
   /** Sim-time until which a soft wall bump keeps roll/pitch locked level (no flip). */
   const wallBumpUntil = useRef(0);
+  /** Sim-time until which further contacts belong to the touchdown just made. */
+  const touchdownUntil = useRef(0);
 
   const hoverThrust = useMemo(() => spec.mass * GRAVITY, [spec]);
   const armPerAxis = useMemo(() => spec.armLength / Math.SQRT2, [spec]);
@@ -332,9 +338,10 @@ export function Drone({ spec, spawn, bounds, outdoor = false, groundY }: DronePr
     smoothLateralG.current = 0;
     crashHold.current = 0;
     wallBumpUntil.current = 0;
+    touchdownUntil.current = 0;
     peakSpeed.current = 0;
     peakSpeedUntil.current = 0;
-    prevVel.current = { x: 0, z: 0 };
+    prevVel.current = { x: 0, y: 0, z: 0 };
     settleUntil.current = simTime.current + SPAWN_SETTLE;
     clearShake();
     useFlightStore.getState().setOnGround(lift <= 0);
@@ -967,10 +974,21 @@ export function Drone({ spec, spawn, bounds, outdoor = false, groundY }: DronePr
     const a = 1 - Math.exp(-SIM_DT * 2 * Math.PI * ACC_SMOOTH_HZ);
     smoothLateralG.current += (rawLateralG - smoothLateralG.current) * a;
     prevVel.current.x = lin.x;
+    prevVel.current.y = lin.y;
     prevVel.current.z = lin.z;
 
     const flightNow = useFlightStore.getState();
-    const isNearGround = pos.y < 0.25 || flightNow.onGround;
+    // Near ground means near whatever is UNDER the drone — the corner rays —
+    // not near world zero. Landing on a roof stops the drone's sideways drift
+    // in a step or two of friction, which reads as a lateral-G spike, and
+    // `onGround` waits for the drone to be stationary; the floor was covered by
+    // `pos.y`, a roof by nothing, so a clean rooftop landing tripped this.
+    const supportUnder = liveSupportInfo.current.distances;
+    const isNearGround =
+      pos.y < 0.25 ||
+      flightNow.onGround ||
+      simTime.current < touchdownUntil.current ||
+      Math.min(supportUnder[0], supportUnder[1], supportUnder[2], supportUnder[3]) < 0.15;
     // Suppress lateral G / tilt crash triggers near outer boundaries in outdoor maps
     const isNearOutdoorBound =
       outdoor &&
@@ -1289,7 +1307,38 @@ export function Drone({ spec, spawn, bounds, outdoor = false, groundY }: DronePr
         // barely faster than a hover drift, which is what made every building
         // feel lethal.
         const isAirborne = posY > 0.15;
-        const isObstacleHit = isAirborne && v >= OBSTACLE_CRASH_SPEED;
+        // A touchdown: level, coming down, and not moving sideways faster than
+        // an obstacle bump. That is a landing on whatever is underneath — a
+        // warehouse roof, a slab, a rubble heap — and it gets the floor's rule
+        // below, not the obstacle line.
+        //
+        // Without this the floor rule stopped at TOUCH_ALT, so the same gentle
+        // landing was fine on the ground and a crash on any roof: the descent
+        // is capped at up to 5 m/s (`maxDescentRate`), well past the 2.2 m/s
+        // obstacle line. Graded on the velocity from before the contact step —
+        // `prevVel` — because the solver has already stopped the drone here.
+        const pv = prevVel.current;
+        //
+        // One touchdown is several contacts. The drone carries fourteen
+        // colliders: the first foot to arrive stops it, and the other feet and
+        // the prop envelopes enter contact on the steps after — by then it is
+        // no longer descending, and `v` still holds the descent in its 0.25 s
+        // peak window. Graded alone, the second foot crashed a landing the
+        // first had just passed. So a touchdown opens a short window in which
+        // level contacts are the same landing, and clears the peak: the
+        // approach has been absorbed, and anything after is graded on what the
+        // drone does next.
+        const inTouchdown = simTime.current < touchdownUntil.current;
+        const isTouchdown =
+          !isTilted &&
+          Math.hypot(pv.x, pv.z) < OBSTACLE_CRASH_SPEED &&
+          (pv.y < 0 || inTouchdown);
+        if (isTouchdown && v < FLOOR_CRASH) {
+          touchdownUntil.current = simTime.current + TOUCHDOWN_WINDOW;
+          peakSpeed.current = 0;
+          peakSpeedUntil.current = 0;
+        }
+        const isObstacleHit = isAirborne && !isTouchdown && v >= OBSTACLE_CRASH_SPEED;
         // 4. Dropped onto the floor. Graded on sink rate, not total speed, and
         //    only while the pilot has the controls — an auto take-off or the
         //    low-battery auto-land brings it down on its own terms.
@@ -1324,7 +1373,8 @@ export function Drone({ spec, spawn, bounds, outdoor = false, groundY }: DronePr
         // it survives the airframe, but it is not a clean pass through the gate.
         // The height is well clear of a landing: the body sits about 0.1 m up
         // with the gear on the deck, so nothing below it is an obstacle.
-        if (posY > TOUCH_ALT) flight.registerTouch();
+        // A landing on a roof or a deck is not a collision.
+        if (posY > TOUCH_ALT && !isTouchdown) flight.registerTouch();
 
         if (isImpactCrash && flight.auto !== 'takeoff' && flight.armed) {
           // `crash()` already clears `armed`.
