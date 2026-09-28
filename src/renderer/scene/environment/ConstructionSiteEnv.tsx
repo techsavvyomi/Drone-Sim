@@ -1,8 +1,9 @@
 import { Suspense, useMemo } from 'react';
 import { useThree } from '@react-three/fiber';
 import { useGLTF } from '@react-three/drei';
-import { CuboidCollider, RigidBody } from '@react-three/rapier';
+import { ConvexHullCollider, CuboidCollider, RigidBody } from '@react-three/rapier';
 import * as THREE from 'three';
+import { ConvexHull } from 'three/examples/jsm/math/ConvexHull.js';
 import type { EnvironmentSpec } from '@shared/types';
 import sitePropsUrl from '../../../assets/models/site_props.opt.glb?url';
 import { useSiteMaterials, tiled, PROP_IDS, type SiteMaterials } from './siteMaterials';
@@ -20,6 +21,7 @@ import {
   LEVELS,
   levelY,
   mulberry32,
+  OFFICE_PAD,
   SITE_HALF,
   SKIPS,
   SKIP_SIZE,
@@ -186,7 +188,50 @@ function layOutDebris(): Placement[] {
   return out;
 }
 
-const DEBRIS = layOutDebris();
+/**
+ * Ground a launch pad needs clear of solid debris, as [x, z]: the map's spawn
+ * (free flight's helipad, and Mission 7's launch) and the site office pad
+ * (Mission 8). The material store already sits clear of it by construction —
+ * see `siteStore.ts`.
+ */
+const PAD_CLEAR = 3;
+
+function clearOfPads(p: Placement, pads: readonly (readonly [number, number])[]) {
+  return pads.every(([x, z]) => Math.hypot(p.pos[0] - x, p.pos[2] - z) > PAD_CLEAR);
+}
+
+/**
+ * Everything laid out, less what would sit on a launch pad. Filtered after the
+ * seeded layout rather than inside it, so every other piece stays exactly
+ * where it has always been.
+ */
+function debrisFor(env: EnvironmentSpec): Placement[] {
+  const pads = [[env.spawn.position[0], env.spawn.position[2]] as const, OFFICE_PAD];
+  return layOutDebris().filter((p) => clearOfPads(p, pads));
+}
+
+/**
+ * The hull points of one prop's geometry, in its own space.
+ *
+ * Scanned debris is thousands of vertices; the hull is what a collider needs
+ * and a small fraction of that, so it is worked out once per prop type and each
+ * placement only transforms it.
+ */
+function hullPoints(geo: THREE.BufferGeometry): Float32Array {
+  const pos = geo.getAttribute('position');
+  const pts: THREE.Vector3[] = [];
+  for (let i = 0; i < pos.count; i++) pts.push(new THREE.Vector3().fromBufferAttribute(pos, i));
+  const hull = new ConvexHull().setFromPoints(pts);
+  const out: number[] = [];
+  for (const v of hull.vertices) out.push(v.point.x, v.point.y, v.point.z);
+  return Float32Array.from(out);
+}
+
+/** A placement's transform: tilt, yaw, uniform scale, position. */
+function placementMatrix(p: Placement, m4: THREE.Matrix4) {
+  const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(p.tiltX, p.rotY, p.tiltZ));
+  return m4.compose(new THREE.Vector3(...p.pos), q, new THREE.Vector3(p.scale, p.scale, p.scale));
+}
 
 /** Lattice tower crane, built from boxes. */
 function buildCrane(mat: SiteMaterials): THREE.Group {
@@ -517,7 +562,7 @@ function SiteVisual({ env }: { env: EnvironmentSpec }) {
 
     // --- Scanned debris, one instanced mesh per prop type.
     const byId = new Map<string, Placement[]>();
-    for (const p of DEBRIS) {
+    for (const p of debrisFor(env)) {
       if (!propGeo[p.id] || !mat.prop[p.id]) continue;
       const list = byId.get(p.id) ?? [];
       list.push(p);
@@ -573,9 +618,8 @@ function SiteVisual({ env }: { env: EnvironmentSpec }) {
     });
     g.updateMatrixWorld(true);
     return g;
-  }, [mat, propGeo]);
+  }, [mat, propGeo, env]);
 
-  void env;
   return <primitive object={root} />;
 }
 
@@ -716,6 +760,60 @@ function SiteColliders({ env }: { env: EnvironmentSpec }) {
   );
 }
 
+/**
+ * The debris on the ground is solid: one convex hull per piece, fitted to its
+ * own scanned shape.
+ *
+ * It was drawn with nothing behind it, so a drone set down on a rubble heap or
+ * a stone slab sank straight through it to the ground inside. A hull, not a
+ * box: a box round a heap is the invisible wall of ONBOARDING's trap 4, standing
+ * well off the rubble's sloping sides.
+ *
+ * Debris on the slabs stays visual only. The missions' marks and inspection
+ * zones are up there, and a solid lump inside one would change what those
+ * missions ask of the pilot.
+ */
+function DebrisColliders({ env }: { env: EnvironmentSpec }) {
+  const { scene: propScene } = useGLTF(sitePropsUrl, DRACO_DECODER_PATH);
+
+  const hulls = useMemo(() => {
+    const byId = new Map<string, Float32Array>();
+    propScene.traverse((o) => {
+      const mesh = o as THREE.Mesh;
+      if (mesh.isMesh && !byId.has(mesh.name)) byId.set(mesh.name, hullPoints(mesh.geometry));
+    });
+
+    const m4 = new THREE.Matrix4();
+    const v = new THREE.Vector3();
+    const out: Float32Array[] = [];
+    for (const p of debrisFor(env)) {
+      // On the ground only — see above. Stacked beams sit at y > 0 in rows
+      // but stand on the ground, so they count.
+      if (p.pos[1] > 0 && !BEAMS.includes(p.id)) continue;
+      const local = byId.get(p.id);
+      if (!local || local.length < 12) continue;
+      placementMatrix(p, m4);
+      const world = new Float32Array(local.length);
+      for (let i = 0; i < local.length; i += 3) {
+        v.set(local[i], local[i + 1], local[i + 2]).applyMatrix4(m4);
+        world[i] = v.x;
+        world[i + 1] = v.y;
+        world[i + 2] = v.z;
+      }
+      out.push(world);
+    }
+    return out;
+  }, [propScene, env]);
+
+  return (
+    <RigidBody type="fixed" colliders={false}>
+      {hulls.map((pts, i) => (
+        <ConvexHullCollider key={i} args={[pts]} friction={0.8} restitution={0} />
+      ))}
+    </RigidBody>
+  );
+}
+
 useGLTF.preload(sitePropsUrl, DRACO_DECODER_PATH);
 
 export function ConstructionSiteEnv({ env }: { env: EnvironmentSpec }) {
@@ -725,6 +823,7 @@ export function ConstructionSiteEnv({ env }: { env: EnvironmentSpec }) {
 
       <Suspense fallback={null}>
         <SiteVisual env={env} />
+        <DebrisColliders env={env} />
       </Suspense>
     </group>
   );

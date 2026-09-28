@@ -45,6 +45,13 @@ export const CABIN_SIZE: readonly [number, number, number] = [6, 2.6, 2.8];
 /** Centre height of a cabin on a given tier: stacked two high, 2.9 m apart. */
 export const cabinY = (tier: number) => 1.4 + tier * 2.9;
 
+/** The site office's launch pad, x z: 5 m out from the lower cabins' west end,
+ *  centred between them. Mission 8 launches from it and lands back on it. */
+export const OFFICE_PAD: readonly [number, number] = [
+  CABINS[0][0] - CABIN_SIZE[0] / 2 - 5,
+  (CABINS[0][1] + CABINS[1][1]) / 2,
+];
+
 /** The muck-away skips, as [x, z, yaw], and their box. */
 export const SKIPS: readonly (readonly [number, number, number])[] = [
   [24, 42, 0.2],

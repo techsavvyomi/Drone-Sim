@@ -1,4 +1,4 @@
-import { CABINS, CABIN_SIZE, COL_W, levelY, STOREY, SLAB_T } from '../scene/environment/siteLayout';
+import { COL_W, levelY, OFFICE_PAD, STOREY, SLAB_T } from '../scene/environment/siteLayout';
 import type { Mission, MissionInspectionPoint, MissionZone } from './types';
 
 // ----------------------------------------------------------------------------
@@ -34,14 +34,6 @@ import type { Mission, MissionInspectionPoint, MissionZone } from './types';
 // core and infill. The upright precast columns leaning on the east face stand
 // on the ground at x ≈ 19 m, well under Zone 1's Level 2 line of sight.
 // ----------------------------------------------------------------------------
-
-/** The site office pad: on the hardstanding west of the welfare cabins, five
- *  metres off their face, facing the building. */
-const OFFICE_CABIN = CABINS[0];
-const OFFICE_PAD: readonly [number, number] = [
-  OFFICE_CABIN[0] - CABIN_SIZE[0] / 2 - 5,
-  (CABINS[0][1] + CABINS[1][1]) / 2,
-];
 
 /** Half a column, for the structure boxes. */
 const HC = COL_W / 2;
