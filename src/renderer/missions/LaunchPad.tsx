@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import * as THREE from 'three';
+import type { EnvironmentSpec } from '@shared/types';
 import { getEnvironment } from '../plugins/registry';
 import type { Mission } from './types';
 
@@ -19,6 +20,9 @@ import type { Mission } from './types';
 // stay on New York's sidewalk plate. It sits on `spawnGround` where the
 // environment declares one — New York's spawn is on the sidewalk, 12 cm above
 // the road plane — and on the mission's ground otherwise.
+//
+// Free flight paints the same pad under the map's own spawn (`Helipad`, mounted
+// by the Fly view), so every map launches from an H, not only the missions.
 // ----------------------------------------------------------------------------
 
 /** Radius of the painted disc, metres. */
@@ -29,7 +33,26 @@ const LIFT = 0.012;
 
 export function LaunchPad({ mission }: { mission: Mission }) {
   const env = getEnvironment(mission.envId);
+  if (!env) return null;
+  // The mission's own launch point where it has one — Mission 8's site office.
+  return <Helipad env={env} spawn={mission.spawn} ground={mission.groundY} />;
+}
 
+/** The painted helipad under a spawn: the map's own unless `spawn` is given,
+ *  on `spawnGround`, else `ground`, else the map's `groundY`, else 0. `scale`
+ *  shrinks the whole pad; missions keep 1, since their landing is judged on
+ *  `HELIPAD_LAND_RADIUS`, which is sized to this pad. */
+export function Helipad({
+  env,
+  spawn = env.spawn,
+  ground,
+  scale = 1,
+}: {
+  env: EnvironmentSpec;
+  spawn?: EnvironmentSpec['spawn'];
+  ground?: number;
+  scale?: number;
+}) {
   const paint = useMemo(
     () => ({
       disc: new THREE.MeshStandardMaterial({
@@ -52,18 +75,13 @@ export function LaunchPad({ mission }: { mission: Mission }) {
     [],
   );
 
-  if (!env) return null;
-  // The mission's own launch point where it has one — Mission 8's site office.
-  const spawn = mission.spawn ?? env.spawn;
   const [x, , z] = spawn.position;
   const heading = (spawn.heading * Math.PI) / 180;
+  const y = env.spawnGround ?? ground ?? env.groundY ?? 0;
 
   return (
-    <group
-      position={[x, (env.spawnGround ?? mission.groundY) + LIFT, z]}
-      rotation={[0, heading, 0]}
-    >
-      <group rotation={[-Math.PI / 2, 0, 0]}>
+    <group position={[x, y + LIFT, z]} rotation={[0, heading, 0]}>
+      <group rotation={[-Math.PI / 2, 0, 0]} scale={[scale, scale, 1]}>
         <mesh material={paint.disc} receiveShadow>
           <circleGeometry args={[R, 40]} />
         </mesh>

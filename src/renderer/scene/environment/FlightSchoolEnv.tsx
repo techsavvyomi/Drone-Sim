@@ -1,9 +1,8 @@
 import { CuboidCollider, RigidBody } from '@react-three/rapier';
 import type { EnvironmentSpec } from '@shared/types';
-import { FLIGHT_SCHOOL_PAD } from '../../plugins/environments/flightSchool';
 
 // Procedural training ground: a flat floor, four low translucent boundary walls
-// and a marked landing pad at spawn. Kept clean so lesson props read clearly on
+// and a helipad at spawn (painted by the Fly view). Kept clean so lesson props read clearly on
 // top of it. The reference grid comes from FlightScene's indoor Grid.
 
 const WALL_H = 2.5;
@@ -17,9 +16,6 @@ export function FlightSchoolEnv({ env }: { env: EnvironmentSpec }) {
   const cz = (max[2] + min[2]) / 2;
   /** Walls collide up to the ceiling, however low the visible panel is drawn. */
   const wallColliderH = max[1];
-
-  const [px, pz] = FLIGHT_SCHOOL_PAD.center;
-  const r = FLIGHT_SCHOOL_PAD.radius;
 
   return (
     <group>
@@ -85,22 +81,6 @@ export function FlightSchoolEnv({ env }: { env: EnvironmentSpec }) {
           restitution={0}
         />
       </RigidBody>
-
-      {/* Landing pad at spawn: filled disc + bright outer ring + centre cross. */}
-      <group position={[px, 0, pz]}>
-        <mesh position={[0, 0.011, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-          <circleGeometry args={[r, 48]} />
-          <meshStandardMaterial color="#2c3a4f" roughness={0.85} />
-        </mesh>
-        <mesh position={[0, 0.013, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-          <ringGeometry args={[r * 0.92, r, 48]} />
-          <meshStandardMaterial color="#34d399" emissive="#0f9d63" emissiveIntensity={0.5} />
-        </mesh>
-        <mesh position={[0, 0.014, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-          <ringGeometry args={[r * 0.28, r * 0.34, 32]} />
-          <meshStandardMaterial color="#34d399" emissive="#0f9d63" emissiveIntensity={0.4} />
-        </mesh>
-      </group>
     </group>
   );
 }

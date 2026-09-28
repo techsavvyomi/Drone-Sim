@@ -89,11 +89,8 @@ export function ArenaEnv({ env }: { env: EnvironmentSpec }) {
         />
       </RigidBody>
 
-      {/* Landing pad at spawn */}
-      <mesh position={[env.spawn.position[0], 0.012, env.spawn.position[2]]} rotation={[-Math.PI / 2, 0, 0]}>
-        <circleGeometry args={[0.6, 32]} />
-        <meshStandardMaterial color="#3d4a5e" />
-      </mesh>
+      {/* The helipad at spawn is painted by the Fly view — `Helipad` in
+          missions/LaunchPad.tsx, the same pad every free flight gets. */}
 
       {/* Reference gates (visual only for now) */}
       {GATES.map((g, i) => (

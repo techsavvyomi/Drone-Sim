@@ -8,6 +8,8 @@ import { useSettingsStore } from '../state/settingsStore';
 import { qualityFor } from './quality';
 import { SceneReady, SceneVeil } from './SceneReady';
 import { reportRenderError } from '../analytics/crashReporting';
+import { getEnvironment } from '../plugins/registry';
+import { Helipad } from '../missions/LaunchPad';
 
 /**
  * Catches errors thrown inside the 3D scene.
@@ -51,6 +53,8 @@ export function Viewport() {
   useControls();
   const graphics = useSettingsStore((s) => s.settings.graphics);
   const q = qualityFor(graphics);
+  const envId = useSettingsStore((s) => s.settings.selectedEnvironmentId);
+  const env = getEnvironment(envId);
   const [ready, setReady] = useState(false);
   const onReady = useCallback(() => setReady(true), []);
 
@@ -78,6 +82,12 @@ export function Viewport() {
           camera={{ position: [8, 5, 9], fov: 60, near: 0.08, far: 700 }}
         >
           <FlightScene />
+          {/* Every free flight, on every map, launches from a helipad under
+              the map's spawn. Here, not in FlightScene, which missions share
+              and which already paint theirs. Smaller than the mission pad
+              (1.15 m): nothing is judged on it, and at full size it swamped
+              the drone. */}
+          {env && <Helipad env={env} scale={0.7} />}
           <SceneReady onReady={onReady} />
         </Canvas>
       </SceneBoundary>
