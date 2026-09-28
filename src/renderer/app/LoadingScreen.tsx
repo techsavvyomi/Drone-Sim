@@ -9,11 +9,11 @@ import logoMark from '../../assets/brand/plutosim-mark.svg';
 
 // "Loading resources": the models the app preloads, shown as they arrive.
 //
-// Loading starts the moment the app opens, so by the time someone has typed
-// their email and key most of it is often done, and a returning pilot sees this
-// only for the seconds it actually takes. It never blocks forever: a model that
-// fails to load is shown as such, and after LOAD_LIMIT_MS the app opens anyway
-// (the map that needs a missing model reports it when it is opened).
+// Shown on the first launch only, before sign-in (see `resourcesPrepared` and
+// App). Later launches load the same models behind the menu instead. It never
+// blocks forever: a model that fails to load is shown as such, and after
+// LOAD_LIMIT_MS the app opens anyway (the map that needs a missing model reports
+// it when it is opened).
 
 const LOAD_LIMIT_MS = 90_000;
 const SEGMENTS = 32;

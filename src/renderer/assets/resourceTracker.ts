@@ -68,6 +68,12 @@ export function allSettled(entries: Record<string, ResourceEntry>): boolean {
   return Object.values(entries).every((e) => e.done || e.failed);
 }
 
+/** Every resource loaded and none failed: the first launch's preparation is done. */
+export function allLoaded(entries: Record<string, ResourceEntry>): boolean {
+  const all = Object.values(entries);
+  return all.length > 0 && all.every((e) => e.done && !e.failed);
+}
+
 /** The first model still loading, for "Loading New York City…". */
 export function currentEntry(entries: Record<string, ResourceEntry>): ResourceEntry | null {
   return Object.values(entries).find((e) => !e.done && !e.failed) ?? null;

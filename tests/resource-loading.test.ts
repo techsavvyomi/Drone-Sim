@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { beforeEach, describe, expect, it } from 'vitest';
 import {
+  allLoaded,
   allSettled,
   currentEntry,
   labelFor,
@@ -70,6 +71,23 @@ describe('resource loading', () => {
     expect(allSettled(entries())).toBe(true);
     expect(entries()['assets/forest.opt-B03dS8wW.glb'].failed).toBe(true);
     expect(reported).toBeInstanceOf(Error);
+  });
+
+  it('counts the first launch as prepared only when everything loaded and nothing failed', () => {
+    const { proto, calls } = fakeLoader();
+    trackModelLoads(proto as any);
+    expect(allLoaded(entries())).toBe(false);
+    proto.load('assets/new_york_city.opt-DXjyYpP9.glb');
+    proto.load('assets/forest.opt-B03dS8wW.glb');
+    calls[0].onLoad!({});
+    expect(allLoaded(entries())).toBe(false);
+    calls[1].onError!(new Error('bad file'));
+    // Settled, so the app opens, but the next launch shows the loading screen again.
+    expect(allSettled(entries())).toBe(true);
+    expect(allLoaded(entries())).toBe(false);
+    proto.load('assets/forest.opt-B03dS8wW.glb');
+    calls[2].onLoad!({});
+    expect(allLoaded(entries())).toBe(true);
   });
 
   it('does not count a model loaded a second time from cache', () => {

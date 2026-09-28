@@ -87,6 +87,12 @@ export interface AppSettings {
   training: TrainingProgress;
   /** Mission progression (best rating, points and time per mission). */
   missions: MissionProgress;
+  /**
+   * Set once a launch has loaded every resource with none failed. Until then
+   * the loading screen opens the app (before sign-in); after it, a launch goes
+   * straight to the menu and the models load behind it.
+   */
+  resourcesPrepared: boolean;
 }
 
 // ----------------------------------------------------------------------------
@@ -452,6 +458,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   gamepad: DEFAULT_GAMEPAD,
   training: DEFAULT_TRAINING,
   missions: DEFAULT_MISSIONS,
+  resourcesPrepared: false,
   hud: {
     altitudeTape: true,
     horizon: true,

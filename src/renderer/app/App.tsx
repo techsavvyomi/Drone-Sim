@@ -12,6 +12,7 @@ import { MissionScreen } from './MissionScreen';
 import { ProfileScreen } from './ProfileScreen';
 import { SignIn } from './SignIn';
 import { LoadingScreen, useResourcesReady } from './LoadingScreen';
+import { allLoaded, useResourceStore } from '../assets/resourceTracker';
 import { Viewport } from '../scene/Viewport';
 import { useUiStore } from '../state/uiStore';
 import { useFlightStore } from '../state/flightStore';
@@ -75,6 +76,8 @@ export function App() {
   const needsSignIn = useAccountStore((s) => s.needsSignIn);
   const verifying = useAccountStore((s) => s.verifying);
   const resourcesReady = useResourcesReady();
+  const prepared = useSettingsStore((s) => s.settings.resourcesPrepared);
+  const loadedClean = useResourceStore((s) => allLoaded(s.entries));
 
   // A running lesson or mission is a flight view: full-bleed, no nav rail.
   //
@@ -95,6 +98,13 @@ export function App() {
   useEffect(() => {
     void hydrate();
   }, [hydrate]);
+
+  // The first launch that loads everything cleanly is the last to show the
+  // loading screen. A launch with a failed model does not count, so the next
+  // one tries again behind the screen rather than behind the menu.
+  useEffect(() => {
+    if (hydrated && loadedClean && !prepared) useSettingsStore.getState().set('resourcesPrepared', true);
+  }, [hydrated, loadedClean, prepared]);
 
   // Crash reports, from the first render: a failure on the sign-in screen counts.
   useEffect(() => attachCrashReporting(), []);
@@ -168,6 +178,15 @@ export function App() {
     );
   }
 
+  // First launch: the loading screen opens the app, before sign-in, so every
+  // model is in by the time the pilot reaches the menu. After that launch it is
+  // never shown again: the models still load on every start (they are decrypted
+  // in memory, never kept on disk), but behind the menu, and a map opened before
+  // its model has arrived waits behind its own veil.
+  if (!prepared && !resourcesReady) {
+    return <LoadingScreen />;
+  }
+
   // With profiles on, the simulator is used through a profile: nothing past
   // this point until someone has activated or signed in. A token that expires
   // mid-flight waits for the flight to end (in Free Flight, for the drone to be
@@ -176,12 +195,12 @@ export function App() {
     return <SignIn />;
   }
 
-  // Signed in (or profiles off): finish loading the models before the menu, so
-  // no map opens onto files that are still arriving. Usually already done by
-  // the time someone has signed in; a returning pilot sees it at startup, and
-  // it also waits for the launch check that this computer is still signed in.
-  if (!resourcesReady || verifying) {
-    return <LoadingScreen checkingSignIn={verifying} />;
+  // The launch check that this computer is still signed in holds the menu only
+  // on the first launch. A returning pilot goes straight to the menu while it
+  // runs; a computer whose profile was taken over is sent to sign-in when the
+  // answer arrives (or, mid-flight, when the flight ends).
+  if (!prepared && verifying) {
+    return <LoadingScreen checkingSignIn />;
   }
 
   return (
