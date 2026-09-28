@@ -1,5 +1,8 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
+import type { WebGLProgram } from 'three';
+import { create } from 'zustand';
+import { allSettled, overallProgress, useResourceStore } from '../assets/resourceTracker';
 
 /**
  * How many frames to keep the veil up AFTER the shaders report compiled.
@@ -39,6 +42,32 @@ const RESCAN_FRAMES = 30;
  * once per batch of meshes.
  */
 const STABLE_SCANS = 2;
+
+/**
+ * How far the shader warm-up has got, 0..1, for the veil's percentage.
+ *
+ * A store rather than a prop: `SceneReady` is inside the canvas and the veil is
+ * DOM beside it, and a percentage passed up through React state would re-render
+ * the whole viewport on every step. Only one flight view is open at a time.
+ */
+export const useVeilProgress = create<{ shaders: number }>(() => ({ shaders: 0 }));
+
+/**
+ * Shader programs finished over programs created.
+ *
+ * `isReady()` reads KHR_parallel_shader_compile's completion status, which does
+ * not wait on the driver (it returns true outright where the extension is
+ * missing). It is not in three's typings, hence the cast.
+ */
+function shaderProgress(programs: WebGLProgram[] | null): number {
+  if (!programs || programs.length === 0) return 0;
+  let ready = 0;
+  for (const p of programs) {
+    const isReady = (p as WebGLProgram & { isReady?: () => boolean }).isReady;
+    if (!isReady || isReady.call(p)) ready += 1;
+  }
+  return ready / programs.length;
+}
 
 /**
  * Hold the scene behind a veil until it can actually be drawn at speed.
@@ -90,8 +119,11 @@ export function SceneReady({ onReady }: { onReady: () => void }) {
 
   useEffect(() => {
     let cancelled = false;
+    useVeilProgress.setState({ shaders: 0 });
     const finish = () => {
-      if (!cancelled) compiled.current = true;
+      if (cancelled) return;
+      compiled.current = true;
+      useVeilProgress.setState({ shaders: 1 });
     };
     // Rejects on a lost context, which is not a reason to sit behind the veil
     // forever — both paths release it.
@@ -110,6 +142,12 @@ export function SceneReady({ onReady }: { onReady: () => void }) {
   }, [gl, scene, camera, onReady]);
 
   useFrame(() => {
+    // Only while the veil is up, and only on a whole-percent change.
+    if (!fired.current && !compiled.current) {
+      const next = Math.floor(shaderProgress(gl.info.programs) * 100) / 100;
+      if (next > useVeilProgress.getState().shaders) useVeilProgress.setState({ shaders: next });
+    }
+
     if (!fired.current && compiled.current) {
       frames.current += 1;
       if (frames.current >= WARM_FRAMES) {
@@ -149,12 +187,43 @@ export function SceneReady({ onReady }: { onReady: () => void }) {
   return null;
 }
 
+/**
+ * The veil's percentage: models still loading, then shaders compiling.
+ *
+ * Models count only if some were still arriving when the veil went up — after
+ * the first launch they load behind the menu, so a map opened early waits on
+ * them. Otherwise the whole bar is the shader warm-up. Never goes backwards: a
+ * .glb that lands mid-compile adds programs, which would pull the ratio down.
+ */
+export function veilPercent(models: number, shaders: number, waitingOnModels: boolean): number {
+  const p = waitingOnModels ? 0.6 * models + 0.4 * shaders : shaders;
+  return Math.floor(Math.min(1, Math.max(0, p)) * 100);
+}
+
 /** The DOM cover shown while `SceneReady` is warming the scene. */
 export function SceneVeil({ label }: { label: string }) {
+  const models = useResourceStore((s) => overallProgress(s.entries));
+  const shaders = useVeilProgress((s) => s.shaders);
+  const [waitingOnModels] = useState(() => !allSettled(useResourceStore.getState().entries));
+  const shown = useRef(0);
+  shown.current = Math.max(shown.current, veilPercent(models, shaders, waitingOnModels));
+  const pct = shown.current;
+
   return (
     <div className="scene-veil" role="status" aria-live="polite">
       <span className="scene-veil-mark" aria-hidden="true" />
       <p>{label}</p>
+      <div
+        className="scene-veil-bar"
+        role="progressbar"
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={pct}
+        aria-label={label}
+      >
+        <span style={{ width: `${pct}%` }} />
+      </div>
+      <b className="scene-veil-pct">{pct}%</b>
     </div>
   );
 }

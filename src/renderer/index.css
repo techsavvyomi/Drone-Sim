@@ -876,6 +876,26 @@ button {
   border-top-color: #4da3ff;
   animation: scene-veil-spin 0.9s linear infinite;
 }
+.scene-veil-bar {
+  width: 220px;
+  height: 3px;
+  border-radius: 2px;
+  background: #1e2a3a;
+  overflow: hidden;
+}
+.scene-veil-bar span {
+  display: block;
+  height: 100%;
+  background: #4da3ff;
+  transition: width 0.2s ease-out;
+}
+.scene-veil-pct {
+  margin-top: -8px;
+  color: #cfe0f5;
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
 @keyframes scene-veil-spin {
   to {
     transform: rotate(360deg);
