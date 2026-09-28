@@ -6,10 +6,10 @@ import type { DroneSpec, EnvironmentSpec } from '@shared/types';
 import { useUiStore } from '../state/uiStore';
 import { useSettingsStore } from '../state/settingsStore';
 import { dronePose } from '../sim/drone/pose';
-import { DEG2RAD, damp } from '../sim/mathx';
+import { DEG2RAD, damp, spring } from '../sim/mathx';
 import { decayShake } from '../sim/effects';
 import { aimPitch, aimYaw, pilotAnchor, wrapAngle } from './groundView';
-import { staticHitDistance } from './cameraProbe';
+import { staticHitDistance, staticSweepDistance } from './cameraProbe';
 
 // Positions the R3F camera for chase and FPV modes. The ground view (orbit
 // mode) is handled by OrbitCamera below, and this rig no-ops there so it does
@@ -27,13 +27,31 @@ const _trail = new THREE.Vector3();
 const UP = new THREE.Vector3(0, 1, 0);
 const _pivot = new THREE.Vector3();
 const _over = new THREE.Vector3();
+const _free = new THREE.Vector3();
 
 /** How long the line behind the drone must stay clear before the camera drops
  *  back from overhead, seconds. Stops it bobbing up and down past a corner.
  *  Chosen by judgement. */
 const RETURN_HOLD = 0.35;
-/** How far short of a wall the camera is kept when it has to be pulled in, m. */
+/** How long the line behind must stay blocked before the camera rises at all,
+ *  seconds. Something passing between camera and drone is handled by the
+ *  pull-in; only a lasting block is worth going overhead for. Chosen by
+ *  judgement. */
+const RISE_HOLD = 0.3;
+/** Roughly how long the camera takes to rise over the drone, and to come back
+ *  down, s. Chosen by judgement. */
+const RISE_TIME = 0.7;
+const DROP_TIME = 0.9;
+/** Largest radius of the ball the camera is treated as when checking what is
+ *  in its way, m — it is also how far the camera stays off a wall. Smaller on a
+ *  small drone, whose whole chase distance is barely a metre and a half. */
 const WALL_GAP = 0.3;
+/** Roughly how long the camera takes to slide in toward the drone when
+ *  something comes between them, and to drift back out once it has gone, s.
+ *  In is quick, so the drone is not hidden for long; out is slow, the way an
+ *  operator eases back rather than springing. Chosen by judgement. */
+const PULL_IN_TIME = 0.12;
+const PULL_OUT_TIME = 0.6;
 
 // Chase distance scales with the airframe so a 20 cm whoop and a 450-class quad
 // both fill roughly the same amount of frame.
@@ -48,11 +66,20 @@ export function CameraRig({ spec, env }: { spec: DroneSpec; env?: EnvironmentSpe
   // Chase distance scales with the user's zoom preference, applied live.
   const zoom = useSettingsStore((s) => s.settings.cameraZoom);
   const CHASE_OFFSET = chaseOffset(spec).multiplyScalar(zoom);
-  // 0 = the normal spot behind the drone, 1 = up over it looking down.
-  const overhead = useRef(0);
+  // 0 = the normal spot behind the drone, 1 = up over it looking down. Springs,
+  // not plain easing: they carry their speed from frame to frame, so every move
+  // starts and stops gently instead of lurching off at full rate.
+  const overhead = useRef({ value: 0, vel: 0 });
   const clearFor = useRef(0);
+  const blockedFor = useRef(0);
+  // Where the camera would be with nothing in the way — the easing's own state,
+  // kept apart from the rendered position so a wall pull-in never feeds back
+  // into it — and how far in from there the wall currently holds it, m.
+  const freeReady = useRef(false);
+  const pull = useRef({ value: 0, vel: 0 });
 
   useFrame((_state, delta) => {
+    if (!dronePose.present || mode !== 'chase') freeReady.current = false;
     if (!dronePose.present || mode === 'orbit') return;
 
     // Impact shake, decaying over time. Applied as a camera offset so it never
@@ -74,23 +101,42 @@ export function CameraRig({ spec, env }: { spec: DroneSpec; env?: EnvironmentSpe
       // is cast against the static world; while it is blocked the camera eases
       // up over the drone, looking down, and it drops back only once the line
       // has stayed clear for a moment.
+      //
+      // It used to rise the very frame the line was blocked, and quickly, so
+      // anything drifting past sent the view shooting up over the drone. Now
+      // the block has to last before it rises, the rise is a spring (eases in
+      // and out), and it does not rise at all when the overhead spot is blocked
+      // too — with something over the drone, going up only runs into it. The
+      // lines are swept with a ball the camera's size, so skimming past an
+      // edge does not flicker between blocked and clear.
       const outdoor = !env || env.kind !== 'indoor';
       _pivot.copy(dronePose.position).addScaledVector(UP, spec.armLength * 1.5);
+      const len = CHASE_OFFSET.length();
+      const camRadius = THREE.MathUtils.clamp(len * 0.12, 0.08, WALL_GAP);
       if (outdoor) {
-        const blocked = staticHitDistance(_pivot, _target) < Infinity;
+        // A little behind as well as above, so lookAt never points straight
+        // down along the camera's up vector.
+        _over
+          .set(0, len * 0.95, len * 0.35)
+          .applyQuaternion(_yawQuat)
+          .add(dronePose.position);
+        const blocked = staticSweepDistance(_pivot, _target, camRadius) < Infinity;
         clearFor.current = blocked ? 0 : clearFor.current + delta;
-        const want = blocked || (overhead.current > 0.01 && clearFor.current < RETURN_HOLD) ? 1 : 0;
-        overhead.current = damp(overhead.current, want, want ? 5 : 2.5, delta);
-        if (overhead.current > 0.001) {
-          // A little behind as well as above, so lookAt never points straight
-          // down along the camera's up vector.
-          const len = CHASE_OFFSET.length();
-          _over
-            .set(0, len * 0.95, len * 0.35)
-            .applyQuaternion(_yawQuat)
-            .add(dronePose.position);
-          _target.lerp(_over, overhead.current);
-        }
+        blockedFor.current = blocked ? blockedFor.current + delta : 0;
+        const rising = overhead.current.value > 0.01;
+        const want =
+          (blocked && (rising || blockedFor.current >= RISE_HOLD)) ||
+          (rising && !blocked && clearFor.current < RETURN_HOLD)
+            ? 1
+            : 0;
+        const overClear =
+          want === 0 || staticSweepDistance(_pivot, _over, camRadius) === Infinity;
+        const goal = overClear ? want : 0;
+        const t = spring(overhead.current, goal, goal ? RISE_TIME : DROP_TIME, delta);
+        if (t > 0.001) _target.lerp(_over, t);
+      } else {
+        overhead.current.value = 0;
+        overhead.current.vel = 0;
       }
 
       // Clamp camera + look target inside indoor room so chase never clips
@@ -124,16 +170,18 @@ export function CameraRig({ spec, env }: { spec: DroneSpec; env?: EnvironmentSpe
       //
       // Scaling with the error means the camera is unhurried when nothing much
       // is happening, and snaps to a hard chase when the drone is getting away.
-      const err = Math.hypot(
-        _target.x - camera.position.x,
-        _target.y - camera.position.y,
-        _target.z - camera.position.z,
-      );
+      if (!freeReady.current) {
+        _free.copy(camera.position);
+        pull.current.value = 0;
+        pull.current.vel = 0;
+        freeReady.current = true;
+      }
+      const err = Math.hypot(_target.x - _free.x, _target.y - _free.y, _target.z - _free.z);
       const lambda = 8 + Math.min(err, 25) * 1.4;
 
-      camera.position.x = damp(camera.position.x, _target.x, lambda, delta);
-      camera.position.y = damp(camera.position.y, _target.y, lambda, delta);
-      camera.position.z = damp(camera.position.z, _target.z, lambda, delta);
+      _free.x = damp(_free.x, _target.x, lambda, delta);
+      _free.y = damp(_free.y, _target.y, lambda, delta);
+      _free.z = damp(_free.z, _target.z, lambda, delta);
 
       // Hard ceiling on how far the camera may trail, as a fraction of its own
       // chase distance.
@@ -145,27 +193,42 @@ export function CameraRig({ spec, env }: { spec: DroneSpec; env?: EnvironmentSpe
       // the screen. Clamping the trail keeps it on screen no matter how hard it
       // falls, while everything short of the limit still eases naturally.
       const maxTrail = CHASE_OFFSET.length() * 0.5;
-      _trail.set(
-        camera.position.x - _target.x,
-        camera.position.y - _target.y,
-        camera.position.z - _target.z,
-      );
+      _trail.subVectors(_free, _target);
       const trailLen = _trail.length();
       if (trailLen > maxTrail) {
         _trail.multiplyScalar(maxTrail / trailLen);
-        camera.position.set(_target.x + _trail.x, _target.y + _trail.y, _target.z + _trail.z);
+        _free.addVectors(_target, _trail);
       }
+      camera.position.copy(_free);
 
-      // Last resort, and the guarantee: wherever the easing has put the camera,
-      // it is never left inside something solid. Under an overhang even the spot
-      // overhead is blocked, so pull the camera in along the line to just short
-      // of the hit.
+      // Something between the camera and the drone: slide in along the line,
+      // like a camera boom retracting, to just short of it.
+      //
+      // Placed straight at the hit, as it once was, the camera jumped in the
+      // frame a ledge or a bridge came between it and the drone, jumped back
+      // out the frame it cleared, and chattered along an edge. Now how far in
+      // it is held is a spring: in quickly, back out slowly, never a jump. A
+      // ledge or beam merely between the two may cover the drone for a moment
+      // while it slides; only when the camera's own spot is inside something
+      // solid (a ray cast back from it hits at once — the cast is solid) is it
+      // put in front of the hit immediately, so the view is never from inside
+      // a building.
       if (outdoor) {
-        const hit = staticHitDistance(_pivot, camera.position);
-        if (hit < Infinity) {
-          const d = _pivot.distanceTo(camera.position);
-          camera.position.lerpVectors(_pivot, camera.position, Math.max(hit - WALL_GAP, 0.2) / d);
+        const d = _pivot.distanceTo(_free);
+        const hit = staticSweepDistance(_pivot, _free, camRadius);
+        const want = hit < Infinity ? Math.max(d - Math.max(hit, 0.2), 0) : 0;
+        const p = pull.current;
+        spring(p, want, want > p.value ? PULL_IN_TIME : PULL_OUT_TIME, delta);
+        if (want > p.value && staticHitDistance(_free, _pivot) < 0.05) {
+          p.value = want;
+          p.vel = 0;
         }
+        if (p.value > 1e-3 && d > 1e-3) {
+          camera.position.lerpVectors(_pivot, _free, Math.max(d - p.value, 0.2) / d);
+        }
+      } else {
+        pull.current.value = 0;
+        pull.current.vel = 0;
       }
 
       // Aim just above the airframe, scaled to its size.

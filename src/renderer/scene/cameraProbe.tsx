@@ -19,7 +19,8 @@ const probe: {
   world: RapierCtx['world'] | null;
   rapier: RapierCtx['rapier'] | null;
   ray: InstanceType<RapierCtx['rapier']['Ray']> | null;
-} = { world: null, rapier: null, ray: null };
+  ball: InstanceType<RapierCtx['rapier']['Ball']> | null;
+} = { world: null, rapier: null, ray: null, ball: null };
 
 export function CameraProbe() {
   const { world, rapier } = useRapier();
@@ -27,11 +28,13 @@ export function CameraProbe() {
     probe.world = world;
     probe.rapier = rapier;
     probe.ray = null;
+    probe.ball = null;
     return () => {
       if (probe.world === world) {
         probe.world = null;
         probe.rapier = null;
         probe.ray = null;
+        probe.ball = null;
       }
     };
   }, [world, rapier]);
@@ -66,4 +69,49 @@ export function staticHitDistance(from: THREE.Vector3, to: THREE.Vector3): numbe
     rapier.QueryFilterFlags.EXCLUDE_DYNAMIC | rapier.QueryFilterFlags.EXCLUDE_SENSORS,
   );
   return hit ? hit.timeOfImpact : Infinity;
+}
+
+const _rot = { x: 0, y: 0, z: 0, w: 1 };
+const _pos = { x: 0, y: 0, z: 0 };
+const _vel = { x: 0, y: 0, z: 0 };
+
+/**
+ * As `staticHitDistance`, but sweeping a ball of `radius` instead of a point:
+ * how far the ball's centre gets along the line before it touches a solid,
+ * static surface, or `Infinity` when it gets all the way. A camera has size, so
+ * this is the line it can actually travel; a point ray lets it skim an edge and
+ * flicker between hit and clear as the edge passes.
+ */
+export function staticSweepDistance(
+  from: THREE.Vector3,
+  to: THREE.Vector3,
+  radius: number,
+): number {
+  const { world, rapier } = probe;
+  if (!world || !rapier) return Infinity;
+  const dx = to.x - from.x;
+  const dy = to.y - from.y;
+  const dz = to.z - from.z;
+  const len = Math.hypot(dx, dy, dz);
+  if (len < 1e-3) return Infinity;
+  if (!probe.ball || probe.ball.radius !== radius) probe.ball = new rapier.Ball(radius);
+  _pos.x = from.x;
+  _pos.y = from.y;
+  _pos.z = from.z;
+  _vel.x = dx / len;
+  _vel.y = dy / len;
+  _vel.z = dz / len;
+  // stopAtPenetration false: starting against a wall (the drone hugging one)
+  // must not read as "blocked at 0" when the sweep is heading away from it.
+  const hit = world.castShape(
+    _pos,
+    _rot,
+    _vel,
+    probe.ball,
+    0,
+    len,
+    false,
+    rapier.QueryFilterFlags.EXCLUDE_DYNAMIC | rapier.QueryFilterFlags.EXCLUDE_SENSORS,
+  );
+  return hit ? hit.time_of_impact : Infinity;
 }
