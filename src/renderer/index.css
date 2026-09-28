@@ -1147,6 +1147,34 @@ button {
   font-size: 12.5px;
 }
 
+/* A floor under the hero. The cards' `margin-top: auto` only hands out slack,
+   so in a normal-size window on a laptop (a stage ~760 px tall) the gap came to
+   0, and a hovered card's 5 px lift put it over "Choose your mode…". */
+.home-hero {
+  margin-bottom: 28px;
+}
+/* Short windows: the heading scales with height too, and the cards and bottom
+   row tighten, so the row still fits under the hero rather than running off
+   the bottom of the stage. */
+@media (max-height: 880px) {
+  .home-hero h1 {
+    font-size: clamp(52px, min(6.4vw, 9.5vh), 108px);
+  }
+  .hero-rule {
+    margin: 14px 0 12px;
+  }
+  .mcard {
+    gap: 10px;
+    padding: 26px 24px 22px;
+  }
+  .mode-row {
+    margin-bottom: 2.5vh;
+  }
+  .home-bottom {
+    min-height: 84px;
+  }
+}
+
 /* Bottom row: pilot badge (left) · system (right). Both are positioned out of
    flow, so the row holds the badge's height itself. */
 .home-bottom {
