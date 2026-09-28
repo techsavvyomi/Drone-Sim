@@ -13,6 +13,7 @@ import { Drone } from '../sim/drone/Drone';
 import { CameraRig, OrbitCamera } from './CameraRig';
 import { CameraProbe } from './cameraProbe';
 import { PerfProbe } from './PerfProbe';
+import { ShakeProbe } from './ShakeProbe';
 import { GroundMarker } from './GroundMarker';
 import { getEnvironmentComponent } from './environment';
 import { SkyClouds } from './SkyClouds';
@@ -221,6 +222,7 @@ export function FlightScene({
           the engine reads the camera pose for distance, panning and Doppler.
           Mounted above, it would be a frame behind — audible on a fly-by. */}
       <DroneAudio spec={spec} />
+      {import.meta.env.DEV && <ShakeProbe />}
       {cameraMode === 'orbit' && <OrbitCamera spec={spec} env={env} />}
 
       <PostFX />
