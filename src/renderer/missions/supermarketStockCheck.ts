@@ -2,6 +2,7 @@ import { supermarket } from '../plugins/environments/supermarket';
 import { YARD_BOXES, supermarketYard } from './supermarketYard';
 import { withYardRuns } from './yard';
 import type { Mission } from './types';
+import { LIMITS } from './limits';
 
 // ----------------------------------------------------------------------------
 // Mission 10 — Truck Unloading (the Supermarket).
@@ -28,7 +29,7 @@ const LAUNCH: readonly [number, number] = [
 ];
 
 const POINTS = YARD_BOXES + 1;
-const PAR = 420;
+const PAR = LIMITS['supermarket-stock-check'].parSec;
 
 const YARD = supermarketYard('unload');
 
@@ -63,7 +64,7 @@ const base: Mission = {
     'The trucks stand 4.5 m tall. Cross the yard above them or round them.',
   ],
   mapNote: 'The store floor, the car park and the open-sided truck',
-  timeLimitSec: 720,
+  timeLimitSec: LIMITS['supermarket-stock-check'].limitSec,
   parTimeSec: PAR,
   groundY: 0,
   medals: { bronze: POINTS, silver: POINTS, gold: POINTS },
@@ -112,6 +113,7 @@ const base: Mission = {
   ranks: [
     {
       stars: 3,
+      within: PAR,
       text: `All 5 unloaded and home, no collisions, inside ${PAR / 60}:00`,
       test: (r) => r.delivered && r.landed && r.collisions === 0 && r.timeSec <= PAR,
     },

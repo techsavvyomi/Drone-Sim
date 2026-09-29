@@ -1,6 +1,10 @@
 import type { Mission } from './types';
 import { TIGER_ROUTES } from './tigerRoutes';
 import { forest } from '../plugins/environments/forest';
+import { LIMITS } from './limits';
+
+/** Seconds the three-star rung is flown inside (missions/limits.ts). */
+const PAR = LIMITS['night-tracking'].parSec;
 
 // ----------------------------------------------------------------------------
 // Mission 6 — Nightfall Predator Tracking (the forest, after dark).
@@ -148,8 +152,8 @@ export const nightTracking: Mission = {
    * inside a couple of minutes. The patrols are 36 and 44 m long at 0.9 m/s,
    * so a there-and-back is eighty to a hundred seconds.
    */
-  timeLimitSec: 180,
-  parTimeSec: 150,
+  timeLimitSec: LIMITS['night-tracking'].limitSec,
+  parTimeSec: PAR,
   groundY: CLEARING_Y,
   /*
    * NO CEILING OVERRIDE, deliberately, where Mission 4 raised its to eighty.
@@ -439,8 +443,9 @@ export const nightTracking: Mission = {
   ranks: [
     {
       stars: 3,
+      within: PAR,
       text: 'Sighting logged, no collisions, inside 2:30',
-      test: (r) => r.delivered && r.points >= GOLD && r.collisions === 0 && r.timeSec <= 150,
+      test: (r) => r.delivered && r.points >= GOLD && r.collisions === 0 && r.timeSec <= PAR,
     },
     {
       stars: 2,

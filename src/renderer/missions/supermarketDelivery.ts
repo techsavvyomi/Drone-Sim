@@ -2,6 +2,7 @@ import { supermarket } from '../plugins/environments/supermarket';
 import { YARD_BOXES, supermarketYard } from './supermarketYard';
 import { withYardRuns } from './yard';
 import type { Mission } from './types';
+import { LIMITS } from './limits';
 
 // ----------------------------------------------------------------------------
 // Mission 9 — Truck Loading (the Supermarket).
@@ -31,7 +32,7 @@ const LAUNCH: readonly [number, number] = [
 
 /** One point per box and one for the landing: every finished run has them all. */
 const POINTS = YARD_BOXES + 1;
-const PAR = 420;
+const PAR = LIMITS['supermarket-delivery'].parSec;
 
 const YARD = supermarketYard('load');
 
@@ -69,7 +70,7 @@ const base: Mission = {
   // About 350 m of flying, ten doorways and ten holds over pallets, five of
   // them inside the trailer, plus the landing. Twelve minutes is comfortable,
   // seven is brisk: judgement, not measured.
-  timeLimitSec: 720,
+  timeLimitSec: LIMITS['supermarket-delivery'].limitSec,
   parTimeSec: PAR,
   groundY: 0,
   medals: { bronze: POINTS, silver: POINTS, gold: POINTS },
@@ -120,6 +121,7 @@ const base: Mission = {
   ranks: [
     {
       stars: 3,
+      within: PAR,
       text: `All 5 loaded and home, no collisions, inside ${PAR / 60}:00`,
       test: (r) => r.delivered && r.landed && r.collisions === 0 && r.timeSec <= PAR,
     },

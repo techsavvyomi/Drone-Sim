@@ -1,90 +1,66 @@
-import { useEffect, useRef, useState } from 'react';
-import { useMissionStore, guidanceHidden, objectiveFor, runContextOf } from '../state/missionStore';
-import { useSimStore } from '../state/simStore';
+import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
+import {
+  useMissionStore,
+  guidanceHidden,
+  objectiveFor,
+  runContextOf,
+  isMissionUnlocked,
+} from '../state/missionStore';
 import { useFlightStore } from '../state/flightStore';
 import { resetForMission } from '../missions/reset';
 import { playClick, playStar, playSuccess } from '../audio/sfx';
-import { RAD2DEG } from '../sim/mathx';
 import { useModalKeyLock } from '../input/useModalKeyLock';
 import { MissionMap } from './MissionMap';
 import { PauseOverlay } from './PauseOverlay';
 import { MissionCityMap } from './MissionCityMap';
-import { MissionHero, StepArt, missionImage } from './MissionArt';
-import { getEnvironment } from '../plugins/registry';
+import { StepArt, missionImage } from './MissionArt';
 import { MISSIONS } from '../missions';
 import { targetScreen } from '../missions/targetScreen';
 import type { Mission } from '../missions/types';
+import { Badge, Button, Icon, Keycap, StarRating, StatTile } from '../ds';
+import { MissionPicture, mapNameOf } from './MissionPicture';
+import {
+  bestTimeText,
+  briefHeader,
+  clock,
+  countLine,
+  directionText,
+  failFix,
+  failHeadline,
+  failWhere,
+  hudStarLine,
+  latestLog,
+  mapBlocksWord,
+  missionGapLine,
+  missionResultTiers,
+  missionTiers,
+  objectiveLabel,
+  objectiveRows,
+  payloadName,
+  targetLabel,
+  timeLeft,
+  type AttemptFacts,
+  type ObjectiveRow,
+} from '../app/missionFacts';
 
 // ----------------------------------------------------------------------------
-// The mission overlay.
+// The mission overlay (Phase 5, Pluto Field Ops).
 //
-// One strip along the bottom and nothing else standing between the pilot and the
-// city. It answers, in this order and always: what am I doing, where is it, how
-// far, am I carrying the package, how am I scoring, how long have I been out.
+// Classroom cards before and after the flight — the briefing, the result and
+// the failure card, each under a header band ("Mission 1 of 10 · …", Esc
+// Mission list) — and in flight the cockpit: an objective band with the time
+// left and the star marks, the radio (L opens the log), the plan map, and one
+// strip along the bottom. Every word comes from missionFacts.ts; nothing here
+// scores.
 //
 // The transient layers — the banner, the Mission Control line, the "+1" — are
 // driven by `MissionDirector` off the mission clock, so nothing here holds a
 // timer of its own that could outlive the attempt.
 // ----------------------------------------------------------------------------
 
-/** Beyond this the target is behind the pilot and the arrow says so. */
-const OFF_SCREEN_DEG = 42;
-
 /** Height difference, in metres, under which the marker counts as being on the
- *  pilot's own level and the climb chip stays off. Roughly a storey: less than
- *  that is trim, not a destination on another deck. */
+ *  pilot's own level and the climb note stays off. Roughly a storey. */
 const CLIMB_DEADBAND = 3;
-
-function clock(sec: number): string {
-  const s = Math.max(0, Math.floor(sec));
-  return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
-}
-
-/**
- * Where the target is, relative to the nose.
- *
- * A bearing rather than a screen-space projection: the arrow has to be right in
- * chase, in FPV and in orbit, and only one of those three has the camera looking
- * where the drone is looking. What never changes is which way the pilot has to
- * turn, so that is what it draws.
- */
-function TargetArrow({
-  bearing,
-  distance,
-  climb,
-}: {
-  bearing: number;
-  distance: number;
-  climb: number;
-}) {
-  const deg = bearing * RAD2DEG;
-  const off = Math.abs(deg) > OFF_SCREEN_DEG;
-  // Below CLIMB_DEADBAND the marker is on the pilot's own level and saying so
-  // every frame would just be a number twitching in the corner. Above it, the
-  // target is somewhere the flat arrow cannot point — a roof, or a street the
-  // drone is flying over — and that is the whole reason this chip exists.
-  const vertical = Math.abs(climb) >= CLIMB_DEADBAND;
-  return (
-    <div className={`ms-arrow ${off ? 'off' : ''}`} title="Direction to the active marker">
-      <svg viewBox="0 0 24 24" style={{ transform: `rotate(${deg}deg)` }}>
-        <path d="M12 2 L19 20 L12 15.6 L5 20 Z" />
-      </svg>
-      <b>{distance < 1000 ? `${Math.round(distance)} m` : `${(distance / 1000).toFixed(1)} km`}</b>
-      {vertical && (
-        <i
-          className={`ms-climb ${climb > 0 ? 'up' : 'down'}`}
-          title={
-            climb > 0
-              ? 'The marker is ABOVE you, climb this far'
-              : 'The marker is BELOW you, descend this far'
-          }
-        >
-          {climb > 0 ? '▲' : '▼'} {Math.round(Math.abs(climb))} m
-        </i>
-      )}
-    </div>
-  );
-}
 
 /**
  * The pointer that rides ON the target, in the picture.
@@ -395,43 +371,298 @@ function InspectionCard({ mission }: { mission: Mission }) {
 /** The environments `MissionCityMap` can draw a plan of. */
 const PLANNED_ENVS = new Set(['new-york', 'forest', 'construction-site', 'supermarket']);
 
-/** A star row that lights one star at a time, with a chime for each. */
-function StarReveal({ value }: { value: number }) {
-  const [shown, setShown] = useState(0);
-  useEffect(() => {
-    // The one place the HUD does hold timers, and it is bounded, off the result
-    // screen, and cleared on unmount — a restart from this card cannot leave a
-    // chime queued into the next flight.
-    const timers = [1, 2, 3].map((i) =>
-      window.setTimeout(
-        () => {
-          if (i <= value) playStar(i - 1);
-          setShown(i);
-        },
-        260 + i * 380,
-      ),
-    );
-    return () => timers.forEach(window.clearTimeout);
-  }, [value]);
+/** The plan map, or the radar on a map with no plan. */
+function PlanMap({ mission }: { mission: Mission }) {
+  return PLANNED_ENVS.has(mission.envId) ? (
+    <MissionCityMap mission={mission} />
+  ) : (
+    <MissionMap mission={mission} />
+  );
+}
+
+/** A keycap and what it does: "Esc Mission list". */
+function KeyAction({
+  cap,
+  children,
+  onClick,
+}: {
+  cap: string;
+  children: ReactNode;
+  onClick?: () => void;
+}) {
   return (
-    <div className="ms-stars">
-      {[1, 2, 3].map((i) => (
-        <span
-          key={i}
-          className={`${i <= shown && i <= value ? 'on' : ''} ${i <= shown ? 'in' : ''}`}
-        >
-          ★
-        </span>
-      ))}
+    <button type="button" className="tband__key" onClick={onClick}>
+      <Keycap>{cap}</Keycap>
+      <span>{children}</span>
+    </button>
+  );
+}
+
+/** The band over the briefing, result and failure cards. */
+function MissionBand({ mission, onExit }: { mission: Mission; onExit: () => void }) {
+  const head = briefHeader(mission, MISSIONS.length, mapNameOf(mission));
+  return (
+    <header className="tband mband" data-register="classroom">
+      <div className="tband__id">
+        <b>{head.title}</b>
+        <span>{head.sub}</span>
+      </div>
+      <span />
+      <div className="tband__right">
+        <KeyAction cap="Esc" onClick={onExit}>
+          Mission list
+        </KeyAction>
+      </div>
+    </header>
+  );
+}
+
+// ---- Briefing ------------------------------------------------------------------
+
+function Briefing({
+  mission,
+  cardRef,
+}: {
+  mission: Mission;
+  cardRef: RefObject<HTMLDivElement | null>;
+}) {
+  const beginFlight = useMissionStore((s) => s.beginFlight);
+  const launchRef = useRef<HTMLButtonElement>(null);
+  const mapName = mapNameOf(mission);
+  const tiers = missionTiers(mission);
+
+  /*
+   * ENTER LAUNCHES THE MISSION by being the focused button rather than by a key
+   * listener: the card's key lock swallows Enter (the ARM key) unless focus is
+   * on one of the card's own buttons, and then it presses that button.
+   */
+  useEffect(() => {
+    launchRef.current?.focus({ preventScroll: true });
+  }, []);
+
+  const launch = () => {
+    playClick();
+    // The aircraft is put back BEFORE the phase changes: the mission's frame
+    // loop can tick between a commit and its effects, and a crash flag from
+    // before the attempt would fail it on its first frame.
+    resetForMission();
+    beginFlight();
+  };
+
+  return (
+    <div className="mstage" data-register="classroom">
+      <div className="mbrief" ref={cardRef} role="dialog" aria-label={`Briefing: ${mission.name}`}>
+        <section className="mbrief__main">
+          <figure className="mbrief__hero">
+            <MissionPicture mission={mission} />
+            <figcaption>
+              {mapName} · {mission.mapNote}
+            </figcaption>
+          </figure>
+          <h1 className="mbrief__title">{mission.name}</h1>
+          <p className="mbrief__story">{mission.story}</p>
+          <ol className="mbrief__steps">
+            {mission.flow.map((step, i) => (
+              <li key={step.label}>
+                <span className="mbrief__step-pic">
+                  <StepArt art={step.art} src={missionImage(mission.id, i + 1)} />
+                  <span className="mbrief__step-n">{i + 1}</span>
+                </span>
+                <span className="mbrief__step-text">
+                  <b>
+                    {i + 1}. {step.label}.
+                  </b>{' '}
+                  {step.note}.
+                </span>
+              </li>
+            ))}
+          </ol>
+          {/* Clues and rules sit under the steps: the side column keeps the
+              objectives, stars, map and Launch, so Launch stays on screen. */}
+          {mission.clues && mission.clues.length > 0 && (
+            <section className="mbrief__panel">
+              <h2>Search clues</h2>
+              <ul className="mbrief__notes">
+                {mission.clues.map((line) => (
+                  <li key={line}>{line}</li>
+                ))}
+              </ul>
+            </section>
+          )}
+          {mission.rules && mission.rules.length > 0 && (
+            <section className="mbrief__panel">
+              <h2>Mission rules</h2>
+              <ul className="mbrief__notes is-rules">
+                {mission.rules.map((line) => (
+                  <li key={line}>
+                    <Icon name="warning" />
+                    <span>{line}</span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+
+        </section>
+
+        <aside className="mbrief__side">
+          <section className="mbrief__panel">
+            <h2>Objectives</h2>
+            <ol className="mbrief__objs">
+              {mission.objectives.map((line, i) => (
+                <li key={line}>
+                  <span className="mbrief__obj-n">{i + 1}</span>
+                  <span>{line}</span>
+                </li>
+              ))}
+            </ol>
+          </section>
+
+          <section className="mbrief__panel">
+            <h2>Stars</h2>
+            {tiers.map((t) => (
+              <div key={t.stars} className="mbrief__tier">
+                <StarRating earned={t.stars} showText={false} />
+                <span>{t.text}</span>
+              </div>
+            ))}
+          </section>
+
+          <section className="mbrief__mapcard">
+            <div className="mbrief__plan">
+              <PlanMap mission={mission} />
+              <span className="mbrief__north" aria-hidden="true">
+                N ▲
+              </span>
+            </div>
+            <div className="mbrief__limit">
+              <span className="ds-label">Time limit</span>
+              <b>{clock(mission.timeLimitSec)}</b>
+              <span>
+                {mapName} · {payloadName(mission)} · {countLine(mission)}
+              </span>
+              <span className="mbrief__legend">
+                <span>
+                  <Icon name="ring" /> {mission.zones.base.label}
+                </span>
+                <span>
+                  <Icon name="diamond" /> Targets
+                </span>
+                <span>
+                  <Icon name="square" /> {mapBlocksWord(mission.envId)}
+                </span>
+              </span>
+            </div>
+          </section>
+
+          <div className="mbrief__launch">
+            <Button ref={launchRef} variant="primary" iconAfter="play" onClick={launch}>
+              Launch mission
+            </Button>
+            <p className="mbrief__hint">
+              <Keycap>Enter</Keycap> launches · <Keycap>Esc</Keycap> Mission list
+            </p>
+          </div>
+        </aside>
+      </div>
     </div>
   );
 }
 
-export function MissionHud() {
-  const mission = useMissionStore((s) => s.mission);
-  const phase = useMissionStore((s) => s.phase);
+// ---- In flight -----------------------------------------------------------------
+
+/** The top band: objective, time left and the star marks. */
+function ObjectiveBand({ mission }: { mission: Mission }) {
   const leg = useMissionStore((s) => s.leg);
-  const atPickup = useMissionStore((s) => s.atPickup);
+  const runIndex = useMissionStore((s) => s.runIndex);
+  const deliveredCount = useMissionStore((s) => s.deliveredCount);
+  const elapsed = useMissionStore((s) => s.elapsed);
+  const collisions = useMissionStore((s) => s.collisions);
+  const maxPoints = useMissionStore((s) => s.maxPoints);
+  const run = runContextOf(mission, runIndex);
+  const left = timeLeft(mission.timeLimitSec, elapsed);
+  const limit = mission.timeLimitSec;
+  const timed = missionTiers(mission).filter((t) => t.within !== null);
+  return (
+    <div className={`mobj${left.caution ? ' is-caution' : ''}`}>
+      <div className="mobj__top">
+        <div className="mobj__text">
+          <span className="mobj__label">{objectiveLabel(mission, deliveredCount)}</span>
+          <b>{objectiveFor(leg, mission.kind, run)}</b>
+        </div>
+        <div className="mobj__clock" role="timer" aria-label={`${left.text} left`}>
+          {left.caution && <Icon name="warning" />}
+          <b>{left.text}</b>
+          <span>Left</span>
+        </div>
+      </div>
+      <div className="mobj__track" aria-hidden="true">
+        <span className="mobj__fill" style={{ width: `${Math.min(100, (elapsed / limit) * 100)}%` }} />
+        {timed.map((t) => {
+          const lost = elapsed > (t.within as number);
+          return (
+            <span
+              key={t.stars}
+              className={`mobj__mark${lost ? ' is-lost' : ''}`}
+              style={{ left: `${((t.within as number) / limit) * 100}%` }}
+            >
+              <span className="mobj__mark-label">
+                {lost && <Icon name="cross" />}
+                {Array.from({ length: t.stars }, (_, i) => (
+                  <Icon key={i} name="star" />
+                ))}
+                {clock(t.within as number)}
+              </span>
+            </span>
+          );
+        })}
+      </div>
+      <p className="mobj__line">{hudStarLine(mission, maxPoints, elapsed, collisions)}</p>
+    </div>
+  );
+}
+
+/** RADIO · LATEST, or the whole log with L. */
+function RadioPanel({ open, onToggle }: { open: boolean; onToggle: () => void }) {
+  const log = useMissionStore((s) => s.log);
+  const lines = open ? log : latestLog(log, 2);
+  const listRef = useRef<HTMLOListElement>(null);
+  useEffect(() => {
+    const el = listRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [log.length, open]);
+  return (
+    <div className={`mradio${open ? ' is-open' : ''}`}>
+      <header className="mradio__head">
+        <span>{open ? `Radio log · ${log.length} messages` : 'Radio · latest'}</span>
+        <KeyAction cap="L" onClick={onToggle}>
+          {open ? 'Less' : 'Log'}
+        </KeyAction>
+      </header>
+      {lines.length === 0 ? (
+        <p className="mradio__empty">No messages yet</p>
+      ) : (
+        <ol className="mradio__lines" ref={listRef}>
+          {lines.map((line) => (
+            <li key={line.id} className={`is-${line.kind}`}>
+              <span className="mradio__at">{clock(line.at)}</span>
+              <Icon
+                name={
+                  line.kind === 'warn' ? 'warning' : line.kind === 'good' ? 'check' : 'dot'
+                }
+              />
+              <span>{line.text}</span>
+            </li>
+          ))}
+        </ol>
+      )}
+    </div>
+  );
+}
+
+/** The bottom strip: payload, points, direction, altitude, and the keys. */
+function MissionStrip({ mission, onExit }: { mission: Mission; onExit: () => void }) {
+  const leg = useMissionStore((s) => s.leg);
   const payload = useMissionStore((s) => s.payload);
   const points = useMissionStore((s) => s.points);
   const maxPoints = useMissionStore((s) => s.maxPoints);
@@ -439,115 +670,410 @@ export function MissionHud() {
   const altitude = useMissionStore((s) => s.altitude);
   const climb = useMissionStore((s) => s.climb);
   const bearing = useMissionStore((s) => s.bearing);
-  const elapsed = useMissionStore((s) => s.elapsed);
-  const banner = useMissionStore((s) => s.banner);
-  const radio = useMissionStore((s) => s.radio);
-  const pointPop = useMissionStore((s) => s.pointPop);
-  const result = useMissionStore((s) => s.result);
-  const failReason = useMissionStore((s) => s.failReason);
-  const collisions = useMissionStore((s) => s.collisions);
   const runIndex = useMissionStore((s) => s.runIndex);
   const deliveredCount = useMissionStore((s) => s.deliveredCount);
-  const fireIntensity = useMissionStore((s) => s.fireIntensity);
+  const collected = useMissionStore((s) => s.collected);
   const located = useMissionStore((s) => s.located);
   const signal = useMissionStore((s) => s.signal);
   const lock = useMissionStore((s) => s.lock);
   const lit = useMissionStore((s) => s.lit);
   const tooClose = useMissionStore((s) => s.tooClose);
-  const beginFlight = useMissionStore((s) => s.beginFlight);
+  const fireIntensity = useMissionStore((s) => s.fireIntensity);
+  const armed = useFlightStore((s) => s.armed);
+  const togglePause = useFlightStore((s) => s.togglePause);
+
+  const fire = !!mission.fire;
+  const track = !!mission.tracking;
+  const inspect = !!mission.inspection;
+  const carriesDispatch = !!mission.inspection?.points.some((p) => p.dispatch);
+  const hidden = guidanceHidden(mission, located, leg);
+  const run = runContextOf(mission, runIndex);
+  const vertical = Math.abs(climb) >= CLIMB_DEADBAND;
+
+  // A survey carries nothing: a cell reading 'Empty' for the whole flight is a
+  // cell the pilot learns to ignore.
+  const showPayload = !track && (!inspect || carriesDispatch);
+  const payloadWord =
+    payload === 'waiting'
+      ? 'Empty'
+      : payload === 'attached'
+        ? fire
+          ? 'Ready'
+          : (run?.name ?? mission.wording?.onBoard ?? 'On board')
+        : fire
+          ? 'Empty'
+          : 'Delivered';
+
+  return (
+    <div className="mstrip">
+      {showPayload && (
+        <div className={`mstrip__cell is-${payload}`}>
+          <span className="mstrip__label">Payload</span>
+          <b>
+            {payloadWord}
+            {payload === 'attached' && (
+              <i className="mstrip__ok">
+                <Icon name="dot" /> held
+              </i>
+            )}
+          </b>
+        </div>
+      )}
+      {run && (
+        <div className="mstrip__cell">
+          <span className="mstrip__label">Progress</span>
+          <b>
+            {deliveredCount}
+            <i>
+              {' '}
+              of {run.total} {inspect ? 'inspected' : 'done'}
+            </i>
+          </b>
+        </div>
+      )}
+      {fire && (
+        <div className={`mstrip__cell${fireIntensity > 0 ? ' is-warn' : ''}`}>
+          <span className="mstrip__label">Fire</span>
+          <b>{Math.round(fireIntensity * 100)} %</b>
+        </div>
+      )}
+      <div className="mstrip__cell">
+        <span className="mstrip__label">Points</span>
+        <b>
+          {points}
+          <i> of {maxPoints}</i>
+        </b>
+      </div>
+      {hidden && track ? (
+        <div className={`mstrip__cell${tooClose ? ' is-warn' : lit ? ' is-good' : ''}`}>
+          <span className="mstrip__label">{tooClose ? 'Too close' : 'Lock'}</span>
+          <b>{lit || lock > 0 ? `${Math.round(lock * 100)} %` : '- - -'}</b>
+        </div>
+      ) : hidden ? (
+        <div className={`mstrip__cell${signal > 0 ? ' is-warn' : ''}`}>
+          <span className="mstrip__label">Signal</span>
+          <b>{signal > 0 ? `${Math.round(signal * 100)} %` : '- - -'}</b>
+        </div>
+      ) : (
+        <div className="mstrip__cell mstrip__to">
+          <span className="mstrip__label">To {targetLabel(mission, leg, runIndex, collected)}</span>
+          <b>
+            {directionText(bearing, distance)}
+            {vertical && (
+              <i className="mstrip__climb">
+                {climb > 0 ? '▲' : '▼'} {Math.round(Math.abs(climb))} m
+              </i>
+            )}
+          </b>
+        </div>
+      )}
+      <div className="mstrip__cell">
+        <span className="mstrip__label">Altitude</span>
+        <b>{altitude.toFixed(1)} m</b>
+      </div>
+      <div className="mstrip__keys">
+        <Badge tone={armed ? 'armed' : 'neutral'} icon={armed ? 'dot' : 'ring'}>
+          {armed ? 'Armed' : 'Disarmed'}
+        </Badge>
+        <KeyAction cap="P" onClick={togglePause}>
+          Pause
+        </KeyAction>
+        <KeyAction cap="Esc" onClick={onExit}>
+          Mission list
+        </KeyAction>
+      </div>
+    </div>
+  );
+}
+
+// ---- Result and failure ----------------------------------------------------------
+
+function ObjectiveList({ rows }: { rows: readonly ObjectiveRow[] }) {
+  return (
+    <section className="mresult__objs">
+      <h2>Objectives</h2>
+      {rows.map((row) => (
+        <div key={row.label} className={`mresult__obj${row.ok ? ' is-ok' : ' is-miss'}`}>
+          <Icon name={row.ok ? 'check' : 'cross'} />
+          <span className="mresult__obj-label">{row.label}</span>
+          <span className="mresult__obj-value">{row.value}</span>
+        </div>
+      ))}
+    </section>
+  );
+}
+
+function useAttemptFacts(delivered: boolean, landed: boolean): AttemptFacts {
+  const deliveredCount = useMissionStore((s) => s.deliveredCount);
+  const deliveredAt = useMissionStore((s) => s.deliveredAt);
+  const landedAt = useMissionStore((s) => s.landedAt);
+  const collected = useMissionStore((s) => s.collected);
+  const collisions = useMissionStore((s) => s.collisions);
+  const collisionAt = useMissionStore((s) => s.collisionAt);
+  return {
+    delivered,
+    landed,
+    deliveredCount,
+    deliveredAt,
+    landedAt,
+    checkpoints: Object.keys(collected).length,
+    collisions,
+    collisionAt,
+  };
+}
+
+function ResultCard({
+  mission,
+  cardRef,
+  onExit,
+  onReplay,
+}: {
+  mission: Mission;
+  cardRef: RefObject<HTMLDivElement | null>;
+  onExit: () => void;
+  onReplay: () => void;
+}) {
+  const result = useMissionStore((s) => s.result)!;
+  const bestBefore = useMissionStore((s) => s.bestBefore);
   const start = useMissionStore((s) => s.start);
+  const facts = useAttemptFacts(result.delivered, result.landed);
+  const nextRef = useRef<HTMLButtonElement>(null);
+  const listRef = useRef<HTMLButtonElement>(null);
+
+  const i = MISSIONS.findIndex((m) => m.id === mission.id);
+  const next = i >= 0 ? (MISSIONS[i + 1] ?? null) : null;
+  // `finish` recorded the result before this card, so the next one is open.
+  const hasNext = !!next && isMissionUnlocked(MISSIONS, next.id);
+  const tiers = missionResultTiers(mission, result.stars, result);
+  const best = bestTimeText(bestBefore?.timeSec ?? null, result.timeSec);
+
+  // The flourish, once: the success chime and a ding per star.
+  useEffect(() => {
+    const timers: number[] = [];
+    playSuccess();
+    for (let s = 0; s < result.stars; s++) {
+      timers.push(window.setTimeout(() => playStar(s), 420 + s * 320));
+    }
+    (hasNext ? nextRef : listRef).current?.focus({ preventScroll: true });
+    return () => timers.forEach(clearTimeout);
+  }, []);
+
+  return (
+    <div className="mstage" data-register="classroom">
+      <div
+        className="tresult mresult"
+        ref={cardRef}
+        role="dialog"
+        aria-label={`Result: ${mission.name}`}
+      >
+        <header className="tresult__head">
+          <div>
+            <p className="tresult__meta">
+              Mission {mission.order} · {mission.name}
+            </p>
+            <h1 className="tresult__title">
+              <StarRating earned={result.stars} showText={false} />
+              {result.stars} of 3 stars
+            </h1>
+          </div>
+          <Badge tone="armed" icon="check">
+            Complete
+          </Badge>
+        </header>
+
+        <div className="tresult__tiles">
+          <StatTile
+            label="Time"
+            value={clock(result.timeSec)}
+            note={`of ${clock(mission.timeLimitSec)}`}
+          />
+          <StatTile label="Points" value={`${result.points}`} note={`of ${result.maxPoints}`} />
+          <StatTile
+            label="Best time"
+            value={best.value}
+            note={best.isNew ? (bestBefore ? 'New best' : 'First finish') : undefined}
+          />
+        </div>
+
+        <ObjectiveList rows={objectiveRows(mission, facts)} />
+
+        <div className="tresult__tiers">
+          {tiers.map((t) => (
+            <div key={t.stars} className={`tresult__tier is-${t.state}`}>
+              <StarRating earned={t.stars} showText={false} />
+              <span className="tresult__tier-text">{t.text}</span>
+              <span className="tresult__tier-note">
+                {t.state !== 'missed' && <Icon name="check" />}
+                {t.note}
+              </span>
+            </div>
+          ))}
+        </div>
+        <p className="tresult__gap">{missionGapLine(mission, result.stars, result.timeSec)}</p>
+
+        <footer className="tresult__actions">
+          <p className="mresult__signoff">“{mission.radio.complete.text}”</p>
+          <span className="tresult__buttons">
+            <Button ref={listRef} onClick={onExit}>
+              Mission list
+            </Button>
+            <Button onClick={onReplay}>Replay</Button>
+            {hasNext && next && (
+              <Button
+                ref={nextRef}
+                variant="primary"
+                iconAfter="play"
+                onClick={() => {
+                  playClick();
+                  // Opens the next mission's BRIEFING, never the flight.
+                  start(next);
+                }}
+              >
+                Next: Mission {next.order}
+              </Button>
+            )}
+          </span>
+        </footer>
+      </div>
+    </div>
+  );
+}
+
+function FailureCard({
+  mission,
+  cardRef,
+  onExit,
+  onReplay,
+}: {
+  mission: Mission;
+  cardRef: RefObject<HTMLDivElement | null>;
+  onExit: () => void;
+  onReplay: () => void;
+}) {
+  const failReason = useMissionStore((s) => s.failReason);
+  const endedAt = useMissionStore((s) => s.endedAt);
+  const payload = useMissionStore((s) => s.payload);
+  const start = useMissionStore((s) => s.start);
+  const facts = useAttemptFacts(false, false);
+  const retryRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    retryRef.current?.focus({ preventScroll: true });
+  }, []);
+
+  return (
+    <div className="mstage" data-register="classroom">
+      <div
+        className="tresult mresult is-failed"
+        ref={cardRef}
+        role="dialog"
+        aria-label={`Mission failed: ${mission.name}`}
+      >
+        <header className="tresult__head">
+          <div>
+            <p className="tresult__meta">
+              Mission {mission.order} · {mission.name}
+            </p>
+            <h1 className="mresult__fail-title">
+              <Icon name="cross" />
+              {failHeadline(failReason)}
+            </h1>
+            <p className="mresult__where">
+              {failWhere(failReason, endedAt, mission.timeLimitSec)}
+            </p>
+          </div>
+          <Badge tone="fail" icon="cross">
+            Mission failed
+          </Badge>
+        </header>
+
+        <div className="mresult__place">
+          <div className="mresult__plan">
+            <PlanMap mission={mission} />
+            <span className="mresult__x" aria-hidden="true">
+              <Icon name="cross" />
+            </span>
+            <span className="mbrief__north" aria-hidden="true">
+              N ▲
+            </span>
+          </div>
+          <p>
+            Where it ended: the drone is in the red ring
+            {endedAt ? `, ${clock(endedAt.sec)} into the flight` : ''}.
+          </p>
+        </div>
+
+        <ObjectiveList rows={objectiveRows(mission, facts)} />
+
+        <p className="tresult__gap">{failFix(mission, failReason, payload === 'attached')}</p>
+
+        <footer className="tresult__actions">
+          <span />
+          <span className="tresult__buttons">
+            <Button onClick={onExit}>Mission list</Button>
+            <Button
+              onClick={() => {
+                playClick();
+                start(mission);
+              }}
+            >
+              Briefing
+            </Button>
+            <Button ref={retryRef} variant="primary" onClick={onReplay}>
+              Try again
+            </Button>
+          </span>
+        </footer>
+      </div>
+    </div>
+  );
+}
+
+// ---- The HUD ----------------------------------------------------------------------
+
+export function MissionHud() {
+  const mission = useMissionStore((s) => s.mission);
+  const phase = useMissionStore((s) => s.phase);
+  const leg = useMissionStore((s) => s.leg);
+  const atPickup = useMissionStore((s) => s.atPickup);
+  const banner = useMissionStore((s) => s.banner);
+  const pointPop = useMissionStore((s) => s.pointPop);
+  const runIndex = useMissionStore((s) => s.runIndex);
   const restart = useMissionStore((s) => s.restart);
   const exit = useMissionStore((s) => s.exit);
+  const [logOpen, setLogOpen] = useState(false);
 
-  // The same three numbers the training bar carries. A mission is flown on the
-  // aircraft, not on the mission logic, and the strip along the bottom answers
-  // for the mission only — armed or not, and how much throttle is under the
-  // stick, are the two that say whether the drone is about to do anything at
-  // all. Kept up here, directly above the radar, so the pilot's eye finds the
-  // state and the map in one glance.
-  const throttle = useSimStore((s) => s.throttle);
-  const armed = useFlightStore((s) => s.armed);
-
-  /** The completion flourish, once. */
-  const sang = useRef(false);
-  useEffect(() => {
-    if (phase === 'complete' && !sang.current) {
-      sang.current = true;
-      playSuccess();
-    }
-    if (phase !== 'complete') sang.current = false;
-  }, [phase]);
-
-  // The briefing, the result and the failure card each stop the flight dead, and
-  // the keyboard has to agree — see `useModalKeyLock`. A mission has no scripted
-  // demonstration, so nothing else was holding the sticks back: ENTER armed the
-  // drone from behind the briefing the pilot had not read yet. One ref for all
-  // three, which are never on screen together.
+  // The briefing, the result and the failure card each stop the flight dead,
+  // and the keyboard has to agree — see `useModalKeyLock`. The landing leg
+  // counts too: the attempt is already scored, and a throttle press in there
+  // put the drone back in the air.
   const cardRef = useRef<HTMLDivElement>(null);
-  /**
-   * ENTER LAUNCHES THE MISSION, and it does it by being the focused button
-   * rather than by listening for a key.
-   *
-   * The briefing holds a modal key lock, and that lock swallows Enter on
-   * purpose: Enter is the ARM key, and it used to arm the drone from behind a
-   * briefing the pilot had not read yet. A second listener racing the lock would
-   * be re-opening exactly that hole.
-   *
-   * But the lock already draws the distinction this needs. It stops PROPAGATION
-   * for every key, always — nothing in the flight controls ever sees one — and
-   * only prevents the DEFAULT ACTION when focus is off the card. With focus on
-   * one of the card's own buttons, Enter pressing that button is left alone,
-   * because that is what the pilot is asking for. So the whole feature is: put
-   * the focus where the answer is.
-   */
-  const launchRef = useRef<HTMLButtonElement>(null);
-  useEffect(() => {
-    if (phase !== 'briefing') return;
-    // After the commit, so the button the ref points at actually exists.
-    launchRef.current?.focus();
-  }, [phase]);
-  // The landing leg counts as "not being flown" too. It is the two seconds
-  // between the wheels settling and the result card appearing, the attempt is
-  // already scored, and a throttle press in there put the drone back in the air
-  // under a SAFE LANDING banner.
   useModalKeyLock(phase !== 'flying' || leg === 'landing', cardRef);
+
+  // L opens and closes the radio log while flying. Not a flight key.
+  useEffect(() => {
+    if (phase !== 'flying') return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.code !== 'KeyL' || e.repeat || e.ctrlKey || e.metaKey || e.altKey) return;
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA')) return;
+      setLogOpen((v) => !v);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [phase]);
 
   if (!mission) return null;
 
   const flying = phase === 'flying';
   const fire = !!mission.fire;
-  /** The tracking mission, for the handful of lines whose wording would
-   *  otherwise call a wildlife survey a delivery. */
-  const track = !!mission.tracking;
-  /** The night inspection: nothing carried, three holds to count. */
   const inspect = !!mission.inspection;
-  /** An inspection with an urgent dispatch in it carries something after all. */
-  const carriesDispatch = !!mission.inspection?.points.some((p) => p.dispatch);
-  /** Every piece of target guidance is off while this is true — see the store.
-   *  One answer, read by the strip here and by the map and the pointer. */
-  const hidden = guidanceHidden(mission, located, leg);
-  // The map's name comes from its own spec rather than from the mission, so a
-  // renamed environment renames itself on every briefing that flies it.
-  const mapName = getEnvironment(mission.envId)?.name ?? mission.envId;
-  /** The package being flown, on a multi-point delivery. Null everywhere else,
-   *  which is what leaves the single-delivery strip exactly as it was. */
   const run = runContextOf(mission, runIndex);
-  const remaining = Math.max(0, mission.timeLimitSec - elapsed);
-  const lowOnTime = remaining <= 45;
 
-  /**
-   * The next mission on the list, if this was not the last one.
-   *
-   * Only ever offered from the COMPLETE card. `finish` has already recorded the
-   * result by the time this card is on screen, so the one behind it is unlocked
-   * — but a pilot who failed has unlocked nothing, and a "next" button on the
-   * failure card would be an invitation to skip the mission they just lost.
-   */
-  const nextMission = (() => {
-    const i = MISSIONS.findIndex((m) => m.id === mission.id);
-    return i >= 0 ? (MISSIONS[i + 1] ?? null) : null;
-  })();
-
+  const leave = () => {
+    playClick();
+    exit();
+  };
   /** Put the drone back on the pad AND the mission back to the start. The
    *  Director notices the sim's reset token move and tears the attempt down;
    *  this only asks for it, so there is exactly one restart path. */
@@ -558,618 +1084,60 @@ export function MissionHud() {
   };
 
   return (
-    <div className="ms-hud">
-      {/* P while flying. Without the menu: Exit at the top right is the way out. */}
+    <div className="ms-hud mhud">
       {flying && <PauseOverlay menu={false} />}
-      <div className="ms-top">
-        <div className="ms-badge">
-          <span className="ms-badge-tag">Mission {mission.order}</span>
-          <b>{mission.name}</b>
-        </div>
-        <div className="ms-top-right">
-          {phase === 'flying' && (
-            <span className="ms-meta">
-              <i className={armed ? 'on' : ''}>{armed ? 'ARMED' : 'IDLE'}</i>
-              <b className="ms-meta-clock">{elapsed.toFixed(1)}s</b>
-              ALT {altitude.toFixed(1)} · THR {Math.round(throttle * 100)}%
-            </span>
-          )}
-          <button
-            className="ms-exit"
-            onClick={() => {
-              playClick();
-              exit();
-            }}
-          >
-            Exit
-          </button>
-        </div>
-      </div>
 
-      {/* Briefing — the only card that stands between the pilot and the city
-          before the clock starts.
+      {!flying && <MissionBand mission={mission} onExit={leave} />}
 
-          Laid out in two columns rather than as one long column of prose. The
-          card used to open with four paragraphs stacked over the numbers, which
-          made the pilot read to find out what the job even was — and most of
-          them will not. The flow row answers that in a glance, the prose sits
-          underneath as detail, and the numbers and the rubric stand beside it
-          instead of below it, which is what keeps the whole thing on screen
-          without scrolling. */}
-      {/* The briefing — the only card that stands between the pilot and the map
-          before the clock starts, and the only screen in the app that has to
-          answer "what am I about to do" from a standing start.
-
-          Four regions, in the order a pilot actually asks for them: WHO/WHAT at
-          the top with the story beside it, the JOB as four illustrated beats,
-          then the objectives on the left with the numbers and the rubric on the
-          right. Everything sits on one screen; nothing has to be scrolled past
-          to reach Launch.
-
-          It used to be four paragraphs of prose stacked over a row of numbers,
-          which made the pilot read to find out what the job even was — and most
-          of them will not. The prose is still here, under the objectives, where
-          it is detail rather than the front door. */}
-      {phase === 'briefing' && (
-        <div className="ms-center">
-          <div
-            className={
-              mission.tracking
-                ? 'ms-card brief brief-compact'
-                : mission.compactBrief
-                  ? 'ms-card brief brief-tight'
-                  : 'ms-card brief'
-            }
-            ref={cardRef}
-          >
-            <header className="ms-brief-top">
-              <div className="ms-brief-title">
-                <span className="ms-card-tag">Mission {mission.order} · Briefing</span>
-                <h2>{mission.name}</h2>
-                <p className="ms-brief-sub">{mission.subtitle}</p>
-              </div>
-              {/* The situation, told rather than instructed. The one thing on
-                  this card a pilot who reads nothing else should still take in. */}
-              <aside className="ms-story">
-                <span className="ms-story-icon" aria-hidden="true">
-                  {/* One glyph per kind of job. A red cross over a wildlife
-                      survey said the wrong thing about what the flight is for. */}
-                  {mission.icon ?? (fire ? '🔥' : mission.tracking ? '🐅' : '✚')}
-                </span>
-                <div>
-                  <b>The story</b>
-                  <p>{mission.story}</p>
-                </div>
-              </aside>
-            </header>
-
-            <div
-              className={
-                mission.tracking || mission.compactBrief
-                  ? 'ms-brief-body ms-brief-body--no-hero'
-                  : 'ms-brief-body'
-              }
-            >
-              {/* Mission 5 briefs without the tall map picture. */}
-              {!mission.tracking && !mission.compactBrief && (
-                <>
-                  {/* The map, drawn rather than photographed — see MissionArt. */}
-                  <figure className="ms-hero">
-                    <MissionHero envId={mission.envId} src={missionImage(mission.id, 'hero')} />
-                    <figcaption>
-                      <span className="ms-hero-pin" aria-hidden="true">
-                        ◎
-                      </span>
-                      <span>
-                        <i>Map</i>
-                        <b>{mapName}</b>
-                        <em>{mission.mapNote}</em>
-                      </span>
-                    </figcaption>
-                  </figure>
-                </>
-              )}
-
-              <div className="ms-brief-main">
-                {/* The job in four beats, before a word of prose. */}
-                <ol className="ms-flow" data-steps={mission.flow.length}>
-                  {mission.flow.map((step, i) => (
-                    <li key={step.label}>
-                      <span className="ms-flow-num">{i + 1}</span>
-                      <b>{step.label}</b>
-                      <i>{step.note}</i>
-                      <span className="ms-flow-art">
-                        <StepArt art={step.art} src={missionImage(mission.id, i + 1)} />
-                      </span>
-                    </li>
-                  ))}
-                </ol>
-
-                <div className="ms-brief-cols">
-                  <section className="ms-objectives">
-                    {/* THE CLUES, above the objectives and only on a mission
-                        that has any.
-
-                        Above, because on a mission with no marker they are the
-                        first thing the pilot needs and the objectives are the
-                        second: "find the tiger" means nothing until you know
-                        where to start looking. Their own card rather than a
-                        paragraph inside the story, because that is where the
-                        first four missions put their prose and nobody read it.
-
-                        Four short lines with a marker each, not a numbered
-                        list: clues are not steps and numbering them would
-                        suggest an order to work through. */}
-                    {mission.clues && mission.clues.length > 0 && (
-                      <div className="ms-clues">
-                        <b className="ms-panel-head">Search clues</b>
-                        <ul>
-                          {mission.clues.map((line) => (
-                            <li key={line}>{line}</li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-                    <b className="ms-panel-head">Mission objectives</b>
-                    <ol>
-                      {mission.objectives.map((line, i) => (
-                        <li key={line}>
-                          <span className={`ms-obj-num n${i + 1}`}>{i + 1}</span>
-                          {line}
-                        </li>
-                      ))}
-                    </ol>
-                  </section>
-
-                  <aside className="ms-brief-side">
-                    {/* THE RULES, above the rubric.
-
-                        Above it for the same reason the clues are above the
-                        objectives: what ENDS the attempt outranks what it
-                        scores. A pilot who reads one panel on this side of the
-                        card should read this one. */}
-                    {mission.rules && mission.rules.length > 0 && (
-                      <div className="ms-rules">
-                        <b>Mission rules</b>
-                        {mission.rules.map((line) => (
-                          <div key={line} className="ms-rule-row">
-                            <span aria-hidden="true">!</span>
-                            <span>{line}</span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                    <div className="ms-rubric">
-                      <b>Star rating</b>
-                      {mission.ranks.map((r) => (
-                        <div key={r.stars} className="ms-rubric-row">
-                          <span className="ms-rubric-stars">
-                            {[1, 2, 3].map((i) => (
-                              <span key={i} className={i <= r.stars ? 'on' : ''}>
-                                ★
-                              </span>
-                            ))}
-                          </span>
-                          <span>{r.text}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </aside>
-                </div>
-              </div>
-            </div>
-
-            <footer className="ms-brief-foot">
-              <button
-                className="ms-btn ghost"
-                onClick={() => {
-                  playClick();
-                  exit();
-                }}
-              >
-                ‹ Back
-              </button>
-              <button
-                ref={launchRef}
-                className="ms-btn primary wide"
-                onClick={() => {
-                  playClick();
-                  // The aircraft is put back BEFORE the phase changes, not by the
-                  // effect that watches the phase. Effects run after the commit,
-                  // and the mission's frame loop can tick in between — a pilot who
-                  // wrecked the drone while reading the briefing would have the
-                  // new attempt fail on its first frame, on a crash flag from
-                  // before it started. Same reason the result card's restart does
-                  // it in the click rather than leaving it to the effect.
-                  resetForMission();
-                  beginFlight();
-                }}
-              >
-                ▶ Launch Mission
-              </button>
-              <span className="ms-brief-hint">
-                {/* Enter is named first because it is now the one that starts
-                    the flight, and a key that does something has to be findable
-                    before the key that backs out of it. */}
-                <kbd>Enter</kbd> to launch · <kbd>Esc</kbd> to leave
-              </span>
-            </footer>
-          </div>
-        </div>
-      )}
-
-      {/* The banner: one line, centre of the view, gone in under three seconds. */}
-      {flying && banner && (
-        <div key={banner.id} className={`ms-banner ${banner.kind}`}>
-          <b>{banner.title}</b>
-          {banner.sub && <span>{banner.sub}</span>}
-        </div>
-      )}
-
-      {/* "+1 POINT", floating off the score. The whole feedback a checkpoint
-          gets on the HUD — the rest of the answer is in the world, where the
-          light it just took has gone out. */}
-      {flying && pointPop && (
-        <div key={pointPop.id} className="ms-pop">
-          +1 POINT
-          <i>{pointPop.label}</i>
-        </div>
-      )}
-
-      {flying && <TargetPointerHud />}
-
-      {/* A patrol's dispatch is a delivery, and gets the delivery's card. */}
-      {flying && leg === 'toDrop' && (!inspect || run?.dispatch) && (
-        <DeliveryChecklist fire={fire} />
-      )}
-      {flying && leg === 'toDrop' && inspect && !run?.dispatch && (
-        <InspectionCard mission={mission} />
-      )}
-
-      {/* The five second hover that confirms the rescue location — and, on the
-          tracking mission, the five seconds of light that replace it. The same
-          leg, because it is the same beat of the same state machine; two cards,
-          because what the pilot can do about it is not the same thing. */}
-      {flying && leg === 'confirming' && mission.tracking && (
-        <TrackingLock seconds={mission.tracking.lockSeconds} />
-      )}
-      {flying && leg === 'confirming' && !mission.tracking && (
-        <DeliveryChecklist fire={false} rescue />
-      )}
-
-      {/* The same card on the collection: the latch asks for the same hover the
-          release does, and the pilot was being told so only at the drop. */}
-      {flying && leg === 'toPickup' && atPickup && <DeliveryChecklist fire={fire} pickup />}
-
-      {/* Mission Control. Along the bottom, above the strip, so it never covers
-          the horizon the pilot is flying against. */}
-      {flying && radio && (
-        <div key={radio.id} className="ms-radio">
-          <span className="ms-radio-tag">MISSION CONTROL</span>
-          <p>{radio.text}</p>
-        </div>
-      )}
-
-      {/* The radar. The route, the pickup, the drop and the pad, all in one
-          corner dial — the half of "where am I going" that the chase camera
-          cannot answer over a city, and the reason the guidance in the world
-          can afford to be quiet. */}
-      {/* A search mission gets a MAP — the whole city, north up, with the red
-          zone on it. Every other mission gets the drone-centred radar, which
-          answers 'where now' with one dot and has nothing to say when the whole
-          point is that nothing may answer that. */}
-      {/* Every map with a plan gets the plan map — the ground, where it ends,
-          and the aircraft on it. The radar is left for a map that has none. */}
-      {flying &&
-        (PLANNED_ENVS.has(mission.envId) ? (
-          <MissionCityMap mission={mission} />
-        ) : (
-          <MissionMap mission={mission} />
-        ))}
+      {phase === 'briefing' && <Briefing mission={mission} cardRef={cardRef} />}
 
       {flying && (
-        <div className="ms-strip">
-          <div className="ms-obj">
-            <span>OBJECTIVE</span>
-            <b>{objectiveFor(leg, mission.kind, run)}</b>
+        <div className="mhud__flight" data-register="cockpit">
+          <RadioPanel open={logOpen} onToggle={() => setLogOpen((v) => !v)} />
+          <ObjectiveBand mission={mission} />
+          <div className="mhud__map">
+            <PlanMap mission={mission} />
           </div>
-          {/* PAYLOAD. Every mission carries something, the search included — its
-              food box. Except the survey, which carries nothing: a cell reading
-              'WAITING' for the whole flight is a cell the pilot learns to
-              ignore, and this one would never change. */}
-          {!track && (!inspect || carriesDispatch) && (
-            <div className={`ms-cell payload ${payload}`}>
-              <span>PAYLOAD</span>
-              {/* One word each, with the state's colour carried by the dot the
-                stylesheet puts in front of them. The emoji and the tick that
-                used to sit here were doing the same job as that dot, in two
-                more glyphs and at whatever size the platform's font felt like.
 
-                A tank that has been emptied reads 'Empty', not 'Delivered':
-                nothing was delivered, it was used up, and the pilot flying home
-                needs to know they have nothing left rather than that they
-                succeeded — the banner already said that. */}
-              <b>
-                {payload === 'waiting' ? 'Empty' : null}
-                {/* Named while it is on board, on a mission that carries three of
-                  them. 'On board' answers "am I holding something"; only the
-                  name answers "which one", and on this mission that is the
-                  question the pilot is actually asking. */}
-                {payload === 'attached'
-                  ? fire
-                    ? 'Ready'
-                    : (run?.name ?? mission.wording?.onBoard ?? 'On board')
-                  : null}
-                {payload === 'delivered' ? (fire ? 'Empty' : 'Delivered') : null}
-              </b>
+          {/* The banner: one line, centre of the view, gone in under three seconds.
+              It is also written to the log. */}
+          {banner && (
+            <div key={banner.id} className={`ms-banner ${banner.kind}`}>
+              <b>{banner.title}</b>
+              {banner.sub && <span>{banner.sub}</span>}
             </div>
           )}
-          {/* How far through the job. Beside the payload rather than instead of
-              the points, because it is the number this mission is about: a pilot
-              two deliveries in wants to know there is one left, and the score
-              says 3 / 4 for two different reasons. */}
-          {run && (
-            <div className="ms-cell">
-              <span>PROGRESS</span>
-              <b>
-                {deliveredCount}{' '}
-                <i>
-                  / {run.total} {inspect ? 'inspected' : 'delivered'}
-                </i>
-              </b>
-            </div>
-          )}
-          {/* The fire, while there is one to report. It goes in beside the
-              payload rather than replacing the points, because it is the thing
-              the whole middle of this mission is about and the pilot should be
-              able to watch it fall without looking away from the flying. */}
-          {fire && (
-            <div className={`ms-cell ${fireIntensity > 0 ? 'warn' : ''}`}>
-              <span>FIRE</span>
-              <b>{Math.round(fireIntensity * 100)}%</b>
-            </div>
-          )}
-          <div className="ms-cell">
-            <span>POINTS</span>
-            <b>
-              {points} <i>/ {maxPoints}</i>
-            </b>
-          </div>
-          {/* DISTANCE, or the SIGNAL that replaces it.
 
-              Replaced rather than hidden, and rather than sitting beside it. The
-              distance cell is the pilot's answer to "where now", and on a search
-              mission the honest answer is "we do not know, but you are this warm"
-              — two cells would let the pilot read the one that was switched off.
-              Below the detect radius the cell says nothing at all: a signal
-              reading 0% across the whole map is a detector that works at any
-              range, because it can be flown against as a grid. */}
-          {hidden && mission.tracking ? (
-            /* The TRACKING mission's cell is the lock, and only the lock.
-
-               Not a distance and not a signal: a bearing to an animal is a
-               tracker, and this mission's rule is that the pilot finds it by
-               looking. What the cell reports is how much of the hold they have
-               served, which is a fact about their own flying rather than about
-               where the target is. It goes warm the moment the light is ON
-               something, which is the one piece of confirmation the pilot gets
-               that the shape in the beam is the shape the runtime can see. */
-            <div className={`ms-cell ${tooClose ? 'warn' : lit ? 'good' : ''}`}>
-              <span>{tooClose ? 'TOO CLOSE' : 'LOCK'}</span>
-              <b>{lit || lock > 0 ? `${Math.round(lock * 100)}%` : '- - -'}</b>
-            </div>
-          ) : hidden ? (
-            <div className={`ms-cell ${signal > 0 ? 'warn' : ''}`}>
-              <span>SIGNAL</span>
-              <b>{signal > 0 ? `${Math.round(signal * 100)}%` : '- - -'}</b>
-            </div>
-          ) : (
-            <div className="ms-cell">
-              <span>DISTANCE</span>
-              <TargetArrow bearing={bearing} distance={distance} climb={climb} />
+          {/* "+1 POINT", floating off the score. */}
+          {pointPop && (
+            <div key={pointPop.id} className="ms-pop">
+              +1 POINT
+              <i>{pointPop.label}</i>
             </div>
           )}
-          <div className="ms-cell">
-            <span>ALTITUDE</span>
-            <b>{Math.round(altitude)} m</b>
-          </div>
-          <div className={`ms-cell ${lowOnTime ? 'warn' : ''}`}>
-            <span>TIME</span>
-            <b>{clock(elapsed)}</b>
-          </div>
+
+          <TargetPointerHud />
+
+          {/* A patrol's dispatch is a delivery, and gets the delivery's card. */}
+          {leg === 'toDrop' && (!inspect || run?.dispatch) && <DeliveryChecklist fire={fire} />}
+          {leg === 'toDrop' && inspect && !run?.dispatch && <InspectionCard mission={mission} />}
+          {leg === 'confirming' && mission.tracking && (
+            <TrackingLock seconds={mission.tracking.lockSeconds} />
+          )}
+          {leg === 'confirming' && !mission.tracking && (
+            <DeliveryChecklist fire={false} rescue />
+          )}
+          {leg === 'toPickup' && atPickup && <DeliveryChecklist fire={fire} pickup />}
+
+          <MissionStrip mission={mission} onExit={leave} />
         </div>
       )}
 
-      {/* Result. The stats settle in one at a time and the stars come in last —
-          enough to feel like a result screen, short of a fireworks display. */}
-      {phase === 'complete' && result && (
-        <div className="ms-center">
-          <div className="ms-card result" ref={cardRef}>
-            <span className="ms-card-tag">MISSION COMPLETE</span>
-            <h2>{mission.name}</h2>
-            <StarReveal value={result.stars} />
-            <p className="ms-signoff">“{mission.radio.complete.text}”</p>
-            <div className="ms-sheet">
-              {[
-                // A multi-point delivery reports each package by name. One
-                // 'Payload delivered' tick for three separate flights would be
-                // the result card summarising away most of the mission.
-                // A mission that states its own rows, in the brief's words, gets
-                // exactly those — and they cover the flight home as well.
-                ...(mission.resultRows
-                  ? mission.resultRows.map((label) => [label, '✓', true] as const)
-                  : mission.deliveries
-                    ? mission.deliveries.map((d) => [`${d.name} delivered`, '✓', true] as const)
-                    : mission.kind === 'search'
-                      ? // A search reports its own beats: the box, the find, the drop.
-                        ([
-                          ['Food box collected', '✓', true],
-                          ['Person found', '✓', true],
-                          ['Food box delivered', '✓', true],
-                        ] as const)
-                      : mission.kind === 'tracking'
-                        ? // A survey reports the two things it is judged on, and
-                          // 'not disturbed' is one of them: the pilot passed a
-                          // test whose whole content is something they did NOT do,
-                          // and a card that only ticked the sighting would never
-                          // say so.
-                          ([
-                            ['Tiger located', '✓', true],
-                            ['Observation complete', '✓', true],
-                            ['Animal not disturbed', '✓', true],
-                          ] as const)
-                        : ([
-                            [fire ? 'Payload collected' : 'Payload picked up', '✓', true],
-                            [fire ? 'Fire suppressed' : 'Payload delivered', '✓', true],
-                          ] as const)),
-                // A mission that ends at the drop has no homeward leg to report.
-                // Rows that always read '✓' are noise; rows for a leg that was
-                // never flown are worse than noise.
-                ...(mission.endsAtDrop || mission.resultRows
-                  ? []
-                  : ([
-                      ['Returned to base', '✓', true],
-                      ['Safe landing', '✓', true],
-                    ] as const)),
-                [
-                  'Points',
-                  `${result.points} / ${result.maxPoints}`,
-                  result.points >= mission.medals.gold,
-                ],
-                ['Time', clock(result.timeSec), result.timeSec <= mission.parTimeSec],
-                ['Collisions', String(result.collisions), result.collisions === 0],
-              ].map(([label, value, good], i) => (
-                <div
-                  key={String(label)}
-                  className={`ms-sheet-row ${good ? 'good' : ''}`}
-                  style={{ animationDelay: `${i * 90}ms` }}
-                >
-                  <span>{label}</span>
-                  <b>{value}</b>
-                </div>
-              ))}
-            </div>
-            <div className="ms-actions">
-              {/* The next mission leads, and 'Fly it again' steps back to being
-                  the alternative.
-                  
-                  A pilot who has just been told the flight was clean is being
-                  asked what to do next, and the card's answer was "do that
-                  again" or "go back to a list and find it yourself". The list
-                  is still there for picking a different one; this is the one
-                  they are most likely to want. */}
-              {nextMission && (
-                <button
-                  className="ms-btn primary"
-                  onClick={() => {
-                    playClick();
-                    // `start` loads the mission and opens its BRIEFING rather
-                    // than launching it. The next mission is a different map, a
-                    // different job and a different rubric, and dropping the
-                    // pilot into it mid-air with none of that read would be a
-                    // worse welcome than the list they came from.
-                    start(nextMission);
-                  }}
-                >
-                  Next mission ›
-                </button>
-              )}
-              <button className={`ms-btn ${nextMission ? '' : 'primary'}`} onClick={flyAgain}>
-                ↻ Fly it again
-              </button>
-              <button
-                className="ms-btn"
-                onClick={() => {
-                  playClick();
-                  exit();
-                }}
-              >
-                Back to missions
-              </button>
-            </div>
-          </div>
-        </div>
+      {phase === 'complete' && (
+        <ResultCard mission={mission} cardRef={cardRef} onExit={leave} onReplay={flyAgain} />
       )}
-
       {phase === 'failed' && (
-        <div className="ms-center">
-          <div className="ms-card failed" ref={cardRef}>
-            <span className="ms-card-tag">MISSION FAILED</span>
-            <h2>
-              {failReason === 'timeout'
-                ? 'Out of time'
-                : failReason === 'strayed'
-                  ? 'Left the mission area'
-                  : failReason === 'payload'
-                    ? 'Payload lost'
-                    : failReason === 'disturbed'
-                      ? 'Animal disturbed'
-                      : 'Drone destroyed'}
-            </h2>
-            <p className="ms-fail-line">
-              {/* The tracking mission's own ending, and it is a FAILURE rather
-                  than a deduction on purpose: a wildlife survey that drives the
-                  animal off has not been flown badly, it has not been flown. */}
-              {failReason === 'disturbed'
-                ? 'You had the tiger and then flew down onto it, and it broke off into the trees. Give it room and pick it up again: within 9 m to count, but never on top of the animal.'
-                : failReason === 'payload'
-                  ? 'The drone dropped into the flames and the tank went with it. Hold the hover above the fire: the height band on the checklist is where the spray reaches from.'
-                  : failReason === 'strayed'
-                    ? fire
-                      ? 'The drone flew out of the response area and did not come back. The arrow on the strip points at the fire the whole way.'
-                      : track
-                        ? 'The drone flew out of the survey area and did not come back. The tiger is inside it. The clues say where.'
-                        : 'The drone flew out of the delivery area and did not come back. The arrow on the strip points at your next target.'
-                    : failReason === 'timeout' && mission.timeoutLine
-                      ? mission.timeoutLine
-                      : failReason === 'timeout'
-                        ? fire
-                          ? 'The fire got away from you. Take the marked line east next time.'
-                          : track
-                            ? 'The survey window closed without a sighting. Read the clues before you launch and fly straight to the line the tiger is walking.'
-                            : 'The delivery window closed. Take a straighter line through the city.'
-                        : mission.crashLine
-                          ? mission.crashLine
-                          : payload === 'attached'
-                            ? fire
-                              ? 'The aircraft is wrecked and the suppression tank went down with it.'
-                              : 'The aircraft is wrecked and the package went down with it.'
-                            : fire || track
-                              ? 'The aircraft is wrecked. A tree is solid all the way up to its own treetop.'
-                              : 'The aircraft is wrecked. Watch the street furniture on the approach.'}
-            </p>
-            <div className="ms-sheet">
-              <div className="ms-sheet-row">
-                <span>Points</span>
-                <b>
-                  {points} / {maxPoints}
-                </b>
-              </div>
-              <div className="ms-sheet-row">
-                <span>Time</span>
-                <b>{clock(elapsed)}</b>
-              </div>
-              <div className="ms-sheet-row">
-                <span>Collisions</span>
-                <b>{collisions}</b>
-              </div>
-            </div>
-            <div className="ms-actions">
-              <button className="ms-btn primary" onClick={flyAgain}>
-                ↻ Try again
-              </button>
-              <button
-                className="ms-btn"
-                onClick={() => {
-                  playClick();
-                  exit();
-                }}
-              >
-                Back to missions
-              </button>
-            </div>
-          </div>
-        </div>
+        <FailureCard mission={mission} cardRef={cardRef} onExit={leave} onReplay={flyAgain} />
       )}
     </div>
   );

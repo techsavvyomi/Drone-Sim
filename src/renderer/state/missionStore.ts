@@ -125,6 +125,37 @@ export interface CompletedResult extends MissionResult {
   stars: 1 | 2 | 3;
 }
 
+/**
+ * One line of the radio log (L): a Mission Control line or a banner, with the
+ * mission clock it came in at. Display only — the HUD's "RADIO · LATEST" and
+ * the log panel read it, so a missed message can be read again.
+ */
+export interface LogLine {
+  id: number;
+  /** Mission clock, seconds. */
+  at: number;
+  kind: 'radio' | Banner['kind'];
+  text: string;
+}
+
+/** How many log lines are kept. A long mission says a few dozen. */
+const LOG_MAX = 60;
+
+/** Where and when an attempt ended, for the failure card. */
+export interface EndedAt {
+  /** Mission clock, seconds. */
+  sec: number;
+  /** Height over the mission's ground, metres. */
+  altitude: number;
+}
+
+/** The mission's record before this finish, for the result card's Best tile. */
+export interface BestBefore {
+  timeSec: number;
+  stars: number;
+  points: number;
+}
+
 const NO_CHECKS: DeliveryChecks = { centred: false, inBand: false, steady: false, hold: 0 };
 
 interface MissionState {
@@ -266,6 +297,21 @@ interface MissionState {
 
   result: CompletedResult | null;
   failReason: FailReason | null;
+
+  // ---- Display only (Phase 5): nothing below is read by the Director or the
+  // rubric. The result and failure cards say when things happened from these.
+  /** Radio lines and banners, oldest first, capped at LOG_MAX. */
+  log: LogLine[];
+  /** Mission clock at each delivery / drop-zone point, in order. */
+  deliveredAt: number[];
+  /** Mission clock at the landing point, or null. */
+  landedAt: number | null;
+  /** Mission clock each time the collision count went up. */
+  collisionAt: number[];
+  /** When and how high the attempt ended, on a failure. */
+  endedAt: EndedAt | null;
+  /** The saved record before this finish; null on a first completion. */
+  bestBefore: BestBefore | null;
   /**
    * How many attempts have been flown since the mission was opened: bumped by
    * `beginFlight` and `restart`, zeroed by `start` and `exit`. Telemetry reads it
@@ -376,7 +422,19 @@ function freshAttempt(mission: Mission | null) {
     suppressing: false,
     result: null,
     failReason: null,
+    log: [] as LogLine[],
+    deliveredAt: [] as number[],
+    landedAt: null as number | null,
+    collisionAt: [] as number[],
+    endedAt: null as EndedAt | null,
+    bestBefore: null as BestBefore | null,
   };
+}
+
+/** The log with one more line, capped. */
+function logged(log: readonly LogLine[], line: Omit<LogLine, 'id'>): LogLine[] {
+  const next = [...log, { ...line, id: nextId() }];
+  return next.length > LOG_MAX ? next.slice(next.length - LOG_MAX) : next;
 }
 
 /**
@@ -499,6 +557,7 @@ export const useMissionStore = create<MissionState>((set, get) => ({
       deliveredCount: s.deliveredCount + 1,
       points: s.points + 1,
       pointPop: { id: nextId(), label },
+      deliveredAt: [...s.deliveredAt, s.elapsed],
     })),
 
   rearmPickup: () =>
@@ -530,11 +589,20 @@ export const useMissionStore = create<MissionState>((set, get) => ({
             zonesTaken: { ...s.zonesTaken, [kind]: true },
             points: s.points + (scores ? 1 : 0),
             pointPop: scores ? { id: nextId(), label } : s.pointPop,
+            ...(kind === 'drop' && { deliveredAt: [...s.deliveredAt, s.elapsed] }),
+            ...(kind === 'base' && { landedAt: s.elapsed }),
           },
     ),
 
   showBanner: (b, seconds) =>
-    set((s) => ({ banner: { ...b, id: nextId(), until: s.elapsed + seconds } })),
+    set((s) => ({
+      banner: { ...b, id: nextId(), until: s.elapsed + seconds },
+      log: logged(s.log, {
+        at: s.elapsed,
+        kind: b.kind,
+        text: b.sub ? `${b.title}. ${b.sub}` : b.title,
+      }),
+    })),
 
   clearBanner: () => set({ banner: null }),
 
@@ -543,6 +611,7 @@ export const useMissionStore = create<MissionState>((set, get) => ({
     set((s) => ({
       radio: { id: nextId(), key, text, until: s.elapsed + seconds },
       radioPlayed: { ...s.radioPlayed, [key]: true },
+      log: logged(s.log, { at: s.elapsed, kind: 'radio', text }),
     }));
     return true;
   },
@@ -555,11 +624,28 @@ export const useMissionStore = create<MissionState>((set, get) => ({
   setGate: (gate) => set({ gate }),
   setFire: (fire) => set(fire),
   setElapsed: (elapsed) => set({ elapsed }),
-  setCollisions: (collisions) => set({ collisions }),
+  setCollisions: (collisions) =>
+    set((s) =>
+      collisions > s.collisions
+        ? {
+            collisions,
+            collisionAt: [
+              ...s.collisionAt,
+              ...Array.from({ length: collisions - s.collisions }, () => s.elapsed),
+            ],
+          }
+        : { collisions },
+    ),
 
   finish: (r) => {
     const mission = get().mission;
     const stars = mission ? rankFor(mission.ranks, r) : 1;
+    const prev = mission
+      ? useSettingsStore.getState().settings.missions.missions[mission.id]
+      : undefined;
+    const bestBefore: BestBefore | null = prev?.completed
+      ? { timeSec: prev.bestTimeSec, stars: prev.stars, points: prev.bestPoints }
+      : null;
     if (mission) record(mission.id, r, stars);
     // The tank is shut off with the flight. `suppressing` drives a plume in the
     // world, and the world is still being rendered behind the result card.
@@ -569,10 +655,18 @@ export const useMissionStore = create<MissionState>((set, get) => ({
       banner: null,
       suppressing: false,
       result: { ...r, stars },
+      bestBefore,
     });
   },
 
-  fail: (reason) => set({ phase: 'failed', banner: null, suppressing: false, failReason: reason }),
+  fail: (reason) =>
+    set((s) => ({
+      phase: 'failed',
+      banner: null,
+      suppressing: false,
+      failReason: reason,
+      endedAt: { sec: s.elapsed, altitude: s.altitude },
+    })),
 }));
 
 /**

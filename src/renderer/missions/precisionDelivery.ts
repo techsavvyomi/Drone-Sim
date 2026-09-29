@@ -1,6 +1,10 @@
 import { HELIPAD_LAND_RADIUS, NEW_YORK_HELIPAD_AT, NEW_YORK_HELIPAD_GROUND } from './helipad';
 import { PHARMACY_DECK_AT, PICKUP_DECK_TOP } from './pickupStorefront';
 import type { Mission, MissionCheckpoint, MissionLegId } from './types';
+import { LIMITS } from './limits';
+
+/** Seconds the three-star rung is flown inside (missions/limits.ts). */
+const PAR = LIMITS['precision-delivery'].parSec;
 
 // ----------------------------------------------------------------------------
 // Precision Delivery — New York City.
@@ -220,8 +224,8 @@ export const precisionDelivery: Mission = {
     'Return to the pad you started from and land.',
   ],
   mapNote: 'Buildings and roads only',
-  timeLimitSec: 480,
-  parTimeSec: 300,
+  timeLimitSec: LIMITS['precision-delivery'].limitSec,
+  parTimeSec: PAR,
   groundY: 0,
   medals: { bronze: 14, silver: SILVER, gold: GOLD },
   routeAltitude: ALT,
@@ -341,9 +345,10 @@ export const precisionDelivery: Mission = {
   ranks: [
     {
       stars: 3,
+      within: PAR,
       text: 'All 15 points, no crashes, home inside 5:00',
       test: (r) =>
-        r.delivered && r.landed && r.points >= GOLD && r.collisions === 0 && r.timeSec <= 300,
+        r.delivered && r.landed && r.points >= GOLD && r.collisions === 0 && r.timeSec <= PAR,
     },
     {
       stars: 2,

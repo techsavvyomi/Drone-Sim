@@ -1,6 +1,10 @@
 import type { Mission, MissionDelivery, MissionZone } from './types';
 import { PHARMACY_DECK_AT, PICKUP_DECK_TOP } from './pickupStorefront';
 import { HELIPAD_LAND_RADIUS, NEW_YORK_HELIPAD_AT, NEW_YORK_HELIPAD_GROUND } from './helipad';
+import { LIMITS } from './limits';
+
+/** Seconds the three-star rung is flown inside (missions/limits.ts). */
+const PAR = LIMITS['multi-point-delivery'].parSec;
 
 // ----------------------------------------------------------------------------
 // Multi-Point Delivery — New York City.
@@ -255,8 +259,8 @@ export const multiPointDelivery: Mission = {
   // Three round trips is roughly 270 m of flying plus six precision holds and a
   // landing, two of them onto rooftop platforms. Eleven minutes is a comfortable
   // flight and seven is a brisk one, which is the gap the top rating lives in.
-  timeLimitSec: 660,
-  parTimeSec: 420,
+  timeLimitSec: LIMITS['multi-point-delivery'].limitSec,
+  parTimeSec: PAR,
   groundY: 0,
   medals: { bronze: 3, silver: SILVER, gold: GOLD },
   routeAltitude: CRUISE,
@@ -408,9 +412,10 @@ export const multiPointDelivery: Mission = {
   ranks: [
     {
       stars: 3,
+      within: PAR,
       text: 'All 3 delivered and home, no crashes, inside 7:00',
       test: (r) =>
-        r.delivered && r.landed && r.points >= GOLD && r.collisions === 0 && r.timeSec <= 420,
+        r.delivered && r.landed && r.points >= GOLD && r.collisions === 0 && r.timeSec <= PAR,
     },
     {
       stars: 2,

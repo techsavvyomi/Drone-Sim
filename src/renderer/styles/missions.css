@@ -1,0 +1,973 @@
+/* ==========================================================================
+   Pluto Field Ops — Foundation v0.2, Phase 5. Colours and type from tokens.css
+   only.
+
+   The mission list reuses Flight School's grouped layout (`.tlist`, training.css)
+   with its own columns. In a mission: a header band over the classroom cards
+   (briefing, result, failure — the result reuses `.tresult`), and in flight the
+   cockpit register — an objective band with the time left, the radio, the plan
+   map and one strip along the bottom. The in-flight cards that were already
+   there (checklist, lock, inspection, banner, +1, pointer) keep their old
+   `.ms-*` rules in index.css and are only moved out of the new band's way here.
+   ========================================================================== */
+
+/* ---- Mission list ------------------------------------------------------------ */
+
+.mlist .tlist__cols,
+.mlist .tlist__row {
+  grid-template-columns: 36px 96px minmax(0, 1fr) 72px 76px 150px;
+}
+
+.mlist__pic {
+  width: 88px;
+  height: 56px;
+}
+
+.mlist__pic .ms-art {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.mlist__limit {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font: var(--type-body);
+  font-weight: 600;
+  color: var(--txt-hi);
+}
+
+.mlist__limit i {
+  font: var(--type-caption);
+  font-style: normal;
+  color: var(--txt-mid);
+}
+
+/* "Map · payload · count" may take two lines rather than lose its count. */
+.mlist .tlist__module span {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  white-space: normal;
+}
+
+.tlist__row.is-locked .mlist__pic {
+  opacity: 0.5;
+}
+
+/* A mission's name stays on one line; its facts may take two. */
+.mlist .tlist__module b {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mlist .tlist__block-top span {
+  white-space: nowrap;
+}
+
+@media (max-width: 1199px), (max-height: 760px) {
+  .mlist .tlist__body {
+    grid-template-columns: 240px minmax(0, 1fr);
+    gap: var(--space-4);
+  }
+  .mlist .tlist__rail {
+    gap: var(--space-2);
+  }
+  .mlist .tlist__block {
+    gap: var(--space-1);
+    padding: var(--space-2) var(--space-3);
+  }
+  .mlist .tlist__block-top {
+    flex-wrap: wrap;
+    column-gap: var(--space-2);
+  }
+  .mlist .tlist__block-line {
+    font: var(--type-caption);
+  }
+  .mlist .tlist__cols,
+  .mlist .tlist__row {
+    grid-template-columns: 18px 60px minmax(0, 1fr) 48px 58px 108px;
+    gap: var(--space-2);
+  }
+  .mlist .tlist__row {
+    min-height: 64px;
+    padding: var(--space-2) var(--space-3);
+  }
+  .mlist__pic {
+    width: 58px;
+    height: 40px;
+  }
+  .mlist .tlist__module span {
+    font: var(--type-caption);
+  }
+  .mlist .tlist__block-top b {
+    font-size: 15px;
+  }
+}
+
+/* ---- In a mission --------------------------------------------------------------- */
+
+.mhud {
+  --tband-h: 72px;
+
+  font-family: var(--font-sans);
+  font-feature-settings: var(--font-numeric);
+  color: var(--txt-hi);
+}
+
+.mband {
+  z-index: 6;
+}
+
+/* The limit stays in the band at every size (the PDF's 1100 × 720 frame);
+   Flight School drops its block name there. */
+.mband .tband__id span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mstage {
+  position: absolute;
+  top: var(--tband-h);
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: safe center;
+  padding: var(--space-5);
+  background: var(--scrim);
+  pointer-events: auto;
+  overflow: auto;
+}
+
+/* ---- Briefing ---- */
+
+/* The card is as tall as its content, and never taller than the stage: it
+   shrinks as a flex item, and each column scrolls inside itself. Launch sits
+   at the foot of the side column and never scrolls away. */
+.mbrief {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+  gap: var(--space-5);
+  flex: 0 1 auto;
+  width: min(1180px, 100%);
+  min-height: 0;
+  max-height: 100%;
+}
+
+.mbrief__main,
+.mbrief__side {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+/* The columns scroll; their contents never squash to fit. */
+.mbrief__main > *,
+.mbrief__side > * {
+  flex-shrink: 0;
+}
+
+.mbrief__launch {
+  position: sticky;
+  bottom: calc(-1 * var(--space-6));
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: auto calc(-1 * var(--space-6)) calc(-1 * var(--space-6));
+  padding: var(--space-3) var(--space-6) var(--space-4);
+  background: var(--ink-900);
+  border-top: 1px solid var(--line);
+}
+
+.mbrief__launch .ds-btn {
+  width: 100%;
+  justify-content: center;
+}
+
+.mbrief__main,
+.mbrief__side {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+  padding: var(--space-6);
+  background: var(--wash);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+}
+
+.mbrief__hero {
+  position: relative;
+  margin: 0;
+  height: clamp(150px, 30vh, 280px);
+  overflow: hidden;
+  background: var(--ink-950);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-small);
+}
+
+.mbrief__hero .ms-art {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.mbrief__hero figcaption {
+  position: absolute;
+  left: var(--space-3);
+  bottom: var(--space-3);
+  max-width: calc(100% - 2 * var(--space-3));
+  padding: var(--space-1) var(--space-3);
+  font: var(--type-caption);
+  color: var(--txt-mid);
+  background: var(--ink-950);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mbrief__title {
+  margin: 0;
+  font: var(--type-h3);
+}
+
+.mbrief__story {
+  margin: 0;
+  font: var(--type-body);
+  color: var(--txt-mid);
+}
+
+.mbrief__steps {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.mbrief__steps li {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.mbrief__step-pic {
+  position: relative;
+  display: block;
+  height: 72px;
+  overflow: hidden;
+  background: var(--ink-950);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-small);
+}
+
+.mbrief__step-pic .ms-art {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.mbrief__step-n {
+  position: absolute;
+  top: var(--space-2);
+  left: var(--space-2);
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  font: var(--type-label);
+  color: var(--ink-950);
+  background: var(--txt-hi);
+  border-radius: 999px;
+}
+
+.mbrief__step-text {
+  font: var(--type-caption);
+  color: var(--txt-mid);
+}
+
+.mbrief__step-text b {
+  font-weight: 600;
+  color: var(--txt-hi);
+}
+
+.mbrief__panel h2 {
+  margin: 0 0 var(--space-2);
+  font: var(--type-body);
+  font-weight: 600;
+}
+
+.mbrief__objs,
+.mbrief__notes {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.mbrief__objs li,
+.mbrief__notes li {
+  display: flex;
+  gap: var(--space-3);
+  padding: var(--space-2) 0;
+  font: var(--type-body-sm);
+  border-top: 1px solid var(--line);
+}
+
+.mbrief__obj-n {
+  flex: none;
+  width: 16px;
+  color: var(--txt-mid);
+}
+
+.mbrief__notes li {
+  color: var(--txt-mid);
+}
+
+.mbrief__notes.is-rules .ds-icon {
+  flex: none;
+  margin-top: 2px;
+  color: var(--caution);
+}
+
+.mbrief__tier {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) 0;
+  font: var(--type-body-sm);
+  border-top: 1px solid var(--line);
+}
+
+.mbrief__tier .ds-icon {
+  width: 16px;
+  height: 16px;
+}
+
+.mbrief__mapcard {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-3);
+  background: var(--ink-900);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-small);
+}
+
+.mbrief__plan,
+.mresult__plan {
+  position: relative;
+  line-height: 0;
+}
+
+/* The plan map, taken out of its in-flight corner and set into the card. */
+.mbrief__plan .ms-citymap,
+.mbrief__plan .ms-map,
+.mresult__plan .ms-citymap,
+.mresult__plan .ms-map {
+  position: static;
+  background: var(--ink-950);
+  border-color: var(--line);
+}
+
+.mbrief__north {
+  position: absolute;
+  top: 2px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 1px var(--space-1);
+  font: var(--type-label);
+  line-height: 1.2;
+  color: var(--txt-hi);
+  background: var(--ink-950);
+  border-radius: 4px;
+}
+
+.mbrief__limit {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+  font: var(--type-caption);
+  color: var(--txt-mid);
+}
+
+.mbrief__limit b {
+  font: var(--type-h3);
+  color: var(--txt-hi);
+}
+
+.mbrief__legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-3);
+}
+
+.mbrief__legend > span {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.mbrief__legend .ds-icon {
+  width: 10px;
+  height: 10px;
+}
+
+.mbrief__legend span:nth-child(2) .ds-icon {
+  color: var(--caution);
+}
+
+.mbrief__hint {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  margin: 0;
+  font: var(--type-caption);
+  color: var(--txt-mid);
+}
+
+@media (max-width: 1199px), (max-height: 760px) {
+  .mstage {
+    padding: var(--space-3);
+  }
+  .mbrief {
+    gap: var(--space-3);
+  }
+  .mbrief__main,
+  .mbrief__side {
+    gap: var(--space-3);
+    padding: var(--space-4);
+  }
+  .mbrief__launch {
+    bottom: calc(-1 * var(--space-4));
+    margin: auto calc(-1 * var(--space-4)) calc(-1 * var(--space-4));
+    padding: var(--space-3) var(--space-4);
+  }
+  .mbrief__hero {
+    height: clamp(120px, 24vh, 200px);
+  }
+  .mbrief__title {
+    font: var(--type-h4);
+  }
+  .mbrief__story {
+    font: var(--type-body-sm);
+  }
+  .mbrief__step-pic {
+    height: 56px;
+  }
+  .mbrief__objs li,
+  .mbrief__notes li,
+  .mbrief__tier {
+    padding: var(--space-1) 0;
+  }
+  .mbrief__limit b {
+    font: var(--type-h4);
+  }
+}
+
+/* ---- In flight (cockpit) ---- */
+
+.mhud__flight {
+  position: absolute;
+  inset: 0;
+}
+
+.mobj,
+.mradio,
+.mstrip__cell,
+.mstrip__keys {
+  background: var(--ink-950);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+}
+
+/* The objective band: top centre. */
+.mobj {
+  position: absolute;
+  top: var(--space-4);
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(460px, calc(100% - 2 * 300px));
+  min-width: 360px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  z-index: 4;
+}
+
+.mobj__top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.mobj__text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.mobj__label {
+  font: var(--type-label);
+  text-transform: var(--label-case);
+  letter-spacing: var(--label-tracking);
+  color: var(--txt-mid);
+}
+
+.mobj__text b {
+  font: var(--type-body);
+  font-weight: 600;
+}
+
+.mobj__clock {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  flex: none;
+  line-height: 1;
+}
+
+.mobj__clock b {
+  font: var(--type-h3);
+  line-height: 1;
+}
+
+.mobj__clock span {
+  font: var(--type-label);
+  text-transform: var(--label-case);
+  letter-spacing: var(--label-tracking);
+  color: var(--txt-mid);
+}
+
+.mobj__clock .ds-icon {
+  width: 14px;
+  height: 14px;
+}
+
+.mobj.is-caution .mobj__clock,
+.mobj.is-caution .mobj__clock span {
+  color: var(--caution);
+}
+
+.mobj.is-caution {
+  border-color: var(--caution);
+}
+
+.mobj__track {
+  position: relative;
+  height: 4px;
+  margin: 2px 0 18px;
+  background: var(--ink-700);
+  border-radius: 2px;
+}
+
+.mobj__fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: var(--txt-hi);
+  border-radius: 2px;
+}
+
+.mobj.is-caution .mobj__fill {
+  background: var(--caution);
+}
+
+.mobj__mark {
+  position: absolute;
+  top: -4px;
+  width: 2px;
+  height: 12px;
+  background: var(--txt-hi);
+  transform: translateX(-1px);
+}
+
+.mobj__mark-label {
+  position: absolute;
+  top: 14px;
+  right: -2px;
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+  font: var(--type-label);
+  white-space: nowrap;
+}
+
+.mobj__mark-label .ds-icon {
+  width: 10px;
+  height: 10px;
+}
+
+.mobj__mark-label .ds-icon[data-icon='star'] {
+  color: var(--caution);
+}
+
+.mobj__mark.is-lost {
+  background: var(--txt-low);
+}
+
+.mobj__mark.is-lost .mobj__mark-label {
+  color: var(--txt-mid);
+}
+
+.mobj__mark.is-lost .mobj__mark-label .ds-icon {
+  color: var(--txt-mid);
+}
+
+.mobj__line {
+  margin: 0;
+  font: var(--type-caption);
+  color: var(--txt-mid);
+}
+
+/* The radio: top left. */
+.mradio {
+  position: absolute;
+  top: var(--space-4);
+  left: var(--space-4);
+  width: 270px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  z-index: 4;
+}
+
+.mradio.is-open {
+  width: 320px;
+}
+
+.mradio__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  font: var(--type-label);
+  text-transform: var(--label-case);
+  letter-spacing: var(--label-tracking);
+  color: var(--txt-mid);
+}
+
+.mradio__lines {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  max-height: 96px;
+  overflow: hidden;
+}
+
+.mradio.is-open .mradio__lines {
+  max-height: min(360px, 50vh);
+  overflow-y: auto;
+}
+
+.mradio__lines li {
+  display: grid;
+  grid-template-columns: 32px 12px minmax(0, 1fr);
+  gap: var(--space-2);
+  font: var(--type-caption);
+}
+
+.mradio__lines .ds-icon {
+  width: 10px;
+  height: 10px;
+  margin-top: 3px;
+}
+
+.mradio__lines li.is-warn .ds-icon {
+  color: var(--caution);
+}
+
+.mradio__lines li.is-good .ds-icon {
+  color: var(--armed);
+}
+
+.mradio__at {
+  color: var(--txt-mid);
+}
+
+.mradio__empty {
+  margin: 0;
+  font: var(--type-caption);
+  color: var(--txt-mid);
+}
+
+/* The plan map: top right. */
+.mhud__map .ms-citymap,
+.mhud__map .ms-map {
+  top: var(--space-4);
+  right: var(--space-4);
+  background: var(--ink-950);
+  border-color: var(--line);
+}
+
+/* The in-flight cards that were already there, moved clear of the band. */
+.mhud .ms-checks {
+  top: 172px;
+}
+
+.mhud .ms-banner {
+  top: auto;
+  bottom: 176px;
+}
+
+.mhud .ms-pop {
+  bottom: 110px;
+}
+
+/* The strip: bottom centre. */
+.mstrip {
+  position: absolute;
+  left: 50%;
+  bottom: var(--space-4);
+  transform: translateX(-50%);
+  display: flex;
+  align-items: stretch;
+  gap: var(--space-2);
+  max-width: calc(100% - 2 * var(--space-4));
+  z-index: 4;
+}
+
+.mstrip__cell {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  min-width: 96px;
+  padding: var(--space-2) var(--space-3);
+}
+
+.mstrip__label {
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: var(--type-label);
+  text-transform: var(--label-case);
+  letter-spacing: var(--label-tracking);
+  color: var(--txt-mid);
+}
+
+.mstrip__cell b {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  font: var(--type-title);
+  white-space: nowrap;
+}
+
+.mstrip__cell b i {
+  font: var(--type-caption);
+  font-style: normal;
+  color: var(--txt-mid);
+}
+
+.mstrip__ok {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.mstrip__ok.mstrip__ok,
+.mstrip__ok .ds-icon {
+  color: var(--armed);
+}
+
+.mstrip__ok .ds-icon {
+  width: 8px;
+  height: 8px;
+}
+
+.mstrip__cell.is-warn {
+  border-color: var(--caution);
+}
+
+.mstrip__cell.is-warn b {
+  color: var(--caution);
+}
+
+.mstrip__cell.is-good {
+  border-color: var(--armed);
+}
+
+.mstrip__climb.mstrip__climb {
+  color: var(--txt-hi);
+}
+
+.mstrip__keys {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2);
+}
+
+.mstrip__keys .tband__key,
+.mradio .tband__key {
+  border-color: transparent;
+}
+
+@media (max-width: 1199px) {
+  .mradio {
+    width: 230px;
+  }
+  .mobj {
+    min-width: 320px;
+    width: calc(100% - 2 * 260px);
+  }
+  .mstrip__cell {
+    min-width: 84px;
+    padding: var(--space-2);
+  }
+  .mstrip__cell b {
+    font: var(--type-body);
+    font-weight: 600;
+  }
+  .mstrip__keys .ds-badge {
+    display: none;
+  }
+}
+
+/* ---- Result and failure ---- */
+
+.mresult {
+  gap: var(--space-3);
+}
+
+.mresult__objs {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.mresult__objs h2 {
+  margin: 0;
+  font: var(--type-body-sm);
+  font-weight: 600;
+  color: var(--txt-mid);
+}
+
+.mresult__obj {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-4);
+  font: var(--type-body-sm);
+  background: var(--ink-900);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-small);
+}
+
+.mresult__obj.is-ok .ds-icon {
+  color: var(--armed);
+}
+
+.mresult__obj.is-miss .ds-icon {
+  color: var(--fail);
+}
+
+.mresult__obj-label {
+  font-weight: 600;
+}
+
+.mresult__obj-value {
+  color: var(--txt-mid);
+  white-space: nowrap;
+}
+
+.mresult__signoff {
+  margin: 0;
+  font: var(--type-caption);
+  color: var(--txt-mid);
+}
+
+.mresult__fail-title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin: var(--space-2) 0 0;
+  font: var(--type-h3);
+}
+
+.mresult__fail-title .ds-icon {
+  width: 28px;
+  height: 28px;
+  color: var(--fail);
+}
+
+.mresult__where {
+  margin: var(--space-1) 0 0;
+  font: var(--type-body);
+  color: var(--txt-mid);
+}
+
+.mresult__place {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-3);
+  background: var(--ink-900);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-small);
+}
+
+.mresult__place p {
+  margin: 0;
+  font: var(--type-body-sm);
+  color: var(--txt-mid);
+}
+
+.mresult__x {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  transform: translate(-50%, -50%);
+  color: var(--fail);
+  border: 2px solid var(--fail);
+  border-radius: 999px;
+}
+
+.mresult__x .ds-icon {
+  width: 14px;
+  height: 14px;
+}
+
+@media (max-height: 760px) {
+  .mresult {
+    padding: var(--space-5) var(--space-6);
+  }
+  .mresult__obj {
+    padding: var(--space-1) var(--space-3);
+  }
+  .mresult__place {
+    padding: var(--space-2);
+  }
+}

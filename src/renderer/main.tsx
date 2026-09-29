@@ -17,6 +17,7 @@ import './styles/shell.css';
 import './styles/account.css';
 import './styles/home.css';
 import './styles/training.css';
+import './styles/missions.css';
 
 // Point Draco at the decoder bundled in public/, before anything loads a model.
 //

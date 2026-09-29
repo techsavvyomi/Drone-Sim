@@ -1,5 +1,6 @@
 import { COL_W, levelY, OFFICE_PAD, STOREY, SLAB_T } from '../scene/environment/siteLayout';
 import type { Mission, MissionInspectionPoint, MissionZone } from './types';
+import { LIMITS } from './limits';
 
 // ----------------------------------------------------------------------------
 // Mission 8 — Night Shift Inspection (the Construction Site, after dark).
@@ -112,7 +113,7 @@ const POINTS: readonly MissionInspectionPoint[] = [
   },
 ];
 
-const PAR = 240;
+const PAR = LIMITS['night-shift-inspection'].parSec;
 
 export const nightInspection: Mission = {
   id: 'night-shift-inspection',
@@ -150,7 +151,7 @@ export const nightInspection: Mission = {
   // The roof zone hovers up to 28 m over the site, and the Guru's own limit
   // is 30 soft-limited from 28. This only ever raises it.
   ceiling: 34,
-  timeLimitSec: 420,
+  timeLimitSec: LIMITS['night-shift-inspection'].limitSec,
   parTimeSec: PAR,
   groundY: 0,
   medals: { bronze: 4, silver: 4, gold: 4 },
@@ -231,6 +232,7 @@ export const nightInspection: Mission = {
   ranks: [
     {
       stars: 3,
+      within: PAR,
       text: `All three zones and home, no collisions, inside ${PAR / 60}:00`,
       test: (r) => r.delivered && r.landed && r.collisions === 0 && r.timeSec <= PAR,
     },

@@ -1,5 +1,6 @@
 import type { Mission } from './types';
 import { nightTracking } from './nightTracking';
+import { LIMITS } from './limits';
 
 // ----------------------------------------------------------------------------
 // Mission 5 — Animal Rescue.
@@ -33,4 +34,8 @@ export const tigerTracker: Mission = {
   ],
   mapNote: 'The forest at night. The tiger is the red dot on your map',
   tracking: { ...track, showOnMap: true },
+  // Its own row in the limits table. The rubric is Mission 6's, spread above; a
+  // test holds the three-star rung to this par.
+  timeLimitSec: LIMITS['tiger-tracker'].limitSec,
+  parTimeSec: LIMITS['tiger-tracker'].parSec,
 };

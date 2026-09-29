@@ -156,6 +156,12 @@ export interface MissionRank {
   stars: 1 | 2 | 3;
   /** What it takes, in the pilot's words — shown before the flight and after. */
   text: string;
+  /**
+   * The seconds this rung's `test` allows, for display only: the HUD's star
+   * marks and the result card's "0:21 over". Set on the timed rung and nowhere
+   * else. It never scores — `test` does — and a test holds the two equal.
+   */
+  within?: number;
   test: (r: MissionResult) => boolean;
 }
 

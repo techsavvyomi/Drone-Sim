@@ -2,6 +2,10 @@ import type { Mission, MissionSearchSite, MissionZone } from './types';
 import { SEARCH_SITES } from './searchRescueSites';
 import { PICKUP_DECK_AT, PICKUP_DECK_TOP } from './pickupStorefront';
 import { HELIPAD_LAND_RADIUS, NEW_YORK_HELIPAD_AT, NEW_YORK_HELIPAD_GROUND } from './helipad';
+import { LIMITS } from './limits';
+
+/** Seconds the three-star rung is flown inside (missions/limits.ts). */
+const PAR = LIMITS['search-rescue'].parSec;
 
 // ----------------------------------------------------------------------------
 // Mission 4 — Logistics Drones: a food drop to a person stranded on a roof (New York City).
@@ -144,8 +148,8 @@ export const searchRescue: Mission = {
    * has to be generous enough that bad luck is not a failure, and the par is
    * what the rating is actually measured against.
    */
-  timeLimitSec: 480,
-  parTimeSec: 240,
+  timeLimitSec: LIMITS['search-rescue'].limitSec,
+  parTimeSec: PAR,
   groundY: 0,
   /*
    * EIGHTY METRES, against the Guru's own thirty.
@@ -341,9 +345,10 @@ export const searchRescue: Mission = {
   ranks: [
     {
       stars: 3,
+      within: PAR,
       text: 'Food delivered and home, no collisions, inside 4:00',
       test: (r) =>
-        r.delivered && r.landed && r.points >= GOLD && r.collisions === 0 && r.timeSec <= 240,
+        r.delivered && r.landed && r.points >= GOLD && r.collisions === 0 && r.timeSec <= PAR,
     },
     {
       stars: 2,

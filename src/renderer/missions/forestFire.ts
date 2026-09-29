@@ -1,4 +1,8 @@
 import type { Mission, MissionCheckpoint } from './types';
+import { LIMITS } from './limits';
+
+/** Seconds the three-star rung is flown inside (missions/limits.ts). */
+const PAR = LIMITS['forest-fire'].parSec;
 
 // ----------------------------------------------------------------------------
 // Forest Fire Emergency — the forest map.
@@ -170,8 +174,8 @@ export const forestFire: Mission = {
   mapNote: 'Dense forest, uneven ground',
   // Longer than the city's, and it needs to be: this crossing includes a climb
   // to forty metres and a descent into a hollow, on a stick softened to 55%.
-  timeLimitSec: 420,
-  parTimeSec: 270,
+  timeLimitSec: LIMITS['forest-fire'].limitSec,
+  parTimeSec: PAR,
   groundY: CLEARING_Y,
   medals: { bronze: 4, silver: SILVER, gold: GOLD },
   routeAltitude: ALT,
@@ -322,8 +326,9 @@ export const forestFire: Mission = {
   ranks: [
     {
       stars: 3,
+      within: PAR,
       text: 'All 6 points, no crashes, fire out inside 4:30',
-      test: (r) => r.delivered && r.points >= GOLD && r.collisions === 0 && r.timeSec <= 270,
+      test: (r) => r.delivered && r.points >= GOLD && r.collisions === 0 && r.timeSec <= PAR,
     },
     {
       stars: 2,

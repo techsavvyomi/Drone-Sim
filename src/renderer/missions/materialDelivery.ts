@@ -2,6 +2,7 @@ import { constructionSite } from '../plugins/environments/constructionSite';
 import { levelY, SLAB_T, STOREY } from '../scene/environment/siteLayout';
 import { SITE_STORE_PAD_AT } from './siteStore';
 import type { Mission } from './types';
+import { LIMITS } from './limits';
 
 // ----------------------------------------------------------------------------
 // Mission 7 — Construction Material Delivery (the Construction Site).
@@ -35,7 +36,7 @@ const LAUNCH: readonly [number, number] = [
   constructionSite.spawn.position[2],
 ];
 
-const PAR = 180;
+const PAR = LIMITS['construction-material-delivery'].parSec;
 
 export const materialDelivery: Mission = {
   id: 'construction-material-delivery',
@@ -69,7 +70,7 @@ export const materialDelivery: Mission = {
     'There is a slab above you as well as below. Touching either counts as a collision.',
   ],
   mapNote: 'Seven-storey open frame, tower crane',
-  timeLimitSec: 300,
+  timeLimitSec: LIMITS['construction-material-delivery'].limitSec,
   parTimeSec: PAR,
   groundY: 0,
   medals: { bronze: 2, silver: 2, gold: 2 },
@@ -160,6 +161,7 @@ export const materialDelivery: Mission = {
   ranks: [
     {
       stars: 3,
+      within: PAR,
       text: `Delivered and home, no collisions, inside ${PAR / 60}:00`,
       test: (r) => r.delivered && r.landed && r.collisions === 0 && r.timeSec <= PAR,
     },

@@ -1,149 +1,195 @@
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSettingsStore } from '../state/settingsStore';
 import { useMissionStore } from '../state/missionStore';
+import { useShellStore } from '../state/shellStore';
 import { MissionViewport } from '../missions/MissionViewport';
 import { MISSIONS } from '../missions';
-import { deliveryCount, maxPointsOf } from '../missions/types';
 import { playClick } from '../audio/sfx';
+import { Icon, Progress, StarRating } from '../ds';
+import { MissionPicture, mapNameOf } from '../hud/MissionPicture';
+import {
+  clock,
+  missionBlockSummaries,
+  missionListSummary,
+  missionRows,
+  openingMissionBlock,
+  rowMeta,
+  rowStatusText,
+  type MissionRow,
+} from './missionFacts';
 
-// Top-level Missions section: the mission path when nothing is active, otherwise
-// the live mission (flight view + runtime + mission HUD).
-//
-// The path is the SAME shape Flight School's is, and it reuses its markup and
-// its styles rather than growing a second one: a numbered node you work along,
-// each card carrying what you scored on it. A mission is a module of the same
-// kind — pick it, and you are inside the map with the briefing over it.
-//
-// What differs is what the number means. A lesson's order is a syllabus; a
-// mission's is a list that will grow, so mission 1 is simply the first one and
-// the next unlocks behind it.
+// Top-level Missions section (Phase 5): Pluto Field Ops. The mission list when
+// nothing is active — the Flight School's grouped layout, a rail of four blocks
+// and the chosen block's missions as rows — otherwise the live mission (flight
+// view, runtime and mission HUD, which opens on the briefing).
 
-function NodeStars({ value }: { value: number }) {
+function RowStatus({ row }: { row: MissionRow }) {
+  if (row.status === 'done') {
+    return (
+      <span className="tlist__status is-done">
+        <Icon name="check" />
+        {rowStatusText(row)}
+      </span>
+    );
+  }
+  if (row.status === 'next') {
+    return (
+      <span className="tlist__status is-next">
+        {rowStatusText(row)}
+        <Icon name="chevron" />
+      </span>
+    );
+  }
   return (
-    <span className="jnode-stars">
-      {[1, 2, 3].map((i) => (
-        <span key={i} className={i <= value ? 'on' : ''}>
-          ★
-        </span>
-      ))}
+    <span className="tlist__status is-locked">
+      <span>Locked</span>
+      <span>{rowStatusText(row)}</span>
     </span>
   );
 }
 
-function clock(sec: number): string {
-  const s = Math.max(0, Math.floor(sec));
-  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+function MissionList() {
+  const progress = useSettingsStore((s) => s.settings.missions.missions);
+  const start = useMissionStore((s) => s.start);
+  const setContext = useShellStore((s) => s.setContext);
+
+  const rows = useMemo(() => missionRows(MISSIONS, progress), [progress]);
+  const blocks = useMemo(() => missionBlockSummaries(rows), [rows]);
+  const summary = missionListSummary(rows);
+  const [blockAt, setBlockAt] = useState(() => openingMissionBlock(rows));
+  const block = blocks[blockAt];
+  const shown = rows.filter((r) => r.n >= block.from && r.n <= block.to);
+  const tableRef = useRef<HTMLDivElement>(null);
+
+  const describe = (row: MissionRow | null) => {
+    if (row) setContext(`Mission ${row.n} of ${rows.length} · ${row.mission.name}`);
+    else setContext(summary.nextLine);
+  };
+
+  useEffect(() => {
+    describe(summary.next);
+    return () => setContext('');
+  }, [summary.next?.mission.id]);
+
+  useEffect(() => {
+    const active = document.activeElement;
+    if (active && active !== document.body) return;
+    tableRef.current?.querySelector<HTMLElement>('[data-primary]')?.focus({ preventScroll: true });
+  }, []);
+
+  const open = (row: MissionRow) => {
+    if (row.status === 'locked') return;
+    playClick();
+    start(row.mission);
+  };
+
+  return (
+    <div className="tlist mlist" data-register="classroom">
+      <header className="tlist__head">
+        <h1 className="tlist__title">Missions</h1>
+        <p className="tlist__lede">
+          Pluto Field Ops · {rows.length} story missions over the city, the forest, a building site
+          and a supermarket · {rows.length * 3} stars. Each has one time limit.
+        </p>
+      </header>
+
+      <div className="tlist__body">
+        <nav className="tlist__rail" aria-label="Blocks">
+          {blocks.map((b) => (
+            <button
+              key={b.name}
+              type="button"
+              className={`tlist__block${b.index === blockAt ? ' is-open' : ''}${
+                b.locked ? ' is-locked' : ''
+              }`}
+              aria-pressed={b.index === blockAt}
+              onClick={() => setBlockAt(b.index)}
+            >
+              <span className="tlist__block-top">
+                <b>{b.name}</b>
+                <span>
+                  Missions {b.from}–{b.to}
+                </span>
+              </span>
+              <span className="tlist__block-line">
+                <Icon name={b.locked ? 'ring' : 'dot'} />
+                {b.line}
+              </span>
+              <Progress
+                value={b.done}
+                max={b.total}
+                label={`${b.name}: ${b.done} of ${b.total} done`}
+                tone="neutral"
+              />
+            </button>
+          ))}
+          <div className="tlist__sum">
+            <b>{summary.line}</b>
+            <span>{summary.nextLine}</span>
+          </div>
+        </nav>
+
+        <section className="tlist__table" ref={tableRef} aria-label={block.name}>
+          <header className="tlist__table-head">
+            <h2>{block.name}</h2>
+            <span>
+              Missions {block.from}–{block.to}
+              {block.locked ? ` · ${block.line}` : ''}
+            </span>
+          </header>
+          <div className="tlist__cols" aria-hidden="true">
+            <span>No.</span>
+            <span>Image</span>
+            <span>Mission</span>
+            <span>Limit</span>
+            <span>Stars</span>
+            <span>Status</span>
+          </div>
+          <ul className="tlist__rows">
+            {shown.map((row) => (
+              <li key={row.mission.id}>
+                <button
+                  type="button"
+                  className={`tlist__row is-${row.status}`}
+                  data-primary={row.status === 'next' ? true : undefined}
+                  data-mission={row.mission.id}
+                  aria-disabled={row.status === 'locked' ? true : undefined}
+                  onClick={() => open(row)}
+                  onFocus={() => describe(row)}
+                  onMouseEnter={() => describe(row)}
+                >
+                  <span className="tlist__n">{row.n}</span>
+                  <span className="tlist__map mlist__pic">
+                    <MissionPicture mission={row.mission} />
+                  </span>
+                  <span className="tlist__module">
+                    <b>{row.mission.name}</b>
+                    <span>{rowMeta(row.mission, mapNameOf(row.mission))}</span>
+                  </span>
+                  <span className="tlist__time mlist__limit">
+                    {clock(row.mission.timeLimitSec)}
+                    {row.bestTimeSec !== null && <i>Best {clock(row.bestTimeSec)}</i>}
+                  </span>
+                  <span className="tlist__stars">
+                    <StarRating earned={row.stars} showText={false} />
+                    <span>{row.stars} of 3</span>
+                  </span>
+                  <RowStatus row={row} />
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      </div>
+    </div>
+  );
 }
 
 export function MissionScreen() {
   const mission = useMissionStore((s) => s.mission);
-  const start = useMissionStore((s) => s.start);
-  const progress = useSettingsStore((s) => s.settings.missions.missions);
-
-  // Keyed on the mission, so moving from one to the next is a genuine remount.
-  //
-  // Until the result card grew a "Next mission" button this could only ever go
-  // null -> mission, which mounts fresh anyway. Mission -> mission does not:
-  // React would reuse the tree, and the Director's setup, the scene's
-  // environment and the aircraft's spawn all run mount-only.
+  // Keyed on the mission, so moving from one to the next is a genuine remount:
+  // the Director's setup, the scene's environment and the aircraft's spawn all
+  // run mount-only.
   if (mission) return <MissionViewport key={mission.id} mission={mission} />;
-
-  const flown = MISSIONS.filter((m) => progress[m.id]?.completed).length;
-  const stars = MISSIONS.reduce((sum, m) => sum + (progress[m.id]?.stars ?? 0), 0);
-  const pct = Math.round((flown / MISSIONS.length) * 100);
-
-  return (
-    <div className="section-body journey">
-      <header className="journey-head">
-        <div className="journey-title">
-          {/* The section has a NAME, the way Training is "Pluto Flight School"
-              rather than "Training". The nav rail and the menu card stay the
-              plain word — that is the door — and this is the room. "Field Ops"
-              is the other half of the school: the same aircraft, out of the
-              classroom, doing a job with a clock on it. */}
-          <h1 className="section-title">Pluto Field Ops</h1>
-          <p className="section-lede">
-            Real jobs, over a real city and out in the woods. Fly them however you like. The
-            checkpoints pay, they do not steer.
-          </p>
-        </div>
-        <div className="journey-stats">
-          <div className="jstat">
-            <b>{flown}</b>
-            <span>of {MISSIONS.length}</span>
-          </div>
-          <div className="jstat">
-            <b>
-              {stars}
-              <i>★</i>
-            </b>
-            <span>of {MISSIONS.length * 3}</span>
-          </div>
-        </div>
-      </header>
-
-      <div className="journey-progress">
-        <div className="journey-progress-fill" style={{ width: `${pct}%` }} />
-      </div>
-
-      <div className="journey-path">
-        {MISSIONS.map((m, i) => {
-          const done = progress[m.id];
-          // Same rule as the school's: the first is open, the rest wait on the
-          // one before.
-          const unlocked = i === 0 || !!progress[MISSIONS[i - 1].id]?.completed;
-          const completed = !!done?.completed;
-          const state = completed ? 'done' : unlocked ? 'current' : 'locked';
-          const side = i % 2 === 0 ? 'left' : 'right';
-
-          return (
-            <div key={m.id} className={`jnode ${side} ${state}`}>
-              <div className="jnode-card">
-                <span className="jnode-mod">Mission {m.order}</span>
-                <b>{m.name}</b>
-                <i>{m.subtitle}</i>
-                {unlocked && <NodeStars value={done?.stars ?? 0} />}
-                <span className="jnode-facts">
-                  {completed ? (
-                    <>
-                      Best {done.bestPoints} / {maxPointsOf(m)} · {clock(done.bestTimeSec)}
-                    </>
-                  ) : (
-                    <>
-                      {/* A mission with no rings says what it DOES have. "0
-                          checkpoints" on the card of a three-delivery mission
-                          reads as a mission with nothing in it. */}
-                      {maxPointsOf(m)} points ·{' '}
-                      {m.route.length > 0
-                        ? `${m.route.length} checkpoints`
-                        : m.tracking
-                          ? // A survey delivers nothing. '1 deliveries' on the
-                            // card of a wildlife mission is the list describing
-                            // a job the mission does not have.
-                            m.tracking.showOnMap
-                            ? 'tiger on map'
-                            : 'no marker'
-                          : `${deliveryCount(m)} deliveries`}{' '}
-                      · {Math.round(m.timeLimitSec / 60)} min
-                    </>
-                  )}
-                </span>
-              </div>
-              <button
-                className="jnode-dot"
-                disabled={!unlocked}
-                onClick={() => {
-                  if (!unlocked) return;
-                  playClick();
-                  start(m);
-                }}
-                title={unlocked ? m.name : 'Finish the previous mission to unlock'}
-              >
-                {completed ? '✓' : unlocked ? m.order : '🔒'}
-              </button>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
+  return <MissionList />;
 }
