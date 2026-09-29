@@ -126,7 +126,8 @@ export function App() {
     if (!hydrated || !signedInPilot) return;
     const [name, email] = signedInPilot.split('\n');
     const last = useSettingsStore.getState().settings.lastPilot;
-    if (last?.name !== name || last?.email !== email) useSettingsStore.getState().set('lastPilot', { name, email });
+    if (last?.name !== name || last?.email !== email)
+      useSettingsStore.getState().set('lastPilot', { name, email });
   }, [hydrated, signedInPilot]);
 
   // Crash reports, from the first render: a failure on the sign-in screen counts.
@@ -193,8 +194,12 @@ export function App() {
         flight.togglePause();
       } else if (ui.section === 'training') {
         // Inside a lesson: back out to the lesson list; on the list: back home.
+        // On the result card while it counts down, Esc stops the countdown
+        // first ("Esc Stop auto-advance"); the next Esc leaves.
         const training = useTrainingStore.getState();
-        if (training.activeLessonId) training.exitLesson();
+        if (training.activeLessonId && training.phase === 'reward' && training.autoAdvance) {
+          training.cancelAutoAdvance();
+        } else if (training.activeLessonId) training.exitLesson();
         else ui.goBack();
       } else if (ui.section === 'missions') {
         // Same one step at a time: out of the flight to the mission path, then

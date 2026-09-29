@@ -124,6 +124,7 @@ export const armTakeoffLesson: Lesson = {
     {
       stars: 3,
       text: 'Hovering in 16s, smoothly, nothing touched',
+      within: 16,
       // A blocked arming (throttle up) is capped at two, however quick the rest was.
       test: ({ touches, timeSec, collisions, smoothness, mem }) =>
         collisions === 0 && touches === 0 && !mem.blocked && smoothness >= 0.5 && timeSec <= 16,
@@ -131,6 +132,7 @@ export const armTakeoffLesson: Lesson = {
     {
       stars: 2,
       text: 'Hovering in 30s',
+      within: 30,
       test: ({ timeSec, collisions, smoothness, mem }) =>
         collisions === 0 && (!!mem.blocked || (smoothness >= 0.25 && timeSec <= 30)),
     },

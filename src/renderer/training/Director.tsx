@@ -4,7 +4,12 @@ import { clamp } from '../sim/mathx';
 import { useSimStore } from '../state/simStore';
 import { useFlightStore } from '../state/flightStore';
 import { useUiStore } from '../state/uiStore';
-import { useTrainingStore, isLessonUnlocked, type TrainingPhase } from '../state/trainingStore';
+import {
+  useTrainingStore,
+  isLessonUnlocked,
+  AUTO_ADVANCE_SEC,
+  type TrainingPhase,
+} from '../state/trainingStore';
 import { getLesson, nextLesson } from './lessons';
 import { HOVER } from './lessons/arena';
 import { scaleScriptedStick } from './lessons/demoFlight';
@@ -12,7 +17,15 @@ import { BEGINNER_CONFIG, configFor } from '../sim/control/flightController';
 import { useSettingsStore } from '../state/settingsStore';
 import { getDrone } from '../plugins/registry';
 import { dronePose } from '../sim/drone/pose';
-import { starsFor } from './lessons/types';
+import { demoLength, starsFor } from './lessons/types';
+import {
+  insideBox,
+  lessonBox,
+  newFlightClock,
+  resetFlightClock,
+  tickFlightClock,
+  type LessonBox,
+} from './flightClock';
 import type { Lesson, LessonMemory } from './lessons/types';
 import {
   stick,
@@ -47,8 +60,9 @@ const _probePos: Vec3 = [0, 0, 0];
 const JERK_K = 3.0;
 /** Consecutive hard failures before the demo auto-replays. */
 const REPLAY_AFTER_FAILS = 2;
-/** Seconds the reward panel shows before auto-advancing. */
-const REWARD_DWELL = 5.0;
+/** Seconds the reward panel shows before auto-advancing. 10 in the Phase 4
+ *  brief (was 5), with a Cancel — Esc or the button turns `autoAdvance` off. */
+const REWARD_DWELL = AUTO_ADVANCE_SEC;
 /** Demo playback rate.
  *
  * MUST stay 1. The demo timeline is not a video — its timestamps are what hold
@@ -134,7 +148,7 @@ function keysForStick(): string[] {
 function demoRepeats(lesson: Lesson, seen: boolean): number {
   if (seen) return DEMO_REPLAY_REPEATS;
   const steps = lesson.demo;
-  const duration = (steps.length ? steps[steps.length - 1].at : 0) + 1.6;
+  const duration = demoLength(steps);
   return Math.max(1, Math.min(DEMO_REPEATS, Math.floor(DEMO_BUDGET / Math.max(duration, 1))));
 }
 
@@ -233,6 +247,11 @@ export function Director() {
   // Practice metrics / scratch
   const mem = useRef<LessonMemory>({});
   const practiceTime = useRef(0);
+  /** The clock the stars are judged on: from take-off, paused outside the box.
+   *  `practiceTime` stays the validators' and the smoothness average's clock. */
+  const flightClock = useRef(newFlightClock());
+  const box = useRef<LessonBox | null>(null);
+  const lastFlight = useRef(-1);
   const jerkAccum = useRef(0);
   const crashCount = useRef(0);
   const prevCrashed = useRef(false);
@@ -313,6 +332,9 @@ export function Director() {
         setScripted(false);
         mem.current = {};
         practiceTime.current = 0;
+        box.current = lessonBox(lesson);
+        resetFlightClock(flightClock.current);
+        publishFlightClock();
         jerkAccum.current = 0;
         crashCount.current = 0;
         prevCrashed.current = false;
@@ -440,6 +462,10 @@ export function Director() {
       );
     }
 
+    // The demo clock for the caption strip, in whole seconds. Held with the
+    // timeline above, so it never runs ahead of what is being shown.
+    training.setDemoSec(Math.floor(t));
+
     const keys = keysForStick();
     if (cmdKey.current) keys.push(cmdKey.current);
     const joined = keys.join(' ');
@@ -448,8 +474,7 @@ export function Director() {
       training.setDemoKeys(keys);
     }
 
-    const lastAt = steps.length ? steps[steps.length - 1].at : 0;
-    if (t > lastAt + 1.6) {
+    if (t > demoLength(steps)) {
       if (demoLoop.current < demoRepeats(lesson, demoSeen.current) - 1) {
         // Replay the demonstration from the top.
         demoLoop.current += 1;
@@ -492,6 +517,8 @@ export function Director() {
     awaitingRestart.current = false;
     practiceTime.current = 0;
     publishElapsed();
+    resetFlightClock(flightClock.current);
+    publishFlightClock();
     jerkAccum.current = 0;
     doneTimer.current = 0;
     bestProgress.current = 0;
@@ -513,6 +540,16 @@ export function Director() {
     if (tenths === lastElapsed.current) return;
     lastElapsed.current = tenths;
     useTrainingStore.getState().setElapsed(tenths);
+  }
+
+  /** Push the flight clock to the HUD, on the tenth or when its state changes. */
+  function publishFlightClock(): void {
+    const c = flightClock.current;
+    const tenths = Math.round(c.seconds * 10) / 10;
+    const key = tenths * 4 + (c.state === 'waiting' ? 0 : c.state === 'running' ? 1 : 2);
+    if (key === lastFlight.current) return;
+    lastFlight.current = key;
+    useTrainingStore.getState().setFlightClock(tenths, c.state);
   }
 
   /** Push the live control cue, only when it actually changes. */
@@ -615,6 +652,18 @@ export function Director() {
       return;
     }
 
+    // The flight clock: waits for the first lift-off of this attempt, then runs
+    // inside the lesson's box and pauses outside it.
+    if (box.current) {
+      tickFlightClock(
+        flightClock.current,
+        !flight.onGround,
+        insideBox(box.current, sim.position[0], sim.position[2]),
+        delta,
+      );
+      publishFlightClock();
+    }
+
     // Arm/disarm blips are played by DroneAudio now, so the Fly view gets them
     // too rather than only Flight School.
 
@@ -672,8 +721,11 @@ export function Director() {
       const flown = lesson.route?.length ?? 0;
       if (flown > 0) advanceRoute(flown);
       if (doneTimer.current >= DONE_HOLD) {
-        const timeSec = practiceTime.current;
-        const meanJerk = timeSec > 0 ? jerkAccum.current / timeSec : 0;
+        // Scored on the flight clock (from take-off, inside the box). Smoothness
+        // stays averaged over the whole practice — the stick is sampled all of it.
+        const timeSec = Math.round(flightClock.current.seconds * 10) / 10;
+        const practiced = practiceTime.current;
+        const meanJerk = practiced > 0 ? jerkAccum.current / practiced : 0;
         const smoothness = clamp(1 - meanJerk / JERK_K, 0, 1);
         const stars = starsFor(lesson.stars, {
           timeSec,
@@ -777,8 +829,11 @@ export function Director() {
   }
 
   function tickReward(lessonId: string): void {
-    if (phaseTime.current < REWARD_DWELL) return;
     const training = useTrainingStore.getState();
+    // Cancelled from the card: stay on it until the pilot picks a button.
+    if (!training.autoAdvance) return;
+    training.setAdvanceIn(Math.max(0, Math.ceil(REWARD_DWELL - phaseTime.current)));
+    if (phaseTime.current < REWARD_DWELL) return;
     const next = nextLesson(lessonId);
     if (next && isLessonUnlocked(next.id)) training.start(next.id);
     else training.exitLesson();

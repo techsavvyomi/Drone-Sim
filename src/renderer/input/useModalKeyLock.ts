@@ -1,4 +1,4 @@
-import { useEffect, type RefObject } from 'react';
+import { useEffect, useRef, type RefObject } from 'react';
 import { resetStick } from './controls';
 
 // ----------------------------------------------------------------------------
@@ -57,9 +57,21 @@ const PASS_THROUGH = new Set(['Escape', 'Tab']);
  * pressing the focused button is exactly what the pilot asked for. Activation
  * behaviour does not travel with the event, so it survives the stop.
  */
-export function attachModalKeyLock(card: () => HTMLElement | null): () => void {
+export function attachModalKeyLock(
+  card: () => HTMLElement | null,
+  onKey?: (e: KeyboardEvent) => boolean,
+): () => void {
   const swallow = (e: KeyboardEvent) => {
     if (PASS_THROUGH.has(e.code)) return;
+    // The card's own shortcuts (S skips to practice on the Learn card). They
+    // get the key first, on keydown only; one that is used is not also given
+    // its default action.
+    if (e.type === 'keydown' && onKey?.(e)) {
+      e.preventDefault();
+      e.stopPropagation();
+      e.stopImmediatePropagation();
+      return;
+    }
     const focused = document.activeElement;
     const onCard = !!focused && focused !== document.body && !!card()?.contains(focused);
     if (!onCard) e.preventDefault();
@@ -83,10 +95,20 @@ export function attachModalKeyLock(card: () => HTMLElement | null): () => void {
   };
 }
 
-/** `attachModalKeyLock` for as long as `active` is true. */
-export function useModalKeyLock(active: boolean, card: RefObject<HTMLElement | null>): void {
+/** `attachModalKeyLock` for as long as `active` is true. `onKey` is read
+ *  through a ref, so a new function each render does not re-attach the lock. */
+export function useModalKeyLock(
+  active: boolean,
+  card: RefObject<HTMLElement | null>,
+  onKey?: (e: KeyboardEvent) => boolean,
+): void {
+  const keyRef = useRef(onKey);
+  keyRef.current = onKey;
   useEffect(() => {
     if (!active) return;
-    return attachModalKeyLock(() => card.current);
+    return attachModalKeyLock(
+      () => card.current,
+      (e) => keyRef.current?.(e) ?? false,
+    );
   }, [active, card]);
 }

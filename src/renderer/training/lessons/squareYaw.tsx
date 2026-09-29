@@ -420,6 +420,7 @@ export const squareYawLesson: Lesson = {
     {
       stars: 3,
       text: 'Every side turned onto, nose within 25°, sides within 2.2 m, lap under 105s, nothing touched',
+      within: 105,
       test: ({ touches, timeSec, collisions, smoothness, mem }) =>
         collisions === 0 &&
         touches === 0 &&
@@ -432,6 +433,7 @@ export const squareYawLesson: Lesson = {
     {
       stars: 2,
       text: `At least three sides turned onto, sides within ${SIDE_TOL} m, lap under 150s`,
+      within: 150,
       test: ({ timeSec, collisions, mem }) =>
         collisions === 0 &&
         (mem.facedLegs ?? 0) >= 3 &&

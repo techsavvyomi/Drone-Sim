@@ -144,6 +144,7 @@ export const rollLesson: Lesson = {
     {
       stars: 3,
       text: 'Pad to pad, both markers in 46s, under 2 m off line, nothing touched',
+      within: 46,
       test: ({ touches, timeSec, collisions, smoothness, mem }) =>
         collisions === 0 &&
         touches === 0 &&
@@ -154,6 +155,7 @@ export const rollLesson: Lesson = {
     {
       stars: 2,
       text: 'Pad to pad, both markers in 70s, under 4 m off line',
+      within: 70,
       test: ({ timeSec, collisions, mem }) =>
         collisions === 0 && (mem.wander ?? 0) <= 4 && timeSec <= 70,
     },

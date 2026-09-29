@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
-import { useSimStore } from '../state/simStore';
+import { useEffect, useRef, type ReactNode } from 'react';
 import { useFlightStore } from '../state/flightStore';
 import { usePilotStore } from '../state/pilotStore';
+import { useSettingsStore } from '../state/settingsStore';
 import { useTrainingStore, isLessonUnlocked, type TrainingPhase } from '../state/trainingStore';
 import { getLesson, lessonIndex, nextLesson, LESSONS } from '../training/lessons';
 import type { Lesson } from '../training/lessons';
@@ -9,478 +9,619 @@ import { StickIndicator } from './StickIndicator';
 import { KeyActions, KeyHints } from './KeyHints';
 import { CrashOverlay } from './CrashOverlay';
 import { PauseOverlay } from './PauseOverlay';
-import { playClick, playSuccess, playStar, playRankUp } from '../audio/sfx';
 import { LessonMap } from './LessonMap';
+import { playClick, playSuccess, playStar, playRankUp } from '../audio/sfx';
 import { useModalKeyLock } from '../input/useModalKeyLock';
+import { Badge, Button, Icon, Keycap, StarRating, StatTile } from '../ds';
+import {
+  BAND_STEPS,
+  bandStates,
+  blockOf,
+  chipWindow,
+  demoClockText,
+  formatClock,
+  formatSeconds,
+  gapLine,
+  learnMeta,
+  clockStatus,
+  flyLine,
+  personalBestLine,
+  registerFor,
+  resultTiers,
+  stepHeading,
+  tiersFor,
+  timedTiers,
+  yourBestText,
+  type StepState,
+} from '../app/trainingFacts';
 
-// Deterministic-ish confetti pieces (module scope so they don't reshuffle on
-// every render — only the reward mount matters visually).
-const CONFETTI = Array.from({ length: 28 }, (_, i) => ({
-  left: (i * 37) % 100,
-  delay: (i % 7) * 0.09,
-  hue: (i * 47) % 360,
-  drift: ((i * 53) % 40) - 20,
-}));
+// Pluto Flight School, in a lesson (Phase 4). One step band on top — Learn, Demo,
+// Fly, Done — and under it the screen for the step: the Learn card, the demo's
+// caption strip, the Fly instruction card and bar, the result card. Learn and
+// Done are classroom; Demo and Fly are cockpit, over the live 3D view. Every
+// word comes from the lesson itself (trainingFacts.ts); nothing here scores.
 
-const STEPS: { key: TrainingPhase; label: string }[] = [
-  { key: 'intro', label: 'Learn' },
-  { key: 'demo', label: 'Demo' },
-  { key: 'practice', label: 'Fly' },
-  { key: 'reward', label: 'Done' },
-];
-
-/**
- * The lesson's steps, as a row that walks forward.
- *
- * Shown in the demonstration AND in practice, deliberately: the demo marks its
- * own steps as it flies them, so what the intro card promised is what the pilot
- * watches, and then the same row is what they work through themselves.
- */
-function StepChips({ steps, index }: { steps: { label: string; cap?: string }[]; index: number }) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const activeRef = useRef<HTMLSpanElement>(null);
-
-  useEffect(() => {
-    if (!containerRef.current || !activeRef.current) return;
-    const container = containerRef.current;
-    const active = activeRef.current;
-
-    const containerRect = container.getBoundingClientRect();
-    const activeRect = active.getBoundingClientRect();
-    const offset = activeRect.left - containerRect.left;
-
-    // Scroll so completed chips move to the left and active/upcoming chips stay visible
-    const targetScroll =
-      container.scrollLeft + offset - (container.clientWidth / 2 - active.clientWidth / 2);
-    container.scrollTo({
-      left: Math.max(0, targetScroll),
-      behavior: 'smooth',
-    });
-  }, [index]);
-
+function StepMark({ state, n }: { state: StepState; n: number }) {
   return (
-    <div className="tr-chips" ref={containerRef}>
-      {steps.map((s, i) => (
-        <span
-          key={`${s.label}-${i}`}
-          ref={i === Math.min(index, steps.length - 1) ? activeRef : undefined}
-          className={`tr-chip ${i < index ? 'done' : i === index ? 'now' : 'todo'}`}
-        >
-          {i < index ? '✓ ' : ''}
-          {s.label}
-        </span>
-      ))}
-    </div>
-  );
-}
-
-/**
- * What the stars take, straight from the lesson's rubric.
- *
- * The same objects that score the attempt, so the promise and the marking can
- * never disagree. `earned` highlights the rung an attempt actually reached.
- */
-/** A rung of the rubric, as three stars with the unlit ones left in place.
- *
- *  Printing one, two and three stars literally made a ragged left edge and a
- *  column of three different widths, and said nothing about what the top of the
- *  scale was. The placeholders answer both: every row is the same shape, and
- *  three is visibly the most there is. */
-function RubricStars({ stars }: { stars: number }) {
-  return (
-    <span className="tr-rubric-stars" aria-label={`${stars} of 3 stars`}>
-      {[1, 2, 3].map((i) => (
-        <span key={i} className={i <= stars ? 'on' : ''}>
-          ★
-        </span>
-      ))}
+    <span className="tband__mark">
+      {state === 'done' ? <Icon name="check" /> : state === 'now' ? <Icon name="dot" /> : n}
     </span>
   );
 }
 
-function Rubric({ rules, earned }: { rules: Lesson['stars']; earned?: number }) {
+/** The band above every lesson screen. Cards live below it, so nothing covers it. */
+function StepBand({
+  lesson,
+  num,
+  phase,
+  right,
+}: {
+  lesson: Lesson;
+  num: number;
+  phase: TrainingPhase;
+  right: ReactNode;
+}) {
+  const states = bandStates(phase);
   return (
-    <div className="tr-rubric">
-      <b>How the stars are earned</b>
-      {rules.map((r) => (
-        <div key={r.stars} className={`tr-rubric-row ${earned === r.stars ? 'earned' : ''}`}>
-          <RubricStars stars={r.stars} />
-          <span>{r.text}</span>
+    <header className="tband" data-register={registerFor(phase)}>
+      <div className="tband__id">
+        <b>
+          Module {num} · {lesson.title}
+        </b>
+        <span>{blockOf(num).name}</span>
+      </div>
+      <ol className="tband__steps" aria-label="Lesson steps">
+        {BAND_STEPS.map((s, i) => (
+          <li
+            key={s.phase}
+            className={`tband__step is-${states[i]}`}
+            aria-current={states[i] === 'now' ? 'step' : undefined}
+          >
+            <StepMark state={states[i]} n={i + 1} />
+            {s.label}
+          </li>
+        ))}
+      </ol>
+      <div className="tband__right">{right}</div>
+    </header>
+  );
+}
+
+/** A keycap and what it does: "Esc Module list". */
+function KeyAction({
+  cap,
+  children,
+  onClick,
+}: {
+  cap: string;
+  children: ReactNode;
+  onClick?: () => void;
+}) {
+  return (
+    <button type="button" className="tband__key" onClick={onClick}>
+      <Keycap>{cap}</Keycap>
+      <span>{children}</span>
+    </button>
+  );
+}
+
+function stepLabels(lesson: Lesson): { label: string; cap?: string }[] {
+  if (lesson.stages) return lesson.stages.map((s) => ({ label: s.label, cap: s.cap }));
+  return lesson.route?.map((c) => ({ label: c.label })) ?? [];
+}
+
+// ---- Learn -------------------------------------------------------------------
+
+function LearnCard({ lesson, num }: { lesson: Lesson; num: number }) {
+  const setPhase = useTrainingStore((s) => s.setPhase);
+  const progress = useSettingsStore((s) => s.settings.training.lessons[lesson.id]);
+  const cardRef = useRef<HTMLDivElement>(null);
+  const demoRef = useRef<HTMLButtonElement>(null);
+  const steps = stepLabels(lesson);
+  const tiers = tiersFor(lesson.stars);
+  const best = yourBestText(progress);
+
+  // Enter watches the demo, S skips to practice. The card's key lock holds every
+  // flight key, so the two shortcuts are handed to it rather than to the window.
+  useModalKeyLock(true, cardRef, (e) => {
+    if (e.code === 'KeyS') {
+      playClick();
+      setPhase('practice');
+      return true;
+    }
+    const onButton = document.activeElement instanceof HTMLButtonElement;
+    if ((e.code === 'Enter' || e.code === 'NumpadEnter') && !onButton) {
+      playClick();
+      setPhase('demo');
+      return true;
+    }
+    return false;
+  });
+
+  useEffect(() => {
+    demoRef.current?.focus({ preventScroll: true });
+  }, []);
+
+  return (
+    <div className="tstage" data-register="classroom">
+      <div className="tlearn" ref={cardRef} role="dialog" aria-label={`Learn: ${lesson.title}`}>
+        <div className="tlearn__main">
+          <p className="tlearn__meta">{learnMeta(num, LESSONS.length, lesson)}</p>
+          <h1 className="tlearn__title">{lesson.title}</h1>
+          <p className="tlearn__goal">{lesson.subtitle}.</p>
+          {steps.length > 1 && (
+            <div className="tlearn__flow" aria-label="Steps">
+              {steps.map((s, i) => (
+                <span className="tlearn__flow-step" key={`${s.label}-${i}`}>
+                  {i > 0 && steps.length <= 6 && (
+                    <span className="tlearn__arrow" aria-hidden="true">
+                      →
+                    </span>
+                  )}
+                  {s.cap && <Keycap>{s.cap}</Keycap>}
+                  <span>{s.label}</span>
+                </span>
+              ))}
+            </div>
+          )}
+          <div className="tlearn__body">
+            {lesson.explain.body.map((line, i) => (
+              <p key={i}>{line}</p>
+            ))}
+          </div>
         </div>
-      ))}
-      <div className={`tr-rubric-row ${earned === 1 ? 'earned' : ''}`}>
-        <RubricStars stars={1} />
-        <span>Finish the lesson. A crash keeps you here.</span>
+
+        <div className="tlearn__side">
+          {(lesson.tips?.length || lesson.commonMistakes?.length) && (
+            <div className="tlearn__notes">
+              {lesson.tips && lesson.tips.length > 0 && (
+                <section className="tlearn__note">
+                  <h2>Pilot tips</h2>
+                  <ul>
+                    {lesson.tips.map((t, i) => (
+                      <li key={i}>{t}</li>
+                    ))}
+                  </ul>
+                </section>
+              )}
+              {lesson.commonMistakes && lesson.commonMistakes.length > 0 && (
+                <section className="tlearn__note">
+                  <h2>Common mistakes</h2>
+                  <ul>
+                    {lesson.commonMistakes.map((t, i) => (
+                      <li key={i}>{t}</li>
+                    ))}
+                  </ul>
+                </section>
+              )}
+            </div>
+          )}
+          <section className="tlearn__stars">
+            <header>
+              <h2>Stars</h2>
+              {best && <span>{best}</span>}
+            </header>
+            {tiers.map((t) => (
+              <div className="tlearn__tier" key={t.stars}>
+                <StarRating earned={t.stars} showText={false} />
+                <span className="tlearn__tier-text">{t.text}</span>
+                <span className="tlearn__tier-n">{t.stars} of 3</span>
+              </div>
+            ))}
+            <p className="tlearn__stars-note">
+              Time counts from take-off, inside the box only. Leave it and the timer pauses until
+              you are back. A crash holds you at one star.
+            </p>
+          </section>
+        </div>
+
+        <footer className="tlearn__actions">
+          <button
+            type="button"
+            className="ds-btn ds-btn--secondary tlearn__skip"
+            onClick={() => {
+              playClick();
+              setPhase('practice');
+            }}
+          >
+            <Keycap>S</Keycap>
+            <span>Skip to practice</span>
+          </button>
+          <Button
+            ref={demoRef}
+            variant="primary"
+            iconAfter="play"
+            onClick={() => {
+              playClick();
+              setPhase('demo');
+            }}
+          >
+            Watch demonstration
+          </Button>
+        </footer>
       </div>
     </div>
   );
 }
 
-function Stars({ value }: { value: number }) {
+// ---- Demo --------------------------------------------------------------------
+
+function DemoStrip({ lesson }: { lesson: Lesson }) {
+  const caption = useTrainingStore((s) => s.demoCaption);
+  const demoSec = useTrainingStore((s) => s.demoSec);
+  const round = useTrainingStore((s) => s.demoRound);
+  const rounds = useTrainingStore((s) => s.demoRounds);
+  const routeIndex = useTrainingStore((s) => s.routeIndex);
+  const setPhase = useTrainingStore((s) => s.setPhase);
+  const steps = stepLabels(lesson);
+  const at = Math.min(routeIndex, steps.length);
+  const [from, to] = chipWindow(steps.length, at);
+
+  // S skips — the demonstration holds the sticks, so S is not a throttle here.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.code !== 'KeyS' || e.repeat) return;
+      e.preventDefault();
+      playClick();
+      setPhase('practice');
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [setPhase]);
+
   return (
-    <div className="tr-stars" aria-label={`${value} of 3 stars`}>
-      {[1, 2, 3].map((i) => (
-        <span
-          key={i}
-          className={`tr-star ${i <= value ? 'on' : ''}`}
-          style={{ animationDelay: `${i * 0.12}s` }}
-        >
-          ★
+    <div className="tdemo">
+      <div className="tdemo__text">
+        <span className="tdemo__label">
+          Demonstration · {demoClockText(lesson, demoSec)}
+          {rounds > 1 && ` · pass ${round} of ${rounds}`}
         </span>
-      ))}
+        <p className="tdemo__caption">{caption}</p>
+      </div>
+      {steps.length > 1 && (
+        <ol className="tdemo__chips" aria-label="Steps">
+          {steps.slice(from, to).map((s, k) => {
+            const i = from + k;
+            const state = i < at ? 'done' : i === at ? 'now' : 'todo';
+            return (
+              <li key={`${s.label}-${i}`} className={`tchip is-${state}`}>
+                <Icon name={state === 'done' ? 'check' : state === 'now' ? 'dot' : 'ring'} />
+                {i + 1} {s.label}
+              </li>
+            );
+          })}
+        </ol>
+      )}
+      <button
+        type="button"
+        className="ds-btn ds-btn--primary tdemo__skip"
+        onClick={() => {
+          playClick();
+          setPhase('practice');
+        }}
+      >
+        <Keycap>S</Keycap>
+        <span>Skip to practice</span>
+        <Icon name="play" />
+      </button>
     </div>
   );
 }
 
-// Minimal, view-first training HUD: a thin top bar with the lesson + phase
-// progress, one-line guidance at the bottom, and the 3D scene left clear.
-export function TrainingHud() {
-  const phase = useTrainingStore((s) => s.phase);
-  const activeLessonId = useTrainingStore((s) => s.activeLessonId);
-  const demoCaption = useTrainingStore((s) => s.demoCaption);
-  const demoRound = useTrainingStore((s) => s.demoRound);
-  const demoRounds = useTrainingStore((s) => s.demoRounds);
-  const demoKeys = useTrainingStore((s) => s.demoKeys);
+// ---- Fly ---------------------------------------------------------------------
+
+function FlyCard({ lesson }: { lesson: Lesson }) {
+  const hint = useTrainingStore((s) => s.hint);
+  const failed = useTrainingStore((s) => s.validation.failed);
   const routeIndex = useTrainingStore((s) => s.routeIndex);
   const cue = useTrainingStore((s) => s.cue);
-  const hint = useTrainingStore((s) => s.hint);
-  const validation = useTrainingStore((s) => s.validation);
-  const elapsed = useTrainingStore((s) => s.elapsed);
-  const routeTarget = useTrainingStore((s) => s.routeTarget);
-  const lastStars = useTrainingStore((s) => s.lastStars);
-  const lastTimeSec = useTrainingStore((s) => s.lastTimeSec);
-  const lastXp = useTrainingStore((s) => s.lastXp);
-  const lastRankUp = useTrainingStore((s) => s.lastRankUp);
-  const start = useTrainingStore((s) => s.start);
-  const setPhase = useTrainingStore((s) => s.setPhase);
-  const exitLesson = useTrainingStore((s) => s.exitLesson);
+  const demoKeys = useTrainingStore((s) => s.demoKeys);
+  const steps = stepLabels(lesson);
+  const heading = stepHeading(
+    steps.map((s) => s.label),
+    routeIndex,
+  );
+  const text = hint || lesson.practice.prompt;
+  const done = text.startsWith('✓');
+  const line = done ? text.replace(/^✓\s*/, '') : text;
+  return (
+    <div className={`tfly${failed ? ' is-fail' : ''}${done ? ' is-done' : ''}`}>
+      <div className="tfly__text">
+        {heading && <span className="tfly__step">{heading}</span>}
+        <p className="tfly__line">
+          {failed && <Icon name="warning" />}
+          {done && <Icon name="check" />}
+          {line}
+        </p>
+      </div>
+      {lesson.keys && lesson.keys.length > 0 && (
+        <KeyActions keys={lesson.keys} demoKeys={demoKeys} cue={cue} />
+      )}
+    </div>
+  );
+}
 
-  const altitude = useSimStore((s) => s.altitude);
-  const throttle = useSimStore((s) => s.throttle);
+function FlyBar({ lesson }: { lesson: Lesson }) {
+  // The flight clock: from take-off, paused outside the box. It is what the
+  // stars are judged on (training/flightClock.ts).
+  const elapsed = useTrainingStore((s) => s.flightSec);
+  const clockState = useTrainingStore((s) => s.clockState);
+  const progress = useTrainingStore((s) => s.validation.progress);
   const armed = useFlightStore((s) => s.armed);
+  const crashed = useFlightStore((s) => s.crashed);
+  const tiers = tiersFor(lesson.stars);
+  const timed = timedTiers(tiers);
+  const scale = timed.length ? Math.max(...timed.map((t) => t.within as number)) * 1.15 : 0;
+  const pct = Math.round((progress || 0) * 100);
+  const chip = clockStatus(clockState, armed, crashed);
+  const status = (
+    <Badge tone={chip.tone} icon={chip.icon}>
+      {chip.text}
+    </Badge>
+  );
+  return (
+    <div className={`tbar is-${clockState}`}>
+      <div className="tbar__top">
+        <b className="tbar__clock">{formatSeconds(elapsed)}</b>
+        <span className="tbar__line">{flyLine(tiers, clockState, elapsed)}</span>
+        <span className="tbar__status">{status}</span>
+      </div>
+      <div
+        className="tbar__track"
+        role="progressbar"
+        aria-label={timed.length ? 'Time used' : 'Task done'}
+        aria-valuemin={0}
+        aria-valuemax={timed.length ? Math.round(scale) : 100}
+        aria-valuenow={timed.length ? Math.round(elapsed) : pct}
+      >
+        <span
+          className="tbar__fill"
+          style={{
+            width: `${timed.length ? Math.min(100, (elapsed / scale) * 100) : pct}%`,
+          }}
+        />
+        {timed.map((t) => {
+          const lost = elapsed > (t.within as number);
+          return (
+            <span
+              key={t.stars}
+              className={`tbar__mark${lost ? ' is-lost' : ''}`}
+              style={{ left: `${((t.within as number) / scale) * 100}%` }}
+            >
+              <span className="tbar__mark-label">
+                {lost && <Icon name="cross" />}
+                {Array.from({ length: t.stars }, (_, i) => (
+                  <Icon key={i} name="star" />
+                ))}
+                {formatSeconds(t.within as number)}
+              </span>
+            </span>
+          );
+        })}
+      </div>
+      <div className="tbar__foot">
+        <span>
+          {timed.length ? 'Flight time from take-off · leaving the box pauses it' : 'Task progress'}
+        </span>
+        <span>Task {pct} %</span>
+      </div>
+    </div>
+  );
+}
 
+// ---- Done --------------------------------------------------------------------
+
+function ResultCard({ lesson, num }: { lesson: Lesson; num: number }) {
+  const stars = useTrainingStore((s) => s.lastStars);
+  const timeSec = useTrainingStore((s) => s.lastTimeSec);
+  const xp = useTrainingStore((s) => s.lastXp);
+  const rankUp = useTrainingStore((s) => s.lastRankUp);
+  const bestBefore = useTrainingStore((s) => s.lastBestBefore);
+  const autoAdvance = useTrainingStore((s) => s.autoAdvance);
+  const advanceIn = useTrainingStore((s) => s.advanceIn);
+  const start = useTrainingStore((s) => s.start);
+  const exitLesson = useTrainingStore((s) => s.exitLesson);
+  const cancel = useTrainingStore((s) => s.cancelAutoAdvance);
   const rank = usePilotStore((s) => s.rank);
-  const pilotXp = usePilotStore((s) => s.xp);
-  const pilotXpNext = usePilotStore((s) => s.xpNext);
+  const cardRef = useRef<HTMLDivElement>(null);
+  const nextRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLButtonElement>(null);
 
-  // Reward flourish: success chime, staggered star dings, rank-up fanfare, and
-  // an XP bar that animates from empty to the pilot's current level progress.
-  const [xpFill, setXpFill] = useState(0);
+  const next = nextLesson(lesson.id);
+  const hasNext = !!next && isLessonUnlocked(next.id);
+  const nextNum = next ? lessonIndex(next.id) + 1 : 0;
+  const tiers = tiersFor(lesson.stars);
+  const rows = resultTiers(tiers, stars, timeSec);
+  const pb = personalBestLine(bestBefore, timeSec);
+
+  useModalKeyLock(true, cardRef);
+
+  // The flourish: success chime, a ding per star, a fanfare on a rank-up.
   useEffect(() => {
-    if (phase !== 'reward') {
-      setXpFill(0);
-      return;
-    }
     const timers: number[] = [];
     playSuccess();
-    for (let i = 0; i < lastStars; i++) {
+    for (let i = 0; i < stars; i++) {
       timers.push(window.setTimeout(() => playStar(i), 420 + i * 320));
     }
-    if (lastRankUp) timers.push(window.setTimeout(() => playRankUp(), 500 + lastStars * 320));
-    timers.push(window.setTimeout(() => setXpFill(1), 350));
+    if (rankUp) timers.push(window.setTimeout(() => playRankUp(), 500 + stars * 320));
+    (hasNext ? nextRef : menuRef).current?.focus({ preventScroll: true });
     return () => timers.forEach(clearTimeout);
-  }, [phase, lastStars, lastRankUp]);
+    // Once, on arrival.
+  }, []);
 
-  // Nothing is being flown while a card is up — see `useModalKeyLock`. The Learn
-  // card and the result card are never on screen together, so they share one ref
-  // and one lock.
-  const cardRef = useRef<HTMLDivElement>(null);
-  useModalKeyLock(phase === 'intro' || phase === 'reward', cardRef);
-
-  const clickThen = (fn: () => void) => () => {
+  const go = (fn: () => void) => () => {
     playClick();
     fn();
   };
+
+  return (
+    <div className="tstage" data-register="classroom">
+      <div className="tresult" ref={cardRef} role="dialog" aria-label={`Result: ${lesson.title}`}>
+        <header className="tresult__head">
+          <div>
+            <p className="tresult__meta">
+              Module {num} · {lesson.title}
+            </p>
+            <h1 className="tresult__title">
+              <StarRating earned={stars} showText={false} />
+              {stars} of 3 stars
+            </h1>
+          </div>
+          <Badge tone="armed" icon="check">
+            Passed
+          </Badge>
+        </header>
+
+        <div className="tresult__tiles">
+          <StatTile
+            label="Flight time"
+            value={formatSeconds(timeSec)}
+            note={`${formatClock(timeSec)} flown`}
+          />
+          <StatTile
+            label="Best time"
+            value={formatSeconds(bestBefore === null ? timeSec : Math.min(bestBefore, timeSec))}
+            note={pb.isNew ? 'New personal best' : undefined}
+          />
+          <StatTile
+            label="XP"
+            value={`+${xp} XP`}
+            note={rankUp ? `Rank up · ${rankUp}` : xp === 0 ? 'No new stars on this go' : rank}
+          />
+        </div>
+
+        <div className="tresult__tiers">
+          {rows.map((t) => (
+            <div key={t.stars} className={`tresult__tier is-${t.state}`}>
+              <StarRating earned={t.stars} showText={false} />
+              <span className="tresult__tier-text">{t.text}</span>
+              <span className="tresult__tier-note">
+                {t.state !== 'missed' && <Icon name="check" />}
+                {t.note}
+              </span>
+            </div>
+          ))}
+        </div>
+        <p className="tresult__gap">{gapLine(tiers, stars, timeSec)}</p>
+        <p className={`tresult__pb${pb.isNew ? ' is-new' : ''}`}>
+          {pb.isNew && <Icon name="check" />}
+          {pb.text}
+        </p>
+
+        <footer className="tresult__actions">
+          {hasNext && autoAdvance ? (
+            <span className="tresult__count">
+              Next module in {advanceIn} s
+              <Button variant="ghost" onClick={go(cancel)}>
+                Cancel
+              </Button>
+            </span>
+          ) : (
+            <span />
+          )}
+          <span className="tresult__buttons">
+            <Button ref={menuRef} onClick={go(exitLesson)}>
+              Menu
+            </Button>
+            <Button onClick={go(() => start(lesson.id))}>Replay</Button>
+            {hasNext && next && (
+              <Button
+                ref={nextRef}
+                variant="primary"
+                iconAfter="play"
+                onClick={go(() => start(next.id))}
+              >
+                Next: Module {nextNum}
+              </Button>
+            )}
+          </span>
+        </footer>
+      </div>
+    </div>
+  );
+}
+
+// ---- The HUD -----------------------------------------------------------------
+
+export function TrainingHud() {
+  const phase = useTrainingStore((s) => s.phase);
+  const activeLessonId = useTrainingStore((s) => s.activeLessonId);
+  const demoKeys = useTrainingStore((s) => s.demoKeys);
+  const cue = useTrainingStore((s) => s.cue);
+  const routeTarget = useTrainingStore((s) => s.routeTarget);
+  const autoAdvance = useTrainingStore((s) => s.autoAdvance);
+  const exitLesson = useTrainingStore((s) => s.exitLesson);
+  const cancel = useTrainingStore((s) => s.cancelAutoAdvance);
+  const togglePause = useFlightStore((s) => s.togglePause);
 
   const lesson = activeLessonId ? getLesson(activeLessonId) : undefined;
   if (!lesson) return null;
 
   const num = lessonIndex(lesson.id) + 1;
-  const next = nextLesson(lesson.id);
-  const hasNext = !!next && isLessonUnlocked(next.id);
-  const isLast = lessonIndex(lesson.id) === LESSONS.length - 1;
   const flying = phase === 'demo' || phase === 'practice';
-  const activeStep = STEPS.findIndex((s) => s.key === phase);
-  const pct = Math.round((validation.progress || 0) * 100);
-  // The checkpoint row: one chip per point on the route, plus a final "Land"
-  // chip for the lessons that finish on the pad. It is the answer to "how much
-  // is left" that a percentage alone does not give — the pilot can see which
-  // points are cleared, which one is live, and what is still to come.
-  const route = lesson.route;
-  const steps: { label: string; cap?: string }[] = lesson.stages
-    ? lesson.stages.map((s) => ({ label: s.label, cap: s.cap }))
-    : (route?.map((c) => ({ label: c.label })) ?? []);
-  // Allowed to run one PAST the last step: that is the "all done" state, where
-  // every chip carries its tick instead of the last one still sitting live.
-  const stepIndex = Math.min(routeIndex, steps.length);
-  // Every control this lesson uses, shown from the start. A lesson lists only
-  // the controls it teaches — two of them, in the first modules — and the cue
-  // highlight is what says which one is wanted right now. Making caps appear
-  // partway through was worse: the row moved under the pilot's hand.
-  const liveKeys = lesson.keys ?? [];
-  const nextTarget = steps.length > 1 ? (steps[stepIndex]?.label ?? null) : null;
+  const stickKeys = lesson.keys ?? [];
+  const next = nextLesson(lesson.id);
+  const counting = phase === 'reward' && autoAdvance && !!next && isLessonUnlocked(next.id);
+
+  const right =
+    phase === 'practice' ? (
+      <>
+        <KeyAction cap="P" onClick={togglePause}>
+          Pause
+        </KeyAction>
+        <KeyAction cap="Esc" onClick={exitLesson}>
+          Module list
+        </KeyAction>
+      </>
+    ) : counting ? (
+      <KeyAction cap="Esc" onClick={cancel}>
+        Stop auto-advance
+      </KeyAction>
+    ) : (
+      <KeyAction cap="Esc" onClick={exitLesson}>
+        Module list
+      </KeyAction>
+    );
 
   return (
-    <div className={`tr-hud min phase-${phase}`}>
-      {/* Thin top bar */}
-      <div className="tr-bar">
-        <span className="tr-bar-id">
-          <b>Module {num}</b> {lesson.title}
-        </span>
-        <div className="tr-bar-steps">
-          {STEPS.map((s, i) => (
-            <span
-              key={s.key}
-              className={`${i === activeStep ? 'active' : ''} ${i < activeStep ? 'done' : ''}`}
-            >
-              {s.label}
-            </span>
-          ))}
-        </div>
-        <div className="tr-bar-right">
-          {flying && (
-            <span className="tr-bar-meta">
-              <i className={armed ? 'on' : ''}>{armed ? 'ARMED' : 'IDLE'}</i>
-              {/* The attempt clock, on every lesson. It is the one number that
-                  says how a go is going while it is still going, and the one the
-                  result panel reports afterwards. */}
-              {phase === 'practice' && <b className="tr-bar-clock">{elapsed.toFixed(1)}s</b>}
-              ALT {altitude.toFixed(1)} · THR {Math.round(throttle * 100)}%
-            </span>
-          )}
-          <button className="tr-bar-exit" onClick={exitLesson} title="Back to lessons">
-            ✕
-          </button>
-        </div>
-      </div>
+    <div className={`thud is-${phase}`}>
+      <StepBand lesson={lesson} num={num} phase={phase} right={right} />
 
-      {/* The plan view, under the status bar. Up for the demonstration as well as
-          the attempt, and behaving identically in both — the demo is where the
-          shape is learned, and from above is the only place a shape is a shape. */}
-      {flying && <LessonMap lesson={lesson} target={routeTarget} />}
+      {/* Everything else lives under the band, so no card or scrim covers it. */}
+      <div className="thud__area">
+        {phase === 'intro' && <LearnCard key={lesson.id} lesson={lesson} num={num} />}
 
-      {/* Step 1 — Introduction (clean card) */}
-      {phase === 'intro' && (
-        <div className="tr-center">
-          <div className="tr-card" ref={cardRef}>
-            <span className="tr-kicker">Learn · Module {num}</span>
-            <h2>{lesson.explain.title}</h2>
-
-            {/* What this lesson is, as a flow: the steps in order, each with the
-                key that performs it. It is the first thing on the card because
-                it is the thing a pilot can act on without reading. */}
-            {steps.length > 1 && (
-              <div className="tr-flow">
-                {steps.map((s, i) => (
-                  // The arrow travels WITH the step it points at, so a flow that
-                  // wraps never leaves an arrow dangling at the end of a line.
-                  // A long one drops them instead: eight steps wrap whatever the
-                  // card's width, and an arrow carried onto the front of the
-                  // second row reads as a stray mark pointing at the margin. The
-                  // numbers are the order there, which is what they are for.
-                  <span className="tr-flow-item" key={`${s.label}-${i}`}>
-                    {i > 0 && steps.length <= 6 && (
-                      <span className="tr-flow-arrow" aria-hidden="true" />
-                    )}
-                    <span className="tr-flow-step">
-                      <span className="tr-flow-num">{i + 1}</span>
-                      {s.cap && <kbd>{s.cap}</kbd>}
-                      <span className="tr-flow-label">{s.label}</span>
-                    </span>
-                  </span>
-                ))}
-              </div>
-            )}
-
-            <div className="tr-body">
-              {lesson.explain.body.map((line, i) => (
-                <p key={i}>{line}</p>
-              ))}
+        {flying && (
+          <div className="thud__flight" data-register="cockpit">
+            <LessonMap lesson={lesson} target={routeTarget} />
+            <div className={phase === 'demo' ? 'thud__sticks is-demo' : 'thud__sticks'}>
+              <StickIndicator cue={phase === 'practice' ? cue : []} />
             </div>
-            {(lesson.tips?.length || lesson.commonMistakes?.length) && (
-              <div className="tr-notes">
-                {lesson.tips && lesson.tips.length > 0 && (
-                  <div className="tr-note tips">
-                    <b>💡 Pilot Tips</b>
-                    <ul>
-                      {lesson.tips.map((t, i) => (
-                        <li key={i}>{t}</li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-                {lesson.commonMistakes && lesson.commonMistakes.length > 0 && (
-                  <div className="tr-note mistakes">
-                    <b>⚠ Common Mistakes</b>
-                    <ul>
-                      {lesson.commonMistakes.map((t, i) => (
-                        <li key={i}>{t}</li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-              </div>
-            )}
-            <Rubric rules={lesson.stars} />
-
-            <div className="tr-actions">
-              <button className="tr-btn primary" onClick={clickThen(() => setPhase('demo'))}>
-                ▶ Watch Demonstration
-              </button>
-              <button className="tr-btn" onClick={clickThen(() => setPhase('practice'))}>
-                Skip to Practice
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Live joysticks, and this lesson's stick keys under the gimbal each one
-          belongs to. Arm and Take Off are not axes, so they are not here — they
-          stand with the status line in `tr-bottom` below. */}
-      {flying && (
-        <>
-          <div className={phase === 'demo' ? 'tr-demo-sticks' : undefined}>
-            <StickIndicator cue={phase === 'practice' ? cue : []} />
-          </div>
-          {liveKeys.length > 0 && (
-            <KeyHints keys={liveKeys} demoKeys={demoKeys} cue={phase === 'practice' ? cue : []} />
-          )}
-        </>
-      )}
-
-      {/* The middle column, bottom-up: the command buttons, then the status
-          line.
-          They are STACKED in one flow rather than each pinned to its own offset
-          from the bottom. The status line changes height with the phase — the
-          practice one carries a step row and a progress bar the demo one does
-          not — so a button placed at a fixed distance from the bottom would
-          either overlap it or float above it depending on the module. */}
-      <div className="tr-bottom">
-        {flying && liveKeys.length > 0 && (
-          <KeyActions keys={liveKeys} demoKeys={demoKeys} cue={phase === 'practice' ? cue : []} />
-        )}
-
-        {/* Step 2 — Demonstration: the same step row the pilot will fly, walking
-          along with the caption for the leg being shown. */}
-        {phase === 'demo' && (
-          <div className="tr-line demo">
-            {steps.length > 1 && <StepChips steps={steps} index={stepIndex} />}
-            <div className="tr-line-row">
-              <span className="tr-line-tag">
-                DEMO
-                {/* Which pass is playing, as pips. It used to read "DEMO 2/3",
-                  which sat directly under a row of two steps and was read as
-                  "step 2 of 3" — a lesson with two steps does not have three. */}
-                <span className="tr-demo-pips" aria-label={`Pass ${demoRound} of ${demoRounds}`}>
-                  {Array.from({ length: demoRounds }, (_, i) => (
-                    <i key={i} className={i < demoRound ? 'on' : ''} />
-                  ))}
-                </span>
-              </span>
-              <span className="tr-line-txt">{demoCaption}</span>
-              <button className="tr-line-skip" onClick={clickThen(() => setPhase('practice'))}>
-                skip ⏭
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Step 3/4 — Practice: one bottom line, the checkpoint row, slim progress */}
-        {phase === 'practice' && (
-          <div className={`tr-line practice ${validation.failed ? 'fail' : ''}`}>
-            <div className="tr-line-row">
-              <span className="tr-line-txt">
-                {validation.failed ? '⚠ ' : '➤ '}
-                {hint || lesson.practice.prompt}
-              </span>
-              {nextTarget && (
-                <span className="tr-line-next">
-                  NEXT <b>{nextTarget}</b>
-                </span>
-              )}
-              <span className="tr-line-pct">{pct}%</span>
-            </div>
-            {steps.length > 1 && <StepChips steps={steps} index={stepIndex} />}
-            <div className="tr-thinbar">
-              <div
-                className={`fill ${validation.failed ? 'fail' : ''}`}
-                style={{ width: `${pct}%` }}
+            {stickKeys.length > 0 && (
+              <KeyHints
+                keys={stickKeys}
+                demoKeys={demoKeys}
+                cue={phase === 'practice' ? cue : []}
               />
-            </div>
+            )}
+            {phase === 'demo' && <DemoStrip lesson={lesson} />}
+            {phase === 'practice' && (
+              <>
+                <FlyCard lesson={lesson} />
+                <FlyBar lesson={lesson} />
+              </>
+            )}
           </div>
         )}
+
+        {/* The crash and pause cards are the free-flight ones: a crash in a lesson
+          is the same event as anywhere else. Practice only — the demonstration
+          resets itself. */}
+        {phase === 'practice' && <CrashOverlay />}
+        {phase === 'practice' && <PauseOverlay menu={false} />}
+
+        {phase === 'reward' && <ResultCard key={lesson.id} lesson={lesson} num={num} />}
       </div>
-
-      {/* Wrecked, waiting on R. The same card the free-flight HUD shows, because
-          a crash in a lesson is the same event as a crash anywhere else — the
-          hint line alone was too quiet for the one thing that ends an attempt.
-          Practice only: the demonstration resets itself, and a card thrown over
-          it would be covering the very thing the pilot is meant to be watching. */}
-      {phase === 'practice' && <CrashOverlay />}
-      {/* P during practice. Without the menu: Esc on the card leaves the lesson
-          the way it always has, once the pause is off. */}
-      {phase === 'practice' && <PauseOverlay menu={false} />}
-
-      {/* Step 5 — Reward (celebration) */}
-      {phase === 'reward' && (
-        <div className="tr-center">
-          <div className="tr-card reward" ref={cardRef}>
-            <div className="tr-confetti">
-              {CONFETTI.map((c, i) => (
-                <span
-                  key={i}
-                  style={{
-                    left: `${c.left}%`,
-                    animationDelay: `${c.delay}s`,
-                    background: `hsl(${c.hue} 85% 60%)`,
-                    ['--drift' as string]: `${c.drift}px`,
-                  }}
-                />
-              ))}
-            </div>
-            <span className="tr-check">✓</span>
-            <h2>Lesson Complete</h2>
-            <span className="tr-time">Flown in {lastTimeSec.toFixed(1)}s</span>
-            <Stars value={lastStars} />
-            {lastXp > 0 && <span className="tr-xp">+{lastXp} XP</span>}
-
-            {/* Why that many, and what the next one up would take. */}
-            <Rubric rules={lesson.stars} earned={lastStars} />
-
-            {lastRankUp && <div className="tr-rankup">★ RANK UP · {lastRankUp} ★</div>}
-
-            <div className="tr-xpbar">
-              <div className="tr-xpbar-head">
-                <span>{rank}</span>
-                <span>
-                  {pilotXp} / {pilotXpNext} XP
-                </span>
-              </div>
-              <div className="tr-xpbar-track">
-                <div
-                  className="tr-xpbar-fill"
-                  style={{ width: `${xpFill * Math.min(100, (pilotXp / pilotXpNext) * 100)}%` }}
-                />
-              </div>
-            </div>
-
-            <div className="tr-actions">
-              {hasNext && next && (
-                <button className="tr-btn primary" onClick={clickThen(() => start(next.id))}>
-                  Next: {next.title} →
-                </button>
-              )}
-              <button className="tr-btn" onClick={clickThen(() => start(lesson.id))}>
-                ↻ Replay
-              </button>
-              <button className="tr-btn" onClick={clickThen(exitLesson)}>
-                {isLast ? 'Finish' : 'Menu'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

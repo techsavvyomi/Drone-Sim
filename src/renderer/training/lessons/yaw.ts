@@ -151,12 +151,14 @@ export const yawLesson: Lesson = {
     {
       stars: 3,
       text: 'Pad to pad, both turns within 8°, under 40s, nothing touched',
+      within: 40,
       test: ({ touches, timeSec, collisions, mem }) =>
         collisions === 0 && touches === 0 && (mem.overshoot ?? 0) <= 8 && timeSec <= 40,
     },
     {
       stars: 2,
       text: 'Pad to pad, both turns within 25°, under 60s',
+      within: 60,
       test: ({ timeSec, collisions, mem }) =>
         collisions === 0 && (mem.overshoot ?? 0) <= 25 && timeSec <= 60,
     },

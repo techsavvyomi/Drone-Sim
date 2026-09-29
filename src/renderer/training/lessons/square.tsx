@@ -229,6 +229,7 @@ export const squareLesson: Lesson = {
     {
       stars: 3,
       text: 'Off the pad, sides within 2.2 m, lap under 70s, nothing touched',
+      within: 70,
       test: ({ touches, timeSec, collisions, smoothness, mem }) =>
         collisions === 0 &&
         touches === 0 &&
@@ -239,6 +240,7 @@ export const squareLesson: Lesson = {
     {
       stars: 2,
       text: `Off the pad, sides within ${SIDE_TOL} m, lap under 105s`,
+      within: 105,
       test: ({ timeSec, collisions, mem }) =>
         collisions === 0 && (mem.cut ?? 0) <= SIDE_TOL && timeSec <= 105,
     },

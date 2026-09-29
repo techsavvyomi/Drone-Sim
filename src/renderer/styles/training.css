@@ -1,0 +1,1187 @@
+/* ==========================================================================
+   Pluto Flight School — Foundation v0.2, Phase 4. Colours and type from
+   tokens.css only.
+
+   Two surfaces: the module list inside the shell (classroom), and the lesson
+   itself — a step band on top that nothing covers, and under it the Learn card
+   and result card (classroom) or the Demo strip and Fly bar over the live 3D
+   view (cockpit). The old `.tr-*` rules in index.css are dead for this HUD; the
+   stick keycaps (`.tr-key`, KeyHints) are re-dressed here under `.thud`.
+   ========================================================================== */
+
+/* ---- Module list ---------------------------------------------------------- */
+
+.tlist {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  height: 100%;
+  padding: var(--shell-pad);
+  overflow: hidden;
+  font-family: var(--font-sans);
+  font-feature-settings: var(--font-numeric);
+  color: var(--txt-hi);
+}
+
+.tlist__title {
+  margin: 0;
+  font: var(--type-h3);
+}
+
+.tlist__lede {
+  margin: var(--space-2) 0 0;
+  font: var(--type-body);
+  color: var(--txt-mid);
+}
+
+.tlist__body {
+  display: grid;
+  grid-template-columns: clamp(220px, 22vw, 300px) minmax(0, 1fr);
+  gap: var(--space-5);
+  min-height: 0;
+  flex: 1;
+}
+
+.tlist__rail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-height: 0;
+}
+
+.tlist__block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  text-align: left;
+  font: inherit;
+  color: var(--txt-hi);
+  background: var(--ink-900);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-small);
+  cursor: pointer;
+}
+
+.tlist__block.is-open {
+  background: var(--ink-800);
+  border-color: var(--txt-hi);
+}
+
+.tlist__block-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.tlist__block-top b {
+  font: var(--type-title);
+  font-size: 17px;
+}
+
+.tlist__block-top span,
+.tlist__block-line {
+  font: var(--type-body-sm);
+  color: var(--txt-mid);
+}
+
+.tlist__block-line {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.tlist__block.is-locked .tlist__block-line {
+  color: var(--txt-mid);
+}
+
+.tlist__sum {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin-top: auto;
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--line);
+}
+
+.tlist__sum b {
+  font: var(--type-body);
+  font-weight: 600;
+}
+
+.tlist__sum span {
+  font: var(--type-body-sm);
+  color: var(--txt-mid);
+}
+
+.tlist__table {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+}
+
+.tlist__table-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-2);
+}
+
+.tlist__table-head h2 {
+  margin: 0;
+  font: var(--type-h4);
+}
+
+.tlist__table-head span {
+  font: var(--type-body-sm);
+  color: var(--txt-mid);
+}
+
+.tlist__cols,
+.tlist__row {
+  display: grid;
+  grid-template-columns: 36px 64px minmax(0, 1fr) 64px 76px 150px;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.tlist__cols {
+  padding: var(--space-2) var(--space-5);
+  font: var(--type-caption);
+  font-weight: 600;
+  color: var(--txt-mid);
+}
+
+.tlist__rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0 2px 2px;
+  list-style: none;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.tlist__row {
+  width: 100%;
+  min-height: 84px;
+  padding: var(--space-3) var(--space-5);
+  text-align: left;
+  font: inherit;
+  color: var(--txt-hi);
+  background: var(--ink-900);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-small);
+  cursor: pointer;
+}
+
+.tlist__row.is-next {
+  background: var(--ink-800);
+  border-color: var(--txt-hi);
+}
+
+.tlist__row.is-locked {
+  color: var(--txt-mid);
+  background: transparent;
+  border-style: dashed;
+  cursor: default;
+}
+
+.tlist__row:focus-visible,
+.tlist__block:focus-visible {
+  outline: var(--focus-width) solid var(--focus-color);
+  outline-offset: var(--focus-offset);
+}
+
+@media (hover: hover) {
+  html[data-input='pointer'] .tlist__row:not(.is-locked):hover,
+  html[data-input='pointer'] .tlist__block:not(.is-open):hover {
+    background: var(--ink-700);
+  }
+}
+
+.tlist__n {
+  font: var(--type-h4);
+}
+
+.tlist__map {
+  display: block;
+  width: 56px;
+  height: 56px;
+  background: var(--ink-950);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-small);
+  overflow: hidden;
+}
+
+.tlist__module {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.tlist__module b {
+  font: var(--type-body);
+  font-weight: 600;
+}
+
+.tlist__module span {
+  font: var(--type-body-sm);
+  color: var(--txt-mid);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tlist__time {
+  font: var(--type-body-sm);
+  color: var(--txt-mid);
+}
+
+.tlist__stars {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font: var(--type-caption);
+  color: var(--txt-mid);
+}
+
+.tlist__stars .ds-icon {
+  width: 17px;
+  height: 17px;
+}
+
+.tlist__status {
+  display: inline-flex;
+  align-items: center;
+  justify-self: start;
+  gap: var(--space-1);
+  font: var(--type-body-sm);
+  font-weight: 600;
+}
+
+.tlist__status.is-done {
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+}
+
+.tlist__status.is-done .ds-icon {
+  color: var(--armed);
+}
+
+.tlist__status.is-next {
+  padding: var(--space-2) var(--space-4);
+  color: var(--on-fill);
+  background: var(--signal);
+  border-radius: 999px;
+}
+
+.tlist__status.is-locked {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0;
+  font-weight: 456;
+  color: var(--txt-mid);
+}
+
+.tlist__status.is-locked span:first-child {
+  font-weight: 600;
+}
+
+/* The map thumbnail (LessonThumb). */
+.lthumb {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.lthumb__pad {
+  fill: var(--ink-800);
+  stroke: var(--line);
+  stroke-width: 1.5;
+}
+
+.lthumb__ring {
+  fill: none;
+  stroke: var(--txt-low);
+  stroke-width: 2;
+  stroke-dasharray: 4 4;
+}
+
+.lthumb__route {
+  fill: none;
+  stroke: var(--txt-mid);
+  stroke-width: 2;
+  stroke-linejoin: round;
+}
+
+.lthumb__point {
+  fill: var(--txt-hi);
+}
+
+.tlist__row.is-locked .lthumb__point,
+.tlist__row.is-locked .lthumb__route {
+  opacity: 0.5;
+}
+
+@media (max-width: 1199px), (max-height: 760px) {
+  .tlist {
+    gap: var(--space-3);
+  }
+  .tlist__lede {
+    font: var(--type-body-sm);
+  }
+  .tlist__cols,
+  .tlist__row {
+    grid-template-columns: 24px 48px minmax(0, 1fr) 56px 64px 124px;
+    gap: var(--space-3);
+  }
+  .tlist__row {
+    min-height: 68px;
+    padding: var(--space-2) var(--space-4);
+  }
+  .tlist__map {
+    width: 44px;
+    height: 44px;
+  }
+  .tlist__block {
+    padding: var(--space-3);
+  }
+}
+
+/* ---- The lesson ------------------------------------------------------------ */
+
+.thud {
+  --tband-h: 72px;
+
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  font-family: var(--font-sans);
+  font-feature-settings: var(--font-numeric);
+  color: var(--txt-hi);
+}
+
+.thud button {
+  pointer-events: auto;
+}
+
+.thud__area {
+  position: absolute;
+  top: var(--tband-h);
+  left: 0;
+  right: 0;
+  bottom: 0;
+}
+
+/* ---- Step band ---- */
+
+.tband {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: var(--tband-h);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-4);
+  padding: 0 var(--space-6);
+  background: var(--ink-900);
+  border-bottom: 1px solid var(--line);
+  pointer-events: auto;
+  z-index: 6;
+}
+
+.tband[data-register='cockpit'] {
+  background: var(--ink-950);
+}
+
+.tband__id {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.tband__id b {
+  font: var(--type-body);
+  font-weight: 600;
+  text-transform: var(--label-case);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tband__id span {
+  font: var(--type-body-sm);
+  color: var(--txt-mid);
+  text-transform: var(--label-case);
+}
+
+.tband__steps {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tband__step {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: var(--control-h);
+  padding: 0 var(--control-pad) 0 6px;
+  font: var(--type-control);
+  text-transform: var(--label-case);
+  letter-spacing: var(--label-tracking);
+  color: var(--txt-mid);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+}
+
+.tband__step + .tband__step::before {
+  content: '';
+  position: relative;
+  left: calc(-1 * var(--space-3) - 7px);
+  width: var(--space-4);
+  height: 1px;
+  margin-right: calc(-1 * var(--space-4));
+  background: var(--line);
+}
+
+.tband__step.is-done {
+  color: var(--txt-hi);
+}
+
+.tband__step.is-now {
+  color: var(--ink-950);
+  background: var(--txt-hi);
+  border-color: var(--txt-hi);
+}
+
+.tband__mark {
+  display: inline-grid;
+  place-items: center;
+  width: calc(var(--control-h) - 12px);
+  height: calc(var(--control-h) - 12px);
+  font: var(--type-caption);
+  font-weight: 600;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+}
+
+.tband__mark .ds-icon {
+  width: 12px;
+  height: 12px;
+}
+
+.tband__step.is-now .tband__mark .ds-icon {
+  width: 8px;
+  height: 8px;
+}
+
+.tband__step.is-now .tband__mark {
+  color: var(--txt-hi);
+  background: var(--ink-950);
+  border-color: var(--ink-950);
+}
+
+.tband__right {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+.tband__key {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: var(--control-h);
+  padding: 0 var(--control-pad) 0 6px;
+  font: var(--type-control);
+  text-transform: var(--label-case);
+  letter-spacing: var(--label-tracking);
+  color: var(--txt-hi);
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  cursor: pointer;
+}
+
+.tband__key:focus-visible {
+  outline: var(--focus-width) solid var(--focus-color);
+  outline-offset: var(--focus-offset);
+}
+
+@media (hover: hover) {
+  html[data-input='pointer'] .tband__key:hover {
+    background: var(--ink-700);
+  }
+}
+
+/* ---- Learn / result stage ---- */
+
+.tstage {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: var(--space-5);
+  background: var(--scrim);
+  pointer-events: auto;
+  overflow: auto;
+}
+
+.tlearn,
+.tresult {
+  width: min(1120px, 100%);
+  max-height: 100%;
+  overflow: auto;
+  padding: var(--space-8);
+  background: var(--wash);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+}
+
+.tlearn {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-areas:
+    'main side'
+    'foot foot';
+  gap: var(--space-6) var(--space-8);
+}
+
+.tlearn__main {
+  grid-area: main;
+  min-width: 0;
+}
+
+.tlearn__side {
+  grid-area: side;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.tlearn__meta,
+.tresult__meta {
+  margin: 0;
+  font: var(--type-body-sm);
+  color: var(--txt-mid);
+}
+
+.tlearn__title {
+  margin: var(--space-2) 0 0;
+  font: var(--type-h2);
+}
+
+.tlearn__goal {
+  margin: var(--space-2) 0 var(--space-4);
+  font: var(--type-body-lg);
+}
+
+.tlearn__flow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  background: var(--ink-950);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-small);
+}
+
+.tlearn__flow-step {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font: var(--type-body);
+  font-weight: 600;
+}
+
+.tlearn__arrow {
+  color: var(--txt-mid);
+}
+
+.tlearn__body p {
+  margin: var(--space-3) 0 0;
+  font: var(--type-body);
+  color: var(--txt-mid);
+}
+
+.tlearn__notes {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-3);
+}
+
+.tlearn__note,
+.tlearn__stars {
+  padding: var(--space-4);
+  background: var(--ink-900);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-small);
+}
+
+.tlearn__note h2,
+.tlearn__stars h2 {
+  margin: 0;
+  font: var(--type-body);
+  font-weight: 600;
+}
+
+.tlearn__note ul {
+  margin: var(--space-2) 0 0;
+  padding-left: var(--space-4);
+  font: var(--type-body-sm);
+  color: var(--txt-mid);
+}
+
+.tlearn__note li + li {
+  margin-top: var(--space-1);
+}
+
+.tlearn__stars header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--space-3);
+  padding-bottom: var(--space-2);
+}
+
+.tlearn__stars header span {
+  font: var(--type-body-sm);
+  color: var(--txt-mid);
+}
+
+.tlearn__tier {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) 0;
+  border-top: 1px solid var(--line);
+}
+
+.tlearn__tier-text {
+  font: var(--type-body-sm);
+  font-weight: 600;
+}
+
+.tlearn__tier-n {
+  font: var(--type-body-sm);
+  color: var(--txt-mid);
+}
+
+.tlearn__stars-note {
+  margin: var(--space-2) 0 0;
+  font: var(--type-caption);
+  color: var(--txt-mid);
+}
+
+.tlearn__actions {
+  grid-area: foot;
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-3);
+  padding-top: var(--space-5);
+  border-top: 1px solid var(--line);
+}
+
+.tlearn__skip .ds-key,
+.tdemo__skip .ds-key {
+  min-width: 0;
+  height: 22px;
+  padding: 0 6px;
+  font-size: 12px;
+}
+
+@media (max-width: 1199px), (max-height: 760px) {
+  .thud {
+    --tband-h: 64px;
+  }
+  .tlearn,
+  .tresult {
+    padding: var(--space-5);
+  }
+  .tlearn {
+    gap: var(--space-4) var(--space-5);
+  }
+  .tlearn__title {
+    font: var(--type-h3);
+  }
+  .tlearn__goal {
+    font: var(--type-body);
+    font-weight: 600;
+  }
+  .tband__id span {
+    display: none;
+  }
+}
+
+/* ---- Demo strip (cockpit) ---- */
+
+.thud__flight {
+  position: absolute;
+  inset: 0;
+}
+
+.tdemo,
+.tfly,
+.tbar {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--ink-950);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  pointer-events: auto;
+  z-index: 4;
+}
+
+.tdemo {
+  bottom: var(--space-5);
+  width: min(1100px, calc(100% - 2 * var(--space-5)));
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-3) var(--space-5);
+}
+
+.tdemo__text {
+  flex: 1;
+  min-width: 0;
+}
+
+.tdemo__label,
+.tfly__step,
+.tbar__foot {
+  font: var(--type-label);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--txt-mid);
+}
+
+.tdemo__caption {
+  margin: var(--space-1) 0 0;
+  font: var(--type-title);
+}
+
+.tdemo__chips {
+  display: flex;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tchip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 var(--space-3);
+  font: var(--type-label);
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--txt-mid);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.tchip.is-done {
+  color: var(--txt-hi);
+}
+
+.tchip.is-now {
+  color: var(--ink-950);
+  background: var(--txt-hi);
+  border-color: var(--txt-hi);
+}
+
+.tdemo__skip {
+  flex: none;
+}
+
+/* The scripted sticks glide rather than jump. */
+.thud__sticks.is-demo .vstick-knob,
+.thud__sticks.is-demo .vstick-stem {
+  transition:
+    cx 0.45s ease,
+    cy 0.45s ease,
+    x2 0.45s ease,
+    y2 0.45s ease;
+}
+
+/* The gimbals stand above their own keycap clusters. */
+.thud .vstick {
+  bottom: 150px;
+  transform: scale(0.82);
+  transform-origin: bottom center;
+}
+
+.thud .tr-map {
+  top: var(--space-4);
+  right: var(--space-4);
+  background: var(--ink-950);
+  border: 1px solid var(--line);
+}
+
+/* ---- Fly: the instruction card and the bar ---- */
+
+.tfly {
+  top: var(--space-4);
+  display: flex;
+  align-items: center;
+  gap: var(--space-5);
+  max-width: min(760px, calc(100% - 320px));
+  padding: var(--space-3) var(--space-4) var(--space-3) var(--space-5);
+}
+
+.tfly.is-fail {
+  border-color: var(--caution);
+}
+
+.tfly.is-fail .tfly__line .ds-icon {
+  color: var(--caution);
+}
+
+.tfly.is-done .tfly__line .ds-icon {
+  color: var(--armed);
+}
+
+.tfly__line {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 2px 0 0;
+  font: var(--type-h4);
+  font-size: 22px;
+}
+
+.tbar {
+  bottom: var(--space-5);
+  width: min(620px, 46%);
+  padding: var(--space-4) var(--space-5) var(--space-3);
+}
+
+.tbar.is-paused {
+  border-color: var(--caution);
+}
+
+.tbar__top {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+}
+
+.tbar__clock {
+  font: var(--type-h3);
+}
+
+.tbar__line {
+  flex: 1;
+  min-width: 0;
+  font: var(--type-body);
+  font-weight: 600;
+}
+
+.tbar__status {
+  flex: none;
+  align-self: center;
+}
+
+.tbar__track {
+  position: relative;
+  height: 8px;
+  margin: var(--space-3) 0 26px;
+  background: var(--ink-700);
+  border-radius: 999px;
+}
+
+.tbar__fill {
+  display: block;
+  height: 100%;
+  background: var(--txt-hi);
+  border-radius: 999px;
+}
+
+.tbar__mark {
+  position: absolute;
+  top: -4px;
+  width: 2px;
+  height: 16px;
+  background: var(--txt-mid);
+}
+
+.tbar__mark-label {
+  position: absolute;
+  top: 18px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font: var(--type-caption);
+  font-weight: 600;
+  white-space: nowrap;
+  color: var(--txt-hi);
+}
+
+.tbar__mark-label .ds-icon[data-icon='star'] {
+  color: var(--caution);
+}
+
+.tbar__mark.is-lost .tbar__mark-label {
+  color: var(--txt-mid);
+}
+
+.tbar__mark.is-lost .tbar__mark-label .ds-icon {
+  color: var(--txt-mid);
+}
+
+.tbar__foot {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+/* The keycaps — KeyHints' clusters and the command caps in the Fly card —
+   re-dressed in the cockpit register. Lit = being held (txt-hi); breathing =
+   the one the lesson wants now (caution, with its word). */
+.thud .tr-key {
+  padding: 5px 9px 4px;
+  color: var(--txt-hi);
+  background: var(--ink-950);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  backdrop-filter: none;
+}
+
+.thud .tr-key kbd {
+  font: var(--type-label);
+  color: var(--txt-hi);
+  background: var(--ink-800);
+  border-color: var(--line);
+}
+
+.thud .tr-key span {
+  font: var(--type-caption);
+  font-size: 10px;
+  color: var(--txt-mid);
+}
+
+.thud .tr-key.on {
+  border-color: var(--txt-hi);
+}
+
+.thud .tr-key.on kbd {
+  color: var(--ink-950);
+  background: var(--txt-hi);
+  border-color: var(--txt-hi);
+  box-shadow: none;
+}
+
+.thud .tr-key.on span {
+  color: var(--txt-hi);
+}
+
+.thud .tr-key.cue {
+  border-color: var(--caution);
+  animation: tkey-breathe 1.2s ease-in-out infinite;
+}
+
+.thud .tr-key.cue kbd,
+.thud .tr-key.cue span {
+  color: var(--caution);
+  border-color: var(--caution);
+}
+
+.tfly .tr-keys-actions {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.tfly .tr-key.action {
+  flex-direction: column-reverse;
+  padding: 6px 14px 7px;
+}
+
+.tfly .tr-key.action span {
+  font: var(--type-label);
+  text-transform: uppercase;
+  color: var(--txt-hi);
+}
+
+@keyframes tkey-breathe {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-3px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .thud .tr-key.cue {
+    animation: none;
+  }
+}
+
+/* ---- Result ---- */
+
+.tresult {
+  width: min(780px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.tresult__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.tresult__title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  margin: var(--space-2) 0 0;
+  font: var(--type-h2);
+}
+
+.tresult__title .ds-stars__row .ds-icon {
+  width: 44px;
+  height: 44px;
+}
+
+.tresult__tiles {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
+.tresult__tiers {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.tresult__tier {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  background: var(--ink-900);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-small);
+}
+
+.tresult__tier.is-result {
+  border-color: var(--txt-hi);
+}
+
+.tresult__tier.is-missed {
+  background: transparent;
+  border-style: dashed;
+}
+
+.tresult__tier-text {
+  font: var(--type-body-sm);
+  font-weight: 600;
+}
+
+.tresult__tier-note {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font: var(--type-body-sm);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.tresult__tier-note .ds-icon {
+  color: var(--armed);
+}
+
+.tresult__tier.is-missed .tresult__tier-note {
+  color: var(--txt-mid);
+}
+
+.tresult__gap {
+  margin: 0;
+  font: var(--type-body);
+  font-weight: 600;
+}
+
+.tresult__pb {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  font: var(--type-body-sm);
+  color: var(--txt-mid);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-small);
+}
+
+.tresult__pb.is-new {
+  color: var(--txt-hi);
+}
+
+.tresult__pb .ds-icon {
+  color: var(--armed);
+}
+
+.tresult__actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--line);
+}
+
+.tresult__count {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font: var(--type-body);
+  font-weight: 600;
+}
+
+.tresult__buttons {
+  display: flex;
+  gap: var(--space-2);
+}
+
+@media (max-height: 760px) {
+  .tresult {
+    gap: var(--space-3);
+  }
+  .tresult__tier {
+    padding: var(--space-2) var(--space-4);
+  }
+  .tresult__title {
+    font: var(--type-h3);
+  }
+  .tresult__title .ds-stars__row .ds-icon {
+    width: 32px;
+    height: 32px;
+  }
+}

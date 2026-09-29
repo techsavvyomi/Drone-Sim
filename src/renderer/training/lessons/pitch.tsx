@@ -144,6 +144,7 @@ export const pitchLesson: Lesson = {
     {
       stars: 3,
       text: 'Pad to pad, out and back in 55s, under 2.5 m sideways, nothing touched',
+      within: 55,
       test: ({ touches, timeSec, collisions, smoothness, mem }) =>
         collisions === 0 &&
         touches === 0 &&
@@ -154,6 +155,7 @@ export const pitchLesson: Lesson = {
     {
       stars: 2,
       text: 'Pad to pad, out and back in 85s, under 5 m sideways',
+      within: 85,
       test: ({ timeSec, collisions, mem }) =>
         collisions === 0 && (mem.wander ?? 0) <= 5 && timeSec <= 85,
     },

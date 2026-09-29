@@ -180,6 +180,7 @@ export const triangleLesson: Lesson = {
     {
       stars: 3,
       text: 'Off the pad, sides within 2.5 m, lap under 65s, nothing touched',
+      within: 65,
       test: ({ touches, timeSec, collisions, smoothness, mem }) =>
         collisions === 0 &&
         touches === 0 &&
@@ -190,6 +191,7 @@ export const triangleLesson: Lesson = {
     {
       stars: 2,
       text: `Off the pad, sides within ${SIDE_TOL} m, lap under 100s`,
+      within: 100,
       test: ({ timeSec, collisions, mem }) =>
         collisions === 0 && (mem.cut ?? 0) <= SIDE_TOL && timeSec <= 100,
     },

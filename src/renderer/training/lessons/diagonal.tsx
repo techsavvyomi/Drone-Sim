@@ -202,6 +202,7 @@ export const diagonalLesson: Lesson = {
     {
       stars: 3,
       text: 'Within 3 m of the line, under 75s, nothing touched',
+      within: 75,
       test: ({ touches, timeSec, collisions, mem }) =>
         collisions === 0 && touches === 0 && (mem.drift ?? 99) <= 3 && timeSec <= 75,
     },

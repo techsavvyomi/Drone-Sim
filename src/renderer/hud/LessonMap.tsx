@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef } from 'react';
 import type { Lesson } from '../training/lessons';
 import { dronePose } from '../sim/drone/pose';
 import { ACADEMY_PAD } from '../plugins/environments/droneAcademy';
+import { token } from '../styles/tokens';
+import { lessonBox } from '../training/flightClock';
 
 // ----------------------------------------------------------------------------
 // The lesson map — a small top-down plan of the exercise, under the status bar.
@@ -40,13 +42,21 @@ const MARGIN_M = 4;
  *  lesson would otherwise zoom until the pad filled the box. */
 const MIN_SPAN_M = 9;
 
-const DONE = '#34d399';
-const LIVE = '#ffcf4d';
-const LATER = '#64748b';
-const DRONE = '#e2e8f0';
-const DECK = '#334155';
-/** The lap line, in the same dark yellow it is painted on the deck. */
-const RING = '#eab308';
+/** Map colours, read from tokens.css when the map mounts: done is armed green,
+ *  the live target is caution yellow (the lessons' one "do this now" colour),
+ *  later points and the deck are the quiet greys, the lap line caution again. */
+function mapPalette() {
+  return {
+    done: token('armed'),
+    live: token('caution'),
+    later: token('txt-low'),
+    drone: token('txt-hi'),
+    deck: token('line'),
+    ring: token('caution'),
+    shade: token('ink-950'),
+    font: token('font-sans'),
+  };
+}
 
 export function LessonMap({ lesson, target }: { lesson: Lesson; target: number }) {
   const canvas = useRef<HTMLCanvasElement>(null);
@@ -61,9 +71,12 @@ export function LessonMap({ lesson, target }: { lesson: Lesson; target: number }
   // that rescaled as the drone moved would slide the corners around under the
   // pilot, which is the opposite of what a plan view is for. The helipad is
   // always in it — every lesson starts there.
+  // The box the flight clock runs in (training/flightClock.ts). It is drawn, so
+  // the view is fitted to it: "outside the box" has to be a place on the map.
+  const box = useMemo(() => lessonBox(lesson), [lesson]);
   const view = useMemo(() => {
-    const xs = [ACADEMY_PAD.center[0], ...route.map((c) => c.at[0])];
-    const zs = [ACADEMY_PAD.center[1], ...route.map((c) => c.at[2])];
+    const xs = [ACADEMY_PAD.center[0], ...route.map((c) => c.at[0]), box.minX, box.maxX];
+    const zs = [ACADEMY_PAD.center[1], ...route.map((c) => c.at[2]), box.minZ, box.maxZ];
     const cx = (Math.min(...xs) + Math.max(...xs)) / 2;
     const cz = (Math.min(...zs) + Math.max(...zs)) / 2;
     const span = Math.max(
@@ -76,7 +89,7 @@ export function LessonMap({ lesson, target }: { lesson: Lesson; target: number }
       MIN_SPAN_M,
     );
     return { cx, cz, span: span + MARGIN_M };
-  }, [route, ring]);
+  }, [route, ring, box]);
 
   useEffect(() => {
     const el = canvas.current;
@@ -95,6 +108,7 @@ export function LessonMap({ lesson, target }: { lesson: Lesson; target: number }
     const sx = (x: number) => half + (x - view.cx) * k;
     const sz = (z: number) => half + (z - view.cz) * k;
 
+    const P = mapPalette();
     let raf = 0;
     const draw = (clock: number) => {
       raf = requestAnimationFrame(draw);
@@ -108,8 +122,21 @@ export function LessonMap({ lesson, target }: { lesson: Lesson; target: number }
       ctx.arc(half, half, half - 0.5, 0, Math.PI * 2);
       ctx.clip();
 
+      // The box the flight clock runs in: dashed, so it reads as a limit rather
+      // than as something to fly to.
+      ctx.strokeStyle = P.later;
+      ctx.lineWidth = 1;
+      ctx.setLineDash([3, 3]);
+      ctx.strokeRect(
+        sx(box.minX),
+        sz(box.minZ),
+        (box.maxX - box.minX) * k,
+        (box.maxZ - box.minZ) * k,
+      );
+      ctx.setLineDash([]);
+
       // The helipad, for a sense of where the middle of the world is.
-      ctx.strokeStyle = DECK;
+      ctx.strokeStyle = P.deck;
       ctx.lineWidth = 1;
       ctx.beginPath();
       ctx.arc(
@@ -131,7 +158,7 @@ export function LessonMap({ lesson, target }: { lesson: Lesson; target: number }
         // it — a bare line says where to be and nothing about how close is
         // close enough, which on a 43 m lap is most of the question.
         if (band) {
-          ctx.strokeStyle = RING;
+          ctx.strokeStyle = P.ring;
           ctx.globalAlpha = 0.22;
           ctx.lineWidth = band * 2 * k;
           ctx.beginPath();
@@ -139,7 +166,7 @@ export function LessonMap({ lesson, target }: { lesson: Lesson; target: number }
           ctx.stroke();
           ctx.globalAlpha = 1;
         }
-        ctx.strokeStyle = RING;
+        ctx.strokeStyle = P.ring;
         ctx.lineWidth = 1.5;
         ctx.beginPath();
         ctx.arc(rx, rz, ring * k, 0, Math.PI * 2);
@@ -174,14 +201,14 @@ export function LessonMap({ lesson, target }: { lesson: Lesson; target: number }
           const z0 = pz + uz * 9;
           const x1 = gx - ux * 11;
           const z1 = gz - uz * 11;
-          ctx.strokeStyle = LIVE;
+          ctx.strokeStyle = P.live;
           ctx.lineWidth = 2.5;
           ctx.lineCap = 'round';
           ctx.beginPath();
           ctx.moveTo(x0, z0);
           ctx.lineTo(x1, z1);
           ctx.stroke();
-          ctx.fillStyle = LIVE;
+          ctx.fillStyle = P.live;
           ctx.beginPath();
           ctx.moveTo(x1 + ux * 8, z1 + uz * 8);
           ctx.lineTo(x1 - uz * 5, z1 + ux * 5);
@@ -201,7 +228,7 @@ export function LessonMap({ lesson, target }: { lesson: Lesson; target: number }
         if (!first) return;
 
         const isLive = i === live;
-        const state = i < live ? DONE : isLive ? LIVE : LATER;
+        const state = i < live ? P.done : isLive ? P.live : P.later;
         const x = sx(c.at[0]);
         const z = sz(c.at[2]);
 
@@ -210,7 +237,7 @@ export function LessonMap({ lesson, target }: { lesson: Lesson; target: number }
         // asked for, and that is the question the pilot has mid-circuit.
         if (isLive) {
           const t = (clock % 1100) / 1100;
-          ctx.strokeStyle = LIVE;
+          ctx.strokeStyle = P.live;
           ctx.globalAlpha = 0.85 * (1 - t);
           ctx.lineWidth = 2;
           ctx.beginPath();
@@ -227,9 +254,7 @@ export function LessonMap({ lesson, target }: { lesson: Lesson; target: number }
         const tag = c.tag;
         if (tag) {
           ctx.fillStyle = state;
-          ctx.font = isLive
-            ? '800 11px Inter, system-ui, sans-serif'
-            : '700 10px Inter, system-ui, sans-serif';
+          ctx.font = isLive ? `800 11px ${P.font}` : `700 10px ${P.font}`;
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
           ctx.fillText(tag, x, z - 10);
@@ -245,7 +270,7 @@ export function LessonMap({ lesson, target }: { lesson: Lesson; target: number }
       // Heading 0 faces -Z, which is up on the map.
       const fx = -Math.sin(yaw);
       const fz = -Math.cos(yaw);
-      ctx.fillStyle = DRONE;
+      ctx.fillStyle = P.drone;
       ctx.beginPath();
       ctx.moveTo(px + fx * 7, pz + fz * 7);
       ctx.lineTo(px - fz * 4.5 - fx * 4, pz + fx * 4.5 - fz * 4);
@@ -262,12 +287,14 @@ export function LessonMap({ lesson, target }: { lesson: Lesson; target: number }
           dronePose.position.x - goal.at[0],
           dronePose.position.z - goal.at[2],
         );
-        ctx.font = '700 10px Inter, system-ui, sans-serif';
+        ctx.font = `700 10px ${P.font}`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'alphabetic';
-        ctx.fillStyle = 'rgba(6, 10, 17, 0.75)';
+        ctx.globalAlpha = 0.75;
+        ctx.fillStyle = P.shade;
         ctx.fillText(`${away.toFixed(1)} m`, half + 0.7, SIZE - 8 + 0.7);
-        ctx.fillStyle = LIVE;
+        ctx.globalAlpha = 1;
+        ctx.fillStyle = P.live;
         ctx.fillText(`${away.toFixed(1)} m`, half, SIZE - 8);
       }
 
@@ -276,7 +303,7 @@ export function LessonMap({ lesson, target }: { lesson: Lesson; target: number }
 
     raf = requestAnimationFrame(draw);
     return () => cancelAnimationFrame(raf);
-  }, [route, view, ring, band]);
+  }, [route, view, ring, band, box]);
 
   if (route.length === 0 && ring === undefined) return null;
   return (

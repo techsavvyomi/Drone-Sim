@@ -190,6 +190,7 @@ export const straightLineLesson: Lesson = {
     {
       stars: 3,
       text: 'Within 1.5 m of the line, under 40s, nothing touched',
+      within: 40,
       test: ({ touches, timeSec, collisions, mem }) =>
         collisions === 0 && touches === 0 && (mem.drift ?? 99) <= 1.5 && timeSec <= 40,
     },

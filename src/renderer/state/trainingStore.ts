@@ -3,6 +3,7 @@ import type { TrainingProgress } from '@shared/types';
 import { useSettingsStore } from './settingsStore';
 import { usePilotStore } from './pilotStore';
 import { LESSONS } from '../training/lessons';
+import type { ClockState } from '../training/flightClock';
 
 // Runtime state for a Flight School session. The *persistent* record of what has
 // been completed lives in settings.training (settingsStore); this store holds
@@ -10,6 +11,10 @@ import { LESSONS } from '../training/lessons';
 // back through settingsStore so they survive a restart.
 
 export type TrainingPhase = 'intro' | 'demo' | 'practice' | 'reward';
+
+/** Seconds the result card counts down before opening the next module. The
+ *  Director owns the clock; the card prints `advanceIn`. */
+export const AUTO_ADVANCE_SEC = 10;
 
 /** XP awarded the first time a lesson is cleared, plus a per-star bonus. */
 const XP_BASE = 60;
@@ -60,6 +65,20 @@ interface TrainingState {
   lastXp: number;
   /** New rank name if this completion triggered a rank-up, else null. */
   lastRankUp: string | null;
+  /** The personal best BEFORE this attempt, seconds, or null on a first pass
+   *  (or a result saved before best times were kept). */
+  lastBestBefore: number | null;
+  /** The flight clock the stars are judged on, seconds, published at 10 Hz:
+   *  from take-off, paused outside the lesson's box (training/flightClock.ts). */
+  flightSec: number;
+  clockState: ClockState;
+  /** Whole seconds the demonstration has played, for "0:05 / 0:16". */
+  demoSec: number;
+  /** The result card is counting down to the next module. Esc or Cancel turns
+   *  it off; the Director only advances while it is on. */
+  autoAdvance: boolean;
+  /** Whole seconds left on that countdown. */
+  advanceIn: number;
 
   start: (lessonId: string) => void;
   setPhase: (phase: TrainingPhase) => void;
@@ -72,6 +91,11 @@ interface TrainingState {
   setValidation: (v: Validation) => void;
   setElapsed: (seconds: number) => void;
   setRouteTarget: (index: number) => void;
+  setDemoSec: (seconds: number) => void;
+  setFlightClock: (seconds: number, state: ClockState) => void;
+  setAdvanceIn: (seconds: number) => void;
+  /** Stop the result card's countdown; the pilot stays on the card. */
+  cancelAutoAdvance: () => void;
   /** Persist a completed lesson, award XP, and move to the reward phase. */
   completeLesson: (lessonId: string, stars: number, score: number, timeSec: number) => void;
   /** Leave the current lesson and return to the lesson list. */
@@ -95,6 +119,12 @@ export const useTrainingStore = create<TrainingState>((set) => ({
   lastTimeSec: 0,
   lastXp: 0,
   lastRankUp: null,
+  lastBestBefore: null,
+  flightSec: 0,
+  clockState: 'waiting',
+  demoSec: 0,
+  autoAdvance: false,
+  advanceIn: AUTO_ADVANCE_SEC,
 
   start: (lessonId) =>
     set({
@@ -113,6 +143,12 @@ export const useTrainingStore = create<TrainingState>((set) => ({
       lastTimeSec: 0,
       lastXp: 0,
       lastRankUp: null,
+      lastBestBefore: null,
+      flightSec: 0,
+      clockState: 'waiting',
+      demoSec: 0,
+      autoAdvance: false,
+      advanceIn: AUTO_ADVANCE_SEC,
     }),
 
   setPhase: (phase) => set({ phase }),
@@ -126,6 +162,13 @@ export const useTrainingStore = create<TrainingState>((set) => ({
   setValidation: (validation) => set({ validation }),
   setElapsed: (elapsed) => set({ elapsed }),
   setRouteTarget: (routeTarget) => set({ routeTarget }),
+  setFlightClock: (flightSec, clockState) =>
+    set((s) =>
+      s.flightSec === flightSec && s.clockState === clockState ? s : { flightSec, clockState },
+    ),
+  setDemoSec: (demoSec) => set((s) => (s.demoSec === demoSec ? s : { demoSec })),
+  setAdvanceIn: (advanceIn) => set((s) => (s.advanceIn === advanceIn ? s : { advanceIn })),
+  cancelAutoAdvance: () => set({ autoAdvance: false }),
 
   completeLesson: (lessonId, stars, score, timeSec) => {
     const settings = useSettingsStore.getState();
@@ -136,6 +179,8 @@ export const useTrainingStore = create<TrainingState>((set) => ({
     const prevStars = prev?.stars ?? 0;
     const bestStars = Math.max(prevStars, stars);
     const bestScore = Math.max(prev?.bestScore ?? 0, score);
+    const bestBefore = prev?.bestTimeSec ?? null;
+    const bestTimeSec = bestBefore === null ? timeSec : Math.min(bestBefore, timeSec);
 
     // Full award the first time; on a replay only pay for the improvement.
     const xpGained = firstTime
@@ -151,7 +196,7 @@ export const useTrainingStore = create<TrainingState>((set) => ({
       xp: newTotal,
       lessons: {
         ...training.lessons,
-        [lessonId]: { completed: true, stars: bestStars, bestScore },
+        [lessonId]: { completed: true, stars: bestStars, bestScore, bestTimeSec },
       },
     };
     // Fire-and-forget persistence through the settings document.
@@ -163,11 +208,21 @@ export const useTrainingStore = create<TrainingState>((set) => ({
       lastXp: xpGained,
       lastRankUp: rankedUp,
       lastTimeSec: timeSec,
+      lastBestBefore: bestBefore,
+      autoAdvance: true,
+      advanceIn: AUTO_ADVANCE_SEC,
     });
   },
 
   exitLesson: () =>
-    set({ activeLessonId: null, phase: 'intro', demoCaption: '', hint: '', cue: [] }),
+    set({
+      activeLessonId: null,
+      phase: 'intro',
+      demoCaption: '',
+      hint: '',
+      cue: [],
+      autoAdvance: false,
+    }),
 }));
 
 // ---- Derived selectors (progress lives in settings) -------------------------

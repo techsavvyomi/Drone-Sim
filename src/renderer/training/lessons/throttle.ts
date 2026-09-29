@@ -174,12 +174,14 @@ export const throttleLesson: Lesson = {
     {
       stars: 3,
       text: 'Pad to pad, down, held and back up in 45s, smoothly, nothing touched',
+      within: 45,
       test: ({ touches, timeSec, collisions, smoothness }) =>
         collisions === 0 && touches === 0 && smoothness >= 0.5 && timeSec <= 45,
     },
     {
       stars: 2,
       text: 'Pad to pad, down, held and back up in 70s',
+      within: 70,
       test: ({ timeSec, collisions, smoothness }) =>
         collisions === 0 && smoothness >= 0.25 && timeSec <= 70,
     },

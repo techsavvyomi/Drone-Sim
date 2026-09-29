@@ -237,6 +237,7 @@ function navLesson(cfg: {
       {
         stars: 3,
         text: `Route in ${cfg.threeStarSec}s, height within 1.2 m, nothing touched`,
+        within: cfg.threeStarSec,
         test: ({ touches, timeSec, collisions, smoothness, mem }) =>
           collisions === 0 &&
           touches === 0 &&
@@ -247,6 +248,7 @@ function navLesson(cfg: {
       {
         stars: 2,
         text: `Route in ${Math.round(cfg.threeStarSec * 1.8)}s, height within 2.2 m`,
+        within: cfg.threeStarSec * 1.8,
         test: ({ timeSec, collisions, mem }) =>
           collisions === 0 && (mem.altDev ?? 0) <= 2.2 && timeSec <= cfg.threeStarSec * 1.8,
       },

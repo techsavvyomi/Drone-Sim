@@ -117,6 +117,9 @@ export interface LessonProgress {
   stars: number;
   /** Best raw score 0..1 behind the star rating, for finer progress. */
   bestScore: number;
+  /** Fastest completed attempt, seconds. Absent for results saved before it
+   *  existed. Shown as the personal best; never scores anything. */
+  bestTimeSec?: number;
 }
 
 /** Everything the Flight School needs to remember between sessions. */

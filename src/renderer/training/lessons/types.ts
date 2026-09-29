@@ -180,6 +180,15 @@ export function cueBetween(
   return dx > 0 ? CUE.right : CUE.left;
 }
 
+/** Seconds a demonstration runs on past its last step before it ends. */
+export const DEMO_TAIL = 1.6;
+
+/** How long one pass of a demonstration runs on its own clock, seconds. The
+ *  Director ends a pass here, and the caption strip prints it as "/ 0:16". */
+export function demoLength(demo: readonly DemoStep[]): number {
+  return (demo.length ? demo[demo.length - 1].at : 0) + DEMO_TAIL;
+}
+
 /** Mutable per-attempt scratch pad for validators (hold timers, accumulators). */
 export type LessonMemory = Record<string, number>;
 
@@ -221,6 +230,15 @@ export interface StarRule {
   stars: Stars;
   /** What it takes, in the pilot's words. One short line. */
   text: string;
+  /**
+   * The attempt time this rung allows, in seconds — the same number `test`
+   * compares `timeSec` against, or absent when the rung sets no time.
+   *
+   * Display only: the Fly bar marks it and the result card measures the gap to
+   * it. It never scores anything; `test` does. A test in tests/ reads each
+   * rule's `test` source and fails if the two numbers ever disagree.
+   */
+  within?: number;
   test: (i: ScoreInput) => boolean;
 }
 
