@@ -51,7 +51,6 @@
   gap: var(--space-6);
   padding: 0 var(--space-6);
   background: var(--ink-950);
-  border-bottom: 1px solid var(--line);
 }
 
 .topbar__brand {
@@ -295,7 +294,6 @@
   grid-area: nav;
   padding: var(--space-4) var(--space-3);
   background: var(--ink-950);
-  border-right: 1px solid var(--line);
   overflow-y: auto;
 }
 
@@ -312,7 +310,6 @@
 .sidenav__group-start {
   margin-top: auto;
   padding-top: var(--space-3);
-  border-top: 1px solid var(--line);
 }
 
 .sidenav__item {
@@ -358,7 +355,6 @@
   gap: var(--space-6);
   padding: 0 var(--space-6);
   background: var(--ink-950);
-  border-top: 1px solid var(--line);
 }
 
 .statusbar__where {

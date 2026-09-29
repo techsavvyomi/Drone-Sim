@@ -1,4 +1,6 @@
 // @vitest-environment jsdom
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { act, createElement as h, type ReactElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -336,7 +338,7 @@ describe('Sidebar', () => {
     ]);
   });
 
-  it('puts the divider above the second group, whether or not Profile is shown', () => {
+  it('starts the bottom group at the right item, whether or not Profile is shown', () => {
     const start = (el: HTMLElement) => $(el, '.sidenav__group-start [data-nav-item]').textContent;
     useAccountStore.setState({ status: 'signedIn' });
     let el = mount(h(Sidebar));
@@ -540,5 +542,22 @@ describe('Hangar', () => {
     const facts = $$(el, '.hangar__fact').map((f) => f.textContent);
     expect(facts).toContain('Mass50 g');
     expect(facts).toContain('Battery1S · 300 mAh');
+  });
+});
+
+describe('shell edges', () => {
+  // User, 2026-09-29: no line under the top bar, beside the sidebar or over the
+  // footer — the panels are told apart by their fills.
+  const css = readFileSync(join(process.cwd(), 'src/renderer/styles/shell.css'), 'utf8');
+  const rule = (sel: string) =>
+    new RegExp(`(^|\\n)${sel.replace('.', '\\.')} \\{([^}]*)\\}`).exec(css)?.[2] ?? '';
+
+  it('top bar, sidebar and status bar carry no edge line', () => {
+    expect(rule('.topbar')).not.toMatch(/border/);
+    expect(rule('.sidenav')).not.toMatch(/border/);
+    expect(rule('.statusbar')).not.toMatch(/border/);
+    expect(rule('.sidenav__group-start')).not.toMatch(/border/);
+    expect(rule('.sidenav__group-start')).toContain('margin-top: auto');
+    expect(rule('.topbar')).toContain('background');
   });
 });
