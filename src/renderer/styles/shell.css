@@ -1,0 +1,611 @@
+/* ==========================================================================
+   App shell — top bar, sidebar, status bar, and the Hangar page.
+   Foundation v0.2, Phase 1. Colours and type from tokens.css only.
+
+   Two widths: the wide layout from 1200 CSS px, the compact one below it
+   (down to the 1100 × 720 minimum; smaller screens are zoomed by the main
+   process instead of reflowed).
+   ========================================================================== */
+
+.app {
+  --shell-top-h: 72px;
+  --shell-nav-w: 240px;
+  --shell-status-h: 44px;
+  --shell-pad: 40px 48px;
+
+  display: grid;
+  grid-template-columns: var(--shell-nav-w) minmax(0, 1fr) auto;
+  grid-template-rows: var(--shell-top-h) minmax(0, 1fr) var(--shell-status-h);
+  grid-template-areas:
+    'top top top'
+    'nav stage panel'
+    'status status status';
+  height: 100%;
+  background: var(--ink-950);
+}
+
+@media (max-width: 1199.98px) {
+  .app {
+    --shell-top-h: 64px;
+    --shell-nav-w: 208px;
+    --shell-pad: 28px;
+  }
+}
+
+.topbar,
+.sidenav,
+.statusbar,
+.hangar {
+  font-family: var(--font-sans);
+  font-feature-settings: var(--font-numeric);
+  color: var(--txt-hi);
+}
+
+/* ---- Top bar ------------------------------------------------------------ */
+
+.topbar {
+  grid-area: top;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-6);
+  padding: 0 var(--space-6);
+  background: var(--ink-950);
+  border-bottom: 1px solid var(--line);
+}
+
+.topbar__brand {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+  text-align: left;
+}
+
+.topbar__mark {
+  display: block;
+  height: 36px;
+  width: auto;
+}
+
+.topbar__names {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.topbar__name {
+  font: var(--type-title);
+  font-weight: 652;
+}
+
+.topbar__tagline {
+  font: var(--type-caption);
+  color: var(--txt-mid);
+  white-space: nowrap;
+}
+
+.topbar__loadout {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-1) var(--space-1) var(--space-4);
+  background: var(--ink-800);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+}
+
+.topbar__next {
+  margin-right: var(--space-2);
+  font: var(--type-label);
+  color: var(--txt-mid);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+}
+
+.topbar__sep {
+  color: var(--txt-low);
+}
+
+.topbar__loadout .ds-btn--primary {
+  margin-left: var(--space-2);
+}
+
+@media (max-width: 1199.98px) {
+  .topbar__mark {
+    height: 32px;
+  }
+  .topbar__tagline,
+  .topbar__next,
+  .loadout-chip__key {
+    display: none;
+  }
+}
+
+/* ---- Loadout chip ----------------------------------------------------- */
+
+.loadout-chip {
+  position: relative;
+}
+
+.loadout-chip__button {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: 44px;
+  padding: 0 var(--space-3);
+  border-radius: 999px;
+  color: var(--txt-hi);
+  text-align: left;
+}
+
+.loadout-chip__button:focus-visible,
+.sidenav__item:focus-visible,
+.hangar__drone:focus-visible,
+.topbar__brand:focus-visible {
+  outline: var(--focus-width) solid var(--focus-color);
+  outline-offset: var(--focus-offset);
+}
+
+.loadout-chip__button.is-open {
+  background: var(--ink-700);
+}
+
+:root[data-input='pointer'] .loadout-chip__button:not(.is-static):hover {
+  background: var(--ink-700);
+}
+
+.loadout-chip__button > .ds-icon {
+  color: var(--txt-mid);
+  font-size: 12px;
+}
+
+.loadout-chip__icon {
+  display: grid;
+  place-items: center;
+  color: var(--txt-mid);
+}
+
+.loadout-chip__body {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
+}
+
+.loadout-chip__key {
+  font: var(--type-label);
+  font-size: 10px;
+  color: var(--txt-mid);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.loadout-chip__value {
+  max-width: 150px;
+  overflow: hidden;
+  font: var(--type-body-sm);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.loadout-menu {
+  position: absolute;
+  top: calc(100% + var(--space-2));
+  left: 0;
+  z-index: 60;
+  width: 340px;
+  padding: var(--space-2);
+  background: var(--ink-800);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+}
+
+.loadout-menu__head {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: var(--space-2) var(--space-3) var(--space-3);
+}
+
+.loadout-menu__head b {
+  font: var(--type-title);
+}
+
+.loadout-menu__head span {
+  font: var(--type-caption);
+  color: var(--txt-mid);
+}
+
+.loadout-menu ul {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.loadout-menu ul:focus-visible {
+  outline: none;
+}
+
+.loadout-menu__opt {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-small);
+  color: var(--txt-mid);
+  cursor: pointer;
+}
+
+.loadout-menu__opt.is-active {
+  background: var(--ink-700);
+  color: var(--txt-hi);
+}
+
+.loadout-menu__opt.is-selected {
+  color: var(--txt-hi);
+}
+
+.loadout-menu__opt > .ds-icon {
+  margin-left: auto;
+  color: var(--txt-hi);
+}
+
+.loadout-menu__thumb {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  background: var(--ink-900);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  color: var(--txt-mid);
+}
+
+.loadout-menu__text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.loadout-menu__name {
+  font: var(--type-body);
+  color: var(--txt-hi);
+}
+
+.loadout-menu__opt.is-selected .loadout-menu__name {
+  font-weight: 600;
+}
+
+.loadout-menu__meta,
+.loadout-menu__detail {
+  font: var(--type-caption);
+  color: var(--txt-mid);
+}
+
+/* ---- Sidebar ------------------------------------------------------------ */
+
+.sidenav {
+  grid-area: nav;
+  padding: var(--space-4) var(--space-3);
+  background: var(--ink-950);
+  border-right: 1px solid var(--line);
+  overflow-y: auto;
+}
+
+.sidenav__list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-height: 100%;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sidenav__group-start {
+  margin-top: auto;
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--line);
+}
+
+.sidenav__item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  height: 44px;
+  padding: 0 var(--space-3);
+  border-radius: 999px;
+  color: var(--txt-mid);
+  font: var(--type-body);
+  text-align: left;
+}
+
+:root[data-input='pointer'] .sidenav__item:not(.is-active):hover {
+  background: var(--ink-700);
+  color: var(--txt-hi);
+}
+
+/* Active is the only filled-light state in the shell. */
+.sidenav__item.is-active {
+  background: var(--txt-hi);
+  color: var(--ink-950);
+  font-weight: 600;
+}
+
+.sidenav__label {
+  flex: 1;
+}
+
+.sidenav__dot {
+  font-size: 8px;
+}
+
+/* ---- Status bar --------------------------------------------------------- */
+
+.statusbar {
+  grid-area: status;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-6);
+  padding: 0 var(--space-6);
+  background: var(--ink-950);
+  border-top: 1px solid var(--line);
+}
+
+.statusbar__where {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+  margin: 0;
+  font: var(--type-caption);
+  color: var(--txt-mid);
+  white-space: nowrap;
+}
+
+.statusbar__where b {
+  color: var(--txt-hi);
+  font-weight: 600;
+}
+
+.statusbar__note {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--caution);
+}
+
+.statusbar__right {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.statusbar__fps {
+  font: var(--type-label);
+  color: var(--txt-mid);
+}
+
+/* ---- Flight views: the shell steps aside ------------------------------
+   Full-bleed: no sidebar, no status bar, and the top bar parked above the
+   frame. It slides back when the pointer reaches the top edge; the reveal is
+   pure CSS, and an open chip menu is a child of the bar, so it counts as
+   hovering it and the bar can't slide away from under the mouse. */
+
+.app.is-fly {
+  grid-template-columns: 0 minmax(0, 1fr) auto;
+  grid-template-rows: 0 minmax(0, 1fr) 0;
+}
+
+.app.is-fly .topbar {
+  position: fixed;
+  inset: 0 0 auto 0;
+  z-index: 40;
+  height: var(--shell-top-h);
+  background: color-mix(in srgb, var(--ink-950) 94%, transparent);
+  transform: translateY(-100%);
+  /* The trailing 1 s is the delay before it leaves, so it can be read. */
+  transition: transform var(--dur) var(--ease) 1s;
+  will-change: transform;
+}
+
+.app.is-fly .topbar:hover,
+.app.is-fly .topbar-peek:hover ~ .topbar {
+  transform: translateY(0);
+  transition-delay: 0s;
+}
+
+/* Only armed in flight; elsewhere the bar is permanent. */
+.topbar-peek {
+  display: none;
+}
+
+.app.is-fly .topbar-peek {
+  display: block;
+  position: fixed;
+  inset: 0 0 auto 0;
+  /* Deep, not a hairline: in macOS full screen the very top edge belongs to
+     the system menu bar. Kept under the bar's own height so it never flickers. */
+  height: 56px;
+  z-index: 39;
+}
+
+/* Telemetry dock open, or inside a lesson or mission: stand down. Their own
+   controls sit where the strip would reach. Same specificity as the rule
+   above, so these MUST stay after it. */
+.app.panel-open .topbar-peek,
+.app.in-lesson .topbar-peek,
+.app.in-mission .topbar-peek {
+  display: none;
+}
+
+/* ---- Hangar ------------------------------------------------------------- */
+
+.hangar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  height: 100%;
+  padding: var(--shell-pad);
+  overflow: auto;
+}
+
+.hangar__head h1 {
+  margin: 0 0 var(--space-1);
+}
+
+.hangar__head p {
+  margin: 0;
+}
+
+.hangar__body {
+  display: grid;
+  flex: 1;
+  grid-template-columns: 240px minmax(0, 1fr) 320px;
+  gap: var(--space-6);
+  min-height: 360px;
+}
+
+@media (max-width: 1199.98px) {
+  .hangar__body {
+    grid-template-columns: 200px minmax(0, 1fr) 260px;
+    gap: var(--space-4);
+  }
+}
+
+.hangar__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.hangar__drone {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  padding: var(--space-3) var(--space-4);
+  background: var(--ink-900);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-small);
+  color: var(--txt-mid);
+  text-align: left;
+}
+
+:root[data-input='pointer'] .hangar__drone:not(.is-viewed):hover {
+  background: var(--ink-800);
+}
+
+.hangar__drone.is-viewed {
+  background: var(--ink-700);
+}
+
+.hangar__drone-name {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font: var(--type-body);
+  color: var(--txt-hi);
+}
+
+.hangar__drone.is-viewed .hangar__drone-name {
+  font-weight: 652;
+}
+
+.hangar__drone-line {
+  font: var(--type-caption);
+}
+
+.hangar__drone-tag {
+  font: var(--type-caption);
+  color: var(--armed);
+}
+
+.hangar__stage {
+  position: relative;
+  overflow: hidden;
+  background: var(--wash);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+}
+
+.hangar-scene {
+  position: absolute;
+  inset: 0;
+  background: var(--stage-glow);
+}
+
+.hangar-scene canvas {
+  display: block;
+}
+
+.hangar__count {
+  position: absolute;
+  top: var(--space-4);
+  left: var(--space-5);
+  margin: 0;
+}
+
+.hangar__pause {
+  position: absolute;
+  right: var(--space-4);
+  bottom: var(--space-4);
+}
+
+.hangar__card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-6);
+  background: var(--ink-900);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+}
+
+.hangar__card h2 {
+  margin: 0;
+}
+
+.hangar__card .ds-badge,
+.hangar__card .ds-btn {
+  align-self: flex-start;
+  margin-top: auto;
+}
+
+.hangar__facts {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+}
+
+.hangar__fact {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.hangar__fact dt {
+  font: var(--type-body-sm);
+  color: var(--txt-mid);
+}
+
+.hangar__fact dd {
+  margin: 0;
+  font: var(--type-body-sm);
+  font-weight: 600;
+  text-align: right;
+}

@@ -123,7 +123,7 @@ function BlurDiscs({ spec }: { spec: DroneSpec }) {
  *    so these ARE the propellers whenever the rotors are stopped. Always
  *    mounted, crossfading against the disc via blurMix.
  */
-function SyntheticBlades({ spec }: { spec: DroneSpec }) {
+export function SyntheticBlades({ spec }: { spec: DroneSpec }) {
   const group = useRef<THREE.Group>(null);
   const pivots = useRef<(THREE.Group | null)[]>([]);
   const blurArt = spec.propArt === 'blur';

@@ -1,0 +1,898 @@
+/* ==========================================================================
+   PlutoSim design system — component styles.
+   Reads tokens.css only: no colour values, no font names in this file.
+   Sizes that differ between cockpit and classroom (--control-h,
+   --radius-control, --label-case …) come from the register the component
+   sits in, so no component needs a "size" prop.
+   ========================================================================== */
+
+/* ---- Base ---------------------------------------------------------------- */
+
+.ds-register,
+[data-register],
+.ds-btn,
+.ds-seg,
+.ds-tabs,
+.ds-slider,
+.ds-check,
+.ds-field,
+.ds-select,
+.ds-badge,
+.ds-key,
+.ds-stars,
+.ds-stat,
+.ds-panel,
+.ds-modal,
+.ds-legend {
+  font-family: var(--font-sans);
+  font-feature-settings: var(--font-numeric);
+}
+
+.ds-register {
+  color: var(--txt-hi);
+  font: var(--type-body);
+}
+
+.ds-icon {
+  display: inline-block;
+  flex: none;
+  vertical-align: -0.125em;
+}
+
+/* One focus treatment for every interactive part: a 2 px signal ring with a
+   2 px offset. Never a fill, so it can't be mistaken for "active". */
+.ds-btn:focus-visible,
+.ds-seg__opt:focus-visible,
+.ds-tab:focus-visible,
+.ds-check:focus-visible,
+.ds-input:focus-visible,
+.ds-select__button:focus-visible,
+.ds-slider input:focus-visible,
+.ds-key.is-focused {
+  outline: var(--focus-width) solid var(--focus-color);
+  outline-offset: var(--focus-offset);
+}
+
+.ds-select__list:focus-visible {
+  outline: none;
+}
+
+/* ---- Type roles ---------------------------------------------------------- */
+
+.ds-display {
+  font: var(--type-display);
+}
+.ds-h1 {
+  font: var(--type-h1);
+}
+.ds-h2 {
+  font: var(--type-h2);
+}
+.ds-h3 {
+  font: var(--type-h3);
+}
+.ds-h4 {
+  font: var(--type-h4);
+}
+.ds-title {
+  font: var(--type-title);
+}
+.ds-body-lg {
+  font: var(--type-body-lg);
+}
+.ds-body {
+  font: var(--type-body);
+}
+.ds-body-sm {
+  font: var(--type-body-sm);
+}
+.ds-link {
+  font: var(--type-link);
+  color: var(--txt-hi);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.ds-caption {
+  font: var(--type-caption);
+  color: var(--txt-mid);
+}
+
+.ds-label {
+  font: var(--type-label);
+  color: var(--txt-mid);
+  text-transform: var(--label-case);
+  letter-spacing: var(--label-tracking);
+}
+
+/* ---- Tones --------------------------------------------------------------- */
+
+.ds-tone--neutral {
+  --tone: var(--txt-mid);
+}
+.ds-tone--signal {
+  --tone: var(--signal);
+}
+.ds-tone--armed {
+  --tone: var(--armed);
+}
+.ds-tone--caution {
+  --tone: var(--caution);
+}
+.ds-tone--fail {
+  --tone: var(--fail);
+}
+
+/* ---- Button -------------------------------------------------------------- */
+
+.ds-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  height: var(--control-h);
+  padding: 0 var(--control-pad);
+  border: 1px solid transparent;
+  border-radius: var(--radius-control);
+  font: var(--type-control);
+  text-transform: var(--label-case);
+  letter-spacing: var(--label-tracking);
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background-color var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease);
+}
+
+.ds-btn--primary {
+  background: var(--signal);
+  color: var(--on-fill);
+}
+.ds-btn--primary:active,
+.ds-btn--primary.is-pressed {
+  background: var(--signal-d);
+}
+
+.ds-btn--secondary {
+  background: var(--ink-700);
+  color: var(--txt-hi);
+}
+.ds-btn--secondary:active,
+.ds-btn--secondary.is-pressed {
+  background: var(--ink-800);
+}
+
+.ds-btn--ghost {
+  background: transparent;
+  color: var(--txt-mid);
+}
+
+.ds-btn--danger {
+  background: transparent;
+  color: var(--fail);
+  border-color: var(--fail);
+}
+.ds-btn--danger:active,
+.ds-btn--danger.is-pressed {
+  background: var(--fail);
+  color: var(--on-fill);
+}
+
+:root[data-input='pointer'] .ds-btn--secondary:hover {
+  background: var(--line);
+}
+:root[data-input='pointer'] .ds-btn--ghost:hover {
+  background: var(--ink-700);
+  color: var(--txt-hi);
+}
+:root[data-input='pointer'] .ds-btn--danger:hover {
+  background: color-mix(in srgb, var(--fail) 14%, transparent);
+}
+
+/* Locked: says what unlocks it, stays focusable, does nothing. */
+.ds-btn.is-locked,
+.ds-btn.is-locked:hover,
+.ds-btn.is-locked:active {
+  background: transparent;
+  color: var(--txt-mid);
+  border: 1px dashed var(--line);
+  cursor: not-allowed;
+}
+
+/* ---- Segmented control --------------------------------------------------- */
+
+.ds-seg {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  background: var(--ink-900);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+}
+
+.ds-seg__opt {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  height: calc(var(--control-h) - 8px);
+  padding: 0 var(--control-pad);
+  border-radius: var(--radius-control);
+  font: var(--type-control);
+  font-weight: 456;
+  color: var(--txt-mid);
+  text-transform: var(--label-case);
+  letter-spacing: var(--label-tracking);
+}
+
+.ds-seg__opt.is-selected {
+  background: var(--ink-700);
+  color: var(--txt-hi);
+  font-weight: 600;
+}
+
+[data-register='cockpit'] .ds-seg__check {
+  display: none;
+}
+[data-register='cockpit'] .ds-seg__opt {
+  border-radius: var(--radius-small);
+}
+
+:root[data-input='pointer'] .ds-seg__opt:not(.is-selected):hover {
+  color: var(--txt-hi);
+}
+
+/* ---- Tabs ---------------------------------------------------------------- */
+
+.ds-tabs {
+  display: flex;
+  gap: var(--space-6);
+  border-bottom: 1px solid var(--line);
+}
+
+.ds-tab {
+  height: var(--control-h);
+  font: var(--type-control);
+  font-weight: 456;
+  color: var(--txt-mid);
+  text-transform: var(--label-case);
+  letter-spacing: var(--label-tracking);
+}
+
+.ds-tab.is-selected {
+  color: var(--txt-hi);
+  font-weight: 600;
+  box-shadow: inset 0 -2px 0 var(--txt-hi);
+}
+
+/* Cockpit tabs are chips: fill instead of underline. */
+[data-register='cockpit'] .ds-tabs {
+  gap: var(--space-1);
+  border-bottom: 0;
+}
+[data-register='cockpit'] .ds-tab {
+  padding: 0 var(--control-pad);
+  border-radius: var(--radius-control);
+}
+[data-register='cockpit'] .ds-tab.is-selected {
+  background: var(--ink-700);
+  box-shadow: none;
+}
+
+/* ---- Slider -------------------------------------------------------------- */
+
+.ds-slider {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 200px;
+}
+.ds-slider__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+.ds-slider__value {
+  font: var(--type-title);
+  color: var(--txt-hi);
+}
+[data-register='cockpit'] .ds-slider__value {
+  font: var(--type-label);
+}
+
+.ds-slider input {
+  appearance: none;
+  width: 100%;
+  height: 4px;
+  margin: var(--space-2) 0;
+  border-radius: 999px;
+  background: linear-gradient(to right, var(--signal) var(--fill), var(--ink-700) var(--fill));
+  cursor: pointer;
+}
+
+.ds-slider input::-webkit-slider-thumb {
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--txt-hi);
+  border: 2px solid var(--ink-950);
+}
+
+.ds-slider__ends {
+  display: flex;
+  justify-content: space-between;
+  font: var(--type-caption);
+  color: var(--txt-mid);
+}
+
+/* ---- Checkbox ------------------------------------------------------------ */
+
+.ds-check {
+  display: inline-flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-1) 0;
+  text-align: left;
+  border-radius: var(--radius-small);
+}
+
+.ds-check__box {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 20px;
+  height: 20px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--ink-900);
+  color: var(--on-fill);
+  font-size: 14px;
+}
+
+.ds-check.is-checked .ds-check__box {
+  background: var(--signal);
+  border-color: var(--signal);
+}
+.ds-check__text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.ds-check__label {
+  font: var(--type-body);
+  color: var(--txt-hi);
+}
+.ds-check__hint {
+  font: var(--type-caption);
+  color: var(--txt-mid);
+}
+
+[data-register='cockpit'] .ds-check__box {
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  font-size: 11px;
+}
+[data-register='cockpit'] .ds-check__label {
+  font: var(--type-label);
+  text-transform: var(--label-case);
+  letter-spacing: var(--label-tracking);
+}
+
+/* ---- Text input ---------------------------------------------------------- */
+
+.ds-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.ds-field__box {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.ds-input {
+  width: 100%;
+  height: var(--control-h);
+  padding: 0 var(--space-4);
+  background: var(--ink-900);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-small);
+  color: var(--txt-hi);
+  font: var(--type-body);
+  font-feature-settings: var(--font-numeric);
+}
+
+.ds-input::placeholder {
+  color: var(--txt-low);
+}
+/* Room for the suffix ("m", "8 / 8") so the value never runs under it. */
+.ds-input.has-suffix {
+  padding-right: 72px;
+}
+
+.ds-input--mono {
+  font: var(--type-mono);
+  letter-spacing: 0.08em;
+}
+/* A fixed prefix the user does not type ("PLUTO-SIM-"). Drawn over the input's
+   left padding; in the mono face 1ch is one character, so the value starts
+   right after it whatever the font size. */
+.ds-field__prefix {
+  position: absolute;
+  left: calc(var(--space-4) + 1px);
+  color: var(--txt-mid);
+  pointer-events: none;
+}
+.ds-input.has-prefix {
+  padding-left: calc(var(--space-4) + var(--prefix-len, 0) * (1ch + 0.08em));
+}
+.ds-field.is-invalid .ds-input {
+  border-color: var(--fail);
+}
+.ds-field__labelrow {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--space-3);
+}
+.ds-field__aside {
+  font: var(--type-caption);
+  color: var(--txt-mid);
+}
+.ds-field__suffix {
+  position: absolute;
+  right: var(--space-4);
+  font: var(--type-body-sm);
+  color: var(--txt-mid);
+  pointer-events: none;
+}
+
+.ds-field__error,
+.ds-field__hint {
+  display: flex;
+  gap: var(--space-2);
+  align-items: baseline;
+  margin: 0;
+  font: var(--type-body-sm);
+}
+
+.ds-field__error {
+  color: var(--fail);
+}
+.ds-field__hint {
+  color: var(--txt-mid);
+}
+
+[data-register='cockpit'] .ds-input {
+  padding: 0 var(--space-3);
+  font: var(--type-body-sm);
+}
+[data-register='cockpit'] .ds-field__error,
+[data-register='cockpit'] .ds-field__hint {
+  font: var(--type-label);
+  text-transform: var(--label-case);
+  letter-spacing: var(--label-tracking);
+}
+
+/* ---- Select -------------------------------------------------------------- */
+
+.ds-select {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 200px;
+}
+
+.ds-select__button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  height: var(--control-h);
+  padding: 0 var(--space-4);
+  background: var(--ink-900);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-small);
+  font: var(--type-body);
+  color: var(--txt-hi);
+  text-align: left;
+}
+
+.ds-select__button.is-open {
+  border-color: var(--txt-mid);
+}
+
+.ds-select__list {
+  position: absolute;
+  top: calc(100% + var(--space-1));
+  left: 0;
+  right: 0;
+  z-index: 50;
+  margin: 0;
+  padding: var(--space-1);
+  list-style: none;
+  background: var(--ink-800);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-small);
+}
+
+.ds-select__opt {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-radius: calc(var(--radius-small) - 4px);
+  color: var(--txt-mid);
+  cursor: pointer;
+}
+
+.ds-select__opt.is-active {
+  background: var(--ink-700);
+  color: var(--txt-hi);
+}
+.ds-select__opt.is-selected {
+  color: var(--txt-hi);
+  font-weight: 600;
+}
+.ds-select__text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.ds-select__detail {
+  font: var(--type-caption);
+  color: var(--txt-mid);
+}
+
+/* ---- Badge --------------------------------------------------------------- */
+
+.ds-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 24px;
+  padding: 0 var(--space-2);
+  border: 1px solid color-mix(in srgb, var(--tone) 45%, transparent);
+  border-radius: var(--radius-small);
+  background: color-mix(in srgb, var(--tone) 12%, transparent);
+  color: var(--tone);
+  font: var(--type-label);
+  text-transform: var(--label-case);
+  letter-spacing: var(--label-tracking);
+  white-space: nowrap;
+}
+
+[data-register='cockpit'] .ds-badge {
+  height: 20px;
+}
+
+/* ---- Keycap -------------------------------------------------------------- */
+
+.ds-key {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  height: 24px;
+  padding: 0 6px;
+  background: var(--ink-700);
+  border: 1px solid var(--line);
+  border-bottom-width: 2px;
+  border-radius: 6px;
+  color: var(--txt-hi);
+  font: var(--type-label);
+  white-space: nowrap;
+}
+
+.ds-key--face {
+  width: 24px;
+  padding: 0;
+  border-radius: 50%;
+  border-bottom-width: 1px;
+}
+.ds-key--shoulder {
+  padding: 0 10px;
+  border-radius: 999px;
+  border-bottom-width: 1px;
+}
+.ds-key--stick {
+  width: 24px;
+  padding: 0;
+  border-radius: 8px;
+  border-bottom-width: 1px;
+}
+.ds-key.is-pressed {
+  background: var(--signal);
+  border-color: var(--signal-d);
+  color: var(--on-fill);
+}
+
+/* ---- Progress ------------------------------------------------------------ */
+
+.ds-progress {
+  height: 6px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--ink-700);
+}
+
+.ds-progress__fill {
+  display: block;
+  height: 100%;
+  background: var(--tone);
+  border-radius: inherit;
+}
+
+/* ---- Stars --------------------------------------------------------------- */
+
+.ds-stars {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.ds-stars__row {
+  display: inline-flex;
+  gap: 2px;
+  color: var(--txt-low);
+}
+.ds-stars__row .is-earned {
+  color: var(--caution);
+}
+.ds-stars__text {
+  font: var(--type-caption);
+  color: var(--txt-mid);
+}
+
+/* ---- Stat tile ----------------------------------------------------------- */
+
+.ds-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-3) var(--space-4);
+  background: var(--ink-900);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-small);
+}
+
+.ds-stat__value {
+  font: var(--type-h4);
+  color: var(--txt-hi);
+}
+.ds-stat__unit {
+  font: var(--type-body-sm);
+  color: var(--txt-mid);
+}
+.ds-stat__note {
+  font: var(--type-caption);
+  color: var(--txt-mid);
+}
+
+.ds-stat__status {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--tone);
+  font: var(--type-label);
+  text-transform: var(--label-case);
+  letter-spacing: var(--label-tracking);
+}
+
+[data-register='cockpit'] .ds-stat {
+  padding: var(--space-2) var(--space-3);
+  background: var(--ink-950);
+}
+[data-register='cockpit'] .ds-stat__value {
+  font: var(--type-title);
+}
+
+/* ---- Panel & divider ----------------------------------------------------- */
+
+.ds-panel {
+  padding: var(--space-5);
+  background: var(--wash);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+}
+
+.ds-panel__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: var(--space-4);
+}
+.ds-panel__title {
+  margin: 0;
+  font: var(--type-title);
+  color: var(--txt-hi);
+}
+.ds-panel__meta {
+  font: var(--type-caption);
+  color: var(--txt-mid);
+}
+
+[data-register='cockpit'] .ds-panel {
+  padding: var(--space-3);
+  background: var(--ink-950);
+}
+[data-register='cockpit'] .ds-panel__head {
+  margin-bottom: var(--space-2);
+}
+[data-register='cockpit'] .ds-panel__title {
+  font: var(--type-label);
+  text-transform: var(--label-case);
+  letter-spacing: var(--label-tracking);
+}
+
+.ds-divider {
+  margin: var(--space-4) 0;
+  border: 0;
+  border-top: 1px solid var(--line);
+}
+
+/* ---- Modal --------------------------------------------------------------- */
+
+.ds-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  place-items: center;
+  padding: var(--space-4);
+  background: var(--scrim);
+}
+
+.ds-modal {
+  width: min(480px, 100%);
+  padding: var(--space-6);
+  background: var(--ink-800);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  color: var(--txt-hi);
+}
+
+.ds-modal__title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-3);
+  font: var(--type-h4);
+  color: var(--txt-hi);
+}
+
+.ds-modal__title.ds-tone--caution,
+.ds-modal__title.ds-tone--fail {
+  color: var(--tone);
+}
+.ds-modal__body {
+  font: var(--type-body);
+  color: var(--txt-mid);
+}
+.ds-modal__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-3);
+  margin-top: var(--space-6);
+}
+
+[data-register='cockpit'] .ds-modal {
+  padding: var(--space-5);
+  background: var(--ink-950);
+}
+[data-register='cockpit'] .ds-modal__title {
+  font: var(--type-title);
+  text-transform: var(--label-case);
+  letter-spacing: var(--label-tracking);
+}
+
+/* ---- Button legend ------------------------------------------------------- */
+
+.ds-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ds-legend__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.ds-legend__action {
+  font: var(--type-caption);
+  color: var(--txt-mid);
+}
+
+[data-register='cockpit'] .ds-legend__action {
+  font: var(--type-label);
+  text-transform: var(--label-case);
+  letter-spacing: var(--label-tracking);
+}
+
+/* ---- Dev preview sheet (ds/DesignPreview.tsx) ----------------------------- */
+
+.ds-preview {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  overflow: auto;
+  padding: var(--space-10) var(--space-12);
+  background: var(--ink-950);
+  color: var(--txt-hi);
+  font: var(--type-body);
+  font-family: var(--font-sans);
+  font-feature-settings: var(--font-numeric);
+}
+
+.ds-preview h1,
+.ds-preview h2 {
+  margin: var(--space-8) 0 var(--space-4);
+}
+.ds-preview__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+.ds-preview__head h1 {
+  margin-top: var(--space-2);
+}
+.ds-preview__swatches {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+.ds-preview__swatch {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.ds-preview__chip {
+  height: 56px;
+  border: 1px solid var(--line);
+  border-radius: var(--space-3);
+}
+.ds-preview__type {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.ds-preview__typerow {
+  display: grid;
+  grid-template-columns: 96px 1fr;
+  align-items: baseline;
+  gap: var(--space-4);
+}
+
+.ds-preview__register {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  margin-top: var(--space-8);
+  padding: var(--space-6);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+}
+
+.ds-preview__register h2 {
+  margin: 0;
+}
+.ds-preview__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--space-4);
+}
+.ds-preview__stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 160px;
+}

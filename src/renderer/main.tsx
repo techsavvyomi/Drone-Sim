@@ -7,7 +7,15 @@ import { App } from './app/App';
 import { AppErrorBoundary } from './app/AppErrorBoundary';
 import { loadBuiltinPlugins } from './plugins';
 import { startPreparingResources } from './assets/prepareResources';
+import { DevPreviewGate } from './ds/DevPreviewGate';
+// Tokens first: the one file every colour and font comes from. The legacy
+// theme follows, then the design-system components that read the tokens.
+import './styles/tokens.css';
 import './index.css';
+import './styles/ds.css';
+import './styles/shell.css';
+import './styles/account.css';
+import './styles/home.css';
 
 // Point Draco at the decoder bundled in public/, before anything loads a model.
 //
@@ -36,6 +44,7 @@ createRoot(container).render(
   <StrictMode>
     <AppErrorBoundary>
       <App />
+      {import.meta.env.DEV && <DevPreviewGate />}
     </AppErrorBoundary>
   </StrictMode>,
 );

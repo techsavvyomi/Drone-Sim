@@ -1,102 +1,109 @@
 import { useSettingsStore } from '../state/settingsStore';
 import { useUiStore } from '../state/uiStore';
-import { useAccountStore } from '../state/accountStore';
-import { getDrone, listDrones, listEnvironments } from '../plugins/registry';
-import { ChipSelect, type SelectOption } from './ChipSelect';
-import { IconArena, IconCeiling, IconDrone, IconGear, IconTarget, IconUser } from './icons';
+import { getDrone, getEnvironment, listDrones, listEnvironments } from '../plugins/registry';
+import { Button } from '../ds';
+import { LoadoutChip, type LoadoutOption } from './LoadoutChip';
+import { IconArena, IconCeiling, IconDrone, IconTarget } from './icons';
+import { arenaLine, ceilingFor, droneBuild, formatMass, formatMetres } from './loadout';
 import logoMark from '../../assets/brand/plutosim-mark.svg';
 
-/** Accent tints for option thumbnails, cycled by index. */
-const TINTS = ['#3b82f6', '#22c55e', '#f5a524', '#a855f7', '#38bdf8'];
-
+/**
+ * The shell's top bar: brand on the left; on the right the NEXT FLIGHT strip —
+ * DRONE › ARENA › CEILING — ending in Fly, the shell's one action.
+ *
+ * The ceiling is a read-out, not a menu: the flight controller holds the
+ * drone's own limit and an indoor arena's roof caps it (see loadout.ts).
+ */
 export function TopBar() {
-  const { settings, set } = useSettingsStore();
+  const settings = useSettingsStore((s) => s.settings);
+  const set = useSettingsStore((s) => s.set);
   const setSection = useUiStore((s) => s.setSection);
   const drone = getDrone(settings.selectedDroneId);
-  const profile = useAccountStore((s) => (s.status === 'signedIn' ? s.profile : null));
+  const env = getEnvironment(settings.selectedEnvironmentId);
+  const ceiling = ceilingFor(drone, env);
 
-  // Options come straight from the plugin registries, so new drones and maps
-  // appear in these menus with no UI changes.
-  const droneOptions: SelectOption[] = listDrones().map((d, i) => ({
+  // Straight from the plugin registries, so a new drone or map appears here
+  // with no UI change.
+  const droneOptions: LoadoutOption[] = listDrones().map((d) => ({
     id: d.id,
     name: d.name,
-    meta: `${d.frame} · ${Math.round(d.mass * 1000)} g`,
-    color: TINTS[i % TINTS.length],
-    thumb: <IconDrone size={20} />,
+    meta: formatMass(d.mass),
+    // The mass is already beside the name.
+    detail: droneBuild(d),
+    thumb: <IconDrone size={22} />,
   }));
-
-  const envOptions: SelectOption[] = listEnvironments().map((e, i) => ({
+  const arenaOptions: LoadoutOption[] = listEnvironments().map((e) => ({
     id: e.id,
     name: e.name,
-    meta: e.kind === 'outdoor' ? 'Outdoor' : 'Indoor',
-    color: TINTS[(i + 2) % TINTS.length],
-    thumb: e.kind === 'outdoor' ? <IconTarget size={20} /> : <IconArena size={20} />,
+    detail: arenaLine(e),
+    thumb: e.kind === 'outdoor' ? <IconTarget size={22} /> : <IconArena size={22} />,
   }));
 
   return (
-    <header className="topbar">
-      <button className="logo" onClick={() => setSection('home')}>
-        <span className="logo-mark">
-          <img src={logoMark} alt="" />
-        </span>
-        <span className="logo-text">
-          <b>
-            Pluto<i>Sim</i>
-          </b>
-          <em>
-            Flight Simulator <span className="logo-by">by Drona Aviation</span>
-          </em>
+    <header className="topbar" data-nav-region="topbar" data-register="classroom">
+      {/* A pointer shortcut home. Out of the Tab order: the brief's order
+          starts at the loadout chips, and Home is sidebar item 1 / key 1. */}
+      <button
+        type="button"
+        className="topbar__brand"
+        tabIndex={-1}
+        aria-label="PlutoSim, home"
+        onClick={() => setSection('home')}
+      >
+        <img className="topbar__mark" src={logoMark} alt="" />
+        <span className="topbar__names">
+          <b className="topbar__name">PlutoSim</b>
+          <span className="topbar__tagline">Flight Simulator by Drona Aviation</span>
         </span>
       </button>
 
-      <div className="topbar-right">
-        {/* Signed in, the pilot's own chip takes the status pill's place, so
-            the bar stays the width it was designed at. */}
-        {profile ? (
-          <button className="chip-user" onClick={() => setSection('profile')} title="Your profile">
-            <span className="chip-icon">
-              <IconUser size={20} />
-            </span>
-            <span className="chip-body">
-              <i>Level {profile.level}</i>
-              <b>{profile.name}</b>
-            </span>
-          </button>
-        ) : (
-          <div className="pill-connected">
-            <span className="dot" />
-            Connected
-          </div>
-        )}
-
-        <div className="chip-group">
-          <ChipSelect
-            icon={<IconDrone size={20} />}
-            label="Drone"
-            value={settings.selectedDroneId}
-            options={droneOptions}
-            onSelect={(id) => set('selectedDroneId', id)}
-          />
-          <ChipSelect
-            icon={<IconArena size={20} />}
-            label="Arena"
-            value={settings.selectedEnvironmentId}
-            options={envOptions}
-            onSelect={(id) => set('selectedEnvironmentId', id)}
-          />
-          <div className="chip chip-static">
-            <span className="chip-icon">
-              <IconCeiling size={20} />
-            </span>
-            <span className="chip-body">
-              <i>Ceiling</i>
-              <b>{drone?.maxAltitude ?? '-'} m</b>
-            </span>
-          </div>
-          <button className="chip-gear" onClick={() => setSection('settings')} title="Settings">
-            <IconGear size={22} />
-          </button>
+      <div className="topbar__loadout" data-loadout>
+        <span className="topbar__next">Next flight</span>
+        <LoadoutChip
+          icon={<IconDrone size={20} />}
+          label="Drone"
+          value={settings.selectedDroneId}
+          options={droneOptions}
+          onSelect={(id) => set('selectedDroneId', id)}
+          blurb="Changes mass, thrust and handling. Sets the next flight."
+        />
+        <span className="topbar__sep" aria-hidden="true">
+          ›
+        </span>
+        <LoadoutChip
+          icon={<IconArena size={20} />}
+          label="Arena"
+          value={settings.selectedEnvironmentId}
+          options={arenaOptions}
+          onSelect={(id) => set('selectedEnvironmentId', id)}
+          blurb="Where the next free flight takes off."
+        />
+        <span className="topbar__sep" aria-hidden="true">
+          ›
+        </span>
+        <div
+          className="loadout-chip__button is-static"
+          role="status"
+          aria-label={`Ceiling: ${formatMetres(ceiling.metres)}${
+            ceiling.cappedBy ? `, set by ${ceiling.cappedBy}` : ''
+          }`}
+        >
+          <span className="loadout-chip__icon" aria-hidden="true">
+            <IconCeiling size={20} />
+          </span>
+          <span className="loadout-chip__body" aria-hidden="true">
+            <span className="loadout-chip__key">Ceiling</span>
+            <span className="loadout-chip__value">{formatMetres(ceiling.metres)}</span>
+          </span>
         </div>
+        <Button
+          variant="primary"
+          iconAfter="play"
+          data-loadout-stop
+          onClick={() => setSection('fly')}
+        >
+          Fly
+        </Button>
       </div>
     </header>
   );

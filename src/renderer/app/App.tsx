@@ -8,11 +8,13 @@ import { SettingsPanel } from './SettingsPanel';
 import { Placeholder } from './Placeholder';
 import { StatusBar } from './StatusBar';
 import { TrainingScreen } from './TrainingScreen';
+import { Hangar } from './Hangar';
 import { MissionScreen } from './MissionScreen';
 import { ProfileScreen } from './ProfileScreen';
 import { SignIn } from './SignIn';
 import { LoadingScreen, useResourcesReady } from './LoadingScreen';
 import { QualityNotice } from './QualityNotice';
+import { BootSplash } from './BootSplash';
 import { allLoaded, useResourceStore } from '../assets/resourceTracker';
 import { Viewport } from '../scene/Viewport';
 import { useUiStore } from '../state/uiStore';
@@ -24,6 +26,19 @@ import { attachGamepad } from '../input/gamepad';
 import { useAccountStore } from '../state/accountStore';
 import { attachTelemetry } from '../analytics/telemetry';
 import { attachCrashReporting } from '../analytics/crashReporting';
+import { attachMenuNav, escapeToSidebar } from '../input/menuNav';
+import { attachMenuGamepad } from '../input/menuGamepad';
+import { navItems, openSection } from './Sidebar';
+
+/** True while a menu page is up: no flight, lesson or mission, not paused.
+ *  Read from the stores, for listeners that outlive a render. */
+function menuShowing(): boolean {
+  const { section } = useUiStore.getState();
+  if (section === 'fly') return false;
+  if (section === 'training' && useTrainingStore.getState().activeLessonId) return false;
+  if (section === 'missions' && useMissionStore.getState().mission) return false;
+  return !useFlightStore.getState().paused;
+}
 
 function MainArea() {
   const section = useUiStore((s) => s.section);
@@ -43,14 +58,8 @@ function MainArea() {
       return <TrainingScreen />;
     case 'missions':
       return <MissionScreen />;
-    case 'studio':
-      return (
-        <Placeholder
-          title="Drone Studio"
-          phase="Phase 6"
-          blurb="Build custom drones and auto-calculate weight, thrust-to-weight and flight time."
-        />
-      );
+    case 'hangar':
+      return <Hangar />;
     case 'stem':
       return (
         <Placeholder
@@ -104,8 +113,21 @@ export function App() {
   // loading screen. A launch with a failed model does not count, so the next
   // one tries again behind the screen rather than behind the menu.
   useEffect(() => {
-    if (hydrated && loadedClean && !prepared) useSettingsStore.getState().set('resourcesPrepared', true);
+    if (hydrated && loadedClean && !prepared)
+      useSettingsStore.getState().set('resourcesPrepared', true);
   }, [hydrated, loadedClean, prepared]);
+
+  // The sign-in form welcomes back the last pilot on this computer. Name and
+  // email only; the sign-out dialog can forget them.
+  const signedInPilot = useAccountStore((s) =>
+    s.status === 'signedIn' && s.profile ? `${s.profile.name}\n${s.profile.email}` : null,
+  );
+  useEffect(() => {
+    if (!hydrated || !signedInPilot) return;
+    const [name, email] = signedInPilot.split('\n');
+    const last = useSettingsStore.getState().settings.lastPilot;
+    if (last?.name !== name || last?.email !== email) useSettingsStore.getState().set('lastPilot', { name, email });
+  }, [hydrated, signedInPilot]);
 
   // Crash reports, from the first render: a failure on the sign-in screen counts.
   useEffect(() => attachCrashReporting(), []);
@@ -134,12 +156,31 @@ export function App() {
     return attachGamepad();
   }, [hydrated]);
 
+  // Menu navigation: arrows / D-pad move the focus, 1–8 open a sidebar item.
+  // Menus only — a flight, lesson or mission keeps every key and button.
+  useEffect(() => {
+    const jump = (n: number) => {
+      const profiles = useAccountStore.getState().status === 'signedIn';
+      const item = navItems(profiles).find((i) => i.n === n);
+      if (item) openSection(item.id, true);
+    };
+    const detachKeys = attachMenuNav({ isMenu: menuShowing, jump });
+    const detachPad = attachMenuGamepad(menuShowing);
+    return () => {
+      detachKeys();
+      detachPad();
+    };
+  }, []);
+
   // Esc is handled app-wide, not in the flight input layer: it has to work in
   // Settings and the other sections too, where those controls aren't mounted.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return;
       e.preventDefault();
+      // On a menu page, Esc from the content or the top bar first goes to the
+      // active sidebar item; from the sidebar it goes back as it always has.
+      if (menuShowing() && escapeToSidebar()) return;
       const ui = useUiStore.getState();
       const flight = useFlightStore.getState();
       if (ui.section === 'fly') {
@@ -171,12 +212,7 @@ export function App() {
   }, []);
 
   if (!hydrated || accountStatus === 'loading') {
-    return (
-      <div className="boot">
-        <b>PlutoSim</b>
-        <span>By Drona Aviation</span>
-      </div>
-    );
+    return <BootSplash />;
   }
 
   // First launch: the loading screen opens the app, before sign-in, so every
@@ -192,7 +228,10 @@ export function App() {
   // this point until someone has activated or signed in. A token that expires
   // mid-flight waits for the flight to end (in Free Flight, for the drone to be
   // disarmed): the queue holds its data meanwhile.
-  if (accountStatus === 'signedOut' || (accountStatus === 'signedIn' && needsSignIn && !midFlight)) {
+  if (
+    accountStatus === 'signedOut' ||
+    (accountStatus === 'signedIn' && needsSignIn && !midFlight)
+  ) {
     return <SignIn />;
   }
 
@@ -218,11 +257,11 @@ export function App() {
           CSS reveal to match. */}
       <div className="topbar-peek" aria-hidden="true" />
       <TopBar />
-      {/* Menu and flight view are both full-bleed: the menu navigates via its
-          mode cards, and the cockpit should not be crowded by a nav rail. The
-          logo and gear in the top bar remain the way back out of both. */}
-      {section !== 'home' && !flightLike && <Sidebar />}
-      <main className="stage">
+      {/* The sidebar and status bar frame every menu page, Home included. A
+          flight view is full-bleed: its way out is the pause menu (Esc), or the
+          logo in the parked top bar. */}
+      {!flightLike && <Sidebar />}
+      <main className="stage" data-nav-region="content">
         <MainArea />
       </main>
       {/* Telemetry dock is hidden by default in flight so the viewport stays
@@ -237,7 +276,7 @@ export function App() {
           {panelOpen ? '›' : '‹'}
         </button>
       )}
-      {section !== 'home' && <StatusBar />}
+      {!flightLike && <StatusBar />}
       <QualityNotice />
     </div>
   );

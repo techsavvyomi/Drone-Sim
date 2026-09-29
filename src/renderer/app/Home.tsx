@@ -1,132 +1,242 @@
-import { useUiStore, type Section } from '../state/uiStore';
-import { getDrone } from '../plugins/registry';
-import { usePilotStanding } from './pilotRank';
+import { useEffect, useMemo, useRef } from 'react';
+import { useUiStore } from '../state/uiStore';
+import { useSettingsStore } from '../state/settingsStore';
+import { useShellStore } from '../state/shellStore';
 import { useAccountStore } from '../state/accountStore';
-import { ArenaShowcase } from '../scene/ArenaShowcase';
-import { IconChevron, IconDrone, IconMedal, IconCap } from './icons';
+import { usePilotStore } from '../state/pilotStore';
+import { useTrainingStore } from '../state/trainingStore';
+import { useMissionStore } from '../state/missionStore';
+import { getDrone, getEnvironment, listDrones } from '../plugins/registry';
+import { LESSONS } from '../training/lessons';
+import { MISSIONS, getMission } from '../missions';
+import { Icon, Progress } from '../ds';
+import { HangarScene } from './HangarScene';
+import { LoadoutChip, type LoadoutOption } from './LoadoutChip';
+import { IconDrone } from './icons';
+import { ceilingFor, droneBuild, formatMass, formatMetres } from './loadout';
+import { handlingLine, homeDroneFacts, homePlan, type ModeRow } from './homeFacts';
+import { rankStanding } from './pilotRank';
+import { formatNumber } from './profileFacts';
+import { initials } from './activationKey';
 
-/** Compact pilot/progression badge shown in the menu's bottom-left corner. */
+const reducedMotion = () =>
+  typeof window !== 'undefined' &&
+  window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true;
+
+/** Where the pilot stands, for the badge: the profile's rank when signed in,
+ *  else the local Flight School rank. */
+function useBadge() {
+  const profile = useAccountStore((s) => (s.status === 'signedIn' ? s.profile : null));
+  const local = usePilotStore();
+  if (profile?.levelPoints) {
+    const st = rankStanding(profile);
+    return {
+      signedIn: true,
+      name: profile.name,
+      line: `${st.rank} · Rank ${st.position} of ${st.of}`,
+      xp: st.totalXp,
+      into: st.intoRank,
+      span: st.rankSpan,
+      toGo: st.next ? `${formatNumber(st.next.xpToGo)} XP to ${st.next.name}` : 'Top rank reached',
+    };
+  }
+  return {
+    signedIn: false,
+    name: local.callsign,
+    line: local.rank,
+    xp: local.totalXp,
+    into: local.xp,
+    span: local.xpNext,
+    toGo: `${formatNumber(Math.max(0, local.xpNext - local.xp))} XP to the next rank`,
+  };
+}
+
 function PilotBadge() {
-  const pilot = usePilotStanding();
+  const b = useBadge();
   const setSection = useUiStore((s) => s.setSection);
-  const signedIn = useAccountStore((s) => s.status === 'signedIn');
-  const pct = pilot.next > 0 ? Math.round((pilot.current / pilot.next) * 100) : 0;
-
-  // Signed in, the badge is the way to the pilot's profile.
-  const Tag = signedIn ? 'button' : 'div';
-  return (
-    <Tag
-      className={`pilot-badge ${signedIn ? 'is-link' : ''}`}
-      {...(signedIn ? { onClick: () => setSection('profile'), title: 'View your profile' } : {})}
-    >
-      <span className="pilot-badge-avatar">🧑‍✈️</span>
-      <span className="pilot-badge-main">
-        <b>{pilot.name}</b>
-        <i>{pilot.rank}</i>
-        <span className="pilot-badge-bar">
-          <span style={{ width: `${pct}%` }} />
+  const body = (
+    <>
+      <span className="home__avatar" aria-hidden="true">
+        {initials(b.name)}
+      </span>
+      <span className="home__who">
+        <b>{b.name}</b>
+        <span>{b.line}</span>
+      </span>
+      <span className="home__xp">
+        <span className="home__xp-row">
+          <b>{formatNumber(b.xp)} XP</b>
+          <span>{b.toGo}</span>
         </span>
+        <Progress value={b.into} max={b.span} label="XP to the next rank" tone="neutral" />
       </span>
-      <span className="pilot-badge-xp">
-        {pilot.current} / {pilot.next} {pilot.unit}
-      </span>
-    </Tag>
+    </>
+  );
+  // Signed in, the badge is the way to the profile.
+  return b.signedIn ? (
+    <button type="button" className="home__badge is-link" onClick={() => setSection('profile')}>
+      {body}
+    </button>
+  ) : (
+    <div className="home__badge">{body}</div>
   );
 }
 
-interface ModeCard {
-  id: string;
-  title: string;
-  lines: [string, string];
-  cta: string;
-  icon: React.ReactNode;
-  target: Section;
-  accent: string;
+function ModeButton({ row, onPick }: { row: ModeRow; onPick: (row: ModeRow) => void }) {
+  return (
+    <button
+      type="button"
+      className={row.primary ? 'home__mode is-primary' : 'home__mode'}
+      data-primary={row.primary ? true : undefined}
+      data-mode={row.id}
+      onClick={() => onPick(row)}
+    >
+      <span className="home__mode-text">
+        <span className="home__mode-top">
+          <span className="home__mode-title">{row.title}</span>
+          {row.count && (
+            <span className="home__mode-count">
+              {row.count}
+              {row.countStars && <Icon name="star" />}
+            </span>
+          )}
+        </span>
+        <span className="home__mode-line">{row.line}</span>
+      </span>
+      <span className="home__mode-go" aria-hidden="true">
+        <Icon name="chevron" />
+      </span>
+    </button>
+  );
 }
 
-// Three cards, not four. Practice is reachable from the sidebar like every
-// other section; on the front page it sat between Free Flight and Training
-// saying much the same thing as both, so the row now names three clearly
-// different things to do. `.mode-row` holds the column count.
-const CARDS: ModeCard[] = [
-  {
-    id: 'free-flight',
-    title: 'Free Flight',
-    lines: ['Fly without limits.', 'Explore and enjoy.'],
-    cta: "Let's Fly",
-    icon: <IconDrone size={34} />,
-    target: 'fly',
-    accent: '#3b82f6',
-  },
-  {
-    id: 'training',
-    title: 'Training',
-    lines: ['Learn step by step.', 'From basics to pro.'],
-    cta: 'Start Training',
-    icon: <IconCap size={34} />,
-    target: 'training',
-    accent: '#f5a524',
-  },
-  {
-    id: 'missions',
-    title: 'Missions',
-    lines: ['Fly real jobs.', 'Every run is scored.'],
-    cta: 'View Missions',
-    icon: <IconMedal size={34} />,
-    target: 'missions',
-    accent: '#a855f7',
-  },
-];
-
+/**
+ * Home, "the hangar": the loadout drone on the stage with its specs, one list
+ * of modes with a single primary action, and the pilot badge. No setup strip:
+ * the top bar's NEXT FLIGHT chips already name the drone, arena and ceiling.
+ * Everything on it is a fact from the game's own data (homeFacts.ts).
+ */
 export function Home() {
+  const settings = useSettingsStore((s) => s.settings);
+  const setSetting = useSettingsStore((s) => s.set);
   const setSection = useUiStore((s) => s.setSection);
-  // Home hero animation always shows Pluto — dropdown selection does not
-  // swap the background showcase (flight still uses selectedDroneId).
-  const drone = getDrone('pluto');
+  const setContext = useShellStore((s) => s.setContext);
+  const pilotName = useAccountStore((s) => (s.status === 'signedIn' ? s.profile?.name : null));
+  const listRef = useRef<HTMLUListElement>(null);
+  const paused = useMemo(reducedMotion, []);
+
+  const drones = useMemo(() => listDrones(), []);
+  const drone = getDrone(settings.selectedDroneId) ?? drones[0];
+  const env = getEnvironment(settings.selectedEnvironmentId);
+  const ceiling = ceilingFor(drone, env);
+  const droneAt = Math.max(
+    0,
+    drones.findIndex((d) => d.id === drone?.id),
+  );
+
+  const plan = homePlan({
+    lessons: LESSONS,
+    missions: MISSIONS,
+    training: settings.training,
+    missionProgress: settings.missions,
+    pilotName,
+    envName: (id) => getEnvironment(id)?.name,
+  });
+
+  useEffect(() => {
+    setContext(plan.statusContext, plan.statusTag);
+    return () => setContext('');
+  }, [plan.statusContext, plan.statusTag, setContext]);
+
+  // Focus starts on the primary row, so Enter starts it — unless the pilot
+  // arrived by pointer on another control (a sidebar click keeps its focus).
+  useEffect(() => {
+    const active = document.activeElement;
+    if (active && active !== document.body) return;
+    listRef.current?.querySelector<HTMLElement>('[data-primary]')?.focus({ preventScroll: true });
+  }, []);
+
+  const pick = (row: ModeRow) => {
+    const t = row.target;
+    if (t.kind === 'lesson') {
+      useTrainingStore.getState().start(t.id);
+      setSection('training');
+    } else if (t.kind === 'mission') {
+      const m = getMission(t.id);
+      if (m) useMissionStore.getState().start(m);
+      setSection('missions');
+    } else {
+      setSection(t.section);
+    }
+  };
+
+  const droneOptions: LoadoutOption[] = drones.map((d) => ({
+    id: d.id,
+    name: d.name,
+    meta: formatMass(d.mass),
+    detail: droneBuild(d),
+    thumb: <IconDrone size={22} />,
+  }));
+
+  if (!drone) return null;
+  const tag = `${env?.name ?? 'No arena'} · ceiling ${formatMetres(ceiling.metres)}`;
 
   return (
-    <div className="home">
-      {/* Live racing arena behind the menu */}
-      {drone && <ArenaShowcase spec={drone} />}
-      <div className="home-fade" />
-
-      <div className="home-inner">
-        <header className="home-hero">
-          <h1>
-            Ready to
-            <br />
-            <span>Take Off?</span>
-          </h1>
-          <span className="hero-rule" />
-          <p>Choose your mode and start flying.</p>
-        </header>
-
-        <div className="mode-row">
-          {CARDS.map((c) => (
-            <button
-              key={c.id}
-              className="mcard"
-              style={{ ['--accent' as string]: c.accent }}
-              onClick={() => setSection(c.target)}
-            >
-              <span className="mcard-ico">{c.icon}</span>
-              <span className="mcard-title">{c.title}</span>
-              <span className="mcard-lines">
-                {c.lines[0]}
-                <br />
-                {c.lines[1]}
-              </span>
-              <span className="mcard-cta">
-                {c.cta}
-                <IconChevron size={16} />
-              </span>
-            </button>
-          ))}
+    <div className="home" data-register="classroom">
+      <section className="home__hero" aria-label={`${drone.name}, selected for the next flight`}>
+        <div className="home__stage">
+          <HangarScene spec={drone} paused={paused} />
+          <span className="home__tag">{tag}</span>
         </div>
 
-        <footer className="home-bottom">
-          <PilotBadge />
-        </footer>
+        <div className="home__spec">
+          <p className="home__count">
+            Selected drone · {droneAt + 1} of {drones.length}
+          </p>
+          <h1 className="home__name">{drone.name}</h1>
+          <LoadoutChip
+            variant="button"
+            buttonText="Change drone"
+            icon={<IconDrone size={20} />}
+            label="Drone"
+            value={drone.id}
+            options={droneOptions}
+            onSelect={(id) => setSetting('selectedDroneId', id)}
+            blurb="Changes mass, thrust and handling. Sets the next flight."
+          />
+          <dl className="home__facts">
+            {homeDroneFacts(drone).map((f) => (
+              <div key={f.label} className="home__fact">
+                <dt>{f.label}</dt>
+                <dd>{f.value}</dd>
+              </div>
+            ))}
+          </dl>
+          <div className="home__handling">
+            <span>Handling</span>
+            <p>{handlingLine(drone)}</p>
+          </div>
+        </div>
+      </section>
+
+      <section className="home__modes" aria-labelledby="home-heading">
+        <h2 id="home-heading" className="home__heading">
+          {plan.heading}
+        </h2>
+        <p className="home__lede">
+          Flight controller ported from the Pluto firmware. Physics runs at 250 Hz.
+        </p>
+        <ul ref={listRef} className="home__list" aria-label="Modes">
+          {plan.rows.map((row) => (
+            <li key={row.id}>
+              <ModeButton row={row} onPick={pick} />
+            </li>
+          ))}
+        </ul>
+      </section>
+
+      <div className="home__foot">
+        <PilotBadge />
       </div>
     </div>
   );

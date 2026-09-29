@@ -98,6 +98,12 @@ export interface AppSettings {
    * straight to the menu and the models load behind it.
    */
   resourcesPrepared: boolean;
+  /**
+   * The last pilot to sign in on this computer, for "Welcome back" on the
+   * sign-in form. Name and email only, never the key. Cleared by "Forget … on
+   * this computer" in the sign-out dialog.
+   */
+  lastPilot: { name: string; email: string } | null;
 }
 
 // ----------------------------------------------------------------------------
@@ -465,6 +471,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   training: DEFAULT_TRAINING,
   missions: DEFAULT_MISSIONS,
   resourcesPrepared: false,
+  lastPilot: null,
   hud: {
     altitudeTape: true,
     horizon: true,

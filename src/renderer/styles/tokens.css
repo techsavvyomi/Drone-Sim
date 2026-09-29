@@ -1,0 +1,146 @@
+/* ==========================================================================
+   PlutoSim design tokens — Foundation v0.2
+   THE ONE FILE for colours, fonts, type, corners and control sizes.
+
+   Nothing else in the UI may write a colour value or a font name: every
+   stylesheet and component reads these variables. Change a value here and it
+   changes everywhere, including canvas drawing (it reads them through
+   `tokens.ts`). `node scripts/check-tokens.mjs` enforces the rule.
+
+   Two registers share one palette:
+     cockpit   — in flight. 30 px controls, 8 px corners, UPPERCASE labels,
+                 sits on ink-950.
+     classroom — menus, lessons, results. 44 px pill controls, 20 px cards,
+                 sentence case, sits on ink-800.
+   A subtree picks one with data-register="cockpit" | "classroom".
+   ========================================================================== */
+
+/* ---- Fonts ---------------------------------------------------------------
+   Bundled, never fetched: the CSP allows fonts from 'self' only.
+   Geist and Geist Mono are OFL 1.1 (assets/fonts/Geist-OFL.txt), variable
+   weight 100–900, so the design's 652 / 456 / 300 weights render exactly.
+   To switch typeface, change the two files below and --font-sans. */
+@font-face {
+  font-family: 'Geist';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: block;
+  src: url('../../assets/fonts/Geist-Variable.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Geist Mono';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: block;
+  src: url('../../assets/fonts/GeistMono-Variable.woff2') format('woff2');
+}
+
+:root {
+  /* ---- Colour: surfaces (darkest → lightest) ---- */
+  --ink-950: #0e0f0e; /* app background, cockpit plates */
+  --ink-900: #141614; /* panel */
+  --ink-800: #1c1f1d; /* raised surface, input */
+  --ink-700: #262a27; /* control fill */
+  --line: #343935; /* hairline — decoration only, never the only cue */
+
+  /* ---- Colour: text ---- */
+  --txt-hi: #f2f4f1; /* primary */
+  --txt-mid: #b9bfb8; /* secondary; use this on ink-700 fills */
+  --txt-low: #8a918a; /* tertiary floor */
+
+  /* ---- Colour: meaning ---- */
+  --signal: #ff7a1a; /* THE action colour: primary buttons, focus ring */
+  --signal-d: #d9620e; /* pressed */
+  --armed: #3adb8a; /* armed / OK */
+  --caution: #ffc24b; /* warning */
+  --fail: #ff5a5f; /* failure */
+  --plot: #6fc3ff; /* graph lines only */
+
+  /* Text that sits ON a signal / signal-d / fail / armed fill. */
+  --on-fill: var(--ink-950);
+
+  /* ---- Derived colours (follow the tokens above automatically) ---- */
+  --scrim: color-mix(in srgb, var(--ink-950) 80%, transparent); /* modal backdrop */
+  --quiet-bar: color-mix(in srgb, var(--ink-950) 82%, transparent); /* quiet HUD */
+  --wash: linear-gradient(180deg, var(--ink-800), var(--ink-900)); /* the panel gradient */
+  /* Behind a 3D turntable: a soft pool of light around the model (user, 2026-09-29). */
+  --stage-glow: radial-gradient(ellipse 60% 55% at 50% 45%, var(--ink-800), var(--ink-950) 100%);
+
+  /* ---- Type ---- */
+  --font-sans: 'Geist', system-ui, sans-serif;
+  --font-mono: 'Geist Mono', ui-monospace, monospace; /* activation key only */
+  --font-numeric: 'tnum' 1; /* tabular figures everywhere */
+
+  /* role: weight size/line-height family */
+  --type-display: 652 80px/1 var(--font-sans);
+  --type-h1: 652 56px/1 var(--font-sans);
+  --type-h2: 652 44px/1.13 var(--font-sans);
+  --type-h3: 652 32px/1.13 var(--font-sans);
+  --type-h4: 652 24px/1.25 var(--font-sans);
+  --type-title: 600 20px/1.3 var(--font-sans);
+  --type-body-lg: 300 20px/1.38 var(--font-sans);
+  --type-body: 456 16px/1.38 var(--font-sans);
+  --type-body-sm: 456 14px/1.43 var(--font-sans);
+  --type-link: 600 16px/1.38 var(--font-sans);
+  --type-label: 600 12px/1.33 var(--font-sans);
+  --type-caption: 456 12px/1.33 var(--font-sans);
+  --type-mono: 500 16px/1.38 var(--font-mono);
+
+  /* ---- Focus: 2 px signal ring, 2 px offset, never a fill ---- */
+  --focus-width: 2px;
+  --focus-offset: 2px;
+  --focus-color: var(--signal);
+
+  /* ---- Spacing (4 px grid) ---- */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+
+  /* ---- Motion ---- */
+  --ease: cubic-bezier(0.2, 0, 0, 1);
+  --dur-fast: 120ms;
+  --dur: 200ms;
+
+  /* Default register is classroom. */
+  --surface: var(--ink-800);
+  --control-h: 44px;
+  --control-pad: 20px;
+  --radius-control: 999px;
+  --radius-card: 20px;
+  --radius-small: 12px;
+  --label-case: none;
+  --label-tracking: 0;
+  --type-control: 600 16px/1 var(--font-sans);
+}
+
+/* ---- Registers ---- */
+[data-register='classroom'] {
+  --surface: var(--ink-800);
+  --control-h: 44px;
+  --control-pad: 20px;
+  --radius-control: 999px;
+  --radius-card: 20px;
+  --radius-small: 12px;
+  --label-case: none;
+  --label-tracking: 0;
+  --type-control: 600 16px/1 var(--font-sans);
+}
+
+[data-register='cockpit'] {
+  --surface: var(--ink-950);
+  --control-h: 30px;
+  --control-pad: 12px;
+  --radius-control: 8px;
+  --radius-card: 8px;
+  --radius-small: 6px;
+  --label-case: uppercase;
+  --label-tracking: 0.04em;
+  --type-control: 600 12px/1 var(--font-sans);
+}

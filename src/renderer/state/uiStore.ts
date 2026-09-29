@@ -1,7 +1,9 @@
 import { create } from 'zustand';
 
 // Which dashboard section is active. Phase 0 ships the shell; most sections are
-// placeholders that later phases fill in (Training, Missions, Studio, STEM).
+// placeholders that later phases fill in (Training, Missions, STEM).
+// Studio is gone too (2026-09-29): there is no drone builder, and its item
+// only opened a placeholder.
 // Practice is gone: it promised free-form drills that Flight School now covers,
 // and a nav entry that opens a placeholder is a dead end wearing a label.
 export type Section =
@@ -9,7 +11,7 @@ export type Section =
   | 'fly'
   | 'training'
   | 'missions'
-  | 'studio'
+  | 'hangar'
   | 'stem'
   | 'profile'
   | 'settings'

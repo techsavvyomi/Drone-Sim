@@ -19,7 +19,7 @@
   --bg: #070b12;
   --bg-2: #0c121d;
   --panel: rgba(13, 20, 32, 0.92);
-  --line: #1c2b42;
+  --old-line: #1c2b42;
   --text: #e9f1fb;
   --text-dim: #7d8da5;
   --accent: #38bdf8;
@@ -61,17 +61,6 @@ button {
   background: none;
 }
 
-.boot {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 100%;
-  color: var(--text-dim);
-  letter-spacing: 0.22em;
-  text-transform: uppercase;
-  font-size: 12px;
-}
-
 /* ==========================================================================
    Flight HUD
    ========================================================================== */
@@ -101,7 +90,7 @@ button {
 }
 .inst {
   background: var(--panel);
-  border: 1px solid var(--line);
+  border: 1px solid var(--old-line);
   border-left: 2px solid var(--accent);
   border-radius: 3px;
   padding: 5px 10px;
@@ -174,7 +163,7 @@ button {
   text-transform: uppercase;
   color: var(--text-dim);
   background: var(--panel);
-  border: 1px solid var(--line);
+  border: 1px solid var(--old-line);
   border-radius: 3px;
   padding: 4px 9px;
   backdrop-filter: blur(6px);
@@ -196,7 +185,7 @@ button {
   width: 96px;
   height: 8px;
   background: rgba(6, 10, 17, 0.85);
-  border: 1px solid var(--line);
+  border: 1px solid var(--old-line);
   border-radius: 2px;
   overflow: hidden;
 }
@@ -221,7 +210,7 @@ button {
   width: 11px;
   height: 96px;
   background: rgba(6, 10, 17, 0.85);
-  border: 1px solid var(--line);
+  border: 1px solid var(--old-line);
   border-radius: 2px;
   display: flex;
   align-items: flex-end;
@@ -273,7 +262,7 @@ button {
   justify-content: center;
   max-width: 92%;
   background: var(--panel);
-  border: 1px solid var(--line);
+  border: 1px solid var(--old-line);
   border-radius: 3px;
   padding: 7px 14px;
   font-size: 11px;
@@ -294,7 +283,7 @@ button {
   grid-area: panel;
   width: var(--panel-w);
   background: linear-gradient(180deg, #0b1220, #080d16);
-  border-left: 1px solid var(--line);
+  border-left: 1px solid var(--old-line);
   padding: 14px 14px 20px;
   overflow-y: auto;
 }
@@ -306,7 +295,7 @@ button {
 .panel-tabs button {
   flex: 1;
   background: rgba(28, 43, 66, 0.4);
-  border: 1px solid var(--line);
+  border: 1px solid var(--old-line);
   border-radius: 3px;
   padding: 6px 4px;
   font-size: 10.5px;
@@ -321,7 +310,7 @@ button {
 }
 .panel-section {
   padding: 12px 0;
-  border-top: 1px solid var(--line);
+  border-top: 1px solid var(--old-line);
 }
 .panel-subtitle {
   margin: 0 0 8px;
@@ -482,7 +471,7 @@ button {
   align-items: center;
   gap: 16px;
   padding: 14px 0;
-  border-top: 1px solid var(--line);
+  border-top: 1px solid var(--old-line);
 }
 .setting-row label {
   width: 150px;
@@ -493,7 +482,7 @@ button {
 }
 .segmented {
   display: inline-flex;
-  border: 1px solid var(--line);
+  border: 1px solid var(--old-line);
   border-radius: 3px;
   overflow: hidden;
 }
@@ -515,327 +504,6 @@ button {
 .setting-value {
   font-variant-numeric: tabular-nums;
   color: var(--text);
-}
-
-/* ==========================================================================
-   Status bar
-   ========================================================================== */
-
-.statusbar {
-  grid-area: status;
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  padding: 0 14px;
-  background: #070b12;
-  border-top: 1px solid var(--line);
-  font-size: 10.5px;
-  letter-spacing: 0.08em;
-  color: var(--text);
-}
-.statusbar .dim {
-  color: var(--text-dim);
-}
-.statusbar-right {
-  display: flex;
-  gap: 6px;
-  align-items: center;
-}
-.sep {
-  color: var(--line);
-  margin: 0 4px;
-}
-
-/* ==========================================================================
-   Shell: topbar / sidenav / stage
-   ========================================================================== */
-
-.app {
-  display: grid;
-  grid-template-columns: 272px 1fr auto;
-  grid-template-rows: 96px 1fr var(--status-h);
-  grid-template-areas:
-    'top top top'
-    'nav stage panel'
-    'status status status';
-  height: 100%;
-  background: radial-gradient(120% 100% at 60% 0%, #0d1626 0%, #05070d 60%);
-}
-.app.is-home {
-  grid-template-columns: 0 1fr 0;
-  grid-template-rows: 96px 1fr 0;
-}
-
-/* ---- Top bar ---- */
-.topbar {
-  grid-area: top;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 26px 0 22px;
-  gap: 20px;
-}
-.logo {
-  display: flex;
-  align-items: center;
-  gap: 13px;
-}
-.logo-mark {
-  display: flex;
-}
-/* The artwork carries its own glow, so no drop-shadow here. */
-.logo-mark img {
-  display: block;
-  height: 52px;
-  width: auto;
-}
-.logo-text {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  line-height: 1;
-}
-.logo-text b {
-  font-family: 'Saira', 'Inter', system-ui, sans-serif;
-  font-size: 30px;
-  font-weight: 900;
-  font-style: italic;
-  letter-spacing: 0;
-}
-.logo-text b i {
-  font-style: italic;
-  color: var(--accent);
-  text-shadow: 0 0 22px rgba(56, 189, 248, 0.6);
-}
-.logo-text em {
-  font-style: normal;
-  font-size: 10.5px;
-  /* One line. At 0.44em it was wider than the wordmark and wrapped under it
-     into three ragged lines ("Flight / Simulator by / Drona Aviation"). */
-  letter-spacing: 0.12em;
-  white-space: nowrap;
-  color: var(--text-dim);
-  margin-top: 5px;
-}
-
-.topbar-right {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-}
-.pill-connected {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  padding: 13px 26px;
-  border-radius: 14px;
-  background: rgba(12, 19, 31, 0.82);
-  border: 1px solid var(--line);
-  font-size: 11.5px;
-  font-weight: 600;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-}
-.pill-connected .dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--good);
-  box-shadow: 0 0 12px var(--good);
-  animation: blink 2.2s ease-in-out infinite;
-}
-@keyframes blink {
-  50% {
-    opacity: 0.45;
-  }
-}
-
-.chip-group {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 9px 10px;
-  border-radius: 16px;
-  background: rgba(12, 19, 31, 0.82);
-  border: 1px solid var(--line);
-}
-.chip {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 4px 14px;
-  border-right: 1px solid var(--line);
-  /* Fixed width so switching between short and long names can't reflow the
-     rest of the top bar. Overflowing text is clipped, not wrapped. */
-  width: 186px;
-  overflow: hidden;
-}
-.chip-body b {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 118px;
-}
-.chip:last-of-type {
-  border-right: none;
-}
-.chip-icon {
-  color: var(--text-dim);
-}
-.chip-body {
-  display: flex;
-  flex-direction: column;
-  line-height: 1.25;
-}
-.chip-body i {
-  font-style: normal;
-  font-size: 9.5px;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-  color: var(--text-dim);
-}
-.chip-body b {
-  font-size: 14px;
-  font-weight: 600;
-}
-.chip-gear {
-  color: var(--text-dim);
-  padding: 8px 12px;
-  border-radius: 10px;
-  transition:
-    color 0.14s ease,
-    background 0.14s ease;
-}
-.chip-gear:hover {
-  color: var(--accent);
-  background: rgba(56, 189, 248, 0.1);
-}
-
-/* ---- Side navigation ---- */
-.sidenav {
-  grid-area: nav;
-  display: flex;
-  flex-direction: column;
-  padding: 4px 22px 18px;
-  gap: 10px;
-}
-.nav-list {
-  list-style: none;
-  margin: 0;
-  padding: 14px 0;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  background: rgba(10, 16, 27, 0.72);
-  border: 1px solid rgba(28, 43, 66, 0.7);
-  border-radius: 18px;
-}
-.nav-btn {
-  position: relative;
-  width: 100%;
-  display: flex;
-  align-items: center;
-  gap: 15px;
-  padding: 15px 20px;
-  color: var(--text-dim);
-  font-size: 14px;
-  font-weight: 600;
-  letter-spacing: 0.09em;
-  text-transform: uppercase;
-  transition:
-    color 0.14s ease,
-    background 0.14s ease;
-}
-.nav-btn:hover {
-  color: var(--text);
-  background: rgba(56, 189, 248, 0.06);
-}
-.nav-btn.active {
-  color: #fff;
-  background: linear-gradient(90deg, #1d6fe0, #2563eb);
-  border-radius: 14px;
-  box-shadow: 0 8px 26px rgba(37, 99, 235, 0.35);
-}
-.nav-ico {
-  display: grid;
-  place-items: center;
-}
-.nav-txt {
-  flex: 1;
-  text-align: left;
-}
-.nav-arrow {
-  display: grid;
-  place-items: center;
-  opacity: 0.9;
-}
-
-/* Pilot profile */
-.pilot-card {
-  margin-top: auto;
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 4px 12px;
-  padding: 15px;
-  background: rgba(10, 16, 27, 0.72);
-  border: 1px solid rgba(28, 43, 66, 0.7);
-  border-radius: 16px;
-}
-.pilot-avatar {
-  grid-row: span 2;
-  width: 46px;
-  height: 46px;
-  display: grid;
-  place-items: center;
-  font-size: 24px;
-  border-radius: 12px;
-  background: rgba(56, 189, 248, 0.1);
-  border: 1px solid var(--line);
-}
-.pilot-info {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-}
-.pilot-info b {
-  font-size: 14.5px;
-  font-weight: 700;
-}
-.pilot-info i {
-  font-style: normal;
-  font-size: 10.5px;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: var(--accent);
-}
-.pilot-xp {
-  grid-column: 1 / -1;
-  margin-top: 10px;
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-}
-.pilot-xp-bar {
-  height: 6px;
-  border-radius: 4px;
-  background: rgba(6, 10, 17, 0.9);
-  border: 1px solid var(--line);
-  overflow: hidden;
-}
-.pilot-xp-fill {
-  height: 100%;
-  background: linear-gradient(90deg, #1d6fe0, var(--accent));
-  box-shadow: 0 0 12px rgba(56, 189, 248, 0.55);
-}
-.pilot-xp span {
-  font-size: 10.5px;
-  color: var(--text-dim);
-  letter-spacing: 0.08em;
-}
-.app-version {
-  font-size: 10.5px;
-  color: #46526b;
-  padding-left: 4px;
 }
 
 /* ---- Stage ---- */
@@ -909,7 +577,7 @@ button {
   padding: 10px 16px;
   border-radius: 10px;
   background: rgba(9, 13, 21, 0.92);
-  border: 1px solid var(--line);
+  border: 1px solid var(--old-line);
   color: var(--text-dim);
   font-size: 13px;
   pointer-events: none;
@@ -930,323 +598,8 @@ button {
 }
 
 /* ==========================================================================
-   Home (racing arena + mode cards)
-   ========================================================================== */
-
-.home {
-  position: relative;
-  height: 100%;
-  overflow: hidden;
-}
-.arena-scene {
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-}
-.arena-scene canvas {
-  display: block;
-}
-/* Fades the arena into the page so text stays readable over it. */
-.home-fade {
-  position: absolute;
-  inset: 0;
-  z-index: 1;
-  pointer-events: none;
-  background:
-    linear-gradient(90deg, rgba(5, 7, 13, 0.94) 0%, rgba(5, 7, 13, 0.45) 42%, transparent 70%),
-    linear-gradient(0deg, rgba(5, 7, 13, 0.92) 0%, transparent 45%);
-}
-
-.home-inner {
-  position: relative;
-  z-index: 2;
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-start;
-  padding: 30px 46px 24px;
-}
-
-.home-hero h1 {
-  margin: 0;
-  /* Scales with the viewport so it stays a hero on large displays. */
-  font-size: clamp(64px, 6.4vw, 108px);
-  line-height: 1.02;
-  font-weight: 800;
-  font-style: italic;
-  letter-spacing: -0.028em;
-  text-transform: uppercase;
-  text-shadow: 0 8px 40px rgba(0, 0, 0, 0.75);
-}
-.home-hero h1 span {
-  color: #3b82f6;
-  text-shadow: 0 0 40px rgba(59, 130, 246, 0.55);
-}
-.hero-rule {
-  display: block;
-  width: 84px;
-  height: 5px;
-  border-radius: 3px;
-  margin: 20px 0 16px;
-  background: #3b82f6;
-  box-shadow: 0 0 18px rgba(59, 130, 246, 0.7);
-}
-.home-hero p {
-  margin: 0;
-  font-size: 16.5px;
-  color: #9fb0c7;
-}
-
-/* ---- Mode cards ---- */
-.mode-row {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 24px;
-  max-width: 1140px;
-}
-.mcard {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
-  gap: 12px;
-  padding: 24px 18px 18px;
-  border-radius: 16px;
-  background: linear-gradient(170deg, rgba(15, 23, 38, 0.9), rgba(8, 12, 20, 0.86));
-  border: 1px solid color-mix(in srgb, var(--accent) 42%, transparent);
-  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.02) inset;
-  backdrop-filter: blur(9px);
-  transition:
-    transform 0.16s ease,
-    box-shadow 0.16s ease,
-    border-color 0.16s ease;
-}
-.mcard:hover {
-  transform: translateY(-5px);
-  border-color: var(--accent);
-  box-shadow:
-    0 16px 44px rgba(0, 0, 0, 0.55),
-    0 0 26px color-mix(in srgb, var(--accent) 32%, transparent);
-}
-.mcard-ico {
-  color: var(--accent);
-  filter: drop-shadow(0 0 16px color-mix(in srgb, var(--accent) 70%, transparent));
-}
-.mcard-title {
-  font-size: 19px;
-  font-weight: 800;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
-}
-.mcard-lines {
-  flex: 1;
-  font-size: 12.5px;
-  line-height: 1.7;
-  color: #9aabc2;
-}
-.mcard-cta {
-  width: 100%;
-  margin-top: 4px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 12px 10px;
-  border-radius: 11px;
-  font-size: 12px;
-  font-weight: 800;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 15%, transparent);
-  border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
-  transition:
-    background 0.14s ease,
-    color 0.14s ease;
-}
-.mcard:hover .mcard-cta {
-  background: color-mix(in srgb, var(--accent) 28%, transparent);
-  color: #fff;
-}
-
-/* ---- Bottom row ---- */
-.home-bottom {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  position: relative;
-  padding-top: 6px;
-}
-
-/* ---- Home refinements: wider cards, corner accent, pilot badge ---- */
-.mode-row {
-  /* No cap: the three cards take the full frame, the way the four used to.
-     Every fixed cap tried here read as "marooned in the middle" on a wide
-     display — 1040 and 1500 both left more empty frame than card. */
-  max-width: none;
-  gap: 32px;
-  /* Collect the slack above the cards so they sit low in the frame rather
-     than floating in the middle, then hold a gap before the bottom bar. */
-  margin-top: auto;
-  margin-bottom: 4vh;
-}
-.mcard {
-  position: relative;
-  overflow: hidden;
-  /* Roomier than the four-card row, which had to stay narrow to fit. */
-  padding: 38px 30px 30px;
-}
-/* Checkered corner flash, echoing race-flag styling. */
-.mcard::after {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 46px;
-  height: 46px;
-  background-image:
-    linear-gradient(45deg, color-mix(in srgb, var(--accent) 55%, transparent) 25%, transparent 25%),
-    linear-gradient(-45deg, color-mix(in srgb, var(--accent) 55%, transparent) 25%, transparent 25%);
-  background-size: 11px 11px;
-  mask-image: linear-gradient(135deg, #000 0%, transparent 72%);
-  opacity: 0.75;
-  pointer-events: none;
-}
-.mcard-title {
-  font-size: 21px;
-}
-.mcard-lines {
-  font-size: 13.5px;
-}
-.mcard-cta {
-  padding: 14px 10px;
-  font-size: 12.5px;
-}
-
-/* A floor under the hero. The cards' `margin-top: auto` only hands out slack,
-   so in a normal-size window on a laptop (a stage ~760 px tall) the gap came to
-   0, and a hovered card's 5 px lift put it over "Choose your mode…". */
-.home-hero {
-  margin-bottom: 28px;
-}
-/* Short windows: the heading scales with height too, and the cards and bottom
-   row tighten, so the row still fits under the hero rather than running off
-   the bottom of the stage. */
-@media (max-height: 880px) {
-  .home-hero h1 {
-    font-size: clamp(52px, min(6.4vw, 9.5vh), 108px);
-  }
-  .hero-rule {
-    margin: 14px 0 12px;
-  }
-  .mcard {
-    gap: 10px;
-    padding: 26px 24px 22px;
-  }
-  .mode-row {
-    margin-bottom: 2.5vh;
-  }
-  .home-bottom {
-    min-height: 84px;
-  }
-}
-
-/* Bottom row: pilot badge (left) · system (right). Both are positioned out of
-   flow, so the row holds the badge's height itself. */
-.home-bottom {
-  padding-top: 14px;
-  min-height: 100px;
-}
-.pilot-badge {
-  position: absolute;
-  left: 0;
-  display: grid;
-  grid-template-columns: auto 1fr;
-  align-items: center;
-  gap: 4px 13px;
-  padding: 12px 18px 12px 12px;
-  border-radius: 14px;
-  background: rgba(10, 16, 27, 0.82);
-  border: 1px solid var(--line);
-  min-width: 290px;
-}
-.pilot-badge-avatar {
-  grid-row: span 2;
-  width: 46px;
-  height: 46px;
-  display: grid;
-  place-items: center;
-  font-size: 25px;
-  border-radius: 11px;
-  background: rgba(56, 189, 248, 0.1);
-  border: 1px solid var(--line);
-}
-.pilot-badge-main {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
-.pilot-badge-main b {
-  font-size: 14.5px;
-  font-weight: 700;
-}
-.pilot-badge-main i {
-  font-style: normal;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: var(--accent);
-}
-.pilot-badge-bar {
-  display: block;
-  height: 5px;
-  margin-top: 3px;
-  border-radius: 3px;
-  background: rgba(6, 10, 17, 0.9);
-  border: 1px solid var(--line);
-  overflow: hidden;
-}
-.pilot-badge-bar > span {
-  display: block;
-  height: 100%;
-  background: linear-gradient(90deg, #1d6fe0, var(--accent));
-  box-shadow: 0 0 10px rgba(56, 189, 248, 0.6);
-}
-.pilot-badge-xp {
-  grid-column: 2;
-  font-size: 10.5px;
-  color: var(--text-dim);
-  letter-spacing: 0.06em;
-}
-
-/* ==========================================================================
    Free Flight: compact rail + cockpit controls
    ========================================================================== */
-
-/* In flight the nav collapses to an icon rail so the viewport dominates. */
-.app.is-fly {
-  grid-template-columns: 72px 1fr auto;
-}
-.sidenav.compact {
-  padding: 4px 10px 14px;
-}
-.sidenav.compact .nav-list {
-  border-radius: 14px;
-  padding: 8px 0;
-}
-.sidenav.compact .nav-btn {
-  justify-content: center;
-  padding: 13px 0;
-  gap: 0;
-}
-.sidenav.compact .nav-txt,
-.sidenav.compact .nav-arrow {
-  display: none;
-}
-.sidenav.compact .nav-btn.active {
-  border-radius: 11px;
-}
 
 /* ---- Stick gimbals ---- */
 .sticks {
@@ -1259,7 +612,7 @@ button {
   padding: 10px 16px;
   border-radius: 12px;
   background: rgba(7, 11, 18, 0.72);
-  border: 1px solid var(--line);
+  border: 1px solid var(--old-line);
   backdrop-filter: blur(7px);
 }
 .gimbal {
@@ -1270,7 +623,7 @@ button {
 }
 .gimbal-box {
   fill: rgba(6, 10, 17, 0.75);
-  stroke: var(--line);
+  stroke: var(--old-line);
   stroke-width: 1.5;
 }
 .gimbal-cross {
@@ -1317,7 +670,7 @@ button {
   padding: 8px 14px;
   border-radius: 10px;
   background: rgba(7, 11, 18, 0.78);
-  border: 1px solid var(--line);
+  border: 1px solid var(--old-line);
   font-size: 11px;
   letter-spacing: 0.12em;
   text-transform: uppercase;
@@ -1345,7 +698,7 @@ button {
   padding: 12px 14px 14px;
   border-radius: 12px;
   background: rgba(7, 11, 18, 0.9);
-  border: 1px solid var(--line);
+  border: 1px solid var(--old-line);
   backdrop-filter: blur(8px);
 }
 .controls-head {
@@ -1357,7 +710,7 @@ button {
   text-transform: uppercase;
   color: var(--accent);
   padding-bottom: 8px;
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid var(--old-line);
 }
 .controls-head button {
   color: var(--text-dim);
@@ -1402,92 +755,6 @@ button {
   font-size: 10px;
   line-height: 1.5;
   color: var(--text-dim);
-}
-
-/* Flight view is full-bleed — no nav rail. */
-.app.is-fly {
-  grid-template-columns: 0 1fr auto;
-}
-
-/* ---- Flight view: the navbar parks itself ----
-   Once the pilot is flying, the bar slides out of frame so the viewport runs the
-   full height of the window, and it comes back when the pointer reaches the top
-   edge. The reveal is pure CSS with no state to keep in sync: `.chip-menu` is a
-   DOM child of `.topbar`, so an open Drone/Arena dropdown still counts as
-   hovering the bar and it cannot slide away out from under the mouse. */
-.app.is-fly {
-  grid-template-rows: 0 1fr var(--status-h);
-}
-.app.is-fly .topbar {
-  position: fixed;
-  inset: 0 0 auto 0;
-  height: 96px;
-  z-index: 40;
-  /* It now floats over the 3D scene rather than over the shell gradient, so it
-     has to carry its own backdrop or the text sits on open sky. */
-  background: rgba(8, 13, 22, 0.94);
-  backdrop-filter: blur(10px);
-  border-bottom: 1px solid var(--line);
-  transform: translateY(-100%);
-  /* Asymmetric on purpose: the trailing `1s` is the delay BEFORE it leaves. A
-     bar that snapped away the moment the pointer drifted off gave nobody time to
-     read it, so the hide waits; the reveal below cancels the delay so arriving
-     still feels instant. */
-  transition: transform 0.22s ease 1s;
-  will-change: transform;
-}
-.app.is-fly .topbar:hover,
-.app.is-fly .topbar-peek:hover ~ .topbar {
-  transform: translateY(0);
-  transition-delay: 0s;
-}
-
-/* The strip is only armed in flight. Everywhere else the bar is permanent, so
-   the strip stays out of the document and cannot swallow clicks. */
-.topbar-peek {
-  display: none;
-}
-.app.is-fly .topbar-peek {
-  display: block;
-  position: fixed;
-  inset: 0 0 auto 0;
-  /* Deliberately deep, not a hairline at the very edge. In macOS full screen the
-     top edge belongs to the OS: pushing the cursor there reveals the system menu
-     bar, which takes the pointer before the page ever sees it, so a thin strip
-     was reachable when the window was merely maximised and unreachable when it
-     was full screen. Catching the pointer well before the edge fixes both. Kept
-     under the bar's own 96px so the revealed bar always covers it — no flicker.
-     Nothing is lost to it: `.hud` is `pointer-events: none`, and every clickable
-     overlay in flight sits bottom-right. */
-  height: 64px;
-  /* Below the bar: once the bar is down it covers the strip and `:hover` on the
-     bar itself keeps it there, so the strip never blocks the bar's own buttons. */
-  z-index: 39;
-}
-
-/* Telemetry dock open: stand down entirely. Its DATA / GRAPHS / PHYSICS tabs sit
-   about 60px from the top, inside the strip's own depth, so reaching for a tab
-   was pulling the navbar down over the click instead.
-   MUST stay after the `.app.is-fly` rule above: both selectors carry three
-   classes, so they tie on specificity and only source order separates them.
-   While the pilot is reading telemetry the bar stays parked; closing the dock
-   with the edge tab brings the hover reveal back. */
-.app.panel-open .topbar-peek {
-  display: none;
-}
-
-/* Inside a lesson OR a mission: stand down as well. That HUD owns the top of the
-   frame — the module title, the LEARN/DEMO/FLY stepper and its exit button, or a
-   mission's badge and its Leave button — and the strip was reaching down over
-   that row, so aiming for the exit pulled the navbar down on top of the click.
-   Nothing up there is useful mid-flight anyway: the arena is pinned (to the
-   academy for a lesson, to the mission's own map for a mission), so the chip
-   would be reporting a map that is not the one being flown. Both have their own
-   way out: the exit button, or Esc.
-   MUST stay after the `.app.is-fly` rule above — same specificity, order wins. */
-.app.in-lesson .topbar-peek,
-.app.in-mission .topbar-peek {
-  display: none;
 }
 
 /* ---- Virtual sticks (corner gimbals) ---- */
@@ -1583,7 +850,7 @@ button {
   padding: 12px 20px;
   border-radius: 12px;
   background: rgba(7, 11, 18, 0.74);
-  border: 1px solid var(--line);
+  border: 1px solid var(--old-line);
   backdrop-filter: blur(7px);
 }
 .keylegend-item {
@@ -1619,7 +886,7 @@ button {
   grid-template-columns: repeat(auto-fit, minmax(214px, 1fr));
   gap: 4px 18px;
   padding-top: 6px;
-  border-top: 1px solid var(--line);
+  border-top: 1px solid var(--old-line);
 }
 .hud-toggle {
   display: flex;
@@ -1662,7 +929,7 @@ button {
 .tod-grid button {
   padding: 7px 6px;
   border-radius: 6px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--old-line);
   background: rgba(28, 43, 66, 0.4);
   font-size: 11px;
   letter-spacing: 0.08em;
@@ -1680,7 +947,7 @@ button {
   position: relative;
 }
 .chip-select .chip {
-  border-right: 1px solid var(--line);
+  border-right: 1px solid var(--old-line);
 }
 .chip-caret {
   margin-left: auto;
@@ -1709,7 +976,7 @@ button {
   padding: 7px;
   border-radius: 14px;
   background: rgba(10, 16, 27, 0.97);
-  border: 1px solid var(--line);
+  border: 1px solid var(--old-line);
   box-shadow: 0 22px 54px rgba(0, 0, 0, 0.6);
   backdrop-filter: blur(10px);
 }
@@ -1889,26 +1156,10 @@ button {
   color: var(--accent);
   margin-left: 3px;
 }
-.boot {
-  flex-direction: column;
-  gap: 10px;
-}
-.boot b {
-  font-size: 30px;
-  font-style: italic;
-  font-weight: 800;
-  letter-spacing: -0.02em;
-  color: var(--text);
-}
-.boot span {
-  font-size: 10.5px;
-  letter-spacing: 0.3em;
-  color: var(--accent);
-}
 
 /* About block in settings */
 .about-card {
-  border-top: 1px solid var(--line);
+  border-top: 1px solid var(--old-line);
   padding-top: 6px;
 }
 .about-row {
@@ -1949,7 +1200,7 @@ button {
   margin-bottom: 18px;
   padding: 8px 16px;
   border-radius: 9px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--old-line);
   background: rgba(28, 43, 66, 0.4);
   font-size: 11.5px;
   font-weight: 600;
@@ -1986,7 +1237,7 @@ button {
   padding: 30px 30px 24px;
   border-radius: 16px;
   background: rgba(10, 16, 27, 0.95);
-  border: 1px solid var(--line);
+  border: 1px solid var(--old-line);
   box-shadow: 0 24px 70px rgba(0, 0, 0, 0.6);
 }
 .pause-card h2 {
@@ -2001,7 +1252,7 @@ button {
 .pause-btn {
   padding: 12px 18px;
   border-radius: 10px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--old-line);
   background: rgba(28, 43, 66, 0.5);
   font-size: 12px;
   font-weight: 700;
@@ -2055,7 +1306,7 @@ button {
   place-items: center;
   border-radius: 8px 0 0 8px;
   background: rgba(10, 16, 27, 0.88);
-  border: 1px solid var(--line);
+  border: 1px solid var(--old-line);
   border-right: none;
   color: var(--text-dim);
   font-size: 15px;
@@ -2084,7 +1335,7 @@ button {
   flex-wrap: wrap;
   gap: 4px;
   margin: 18px 0 0;
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid var(--old-line);
 }
 .settings-tab {
   display: flex;
@@ -2145,7 +1396,7 @@ button {
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
   gap: 2px 20px;
   padding-top: 8px;
-  border-top: 1px solid var(--line);
+  border-top: 1px solid var(--old-line);
 }
 .key-row {
   display: flex;
@@ -2160,7 +1411,7 @@ button {
   padding: 4px 8px;
   text-align: center;
   background: rgba(28, 43, 66, 0.55);
-  border: 1px solid var(--line);
+  border: 1px solid var(--old-line);
   border-radius: 3px;
   font-family: inherit;
   font-size: 11px;
@@ -2172,7 +1423,7 @@ button {
 .btn-sm {
   padding: 5px 12px;
   background: rgba(28, 43, 66, 0.5);
-  border: 1px solid var(--line);
+  border: 1px solid var(--old-line);
   border-radius: 3px;
   font-size: 10.5px;
   letter-spacing: 0.1em;
@@ -2212,7 +1463,7 @@ button {
   margin: 14px 0;
   padding: 12px 16px;
   background: var(--panel);
-  border: 1px solid var(--line);
+  border: 1px solid var(--old-line);
   border-left: 2px solid var(--bad);
 }
 .gp-device.ok {
@@ -2245,7 +1496,7 @@ button {
   align-items: center;
   gap: 10px;
   padding: 7px 0;
-  border-top: 1px solid var(--line);
+  border-top: 1px solid var(--old-line);
 }
 .gp-name {
   width: 118px;
@@ -2261,7 +1512,7 @@ button {
   min-width: 90px;
   height: 12px;
   background: rgba(7, 11, 18, 0.85);
-  border: 1px solid var(--line);
+  border: 1px solid var(--old-line);
   border-radius: 2px;
   overflow: hidden;
 }
@@ -2271,7 +1522,7 @@ button {
   top: 0;
   width: 1px;
   height: 100%;
-  background: var(--line);
+  background: var(--old-line);
 }
 .gp-fill {
   position: absolute;
@@ -2332,7 +1583,7 @@ button {
   flex-wrap: wrap;
   gap: 5px;
   padding-top: 10px;
-  border-top: 1px solid var(--line);
+  border-top: 1px solid var(--old-line);
 }
 .gp-btn {
   width: 28px;
@@ -2341,7 +1592,7 @@ button {
   align-items: center;
   justify-content: center;
   background: rgba(28, 43, 66, 0.4);
-  border: 1px solid var(--line);
+  border: 1px solid var(--old-line);
   border-radius: 3px;
   font-size: 10px;
   font-variant-numeric: tabular-nums;
@@ -2391,7 +1642,7 @@ button {
   flex-wrap: wrap;
   gap: 6px;
   padding: 10px 0 2px;
-  border-top: 1px solid var(--line);
+  border-top: 1px solid var(--old-line);
 }
 .gp-hint {
   flex-basis: 100%;
@@ -2441,7 +1692,7 @@ button {
   gap: 14px;
   text-align: left;
   background: var(--panel);
-  border: 1px solid var(--line);
+  border: 1px solid var(--old-line);
   border-radius: 10px;
   padding: 16px 18px;
   transition:
@@ -2534,7 +1785,7 @@ button {
   display: flex;
   flex-direction: column;
   background: var(--panel);
-  border: 1px solid var(--line);
+  border: 1px solid var(--old-line);
   border-left: 2px solid var(--accent);
   border-radius: 4px;
   padding: 6px 12px;
@@ -2552,7 +1803,7 @@ button {
 }
 .tr-exit {
   background: var(--panel);
-  border: 1px solid var(--line);
+  border: 1px solid var(--old-line);
   border-radius: 4px;
   padding: 7px 12px;
   font-size: 12px;
@@ -2574,7 +1825,7 @@ button {
 }
 .tr-chip {
   background: var(--panel);
-  border: 1px solid var(--line);
+  border: 1px solid var(--old-line);
   border-radius: 999px;
   padding: 5px 12px;
   font-size: 12px;
@@ -2599,7 +1850,7 @@ button {
   pointer-events: auto;
   width: min(520px, 92%);
   background: var(--panel);
-  border: 1px solid var(--line);
+  border: 1px solid var(--old-line);
   border-radius: 14px;
   padding: 26px 28px;
   text-align: center;
@@ -2639,7 +1890,7 @@ button {
 }
 .tr-note {
   background: rgba(255, 255, 255, 0.03);
-  border: 1px solid var(--line);
+  border: 1px solid var(--old-line);
   border-radius: 8px;
   padding: 10px 12px;
 }
@@ -2684,7 +1935,7 @@ button {
 .tr-rubric {
   margin-top: 16px;
   padding: 12px 14px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--old-line);
   border-radius: 10px;
   background: rgba(255, 255, 255, 0.02);
   text-align: left;
@@ -2740,7 +1991,7 @@ button {
 }
 .tr-btn {
   background: rgba(255, 255, 255, 0.06);
-  border: 1px solid var(--line);
+  border: 1px solid var(--old-line);
   border-radius: 8px;
   padding: 10px 18px;
   font-size: 13px;
@@ -2792,7 +2043,7 @@ button {
 }
 .tr-demo-caption {
   background: rgba(10, 15, 25, 0.9);
-  border: 1px solid var(--line);
+  border: 1px solid var(--old-line);
   border-radius: 8px;
   padding: 12px 22px;
   font-size: 16px;
@@ -2818,7 +2069,7 @@ button {
   transform: translateX(-50%);
   width: min(460px, 90%);
   background: var(--panel);
-  border: 1px solid var(--line);
+  border: 1px solid var(--old-line);
   border-radius: 10px;
   padding: 14px 18px;
   text-align: center;
@@ -2853,7 +2104,7 @@ button {
   left: 50%;
   transform: translateX(-50%);
   background: var(--panel);
-  border: 1px solid var(--line);
+  border: 1px solid var(--old-line);
   border-left: 2px solid var(--accent);
   border-radius: 6px;
   padding: 10px 18px;
@@ -2981,7 +2232,7 @@ button {
   user-select: none;
   touch-action: none;
   background: rgba(10, 15, 25, 0.82);
-  border: 1px solid var(--line);
+  border: 1px solid var(--old-line);
   border-radius: 8px;
   padding: 8px 12px 6px;
   backdrop-filter: blur(8px);
@@ -2995,7 +2246,7 @@ button {
   font-weight: 800;
   letter-spacing: 0.04em;
   color: var(--text-dim);
-  border: 1px solid var(--line);
+  border: 1px solid var(--old-line);
   border-bottom-width: 3px;
   border-radius: 6px;
   padding: 4px 10px;
@@ -3013,7 +2264,7 @@ button {
   white-space: nowrap;
 }
 .tr-key:hover {
-  border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--old-line));
 }
 .tr-key.on {
   border-color: var(--accent);
@@ -3117,7 +2368,7 @@ button {
   flex-direction: row;
   align-items: center;
   gap: 10px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--old-line);
   border-left: 4px solid var(--tr-accent);
   background: linear-gradient(100deg, rgba(56, 189, 248, 0.14), rgba(10, 15, 25, 0.85));
   padding: 8px 16px;
@@ -3151,7 +2402,7 @@ button {
   align-items: center;
   gap: 6px;
   background: rgba(10, 15, 25, 0.75);
-  border: 1px solid var(--line);
+  border: 1px solid var(--old-line);
   border-radius: 999px;
   padding: 6px 12px;
   backdrop-filter: blur(8px);
@@ -3166,7 +2417,7 @@ button {
   content: '';
   width: 16px;
   height: 2px;
-  background: var(--line);
+  background: var(--old-line);
   margin-left: 4px;
 }
 .tr-stepper-node:last-child::after {
@@ -3182,7 +2433,7 @@ button {
   display: grid;
   place-items: center;
   border-radius: 50%;
-  border: 1.5px solid var(--line);
+  border: 1.5px solid var(--old-line);
   font-size: 10px;
   font-weight: 800;
   color: var(--text-dim);
@@ -3223,7 +2474,7 @@ button {
   align-items: center;
   gap: 2px;
   background: rgba(10, 15, 25, 0.82);
-  border: 1px solid var(--line);
+  border: 1px solid var(--old-line);
   border-bottom: 3px solid var(--tr-accent);
   border-radius: 10px;
   padding: 8px 16px 6px;
@@ -3263,7 +2514,7 @@ button {
 /* Cards (intro / reward) — bolder */
 .tr-card {
   width: min(560px, 92%);
-  border: 1px solid color-mix(in srgb, var(--tr-accent) 40%, var(--line));
+  border: 1px solid color-mix(in srgb, var(--tr-accent) 40%, var(--old-line));
   border-top: 4px solid var(--tr-accent);
   border-radius: 16px;
   box-shadow:
@@ -3298,7 +2549,7 @@ button {
   transform: translateX(-50%);
   width: min(560px, 92%);
   background: rgba(10, 15, 25, 0.9);
-  border: 1px solid color-mix(in srgb, var(--tr-accent) 45%, var(--line));
+  border: 1px solid color-mix(in srgb, var(--tr-accent) 45%, var(--old-line));
   border-left: 4px solid var(--tr-accent);
   border-radius: 12px;
   padding: 14px 18px;
@@ -3379,7 +2630,7 @@ button {
 /* Reward — burst + popping stars */
 .tr-card.reward {
   border-top-color: var(--warn);
-  border-color: color-mix(in srgb, var(--warn) 45%, var(--line));
+  border-color: color-mix(in srgb, var(--warn) 45%, var(--old-line));
   overflow: hidden;
 }
 .tr-burst {
@@ -3551,7 +2802,7 @@ button {
   place-items: center;
   padding: 0;
   border-radius: 8px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--old-line);
   background: rgba(10, 15, 25, 0.6);
   color: var(--text-dim);
   font-size: 13px;
@@ -3566,7 +2817,7 @@ button {
   /* Wide enough for a three-step flow to stay on one line. It used to wrap the
      last step onto a row of its own, which read as a second, unrelated list. */
   width: min(600px, 92%);
-  border: 1px solid var(--line);
+  border: 1px solid var(--old-line);
   border-top: 2px solid var(--tr-accent);
   border-radius: 12px;
   background: rgba(9, 13, 21, 0.94);
@@ -3653,7 +2904,7 @@ button {
   gap: 6px;
   padding: 6px 11px 6px 7px;
   border-radius: 999px;
-  border: 1px solid color-mix(in srgb, var(--tr-accent) 32%, var(--line));
+  border: 1px solid color-mix(in srgb, var(--tr-accent) 32%, var(--old-line));
   background: color-mix(in srgb, var(--tr-accent) 8%, transparent);
 }
 .tr-flow-num {
@@ -3743,7 +2994,7 @@ button {
    goes wide of the padding so it reads as a rule across the card. */
 .tr-hud.min .tr-card:not(.reward) .tr-flow {
   padding-bottom: 18px;
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid var(--old-line);
   margin-left: -26px;
   margin-right: -26px;
   padding-left: 26px;
@@ -3795,7 +3046,7 @@ button {
   gap: 12px;
 }
 .tr-hud.min .tr-rubric-row + .tr-rubric-row {
-  border-top: 1px solid color-mix(in srgb, var(--line) 60%, transparent);
+  border-top: 1px solid color-mix(in srgb, var(--old-line) 60%, transparent);
 }
 .tr-hud.min .tr-rubric > b {
   padding-bottom: 4px;
@@ -3862,7 +3113,7 @@ button {
   align-items: center;
   gap: 14px;
   background: rgba(9, 13, 21, 0.88);
-  border: 1px solid var(--line);
+  border: 1px solid var(--old-line);
   border-radius: 12px;
   padding: 14px 20px;
   backdrop-filter: blur(8px);
@@ -3963,7 +3214,7 @@ button {
   text-transform: uppercase;
   padding: 4px 10px;
   border-radius: 999px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--old-line);
   color: var(--text-dim);
   white-space: nowrap;
 }
@@ -4120,7 +3371,7 @@ button {
 /* Reward stays understated */
 .tr-hud.min .tr-card.reward {
   width: min(600px, 92%);
-  border: 1px solid var(--line);
+  border: 1px solid var(--old-line);
   border-top: 2px solid var(--warn);
   border-radius: 12px;
   background: rgba(9, 13, 21, 0.94);
@@ -4260,7 +3511,7 @@ button {
   align-items: center;
   min-width: 78px;
   background: var(--panel);
-  border: 1px solid var(--line);
+  border: 1px solid var(--old-line);
   border-radius: 10px;
   padding: 10px 14px;
 }
@@ -4323,8 +3574,8 @@ button {
   width: 4px;
   background: repeating-linear-gradient(
     to bottom,
-    var(--line) 0,
-    var(--line) 8px,
+    var(--old-line) 0,
+    var(--old-line) 8px,
     transparent 8px,
     transparent 16px
   );
@@ -4343,7 +3594,7 @@ button {
   gap: 2px;
   width: min(280px, 100%);
   background: var(--panel);
-  border: 1px solid var(--line);
+  border: 1px solid var(--old-line);
   border-radius: 12px;
   padding: 12px 16px;
   transition:
@@ -4405,7 +3656,7 @@ button {
   place-items: center;
   font-size: 22px;
   font-weight: 900;
-  border: 3px solid var(--line);
+  border: 3px solid var(--old-line);
   background: var(--bg-2);
   color: var(--text-dim);
   z-index: 1;
@@ -4515,7 +3766,7 @@ button {
   display: flex;
   flex-direction: column;
   background: var(--panel);
-  border: 1px solid var(--line);
+  border: 1px solid var(--old-line);
   border-left: 2px solid var(--accent);
   border-radius: 4px;
   padding: 6px 12px;
@@ -4547,7 +3798,7 @@ button {
   color: var(--text-dim);
   font-variant-numeric: tabular-nums;
   background: var(--panel);
-  border: 1px solid var(--line);
+  border: 1px solid var(--old-line);
   border-radius: 4px;
   padding: 7px 12px;
   backdrop-filter: blur(6px);
@@ -4569,7 +3820,7 @@ button {
 
 .ms-exit {
   background: var(--panel);
-  border: 1px solid var(--line);
+  border: 1px solid var(--old-line);
   border-radius: 4px;
   padding: 7px 12px;
   font-size: 12px;
@@ -4830,7 +4081,7 @@ button {
   gap: 4px;
   padding: 12px 30px;
   background: rgba(9, 14, 22, 0.82);
-  border: 1px solid var(--line);
+  border: 1px solid var(--old-line);
   border-radius: 10px;
   backdrop-filter: blur(8px);
   text-align: center;
@@ -5008,7 +4259,7 @@ button {
      pilot was trying to hold a hover against it. */
   width: 218px;
   background: linear-gradient(rgba(13, 19, 29, 0.9), rgba(9, 14, 22, 0.88));
-  border: 1px solid var(--line);
+  border: 1px solid var(--old-line);
   border-radius: 10px;
   box-shadow:
     0 10px 26px rgba(3, 6, 12, 0.45),
@@ -5211,7 +4462,7 @@ button {
   max-height: 92%;
   overflow-y: auto;
   background: var(--panel);
-  border: 1px solid var(--line);
+  border: 1px solid var(--old-line);
   border-radius: 14px;
   padding: 26px 30px;
   text-align: center;
@@ -5266,7 +4517,7 @@ button {
   gap: 24px;
   align-items: start;
   padding-bottom: 16px;
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid var(--old-line);
 }
 .ms-brief-title h2 {
   margin: 4px 0 2px;
@@ -5282,7 +4533,7 @@ button {
   display: flex;
   gap: 12px;
   padding: 12px 14px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--old-line);
   border-radius: 10px;
   background: rgba(56, 189, 248, 0.05);
 }
@@ -5497,7 +4748,7 @@ button {
 .ms-hero {
   position: relative;
   margin: 0;
-  border: 1px solid var(--line);
+  border: 1px solid var(--old-line);
   border-radius: 12px;
   overflow: hidden;
   background: var(--bg-2);
@@ -5587,7 +4838,7 @@ button {
   left: calc(50% + 20px);
   right: calc(-50% + 20px);
   height: 1px;
-  background: var(--line);
+  background: var(--old-line);
 }
 .ms-flow-num {
   display: grid;
@@ -5630,7 +4881,7 @@ button {
      them in a row read as a set, and each file is cut to it so nothing is
      cropped at display time and no bar is ever drawn. */
   aspect-ratio: 1 / 1;
-  border: 1px solid var(--line);
+  border: 1px solid var(--old-line);
   border-radius: 8px;
   overflow: hidden;
   background: var(--bg-2);
@@ -5654,7 +4905,7 @@ button {
 }
 .ms-objectives {
   padding: 14px 16px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--old-line);
   border-radius: 10px;
   background: rgba(255, 255, 255, 0.02);
 }
@@ -5729,7 +4980,7 @@ button {
   gap: 12px;
   margin-top: 16px;
   padding-top: 14px;
-  border-top: 1px solid var(--line);
+  border-top: 1px solid var(--old-line);
 }
 .ms-brief-foot .ms-btn.ghost {
   justify-self: start;
@@ -5743,7 +4994,7 @@ button {
 }
 .ms-brief-hint kbd {
   padding: 1px 5px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--old-line);
   border-radius: 4px;
   background: rgba(255, 255, 255, 0.04);
   font-family: inherit;
@@ -5770,7 +5021,7 @@ button {
 .ms-rubric {
   margin: 0;
   padding: 12px 14px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--old-line);
   border-radius: 10px;
   background: rgba(255, 255, 255, 0.02);
 }
@@ -5802,7 +5053,7 @@ button {
    in the markup, so the order reads as a tally rather than as a flash. */
 .ms-sheet {
   margin: 6px 0 20px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--old-line);
   border-radius: 10px;
   overflow: hidden;
 }
@@ -5813,7 +5064,7 @@ button {
   padding: 8px 14px;
   font-size: 13px;
   color: var(--text-dim);
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid var(--old-line);
   animation: ms-row-in 0.34s ease both;
 }
 .ms-sheet-row:last-child {
@@ -5880,7 +5131,7 @@ button {
 }
 .ms-btn {
   background: rgba(255, 255, 255, 0.04);
-  border: 1px solid var(--line);
+  border: 1px solid var(--old-line);
   border-radius: 8px;
   padding: 10px 18px;
   font-size: 13px;
@@ -5915,7 +5166,7 @@ button {
   padding-left: 8px;
 }
 .ms-btn.ghost:hover {
-  border-color: var(--line);
+  border-color: var(--old-line);
   background: rgba(255, 255, 255, 0.04);
 }
 .ms-btn.primary {
@@ -6057,7 +5308,7 @@ button {
 .ms-rules {
   margin: 0 0 14px;
   padding: 12px 14px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--old-line);
   border-left: 2px solid rgba(255, 92, 92, 0.6);
   border-radius: 10px;
   background: rgba(255, 92, 92, 0.04);
@@ -6095,439 +5346,7 @@ button {
   color: var(--bad);
 }
 
-/* ==========================================================================
-   Pilot profile: sign-in, top-bar chip, dashboard
-   ========================================================================== */
-
-.signin {
-  height: 100%;
-  display: grid;
-  place-items: center;
-  padding: 24px;
-  overflow-y: auto;
-  background: radial-gradient(120% 100% at 60% 0%, #0d1626 0%, #05070d 60%);
-}
-.signin-card {
-  width: min(440px, 100%);
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  padding: 32px 34px 26px;
-  border-radius: 16px;
-  background: linear-gradient(170deg, rgba(15, 23, 38, 0.94), rgba(8, 12, 20, 0.9));
-  border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
-  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.45);
-}
-.signin-brand {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 4px;
-}
-.signin-brand > span:last-child {
-  display: flex;
-  flex-direction: column;
-  line-height: 1;
-}
-.signin-brand b {
-  font-size: 24px;
-  font-weight: 800;
-  font-style: italic;
-}
-.signin-brand b i {
-  color: var(--accent);
-}
-.signin-brand em {
-  font-style: normal;
-  font-size: 10px;
-  letter-spacing: 0.34em;
-  text-transform: uppercase;
-  color: var(--text-dim);
-  margin-top: 5px;
-}
-.signin-card h1 {
-  margin: 6px 0 0;
-  font-size: 24px;
-  font-weight: 800;
-  letter-spacing: -0.01em;
-}
-.signin-note {
-  margin: 0;
-  font-size: 12.5px;
-  line-height: 1.5;
-  color: var(--text-dim);
-}
-.signin-field {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-.signin-field span {
-  font-size: 10.5px;
-  font-weight: 600;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: var(--text-dim);
-}
-.signin-field input {
-  font: inherit;
-  font-size: 15px;
-  color: var(--text);
-  padding: 11px 13px;
-  border-radius: 9px;
-  border: 1px solid var(--line);
-  background: rgba(5, 8, 14, 0.7);
-  outline: none;
-  transition: border-color 0.14s ease;
-}
-.signin-field input:focus {
-  border-color: var(--accent);
-}
-.signin-key {
-  font-family: ui-monospace, 'SF Mono', Menlo, monospace !important;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-.signin-key::placeholder {
-  color: #3d4b61;
-}
-.signin-error {
-  margin: 0;
-  padding: 10px 12px;
-  border-radius: 9px;
-  font-size: 13px;
-  line-height: 1.45;
-  color: var(--text);
-  background: rgba(255, 92, 92, 0.1);
-  border: 1px solid rgba(255, 92, 92, 0.45);
-}
-.signin-submit {
-  margin-top: 4px;
-  padding: 13px;
-  border-radius: 10px;
-  font-size: 13px;
-  font-weight: 700;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: #041019;
-  background: var(--accent);
-  transition:
-    filter 0.14s ease,
-    opacity 0.14s ease;
-}
-.signin-submit:hover:not(:disabled) {
-  filter: brightness(1.1);
-}
-.signin-submit:disabled {
-  opacity: 0.6;
-  cursor: progress;
-}
-.signin-switch {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-/* The other way in: a secondary button under the primary one, outlined in the
-   accent rather than filled, so it reads as clickable without competing. */
-.signin-switch button {
-  width: 100%;
-  padding: 12px;
-  border-radius: 10px;
-  border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
-  background: rgba(56, 189, 248, 0.06);
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--accent);
-  transition:
-    background 0.14s ease,
-    border-color 0.14s ease;
-}
-.signin-switch button:hover {
-  background: rgba(56, 189, 248, 0.14);
-  border-color: var(--accent);
-}
-.signin-switch button:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-}
-.signin-switch button:disabled {
-  opacity: 0.6;
-  cursor: progress;
-}
-/* "Signed in on another device": the same card, in place of the form. */
-.signin-device {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 12px 14px;
-  border-radius: 10px;
-  background: rgba(56, 189, 248, 0.06);
-  border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
-}
-.signin-device svg {
-  flex: none;
-  width: 26px;
-  height: 26px;
-  fill: none;
-  stroke: var(--accent);
-  stroke-width: 1.6;
-  stroke-linecap: round;
-}
-.signin-device span {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  min-width: 0;
-}
-.signin-device em {
-  font-style: normal;
-  font-size: 10.5px;
-  font-weight: 600;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: var(--text-dim);
-}
-.signin-device b {
-  font-size: 14.5px;
-  color: var(--text);
-  overflow-wrap: anywhere;
-}
-.signin-elsewhere .signin-note b {
-  overflow-wrap: anywhere;
-  color: var(--text);
-}
-
-.chip-user {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 9px 16px;
-  border-radius: 14px;
-  background: rgba(12, 19, 31, 0.82);
-  border: 1px solid var(--line);
-  text-align: left;
-  max-width: 220px;
-  transition: border-color 0.14s ease;
-}
-.chip-user:hover {
-  border-color: var(--accent-2);
-}
-.chip-user .chip-body b {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 150px;
-}
-
-/* ---- Profile: the pilot career screen ---------------------------------- */
-
-.section-body.pro {
-  max-width: 1180px;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  padding-top: 34px;
-}
-/* A scrolling column: its sections keep their height instead of being squeezed
-   to fit the viewport. */
-.section-body.pro > * {
-  flex-shrink: 0;
-}
-
-/* Player card */
-.pro-hero {
-  position: relative;
-  display: grid;
-  grid-template-columns: auto 1fr auto;
-  align-items: center;
-  gap: 28px;
-  padding: 26px 30px;
-  overflow: hidden;
-  background:
-    linear-gradient(100deg, rgba(56, 189, 248, 0.16) 0%, rgba(56, 189, 248, 0.03) 42%, transparent 70%),
-    linear-gradient(170deg, #0f1a2c 0%, #070c15 100%);
-  border: 1px solid rgba(56, 189, 248, 0.28);
-  clip-path: polygon(22px 0, 100% 0, 100% calc(100% - 22px), calc(100% - 22px) 100%, 0 100%, 0 22px);
-}
-.pro-hero::before {
-  /* The accent edge down the card's left side. */
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 22px;
-  bottom: 0;
-  width: 3px;
-  background: linear-gradient(var(--accent), transparent);
-  box-shadow: 0 0 18px var(--accent);
-}
-.pro-hero-grid {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background-image:
-    linear-gradient(rgba(56, 189, 248, 0.06) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(56, 189, 248, 0.06) 1px, transparent 1px);
-  background-size: 28px 28px;
-  mask-image: linear-gradient(100deg, black 0%, transparent 55%);
-}
-
-.pro-emblem {
-  position: relative;
-  width: 132px;
-  height: 132px;
-  filter: drop-shadow(0 0 22px rgba(56, 189, 248, 0.35));
-}
-.pro-emblem-bg {
-  fill: #08111e;
-}
-.pro-emblem-track {
-  fill: none;
-  stroke: rgba(56, 189, 248, 0.18);
-  stroke-width: 5;
-}
-.pro-emblem-fill {
-  fill: none;
-  stroke: var(--accent);
-  stroke-width: 5;
-  stroke-linecap: round;
-}
-.pro-emblem-inner {
-  fill: rgba(56, 189, 248, 0.08);
-  stroke: rgba(56, 189, 248, 0.35);
-  stroke-width: 1;
-}
-.pro-emblem-caption {
-  fill: var(--text-dim);
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.3em;
-}
-.pro-emblem-level {
-  fill: var(--text);
-  font-size: 34px;
-  font-weight: 900;
-  font-style: italic;
-}
-
-.pro-id {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  min-width: 0;
-}
-.pro-rank {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  align-self: flex-start;
-  padding: 4px 12px 4px 10px;
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: 0.28em;
-  text-transform: uppercase;
-  color: #041019;
-  background: var(--accent);
-  clip-path: polygon(8px 0, 100% 0, calc(100% - 8px) 100%, 0 100%);
-}
-.pro-rank i {
-  width: 6px;
-  height: 6px;
-  background: #041019;
-  transform: rotate(45deg);
-}
-.pro-name {
-  margin: 0;
-  font-size: 46px;
-  line-height: 1;
-  font-weight: 900;
-  font-style: italic;
-  letter-spacing: -0.02em;
-  text-transform: uppercase;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  text-shadow: 0 0 30px rgba(56, 189, 248, 0.25);
-}
-.pro-meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px 16px;
-  font-size: 12.5px;
-  color: var(--text-dim);
-}
-.pro-meta b {
-  color: var(--accent);
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  font-variant-numeric: tabular-nums;
-}
-.pro-xp {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  margin-top: 8px;
-}
-.pro-xp-bar {
-  flex: 1;
-  max-width: 460px;
-  display: grid;
-  grid-template-columns: repeat(20, 1fr);
-  gap: 3px;
-}
-.pro-xp-bar span {
-  height: 10px;
-  background: rgba(56, 189, 248, 0.12);
-  transform: skewX(-20deg);
-}
-.pro-xp-bar span.on {
-  background: var(--accent);
-  box-shadow: 0 0 10px rgba(56, 189, 248, 0.7);
-}
-.pro-xp-text {
-  font-size: 12px;
-  color: var(--text-dim);
-  white-space: nowrap;
-  font-variant-numeric: tabular-nums;
-}
-.pro-xp-text b {
-  color: var(--text);
-}
-
-.pro-headline {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 16px;
-}
-.pro-headline-main {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-}
-.pro-headline-main span {
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.26em;
-  text-transform: uppercase;
-  color: var(--text-dim);
-}
-.pro-headline-main b {
-  font-size: 52px;
-  line-height: 1.05;
-  font-weight: 900;
-  font-style: italic;
-  letter-spacing: -0.02em;
-  color: var(--text);
-  font-variant-numeric: tabular-nums;
-}
-.pro-actions {
-  display: flex;
-  gap: 8px;
-}
+/* Button on the whole-app error screen (AppErrorBoundary); leaves with Phase 7. */
 .pro-btn {
   padding: 8px 18px;
   font-size: 11px;
@@ -6551,439 +5370,6 @@ button {
 }
 .pro-btn.ghost:hover {
   color: var(--text);
-}
-
-.pro-sync {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin: 0;
-  font-size: 12.5px;
-  color: var(--text-dim);
-}
-.pro-sync i {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--warn);
-  box-shadow: 0 0 10px var(--warn);
-  animation: blink 1.6s ease-in-out infinite;
-}
-
-/* Career stats */
-.pro-stats {
-  display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
-  gap: 10px;
-}
-@media (max-width: 1400px) {
-  .pro-stats {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-}
-.pro-stat {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 14px 16px 13px;
-  background: linear-gradient(170deg, rgba(15, 25, 41, 0.95), rgba(8, 13, 22, 0.95));
-  border-top: 2px solid rgba(56, 189, 248, 0.55);
-  clip-path: polygon(0 0, 100% 0, 100% calc(100% - 12px), calc(100% - 12px) 100%, 0 100%);
-}
-.pro-stat-label {
-  font-size: 10.5px;
-  font-weight: 700;
-  letter-spacing: 0.22em;
-  text-transform: uppercase;
-  color: var(--text-dim);
-}
-.pro-stat-value {
-  font-size: 30px;
-  font-weight: 900;
-  font-style: italic;
-  letter-spacing: -0.01em;
-  font-variant-numeric: tabular-nums;
-}
-.pro-stat-sub {
-  font-size: 11.5px;
-  color: var(--text-dim);
-}
-
-/* Panels */
-.pro-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14px;
-}
-.pro-panel {
-  position: relative;
-  min-width: 0;
-  padding: 16px 20px 18px;
-  background: linear-gradient(170deg, rgba(13, 21, 35, 0.95), rgba(7, 11, 19, 0.95));
-  border: 1px solid rgba(28, 43, 66, 0.9);
-  clip-path: polygon(0 0, calc(100% - 16px) 0, 100% 16px, 100% 100%, 0 100%);
-}
-.pro-panel-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 16px;
-  padding-bottom: 10px;
-  border-bottom: 1px solid rgba(28, 43, 66, 0.9);
-}
-.pro-panel-head h2 {
-  position: relative;
-  margin: 0;
-  padding-left: 14px;
-  font-size: 15px;
-  font-weight: 900;
-  font-style: italic;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-.pro-panel-head h2::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 2px;
-  bottom: 2px;
-  width: 4px;
-  background: var(--accent);
-  transform: skewX(-14deg);
-  box-shadow: 0 0 10px rgba(56, 189, 248, 0.6);
-}
-.pro-panel-tag {
-  font-size: 10.5px;
-  font-weight: 700;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-  color: var(--text-dim);
-}
-/* The chart's table toggle sits in the panel header's row. */
-.pro-panel .pchart-toggle {
-  top: -49px;
-  right: 120px;
-}
-.pro-figure {
-  display: flex;
-  align-items: baseline;
-  gap: 12px;
-  margin-bottom: 14px;
-}
-.pro-figure b {
-  font-size: 38px;
-  line-height: 1;
-  font-weight: 900;
-  font-style: italic;
-  font-variant-numeric: tabular-nums;
-}
-.pro-figure span {
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-  color: var(--text-dim);
-}
-
-/* Flight School mastery */
-.pro-mastery {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 8px;
-}
-.pro-mastery li {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  padding: 10px 4px 9px;
-  background: rgba(8, 13, 22, 0.9);
-  border: 1px solid rgba(28, 43, 66, 0.9);
-  clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px);
-  color: #3f4d63;
-}
-.pro-mastery li.tried {
-  color: var(--text-dim);
-  border-color: #2b4160;
-}
-.pro-mastery li.done {
-  color: var(--text);
-  border-color: rgba(56, 189, 248, 0.6);
-  background: linear-gradient(170deg, rgba(56, 189, 248, 0.16), rgba(8, 13, 22, 0.9));
-}
-.pro-mastery-n {
-  font-size: 16px;
-  font-weight: 900;
-  font-style: italic;
-  font-variant-numeric: tabular-nums;
-}
-.pro-mastery-stars {
-  display: flex;
-  gap: 3px;
-}
-.pro-mastery-stars i {
-  width: 8px;
-  height: 8px;
-  background: #1c2b42;
-  clip-path: polygon(50% 0, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%);
-}
-.pro-mastery-stars i.on {
-  background: var(--warn);
-}
-
-/* Flight log: a match history */
-.pro-log {
-  width: 100%;
-  border-collapse: separate;
-  border-spacing: 0 6px;
-  font-size: 13px;
-  font-variant-numeric: tabular-nums;
-}
-.pro-log th {
-  text-align: left;
-  padding: 0 14px 2px;
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.22em;
-  text-transform: uppercase;
-  color: var(--text-dim);
-}
-.pro-log td {
-  padding: 10px 14px;
-  background: rgba(10, 16, 27, 0.95);
-  white-space: nowrap;
-}
-.pro-log .num {
-  text-align: right;
-}
-.pro-log tbody tr td:first-child {
-  border-left: 4px solid var(--text-dim);
-}
-.pro-log tr.r-success td:first-child {
-  border-left-color: var(--good);
-  background: linear-gradient(90deg, rgba(55, 224, 138, 0.12), rgba(10, 16, 27, 0.95) 80%);
-}
-.pro-log tr.r-failed td:first-child {
-  border-left-color: var(--bad);
-  background: linear-gradient(90deg, rgba(255, 92, 92, 0.12), rgba(10, 16, 27, 0.95) 80%);
-}
-.pro-log tr.r-aborted td:first-child {
-  border-left-color: var(--warn);
-  background: linear-gradient(90deg, rgba(255, 207, 77, 0.1), rgba(10, 16, 27, 0.95) 80%);
-}
-.pro-log tbody tr:hover td {
-  background-color: rgba(18, 29, 47, 0.95);
-}
-.pro-result {
-  font-size: 11px;
-  font-weight: 900;
-  font-style: italic;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-}
-.r-success .pro-result {
-  color: var(--good);
-}
-.r-failed .pro-result {
-  color: var(--bad);
-}
-.r-aborted .pro-result {
-  color: var(--warn);
-}
-.pro-log-title {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-.pro-log-icon {
-  display: grid;
-  place-items: center;
-  width: 30px;
-  height: 30px;
-  color: var(--accent);
-  background: rgba(56, 189, 248, 0.1);
-  clip-path: polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px);
-}
-.pro-log-title b {
-  display: block;
-  font-weight: 700;
-}
-.pro-log-title i {
-  font-style: normal;
-  font-size: 11px;
-  color: var(--text-dim);
-}
-.pro-log-stars {
-  color: var(--warn);
-  font-size: 11px;
-}
-.pro-log-points {
-  font-weight: 800;
-  color: var(--accent);
-}
-.pro-log-when {
-  color: var(--text-dim);
-}
-
-/* Shared chart pieces (profileCharts.tsx) */
-.pempty {
-  margin: 8px 0;
-  font-size: 13px;
-  color: var(--text-dim);
-}
-.pchart-empty {
-  min-height: 120px;
-  display: grid;
-  place-items: center;
-}
-.pchart {
-  position: relative;
-}
-.pchart-toggle {
-  position: absolute;
-  top: -34px;
-  right: 0;
-  font-size: 11px;
-  color: var(--text-dim);
-  padding: 4px 8px;
-}
-.pchart-toggle:hover {
-  color: var(--accent);
-}
-.pchart-svg {
-  display: block;
-  width: 100%;
-  height: auto;
-  overflow: visible;
-}
-.pchart-svg rect:focus {
-  outline: none;
-}
-.pchart-grid {
-  stroke: #1a2638;
-  stroke-width: 1;
-}
-.pchart-tick {
-  font-size: 10.5px;
-  fill: var(--text-dim);
-  font-variant-numeric: tabular-nums;
-}
-.pchart-bar {
-  fill: var(--accent);
-  opacity: 0.85;
-}
-.pchart-bar.on {
-  opacity: 1;
-}
-.pchart-tip {
-  position: absolute;
-  top: 0;
-  transform: translate(-50%, -4px);
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  padding: 6px 9px;
-  background: #0a111c;
-  border: 1px solid var(--line);
-  pointer-events: none;
-  white-space: nowrap;
-  font-variant-numeric: tabular-nums;
-}
-.pchart-tip b {
-  font-size: 13px;
-}
-.pchart-tip span {
-  font-size: 11px;
-  color: var(--text-dim);
-}
-.pchart-table {
-  max-height: 180px;
-  overflow-y: auto;
-}
-.pchart-table table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 12.5px;
-  font-variant-numeric: tabular-nums;
-}
-.pchart-table th,
-.pchart-table td {
-  text-align: left;
-  padding: 4px 6px;
-  border-bottom: 1px solid #142033;
-}
-.pchart-table th {
-  color: var(--text-dim);
-  font-weight: 600;
-}
-.pbars {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-.pbars li {
-  display: grid;
-  grid-template-columns: minmax(90px, 36%) 1fr auto;
-  align-items: center;
-  gap: 12px;
-  font-size: 12.5px;
-}
-.pbars-label {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--text);
-  font-weight: 600;
-}
-.pbars-track {
-  height: 10px;
-  background: rgba(56, 189, 248, 0.07);
-}
-.pbars-fill {
-  display: block;
-  height: 100%;
-  min-width: 2px;
-  background: var(--accent);
-  box-shadow: 0 0 10px rgba(56, 189, 248, 0.45);
-}
-.pbars-value {
-  color: var(--text-dim);
-  font-variant-numeric: tabular-nums;
-  text-align: right;
-}
-
-/* The pilot badge and nav card open the profile when someone is signed in. */
-.pilot-badge.is-link,
-.pilot-card.is-link {
-  font: inherit;
-  color: inherit;
-  text-align: left;
-  cursor: pointer;
-  transition:
-    border-color 0.14s ease,
-    box-shadow 0.14s ease;
-}
-.pilot-card {
-  width: 100%;
-  font: inherit;
-  color: inherit;
-  text-align: left;
-}
-.pilot-card:disabled {
-  cursor: default;
-}
-.pilot-badge.is-link:hover,
-.pilot-card.is-link:hover {
-  border-color: var(--accent-2);
-  box-shadow: 0 0 18px rgba(56, 189, 248, 0.18);
 }
 
 /* ---- Whole-app error screen (AppErrorBoundary) ---- */
@@ -7036,105 +5422,4 @@ button {
   background: rgba(0, 0, 0, 0.35);
   border: 1px solid rgba(255, 92, 92, 0.2);
   overflow-wrap: anywhere;
-}
-
-/* ---- Loading resources (LoadingScreen) ---- */
-.loading-screen {
-  position: relative;
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  overflow: hidden;
-  background:
-    radial-gradient(90% 70% at 50% 38%, rgba(56, 189, 248, 0.14) 0%, transparent 60%),
-    linear-gradient(180deg, #0b1424 0%, #04060b 100%);
-}
-.loading-grid {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background-image:
-    linear-gradient(rgba(56, 189, 248, 0.05) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(56, 189, 248, 0.05) 1px, transparent 1px);
-  background-size: 44px 44px;
-  mask-image: radial-gradient(70% 60% at 50% 45%, black, transparent);
-}
-.loading-center {
-  position: relative;
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-}
-.loading-logo {
-  width: 150px;
-  height: auto;
-  filter: drop-shadow(0 0 30px rgba(56, 189, 248, 0.45));
-  animation: loading-float 3.2s ease-in-out infinite;
-}
-@keyframes loading-float {
-  50% {
-    transform: translateY(-8px);
-  }
-}
-.loading-title {
-  margin: 0;
-  font-size: 56px;
-  font-weight: 900;
-  font-style: italic;
-  letter-spacing: -0.02em;
-}
-.loading-title i {
-  color: var(--accent);
-}
-.loading-footer {
-  position: relative;
-  width: min(760px, calc(100% - 64px));
-  margin: 0 auto 64px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-.loading-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  gap: 16px;
-}
-.loading-label {
-  font-size: 12px;
-  font-weight: 800;
-  letter-spacing: 0.28em;
-  text-transform: uppercase;
-  color: var(--text);
-}
-.loading-pct {
-  font-size: 22px;
-  font-weight: 900;
-  font-style: italic;
-  color: var(--accent);
-  font-variant-numeric: tabular-nums;
-}
-.loading-bar {
-  display: grid;
-  grid-template-columns: repeat(32, 1fr);
-  gap: 4px;
-}
-.loading-bar span {
-  height: 12px;
-  background: rgba(56, 189, 248, 0.1);
-  transform: skewX(-20deg);
-  transition: background 0.2s ease;
-}
-.loading-bar span.on {
-  background: var(--accent);
-  box-shadow: 0 0 12px rgba(56, 189, 248, 0.6);
-}
-.loading-detail {
-  font-size: 12.5px;
-  color: var(--text-dim);
-  font-variant-numeric: tabular-nums;
 }
