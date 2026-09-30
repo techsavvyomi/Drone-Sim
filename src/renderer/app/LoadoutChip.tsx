@@ -124,7 +124,16 @@ export function LoadoutChip({
   };
 
   return (
-    <div className="loadout-chip" ref={rootRef}>
+    <div
+      className="loadout-chip"
+      ref={rootRef}
+      // Focus leaving the chip closes its menu. A number key or the D-pad could
+      // move focus to another page with the menu still open, and it stayed
+      // drawn over the flight that page opened.
+      onBlur={(e) => {
+        if (open && !rootRef.current?.contains(e.relatedTarget as Node | null)) setOpen(false);
+      }}
+    >
       <button
         ref={buttonRef}
         type="button"

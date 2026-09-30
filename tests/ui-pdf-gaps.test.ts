@@ -19,6 +19,7 @@ import { TopBar } from '../src/renderer/app/TopBar';
 import { Sidebar } from '../src/renderer/app/Sidebar';
 import { attachMenuGamepad } from '../src/renderer/input/menuGamepad';
 import { attachGamepad, setActionHandler, setGamepadConfig } from '../src/renderer/input/gamepad';
+import { LoadoutChip } from '../src/renderer/app/LoadoutChip';
 import { chaseReport, PULL_IN_NOTICE } from '../src/renderer/scene/cameraReport';
 import { FlightHud } from '../src/renderer/hud/FlightHud';
 import { CrashCard, PauseCard } from '../src/renderer/hud/FlightCards';
@@ -662,5 +663,63 @@ describe('gamepad on the flight cards', () => {
     detachFlight();
     detachMenu();
     setActionHandler(() => {});
+  });
+});
+
+// ---- Found live: a loadout menu left open over a flight ----------------------
+
+describe('loadout chip menu', () => {
+  it('closes when focus leaves the chip (a number key or the D-pad opened another page)', () => {
+    const outside = document.createElement('button');
+    document.body.appendChild(outside);
+    const el = mount(
+      h(LoadoutChip, {
+        icon: null,
+        label: 'Drone',
+        blurb: 'Sets the next flight.',
+        value: 'pluto',
+        options: [
+          { id: 'pluto', name: 'Pluto' },
+          { id: 'pluto-guru', name: 'Pluto Guru' },
+        ],
+        onSelect: () => {},
+      }),
+    );
+    act(() => $(el, 'button').click());
+    expect(el.querySelector('[role="listbox"]')).not.toBeNull();
+    expect(document.activeElement?.getAttribute('role')).toBe('listbox');
+    act(() => outside.focus());
+    expect(el.querySelector('[role="listbox"]')).toBeNull();
+  });
+
+  it('focus moving inside it (chip to list and back) does not close it early: ↓ Enter still picks', () => {
+    const picked: string[] = [];
+    const el = mount(
+      h(LoadoutChip, {
+        icon: null,
+        label: 'Drone',
+        blurb: 'Sets the next flight.',
+        value: 'pluto',
+        options: [
+          { id: 'pluto', name: 'Pluto' },
+          { id: 'pluto-guru', name: 'Pluto Guru' },
+        ],
+        onSelect: (id: string) => {
+          picked.push(id);
+        },
+      }),
+    );
+    act(() => $(el, 'button').click());
+    const list = $(el, '[role="listbox"]');
+    expect(document.activeElement).toBe(list);
+    const press = (k: string) =>
+      act(() => {
+        list.dispatchEvent(new KeyboardEvent('keydown', { key: k, bubbles: true }));
+      });
+    press('ArrowDown');
+    press('Enter');
+    expect(picked).toEqual(['pluto-guru']);
+    expect(el.querySelector('[role="listbox"]')).toBeNull();
+    expect(document.activeElement).toBe($(el, 'button'));
   });
 });
