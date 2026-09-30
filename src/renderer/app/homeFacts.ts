@@ -135,14 +135,18 @@ export function homePlan(input: HomeInput): HomePlan {
     primary: false,
   };
 
+  // The name goes on the line, not the title: beside the count, "Continue:
+  // Module 10 — Square Circuit using Yaw" took three lines of the 290–380 px
+  // column and clipped the row at 1280 × 720. A no-break space keeps the
+  // number with its word when the title wraps beside the count.
   let cont: ModeRow | null = null;
   let statusContext: string;
   if (nextLesson) {
     cont = {
       id: 'continue',
-      title: `Continue: Module ${nextLessonAt + 1} — ${nextLesson.title}`,
+      title: `Continue: Module\u00a0${nextLessonAt + 1}`,
       count: `${lessonsDone} of ${lessons.length}`,
-      line: `Training · ${nextLesson.subtitle}.`,
+      line: `${nextLesson.title} · ${nextLesson.subtitle}.`,
       target: { kind: 'lesson', id: nextLesson.id },
       primary: true,
     };
@@ -150,9 +154,9 @@ export function homePlan(input: HomeInput): HomePlan {
   } else if (nextMission) {
     cont = {
       id: 'continue',
-      title: `Continue: Mission ${nextMissionAt + 1} — ${nextMission.name}`,
+      title: `Continue: Mission\u00a0${nextMissionAt + 1}`,
       count: `${missionsDone} of ${missions.length}`,
-      line: `Missions · ${envName(nextMission.envId) ?? nextMission.envId}.`,
+      line: `${nextMission.name} · ${envName(nextMission.envId) ?? nextMission.envId}.`,
       target: { kind: 'mission', id: nextMission.id },
       primary: true,
     };

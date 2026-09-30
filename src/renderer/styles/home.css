@@ -179,8 +179,10 @@
 
 .home__list > li {
   display: flex;
+  /* Rows share the height but never shrink below their own text — with
+     min-height: 0 a long Continue row was squeezed under its content and
+     clipped top and bottom at 1280 × 720. */
   flex: 0 1 132px;
-  min-height: 0;
 }
 
 /* The whole row is the click target. Vertical rows, never equal cards. */
@@ -235,6 +237,24 @@
 
 .home__mode-title {
   font: var(--type-title);
+}
+
+/* A row holds at most two title lines and three fact lines, so four rows always
+   fit the 1100 × 720 minimum; a longer line ends in an ellipsis rather than
+   growing the row. The button's text keeps the whole line for screen readers. */
+.home__mode-title,
+.home__mode-line {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.home__mode-title {
+  -webkit-line-clamp: 2;
+}
+
+.home__mode-line {
+  -webkit-line-clamp: 3;
 }
 
 .home__mode-count {
@@ -405,7 +425,7 @@
   }
 
   .home__mode {
-    padding: var(--space-3) var(--space-5);
+    padding: var(--space-2) var(--space-5);
   }
 
   .home__spec {

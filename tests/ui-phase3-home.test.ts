@@ -7,6 +7,7 @@ import { guruDrone } from '../src/renderer/plugins/drones/guru';
 import { racingDrone } from '../src/renderer/plugins/drones/racer';
 import { handlingLine, homeDroneFacts, homePlan } from '../src/renderer/app/homeFacts';
 import { formatMass } from '../src/renderer/app/loadout';
+import { declsFor, stylesheet } from './helpers/css';
 
 // Phase 3 — Home, against the real curriculum rather than the home-screen
 // suite's three-lesson stand-ins: walk every pilot from a first run to having
@@ -76,7 +77,8 @@ describe('Home over the whole journey', () => {
     for (let l = 1; l < LESSONS.length; l += 1) {
       const c = plan(l, 0).rows.find((r) => r.id === 'continue')!;
       expect(c.target).toEqual({ kind: 'lesson', id: LESSONS[l].id });
-      expect(c.title).toContain(LESSONS[l].title);
+      expect(c.title).toBe(`Continue: Module\u00a0${l + 1}`);
+      expect(c.line).toBe(`${LESSONS[l].title} · ${LESSONS[l].subtitle}.`);
     }
   });
 
@@ -103,5 +105,60 @@ describe('the spec column', () => {
     expect(f[3].value).toContain(`${d.battery.cells}S`);
     expect(handlingLine(d).startsWith(`${formatMass(d.mass)}. Tilts `)).toBe(true);
     expect(handlingLine(d)).toContain(`${d.maxSpeed} m/s`);
+  });
+});
+
+// The Continue row clipped its title top and bottom at 1280 × 720: "Continue:
+// Module 10 — Square Circuit using Yaw" beside its count took three lines of
+// the 290–380 px column, and the row was allowed to shrink below its text.
+// Measured over CDP after the fix, with the longest real names, at 1100 × 720,
+// 1280 × 720 and 1440 × 900: every row's text inside its row, nothing cut.
+// jsdom does no layout, so what is held here is what made that true.
+describe('the Continue row fits the column', () => {
+  const rows = () => {
+    const out: { title: string; line: string }[] = [];
+    for (let l = 1; l < LESSONS.length; l += 1) out.push(plan(l, 0).rows[0]);
+    for (let m = 0; m < MISSIONS.length; m += 1) out.push(plan(LESSONS.length, m).rows[0]);
+    return out;
+  };
+
+  it('the title is only "Continue: Module n" / "Mission n", number held to its word', () => {
+    const all = rows();
+    expect(all).toHaveLength(LESSONS.length - 1 + MISSIONS.length);
+    for (const r of all) {
+      expect(r.title).toMatch(/^Continue: (Module|Mission)\u00a0\d+$/);
+      // Two lines of title beside the count, even at the 290 px minimum column.
+      expect(r.title.length).toBeLessThanOrEqual(20);
+    }
+  });
+
+  it('the name moves to the line: every mission, with its map', () => {
+    for (let m = 0; m < MISSIONS.length; m += 1) {
+      const c = plan(LESSONS.length, m).rows[0];
+      expect(c.line).toBe(`${MISSIONS[m].name} · ${ENV[MISSIONS[m].envId] ?? MISSIONS[m].envId}.`);
+    }
+  });
+
+  it('a row never shrinks below its text, and its text can never outgrow it', () => {
+    const css = stylesheet('home.css');
+    const li = declsFor(css, '.home__list > li');
+    expect(li.flex).toBe('0 1 132px');
+    expect(li['min-height']).toBeUndefined();
+    expect(declsFor(css, '.home__mode')['min-height']).toBeUndefined();
+    const title = declsFor(css, '.home__mode-title');
+    const line = declsFor(css, '.home__mode-line');
+    for (const d of [title, line]) {
+      expect(d.display).toBe('-webkit-box');
+      expect(d.overflow).toBe('hidden');
+    }
+    expect(title['-webkit-line-clamp']).toBe('2');
+    expect(line['-webkit-line-clamp']).toBe('3');
+  });
+
+  it('short windows (1280 × 720, 1100 × 720) tighten the rows so four still fit', () => {
+    const css = stylesheet('home.css');
+    const short = declsFor(css, '.home__mode', '(max-height: 820px)');
+    expect(short.padding).toBe('var(--space-2) var(--space-5)');
+    expect(declsFor(css, '.home__lede', '(max-height: 820px)').display).toBe('none');
   });
 });

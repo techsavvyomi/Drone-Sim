@@ -97,8 +97,9 @@ describe('what Home says (homePlan)', () => {
     expect(p.heading).toBe('Welcome back, Asha');
     expect(p.rows.map((r) => r.id)).toEqual(['continue', 'training', 'fly', 'missions']);
     expect(p.rows[0]).toMatchObject({
-      title: 'Continue: Module 3 — Yaw',
+      title: 'Continue: Module\u00a03',
       count: '2 of 3',
+      line: 'Yaw · Subtitle 3.',
       primary: true,
       target: { kind: 'lesson', id: 'c' },
     });
@@ -115,9 +116,9 @@ describe('what Home says (homePlan)', () => {
   it('every module done: Continue names the next mission and opens its briefing', () => {
     const p = homePlan(input(['a', 'b', 'c'], ['m1']));
     expect(p.rows[0]).toMatchObject({
-      title: 'Continue: Mission 2 — Mission m2',
+      title: 'Continue: Mission\u00a02',
       count: '1 of 3',
-      line: 'Missions · Forest.',
+      line: 'Mission m2 · Forest.',
       target: { kind: 'mission', id: 'm2' },
       primary: true,
     });
@@ -271,7 +272,8 @@ describe('Home screen', () => {
     const el = mount(h(Home));
     const cont = $(el, '[data-mode="continue"]');
     expect(cont.dataset.primary).toBe('true');
-    expect(cont.textContent).toContain(`Continue: Module 3 — ${LESSONS[2].title}`);
+    expect(cont.textContent).toContain('Continue: Module\u00a03');
+    expect(cont.textContent).toContain(`${LESSONS[2].title} · ${LESSONS[2].subtitle}.`);
     expect($(el, '[data-mode="training"]').dataset.primary).toBeUndefined();
     act(() => cont.click());
     expect(useTrainingStore.getState().activeLessonId).toBe(LESSONS[2].id);
