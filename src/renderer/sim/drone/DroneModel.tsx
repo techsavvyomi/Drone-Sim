@@ -90,7 +90,7 @@ function demetallise(m: THREE.Material): void {
  * - skinned and instanced meshes, and anything with morph targets, whose
  *   vertices are not fixed in the geometry to begin with.
  */
-function mergeStaticParts(root: THREE.Object3D): void {
+export function mergeStaticParts(root: THREE.Object3D): void {
   root.updateMatrixWorld(true);
   const rootInverse = new THREE.Matrix4().copy(root.matrixWorld).invert();
 
@@ -141,15 +141,18 @@ function mergeStaticParts(root: THREE.Object3D): void {
       for (const name of Object.keys(geometry.attributes)) {
         if (!shared.includes(name)) geometry.deleteAttribute(name);
       }
-      // One array type per attribute across the group: the optimised models
-      // quantise some parts' uv / normal to Int16 and leave others Float32, and
-      // mergeGeometries refuses the mix (logging an error and keeping every part
-      // as its own draw call). Mixed ones go to plain Float32; get*() already
-      // undoes the normalisation, so the values are the same.
+      // Every attribute to plain Float32 before anything else touches it. The
+      // optimised models are quantised (KHR_mesh_quantization): positions are
+      // normalised Int16 in −1..1, scaled up by the node's transform. Baking
+      // that transform in below writes values far outside −1..1 back into the
+      // Int16 array, where they clamp — the Racing Drone's frame and legs
+      // collapsed to slivers and its props hung in the air (user, 2026-09-30).
+      // It also gives mergeGeometries one array type per attribute, which it
+      // needs (parts mixing Int16 and Float32 uv refused to merge at all).
+      // get*() undoes the normalisation, so the values are the same.
       for (const name of shared) {
-        const types = new Set(group.map((m) => m.geometry.attributes[name].array.constructor));
-        if (types.size < 2) continue;
         const src = geometry.getAttribute(name) as THREE.BufferAttribute;
+        if (src.array instanceof Float32Array && !src.normalized) continue;
         const out = new Float32Array(src.count * src.itemSize);
         for (let i = 0; i < src.count; i++) {
           for (let c = 0; c < src.itemSize; c++) out[i * src.itemSize + c] = src.getComponent(i, c);
