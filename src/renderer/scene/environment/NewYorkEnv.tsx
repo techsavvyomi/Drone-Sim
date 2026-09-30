@@ -1,4 +1,4 @@
-﻿import { Suspense, useMemo, useRef } from 'react';
+﻿import { Suspense, useMemo } from 'react';
 import { useThree, useFrame } from '@react-three/fiber';
 import { useGLTF } from '@react-three/drei';
 import { CuboidCollider, RigidBody } from '@react-three/rapier';
@@ -8,6 +8,7 @@ import newYorkModelUrl from '../../../assets/models/new_york_city.opt.glb?url';
 import { highResStreetPBR } from './textures';
 import { NewYorkColliders } from './NewYorkColliders';
 import { useWorldStore, TIME_PRESETS } from '../../state/worldStore';
+import { FOLIAGE, ROAD_MARKINGS, ROAD_MARKING_OFFSET } from './newYorkMaterials';
 
 // High-Performance New York City Environment.
 // Optimized with:
@@ -15,8 +16,8 @@ import { useWorldStore, TIME_PRESETS } from '../../state/worldStore';
 // 2. Texture Memory & GPU Bandwidth Optimization (4x Anisotropy, Mipmap LOD optimization)
 // 3. Static Transform Freezing & Single-pass Shadows (castShadow = false, receiveShadow = true)
 // 4. Per-strip Submesh Splitting for View-Frustum Culling
-// 5. Dynamic Distance-Culling / LOD for Micro-Props (AC units, antennas, street bins fade when camera > 85m)
-// 6. Batched Foliage Rendering with Wind Sway
+// 5. Batched Foliage Rendering with Wind Sway
+// 6. Road paint drawn with a polygon offset, so it never z-fights the road
 
 const DRACO_DECODER_PATH = 'draco/gltf/';
 
@@ -153,17 +154,8 @@ const STRIP_TARGET_MESH_NAMES = new Set([
   'Object_47',
 ]);
 
-// Micro-props for distance-culling / LOD (AC units, rooftop chillers, street furniture, small decals)
-const MICRO_PROP_NAMES = new Set([
-  'Object_13', // Street bins / small props
-  'Object_14', // Road surface decals
-  'Object_17', // Curb decals
-  'Object_26', // Rooftop antennas & AC units
-]);
-
 function NewYorkModel({ url }: { url: string }) {
   const gl = useThree((s) => s.gl);
-  const camera = useThree((s) => s.camera);
   const { scene } = useGLTF(url, DRACO_DECODER_PATH);
 
   // [Step 1] Cap texture anisotropy to 4x & tune texture filters for crisp VRAM performance
@@ -171,13 +163,11 @@ function NewYorkModel({ url }: { url: string }) {
   const streetPbr = useMemo(() => highResStreetPBR(maxAniso), [maxAniso]);
   const uTimeUniform = useMemo(() => ({ value: 0 }), []);
 
-  const microPropsRef = useRef<THREE.Mesh[]>([]);
 
   const visualRoot = useMemo(() => {
     const root = scene.clone(true);
     root.position.set(...CITY_OFFSET);
     root.scale.setScalar(MODEL_SCALE);
-    const microProps: THREE.Mesh[] = [];
 
     root.traverse((o) => {
       if ((o as THREE.Mesh).isMesh) {
@@ -191,10 +181,6 @@ function NewYorkModel({ url }: { url: string }) {
         m.castShadow = false;
         m.receiveShadow = true;
 
-        if (MICRO_PROP_NAMES.has(m.name)) {
-          microProps.push(m);
-        }
-
         const mats = Array.isArray(m.material) ? m.material : [m.material];
         let isAnimatedFoliage = false;
 
@@ -203,8 +189,30 @@ function NewYorkModel({ url }: { url: string }) {
           const std = mat as THREE.MeshStandardMaterial;
           const matName = std.name || '';
 
-          // 1. Foliage Leaves & Wind Sway (Batched Draw)
-          if (/foliage|tree|leaf|leaves/i.test(matName)) {
+          // 0. Road paint.
+          if (ROAD_MARKINGS.test(matName)) {
+            std.color.set('#ffffff');
+            std.roughness = 0.4;
+            std.metalness = 0.01;
+            if (std.map) std.map.anisotropy = maxAniso;
+            // Painted flat on the road: the lane lines sit 0.6 mm above the
+            // tarmac and the crossings 2 mm above it (or the kerb top). Past
+            // ~30 m a 24-bit depth buffer cannot tell those apart at near 0.08,
+            // so as the drone climbed the lines and the road took turns
+            // winning, pixel by pixel — the white lines flickered and broke up.
+            // The offset makes the paint always win.
+            std.polygonOffset = true;
+            std.polygonOffsetFactor = ROAD_MARKING_OFFSET.factor;
+            std.polygonOffsetUnits = ROAD_MARKING_OFFSET.units;
+            std.needsUpdate = true;
+            // 1. Foliage Leaves & Wind Sway (Batched Draw)
+            //
+            // No "tree" in the test: it matched S-TREE-T. CityGen_Streets (the
+            // road) and Street_Assets (poles, benches, bins, barriers, the
+            // crossings) all came through here — leaf-green tint, alpha cutoff,
+            // wind sway — and the road never reached its own asphalt branch
+            // below. The city's trees are FoliageTrees.*, so "foliage" has them.
+          } else if (FOLIAGE.test(matName)) {
             isAnimatedFoliage = true;
             std.transparent = false;
             // Alpha cutoff sets how full the canopy reads. Raising it to 0.6 to
@@ -375,31 +383,19 @@ function NewYorkModel({ url }: { url: string }) {
       }
     });
 
-    microPropsRef.current = microProps;
     root.updateMatrixWorld(true);
     return root;
   }, [scene, maxAniso, streetPbr, uTimeUniform]);
 
-  // [Step 2 & 3] Distance-Culling / LOD for Micro-Props & Wind Sway Animation
+  // Wind sway for the foliage.
+  //
+  // There used to be a distance cull here for "micro-props" too. Two of its four
+  // names were not in the optimised model at all, and the other two were the
+  // lane lines and the road stains — each ONE mesh spanning the whole city,
+  // centred on the middle of the map. Past 95 m from the middle every lane line
+  // in New York vanished at once. 4,800 vertices; nothing to save.
   useFrame((_, dt) => {
     uTimeUniform.value += dt;
-
-    // Dynamic LOD: Fade out micro-props (AC units, antennas, street bins) when camera is far (> 85m)
-    const props = microPropsRef.current;
-    if (props.length > 0) {
-      const camPos = camera.position;
-      for (let i = 0; i < props.length; i++) {
-        const p = props[i];
-        if (p.geometry.boundingSphere) {
-          const bsCenter = p.geometry.boundingSphere.center;
-          const dist = Math.hypot(
-            camPos.x - (bsCenter.x + CITY_OFFSET[0]),
-            camPos.z - (bsCenter.z + CITY_OFFSET[2]),
-          );
-          p.visible = dist < 95;
-        }
-      }
-    }
   });
 
   return <primitive object={visualRoot} />;
