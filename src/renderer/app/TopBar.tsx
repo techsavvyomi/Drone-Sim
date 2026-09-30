@@ -1,5 +1,7 @@
 import { useSettingsStore } from '../state/settingsStore';
 import { useUiStore } from '../state/uiStore';
+import { useFlightStore } from '../state/flightStore';
+import { resetFlight } from '../input/controls';
 import { getDrone, getEnvironment, listDrones, listEnvironments } from '../plugins/registry';
 import { Button } from '../ds';
 import { LoadoutChip, type LoadoutOption } from './LoadoutChip';
@@ -21,6 +23,15 @@ export function TopBar() {
   const drone = getDrone(settings.selectedDroneId);
   const env = getEnvironment(settings.selectedEnvironmentId);
   const ceiling = ceilingFor(drone, env);
+
+  // The top bar is up in Free Flight only on the pause menu. Picking a new drone
+  // or arena there is the answer to it: the card goes and the flight starts
+  // over on the new loadout's pad. The same pick again leaves the pause alone.
+  const pick = (key: 'selectedDroneId' | 'selectedEnvironmentId', id: string) => {
+    if (id === settings[key]) return;
+    set(key, id);
+    if (useUiStore.getState().section === 'fly' && useFlightStore.getState().paused) resetFlight();
+  };
 
   // Straight from the plugin registries, so a new drone or map appears here
   // with no UI change.
@@ -64,7 +75,7 @@ export function TopBar() {
           label="Drone"
           value={settings.selectedDroneId}
           options={droneOptions}
-          onSelect={(id) => set('selectedDroneId', id)}
+          onSelect={(id) => pick('selectedDroneId', id)}
           blurb="Changes mass, thrust and handling. Sets the next flight."
         />
         <span className="topbar__sep" aria-hidden="true">
@@ -75,7 +86,7 @@ export function TopBar() {
           label="Arena"
           value={settings.selectedEnvironmentId}
           options={arenaOptions}
-          onSelect={(id) => set('selectedEnvironmentId', id)}
+          onSelect={(id) => pick('selectedEnvironmentId', id)}
           blurb="Where the next free flight takes off."
         />
         <span className="topbar__sep" aria-hidden="true">
