@@ -1,4 +1,4 @@
-import { captureState, isCalibrating } from './gamepad';
+import { absorbButtons, captureState, isCalibrating } from './gamepad';
 import { focusPrimary, moveFocus, type Direction } from './menuNav';
 import { useShellStore } from '../state/shellStore';
 
@@ -19,7 +19,9 @@ import { useShellStore } from '../state/shellStore';
 // only have a handler while a flight view is mounted, so the two never both act
 // on one press: this one runs only while `isMenu()` says a menu is showing, or
 // `isCard()` says a flight card is up (a paused flight answers no pad action
-// but camera and reset; a crashed one cannot take off).
+// but camera and reset; a crashed one cannot take off). A press a card uses is
+// handed to the flight loop as already down (`absorbButtons`), so A on Resume
+// does not also land the drone it just resumed.
 // ----------------------------------------------------------------------------
 
 const A = 0;
@@ -32,6 +34,8 @@ const DPAD: [number, Direction][] = [
   [14, 'left'],
   [15, 'right'],
 ];
+/** The buttons a flight card answers: A, B and the D-pad. */
+const CARD_BUTTONS = new Set([A, B, ...DPAD.map(([i]) => i)]);
 const STICK = 0.6;
 /** Held direction: first repeat after this long, then every REPEAT_MS. */
 const FIRST_REPEAT_MS = 400;
@@ -111,6 +115,9 @@ export function attachMenuGamepad(
       if (menu && edge(LB)) key('KeyQ', 'q');
       if (menu && edge(RB)) key('KeyE', 'e');
     }
+    // Only what a card uses: Start (reset) and RB (camera) keep their flight
+    // actions on a paused flight, as before.
+    if (card && !busy) absorbButtons(buttons.map((down, i) => down && CARD_BUTTONS.has(i)));
     heldDir = dir;
     prev = buttons;
   };

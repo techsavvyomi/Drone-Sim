@@ -536,6 +536,17 @@ function tick(): void {
   prevPos = pos;
 }
 
+/**
+ * A pause or crash card has used the buttons held right now (menuGamepad.ts):
+ * count them as already down, so this press does not also fire their flight
+ * action. Without it, A on the pause card's Resume unpaused the flight and the
+ * same press reached this loop as a fresh A — take-off / land — and the drone
+ * landed the moment it was resumed. Released buttons fire again as usual.
+ */
+export function absorbButtons(pressed: readonly boolean[]): void {
+  prevButtons = pressed.map((down, i) => down || !!prevButtons[i]);
+}
+
 function adopt(pad: Gamepad): void {
   gamepadLive.index = pad.index;
   gamepadLive.id = pad.id;

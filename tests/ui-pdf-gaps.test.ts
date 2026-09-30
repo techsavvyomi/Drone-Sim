@@ -2,7 +2,7 @@
 import { act, createElement as h, type ReactElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { DEFAULT_SETTINGS } from '@shared/types';
+import { DEFAULT_GAMEPAD, DEFAULT_SETTINGS, type GamepadAction } from '@shared/types';
 import { plutoDrone } from '../src/renderer/plugins/drones/pluto';
 import { guruDrone } from '../src/renderer/plugins/drones/guru';
 import { racingDrone } from '../src/renderer/plugins/drones/racer';
@@ -18,6 +18,7 @@ import { turnFor } from '../src/renderer/app/HangarScene';
 import { TopBar } from '../src/renderer/app/TopBar';
 import { Sidebar } from '../src/renderer/app/Sidebar';
 import { attachMenuGamepad } from '../src/renderer/input/menuGamepad';
+import { attachGamepad, setActionHandler, setGamepadConfig } from '../src/renderer/input/gamepad';
 import { chaseReport, PULL_IN_NOTICE } from '../src/renderer/scene/cameraReport';
 import { FlightHud } from '../src/renderer/hud/FlightHud';
 import { CrashCard, PauseCard } from '../src/renderer/hud/FlightCards';
@@ -145,24 +146,30 @@ describe('Hangar turntable', () => {
 // ---- A standard-mapping gamepad, driven frame by frame ---------------------
 
 const pad = { buttons: [] as boolean[], axes: [0, 0, 0, 0] };
-let frame: FrameRequestCallback | null = null;
+// Every rAF loop in the app (the menu pad and the flight pad) runs each frame,
+// in the order they were attached — the order a real frame runs them in.
+let frames: { id: number; cb: FrameRequestCallback }[] = [];
+let nextFrame = 0;
 let now = 0;
 function usePad(): void {
   pad.buttons = Array(17).fill(false);
   pad.axes = [0, 0, 0, 0];
-  frame = null;
+  frames = [];
   now = 0;
   vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => {
-    frame = cb;
-    return 1;
+    nextFrame += 1;
+    frames.push({ id: nextFrame, cb });
+    return nextFrame;
   });
-  vi.stubGlobal('cancelAnimationFrame', () => {
-    frame = null;
+  vi.stubGlobal('cancelAnimationFrame', (id: number) => {
+    frames = frames.filter((f) => f.id !== id);
   });
   Object.defineProperty(navigator, 'getGamepads', {
     configurable: true,
     value: () => [
       {
+        index: 0,
+        id: 'Xbox Wireless Controller (STANDARD GAMEPAD)',
         mapping: 'standard',
         buttons: pad.buttons.map((pressed) => ({ pressed })),
         axes: pad.axes,
@@ -173,8 +180,11 @@ function usePad(): void {
 /** Run one poll `ms` after the last. */
 function tick(ms = 16): void {
   now += ms;
-  const cb = frame;
-  act(() => cb?.(now));
+  const due = frames;
+  frames = [];
+  act(() => {
+    for (const f of due) f.cb(now);
+  });
 }
 /** Press button `i` for one poll, then release it for one. */
 function tap(i: number): void {
@@ -183,6 +193,7 @@ function tap(i: number): void {
   pad.buttons[i] = false;
   tick();
 }
+const START = 9;
 const LB = 4;
 const RB = 5;
 const A = 0;
@@ -592,5 +603,64 @@ describe('gamepad on the flight cards', () => {
     expect(seen).toEqual([]);
     detach();
     window.removeEventListener('keydown', spy);
+  });
+  // Found flying it live (2026-09-30): the flight pad reads the same buttons.
+  // A on the pause card's Resume unpaused the flight, then the flight loop saw
+  // that same A as a fresh press — take-off / land — and the drone landed.
+  it('A on Resume does not also reach the flight as take-off / land; A works again after', () => {
+    usePad();
+    const actions: GamepadAction[] = [];
+    setGamepadConfig({ ...DEFAULT_GAMEPAD, enabled: true });
+    setActionHandler((a) => {
+      // The flight's own rule: a paused flight answers only camera and reset.
+      if (useFlightStore.getState().paused && a !== 'cameraCycle' && a !== 'reset') return;
+      actions.push(a);
+    });
+    useFlightStore.setState({ paused: true, armed: true, onGround: false });
+    mount(
+      h(PauseCard, {
+        context: { kind: 'free', arena: 'Classroom', drone: 'Pluto', flownSec: 30 },
+        onRestart: () => {},
+        onExit: () => {},
+      }),
+    );
+    // Menu pad first, flight pad second: the order that lost the press.
+    const detachMenu = attachMenuGamepad(() => false, () => useFlightStore.getState().paused);
+    const detachFlight = attachGamepad();
+    tick();
+
+    tap(A);
+    expect(useFlightStore.getState().paused).toBe(false);
+    expect(actions).toEqual([]);
+
+    tap(A);
+    expect(actions).toEqual(['takeoffLand']);
+    detachFlight();
+    detachMenu();
+    setActionHandler(() => {});
+  });
+
+  it('Start and RB keep their flight actions on a paused card (reset, camera)', () => {
+    usePad();
+    const actions: GamepadAction[] = [];
+    setGamepadConfig({ ...DEFAULT_GAMEPAD, enabled: true });
+    setActionHandler((a) => actions.push(a));
+    useFlightStore.setState({ paused: true });
+    mount(
+      h(PauseCard, {
+        context: { kind: 'free', arena: 'Classroom', drone: 'Pluto', flownSec: 30 },
+        onRestart: () => {},
+        onExit: () => {},
+      }),
+    );
+    const detachMenu = attachMenuGamepad(() => false, () => true);
+    const detachFlight = attachGamepad();
+    tick();
+    tap(RB);
+    tap(START);
+    expect(actions).toEqual(['cameraCycle', 'reset']);
+    detachFlight();
+    detachMenu();
+    setActionHandler(() => {});
   });
 });
