@@ -3,6 +3,7 @@ import { useFrame, useThree } from '@react-three/fiber';
 import type { Camera, WebGLProgram } from 'three';
 import { create } from 'zustand';
 import { allSettled, overallProgress, useResourceStore } from '../assets/resourceTracker';
+import { Progress } from '../ds';
 
 /**
  * How many frames to keep the veil up AFTER the shaders report compiled.
@@ -306,19 +307,12 @@ export function SceneVeil({ label }: { label: string }) {
 
   return (
     <div className="scene-veil" role="status" aria-live="polite">
-      <span className="scene-veil-mark" aria-hidden="true" />
-      <p>{label}</p>
-      <div
-        className="scene-veil-bar"
-        role="progressbar"
-        aria-valuemin={0}
-        aria-valuemax={100}
-        aria-valuenow={pct}
-        aria-label={label}
-      >
-        <span style={{ width: `${pct}%` }} />
+      <span className="scene-veil__spinner" aria-hidden="true" />
+      <p className="scene-veil__label">{label}</p>
+      <div className="scene-veil__meter">
+        <b className="scene-veil__pct">{pct}%</b>
+        <Progress value={pct} max={100} label={label} tone="neutral" />
       </div>
-      <b className="scene-veil-pct">{pct}%</b>
     </div>
   );
 }

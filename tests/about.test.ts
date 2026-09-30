@@ -28,8 +28,18 @@ describe('About', () => {
       'Developed by': 'Drona Aviation',
       'Operating system': 'Windows 10.0.22631',
       Graphics: 'NVIDIA GeForce RTX 3060',
-      Electron: '43.2.0',
     });
+    // Electron, Chromium and Node.js are left out (user, 2026-09-30).
+    expect(aboutRows(info, 'GPU').map(([label]) => label)).toEqual([
+      'Software',
+      'Version',
+      'Build',
+      'Built',
+      'Developed by',
+      'Operating system',
+      'Architecture',
+      'Graphics',
+    ]);
     expect(Object.fromEntries(aboutRows({ ...info, packaged: false }, '')).Build).toBe('ded9531 (development)');
   });
 

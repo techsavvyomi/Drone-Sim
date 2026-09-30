@@ -409,6 +409,17 @@ describe('About: its own page', () => {
     expect(decodeURIComponent(url)).toMatch(/Version: v0\.2\.0/);
   });
 
+  it('no Electron, Chromium or Node.js row — on the page, in the copy, in the email', async () => {
+    const el = await mountAbout();
+    const labels = $$(el, '.about__row dt').map((d) => d.textContent);
+    for (const gone of ['Electron', 'Chromium', 'Node.js']) expect(labels).not.toContain(gone);
+    expect(labels[labels.length - 1]).toBe('Graphics');
+    await act(async () => byText(el, 'button', 'Copy details').click());
+    expect(writeText.mock.calls[0][0]).not.toMatch(/Electron|Chromium|Node\.js/);
+    click(byText(el, 'button', 'Report a bug'));
+    expect(decodeURIComponent(openExternal.mock.calls[0][0] as string)).not.toMatch(/Electron|Chromium|Node\.js/);
+  });
+
   it('Copy details copies the rows and reads "✓ Copied"', async () => {
     const el = await mountAbout();
     await act(async () => byText(el, 'button', 'Copy details').click());

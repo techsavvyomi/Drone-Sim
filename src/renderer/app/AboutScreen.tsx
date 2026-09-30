@@ -56,9 +56,6 @@ export function aboutRows(info: AppInfo, gpu: string): [string, string][] {
     ['Operating system', `${PLATFORM_NAMES[info.platform] ?? info.platform} ${info.osVersion}`],
     ['Architecture', info.arch],
     ['Graphics', gpu],
-    ['Electron', info.electron],
-    ['Chromium', info.chrome],
-    ['Node.js', info.node],
   ];
 }
 

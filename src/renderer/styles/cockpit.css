@@ -1070,3 +1070,66 @@
   justify-content: space-between;
   gap: var(--space-3);
 }
+
+/* ==========================================================================
+   Scene veil — the cover held up while a map warms its shaders (SceneReady).
+   Opaque, because the point is that the hitching underneath is not watched.
+   Laid out like Phase 2's Loading screen: label, percentage, one progress bar.
+   ========================================================================== */
+
+.scene-veil {
+  position: absolute;
+  inset: 0;
+  z-index: 70;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-4);
+  background: var(--ink-950);
+  font-family: var(--font-sans);
+  font-feature-settings: var(--font-numeric);
+  color: var(--txt-hi);
+}
+
+/* The spinner is CSS, so it keeps turning while a script blocks; the number
+   does not, which shows a long block as a pause (see SceneVeil). */
+.scene-veil__spinner {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 2px solid var(--ink-700);
+  border-top-color: var(--signal);
+  animation: scene-veil-spin 0.9s linear infinite;
+}
+
+.scene-veil__label {
+  margin: 0;
+  font: var(--type-title);
+}
+
+.scene-veil__meter {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  width: 240px;
+}
+.scene-veil__meter .ds-progress {
+  align-self: stretch;
+}
+
+.scene-veil__pct {
+  font: var(--type-h4);
+}
+
+@keyframes scene-veil-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .scene-veil__spinner {
+    animation-duration: 2.4s;
+  }
+}
