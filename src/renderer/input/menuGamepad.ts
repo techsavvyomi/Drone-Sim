@@ -6,13 +6,20 @@ import { useShellStore } from '../state/shellStore';
 // A gamepad in the menus: D-pad or left stick moves the focus, A presses, B is
 // Esc, LB / RB are Q / E (the Hangar's previous / next drone).
 //
+// And on the cards a flight stops on (pause, exit question, crash): the D-pad
+// or stick steps the card's buttons — sent as arrow keys, which the card's
+// modal key lock answers — A presses the focused one, B is Esc. Without this a
+// pad could pause a flight but never reach Resume.
+//
 // Standard-mapping pads only (Xbox, PlayStation, Switch Pro through the
 // browser's standard layout). A radio transmitter reports no standard mapping
 // and flies through gamepad.ts as before; it has no buttons worth a menu.
 //
 // The flight loop in gamepad.ts is separate and untouched. Its button actions
 // only have a handler while a flight view is mounted, so the two never both act
-// on one press: this one runs only while `isMenu()` says a menu is showing.
+// on one press: this one runs only while `isMenu()` says a menu is showing, or
+// `isCard()` says a flight card is up (a paused flight answers no pad action
+// but camera and reset; a crashed one cannot take off).
 // ----------------------------------------------------------------------------
 
 const A = 0;
@@ -39,6 +46,13 @@ export function directionOf(pad: Pick<Gamepad, 'buttons' | 'axes'>): Direction |
   return y > 0 ? 'down' : 'up';
 }
 
+const ARROW: Record<Direction, string> = {
+  up: 'ArrowUp',
+  down: 'ArrowDown',
+  left: 'ArrowLeft',
+  right: 'ArrowRight',
+};
+
 function key(code: string, key: string): void {
   const target = document.activeElement ?? document.body;
   target.dispatchEvent(
@@ -46,7 +60,10 @@ function key(code: string, key: string): void {
   );
 }
 
-export function attachMenuGamepad(isMenu: () => boolean): () => void {
+export function attachMenuGamepad(
+  isMenu: () => boolean,
+  isCard: () => boolean = () => false,
+): () => void {
   let raf = 0;
   let prev: boolean[] = [];
   let heldDir: Direction | null = null;
@@ -63,8 +80,11 @@ export function attachMenuGamepad(isMenu: () => boolean): () => void {
     const buttons = pad.buttons.map((b) => b.pressed);
     const edge = (i: number) => buttons[i] && !prev[i];
     const dir = directionOf(pad);
+    const menu = isMenu();
+    const card = !menu && isCard();
     const busy =
-      !isMenu() || isCalibrating() || !!captureState().action || !!captureState().channel;
+      !(menu || card) || isCalibrating() || !!captureState().action || !!captureState().channel;
+    const move = (d: Direction) => (card ? key(ARROW[d], ARROW[d]) : moveFocus(d));
 
     if (!busy) {
       const setInput = useShellStore.getState().setInput;
@@ -72,10 +92,10 @@ export function attachMenuGamepad(isMenu: () => boolean): () => void {
         if (dir !== heldDir) {
           nextRepeat = now + FIRST_REPEAT_MS;
           setInput('gamepad');
-          moveFocus(dir);
+          move(dir);
         } else if (now >= nextRepeat) {
           nextRepeat = now + REPEAT_MS;
-          moveFocus(dir);
+          move(dir);
         }
       }
       if (edge(A)) {
@@ -88,8 +108,8 @@ export function attachMenuGamepad(isMenu: () => boolean): () => void {
         setInput('gamepad');
         key('Escape', 'Escape');
       }
-      if (edge(LB)) key('KeyQ', 'q');
-      if (edge(RB)) key('KeyE', 'e');
+      if (menu && edge(LB)) key('KeyQ', 'q');
+      if (menu && edge(RB)) key('KeyE', 'e');
     }
     heldDir = dir;
     prev = buttons;

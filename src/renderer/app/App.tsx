@@ -42,6 +42,13 @@ function menuShowing(): boolean {
   return !useFlightStore.getState().paused;
 }
 
+/** True while a flight card is up — the pause card, its exit question, the
+ *  crash card — so a gamepad can work it (menuGamepad.ts). */
+function flightCardShowing(): boolean {
+  const { paused, crashed } = useFlightStore.getState();
+  return paused || crashed;
+}
+
 function MainArea() {
   const section = useUiStore((s) => s.section);
 
@@ -160,7 +167,8 @@ export function App() {
   }, [hydrated]);
 
   // Menu navigation: arrows / D-pad move the focus, 1–8 open a sidebar item.
-  // Menus only — a flight, lesson or mission keeps every key and button.
+  // Menus only — a flight, lesson or mission keeps every key and button, but
+  // for the pad on a pause or crash card.
   useEffect(() => {
     const jump = (n: number) => {
       const profiles = useAccountStore.getState().status === 'signedIn';
@@ -168,7 +176,7 @@ export function App() {
       if (item) openSection(item.id, true);
     };
     const detachKeys = attachMenuNav({ isMenu: menuShowing, jump });
-    const detachPad = attachMenuGamepad(menuShowing);
+    const detachPad = attachMenuGamepad(menuShowing, flightCardShowing);
     return () => {
       detachKeys();
       detachPad();

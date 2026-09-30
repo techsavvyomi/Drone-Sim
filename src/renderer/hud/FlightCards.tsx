@@ -9,7 +9,8 @@ import { crashLine, crashTip, exitAsk, pauseLines, type PauseContext } from './c
 // The cards a flight stops on (Phase 6): one pause card for Free Flight, lessons
 // and missions — only its context line changes — the exit question behind its
 // Exit, and the crash card. Each holds the modal key lock while it is up, so
-// nothing behind it is flown, and keeps focus inside itself (Tab, ↑ ↓).
+// nothing behind it is flown, and keeps focus inside itself (Tab, ↑ ↓ ← →; a
+// pad's D-pad arrives as the same arrows, see menuGamepad.ts).
 //
 // Esc is not handled here: App's one Esc handler resumes a paused flight, which
 // is also what "Keep flying" does, so the key means the same thing on the pause
@@ -28,12 +29,21 @@ function stepFocus(card: HTMLElement | null, by: number): void {
   list[(at + by + list.length) % list.length].focus();
 }
 
-/** ↑ ↓ for the key lock's `onKey`. The lock is a capture listener on the window
- *  and stops every key but Esc and Tab before it reaches the card, so the
- *  arrows have to be answered there, not by the card's own onKeyDown. */
+const ARROW_STEP: Record<string, number> = {
+  ArrowDown: 1,
+  ArrowRight: 1,
+  ArrowUp: -1,
+  ArrowLeft: -1,
+};
+
+/** Arrows for the key lock's `onKey`. The lock is a capture listener on the
+ *  window and stops every key but Esc and Tab before it reaches the card, so
+ *  the arrows have to be answered there, not by the card's own onKeyDown.
+ *  ← → too: the crash card and the exit question set their buttons in a row. */
 function arrowKeys(card: RefObject<HTMLElement | null>, e: KeyboardEvent): boolean {
-  if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return false;
-  stepFocus(card.current, e.key === 'ArrowDown' ? 1 : -1);
+  const by = ARROW_STEP[e.key];
+  if (!by) return false;
+  stepFocus(card.current, by);
   return true;
 }
 

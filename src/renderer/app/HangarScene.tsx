@@ -140,10 +140,17 @@ function Pad() {
   );
 }
 
+/** How far the turntable turns in `dt` seconds, radians: nothing while paused
+ *  (❚❚ Pause, or reduced motion). Exported for tests — the canvas cannot run
+ *  under jsdom. */
+export function turnFor(dt: number, paused: boolean): number {
+  return paused ? 0 : dt * TURN_RATE;
+}
+
 function Turntable({ spec, paused }: { spec: DroneSpec; paused: boolean }) {
   const ref = useRef<THREE.Group>(null);
   useFrame((_s, dt) => {
-    if (ref.current && !paused) ref.current.rotation.y += dt * TURN_RATE;
+    if (ref.current) ref.current.rotation.y += turnFor(dt, paused);
   });
   return (
     <group ref={ref} rotation={[0, -0.6, 0]}>
