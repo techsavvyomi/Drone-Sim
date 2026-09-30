@@ -193,9 +193,11 @@ export function FlightHud() {
     flownSec: s.flightTime,
   };
 
+  // Exit Menu ends the flight: back on the pad, disarmed, unpaused (all of R).
+  // Left armed, the motors' last output stayed in the stores.
   const exit = () => {
     const ui = useUiStore.getState();
-    useFlightStore.getState().togglePause();
+    resetFlight();
     ui.closePanels();
     ui.setSection('home');
   };

@@ -156,7 +156,7 @@ function Turntable({ spec, paused }: { spec: DroneSpec; paused: boolean }) {
     <group ref={ref} rotation={[0, -0.6, 0]}>
       <Pad />
       <group position={[0, -0.04, 0]} scale={fit(spec)}>
-        <DroneModel spec={spec} placeholder={null} />
+        <DroneModel spec={spec} placeholder={null} still />
         {/* A 'blur' airframe (the Racing Drone) ships motion-blur discs, not
             blades, and hides them while the motors are stopped. In flight the
             stand-in blades fill in; on the turntable they must too, or the

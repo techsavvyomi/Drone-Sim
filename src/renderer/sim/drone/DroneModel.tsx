@@ -191,7 +191,17 @@ export function mergeStaticParts(root: THREE.Object3D): void {
   root.updateMatrixWorld(true);
 }
 
-function Gltf({ spec, idleSpin = 0 }: { spec: DroneSpec; idleSpin?: number }) {
+const NO_PROPS: readonly number[] = [];
+
+function Gltf({
+  spec,
+  idleSpin = 0,
+  still = false,
+}: {
+  spec: DroneSpec;
+  idleSpin?: number;
+  still?: boolean;
+}) {
   const { scene } = useGLTF(spec.model!);
   const rotors = useRef<PropRotor[]>([]);
   const rpm = useRef<number[]>([0, 0, 0, 0]);
@@ -438,11 +448,11 @@ function Gltf({ spec, idleSpin = 0 }: { spec: DroneSpec; idleSpin?: number }) {
     if (rotors.current.length === 0) return;
     const motors = useSimStore.getState().motors;
     const status = useFlightStore.getState().status();
-    const live = status === 'armed' || status === 'flying';
+    const live = !still && (status === 'armed' || status === 'flying');
 
     // A propeller that snapped off in a crash is hidden here; PropDebris draws
     // it as a loose physics object instead.
-    const broken = useFlightStore.getState().brokenProps;
+    const broken = still ? NO_PROPS : useFlightStore.getState().brokenProps;
 
     rotors.current.forEach((r, i) => {
       const gone = broken.includes(r.motor);
@@ -595,10 +605,17 @@ export function DroneModel({
   spec,
   placeholder,
   idleSpin,
+  still,
 }: {
   spec: DroneSpec;
   /** Spin the props at this constant rate regardless of arm state (menu use). */
   idleSpin?: number;
+  /**
+   * Props at rest whatever the flight store says (the Home / Hangar turntable).
+   * A Free Flight left armed keeps its motor output in the stores, and a menu
+   * model reading it spun its props at flight speed.
+   */
+  still?: boolean;
   /**
    * What to show while the .glb streams in. Defaults to the procedural mesh.
    * Pass `null` where showing a *different-looking* airframe would be confusing
@@ -615,7 +632,7 @@ export function DroneModel({
     // never unflyable because of a missing asset.
     <ModelBoundary fallback={<DroneMesh spec={spec} />}>
       <Suspense fallback={loading}>
-        <Gltf spec={spec} idleSpin={idleSpin} />
+        <Gltf spec={spec} idleSpin={idleSpin} still={still} />
       </Suspense>
     </ModelBoundary>
   );
