@@ -1,0 +1,1072 @@
+/* ==========================================================================
+   Free Flight cockpit — Phase 6 (cockpit register)
+
+   Every readout sits on an opaque ink-950 plate with a hairline, never bare
+   text over the world, so it reads the same over a bright sky and a night
+   city. Safe inset 36 px; nothing critical within 48 px of a corner (checked
+   at 1280 × 720). Colours, fonts and sizes come from tokens.css only.
+   ========================================================================== */
+
+.cockpit {
+  --ck-inset: 36px;
+  --ck-gap: var(--space-2);
+
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  font-family: var(--font-sans);
+  font-feature-settings: var(--font-numeric);
+  color: var(--txt-hi);
+  z-index: 5;
+}
+
+.cockpit button {
+  pointer-events: auto;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+.cockpit .ds-icon {
+  width: 12px;
+  height: 12px;
+}
+
+.ck-plate {
+  background: var(--ink-950);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+}
+
+.ck-label {
+  font: var(--type-label);
+  text-transform: uppercase;
+  letter-spacing: var(--label-tracking);
+  color: var(--txt-mid);
+}
+
+.ck-caption {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font: var(--type-caption);
+  color: var(--txt-mid);
+  white-space: nowrap;
+}
+
+/* ---- Top row ---- */
+
+.ck-top-left {
+  position: absolute;
+  top: var(--ck-inset);
+  left: var(--ck-inset);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--ck-gap);
+}
+
+.ck-cam {
+  position: relative;
+}
+
+.ck-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: var(--control-h);
+  padding: 0 var(--space-3) 0 var(--space-1);
+}
+
+.ck-chip b {
+  font: var(--type-label);
+  text-transform: uppercase;
+}
+
+.ck-chip:hover {
+  background: var(--ink-800);
+}
+
+.ck-chip:focus-visible,
+.ck-keybar button:focus-visible,
+.ck-quiet button:focus-visible,
+.ck-menu button:focus-visible {
+  outline: var(--focus-width) solid var(--focus-color);
+  outline-offset: var(--focus-offset);
+}
+
+.ck-menu {
+  position: absolute;
+  top: calc(100% + var(--space-1));
+  left: 0;
+  width: 300px;
+  margin: 0;
+  padding: var(--space-1);
+  list-style: none;
+  z-index: 3;
+  pointer-events: auto;
+}
+
+.ck-menu button {
+  display: grid;
+  grid-template-columns: 16px 1fr;
+  gap: var(--space-2);
+  width: 100%;
+  padding: var(--space-2);
+  text-align: left;
+  background: none;
+  border: 0;
+  border-radius: var(--radius-small);
+}
+
+.ck-menu button:hover,
+.ck-menu button.is-on {
+  background: var(--ink-800);
+}
+
+.ck-menu b {
+  display: block;
+  font: var(--type-label);
+  text-transform: uppercase;
+}
+
+.ck-menu button.is-on b {
+  font-weight: 700;
+}
+
+.ck-menu small {
+  display: block;
+  margin-top: 2px;
+  font: var(--type-caption);
+  color: var(--txt-mid);
+}
+
+.ck-menu__mark {
+  padding-top: 2px;
+  color: var(--txt-hi);
+}
+
+.ck-pulled {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-3);
+  border-color: var(--caution);
+  color: var(--caution);
+  font: var(--type-label);
+  text-transform: uppercase;
+}
+
+.ck-top-centre {
+  position: absolute;
+  top: var(--ck-inset);
+  left: 50%;
+  /* Room for the camera chip on the left and the context chip on the right,
+     whatever the dock or the HUD panel leaves of the view. */
+  width: clamp(200px, calc(100% - 700px), 400px);
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--ck-gap);
+}
+
+.ck-ribbon {
+  position: relative;
+  width: 100%;
+  height: 52px;
+  overflow: hidden;
+}
+
+.ck-ribbon__scale {
+  position: absolute;
+  inset: 0 var(--space-3);
+}
+
+.ck-tick {
+  position: absolute;
+  bottom: 6px;
+  width: 1px;
+  height: 6px;
+  background: var(--txt-low);
+}
+
+.ck-tick--major {
+  height: 11px;
+  background: var(--txt-mid);
+}
+
+.ck-tick em {
+  position: absolute;
+  bottom: 22px;
+  left: 50%;
+  transform: translateX(-50%);
+  font: var(--type-caption);
+  font-style: normal;
+  color: var(--txt-mid);
+}
+
+.ck-ribbon__value {
+  position: absolute;
+  top: 6px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 1px var(--space-2);
+  font: var(--type-label);
+  font-size: 14px;
+  background: var(--ink-950);
+  border: 1px solid var(--txt-hi);
+  border-radius: var(--radius-small);
+}
+
+.ck-ribbon::after {
+  /* The lubber line under the value. */
+  content: '';
+  position: absolute;
+  bottom: 4px;
+  left: 50%;
+  width: 2px;
+  height: 16px;
+  transform: translateX(-50%);
+  background: var(--txt-hi);
+}
+
+.ck-wind {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-3);
+}
+
+.ck-wind b {
+  font: var(--type-caption);
+  font-weight: 600;
+}
+
+.ck-wind__arrow {
+  width: 12px;
+  height: 12px;
+  fill: none;
+  stroke: var(--txt-hi);
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.ck-context {
+  position: absolute;
+  top: var(--ck-inset);
+  right: var(--ck-inset);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  height: var(--control-h);
+  padding: 0 var(--space-3);
+}
+
+.ck-context b {
+  font: var(--type-label);
+  font-size: 13px;
+}
+
+/* ---- Left: altitude + attitude ---- */
+
+.ck-left {
+  position: absolute;
+  top: 50%;
+  left: var(--ck-inset);
+  transform: translateY(-50%);
+  display: flex;
+  gap: var(--space-3);
+  padding: var(--space-3);
+}
+
+.ck-alt,
+.ck-att {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.ck-att {
+  justify-content: center;
+}
+
+.ck-tape {
+  display: block;
+  background: var(--ink-900);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-small);
+}
+
+.ck-tape line {
+  stroke-width: 1;
+}
+
+.ck-tape__major line {
+  stroke: var(--txt-mid);
+}
+
+.ck-tape__minor line {
+  stroke: var(--txt-low);
+}
+
+.ck-tape text {
+  font: var(--type-caption);
+  fill: var(--txt-mid);
+}
+
+.ck-tape__ceiling line {
+  stroke: var(--caution);
+  stroke-width: 1.5;
+}
+
+.ck-tape__ceiling path {
+  fill: var(--caution);
+}
+
+.ck-tape__ceiling text {
+  fill: var(--caution);
+  font-weight: 600;
+}
+
+.ck-tape__box {
+  fill: var(--ink-950);
+  stroke: var(--txt-hi);
+}
+
+.ck-tape text.ck-tape__value {
+  font: var(--type-label);
+  fill: var(--txt-hi);
+}
+
+.ck-alt[data-near] .ck-tape__box {
+  stroke: var(--caution);
+}
+
+.ck-alt[data-near] .ck-caption {
+  color: var(--caution);
+}
+
+.ck-adi__sky {
+  fill: var(--ink-800);
+}
+
+.ck-adi__ground {
+  fill: var(--ink-700);
+}
+
+.ck-adi__horizon {
+  stroke: var(--txt-hi);
+  stroke-width: 1.5;
+}
+
+.ck-adi__ladder {
+  stroke: var(--txt-low);
+  stroke-width: 1;
+}
+
+.ck-adi__rim {
+  fill: none;
+  stroke: var(--line);
+  stroke-width: 2;
+}
+
+.ck-adi__plane path {
+  fill: none;
+  stroke: var(--txt-hi);
+  stroke-width: 2.5;
+  stroke-linecap: round;
+}
+
+.ck-adi__plane circle {
+  fill: var(--txt-hi);
+}
+
+/* ---- Right: motors, mode, battery ---- */
+
+.ck-right {
+  position: absolute;
+  top: 50%;
+  right: var(--ck-inset);
+  transform: translateY(-50%);
+  width: 196px;
+  padding: var(--space-3);
+}
+
+.ck-sec {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.ck-sec + .ck-sec {
+  margin-top: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--line);
+}
+
+.ck-motors {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: 26px;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-small);
+  font: var(--type-label);
+  text-transform: uppercase;
+  background: var(--ink-700);
+  color: var(--txt-mid);
+}
+
+.ck-motors[data-tone='armed'] {
+  background: var(--armed);
+  color: var(--on-fill);
+}
+
+.ck-motors[data-tone='fail'] {
+  background: var(--fail);
+  color: var(--on-fill);
+}
+
+.ck-mode {
+  font: var(--type-body-sm);
+  font-weight: 600;
+}
+
+.ck-batt__head,
+.ck-batt__nums {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.ck-batt__note {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--txt-hi);
+}
+
+.ck-batt__nums b {
+  font: var(--type-h4);
+}
+
+.ck-batt__nums span {
+  font: var(--type-label);
+}
+
+.ck-batt[data-tone='caution'] .ck-batt__note,
+.ck-batt[data-tone='caution'] .ck-batt__nums b {
+  color: var(--caution);
+}
+
+.ck-batt[data-tone='fail'] .ck-batt__note,
+.ck-batt[data-tone='fail'] .ck-batt__nums b {
+  color: var(--fail);
+}
+
+.ck-bar {
+  height: 6px;
+  background: var(--ink-700);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.ck-bar i {
+  display: block;
+  height: 100%;
+  background: var(--txt-hi);
+}
+
+.ck-batt[data-tone='caution'] .ck-bar i {
+  background: var(--caution);
+}
+
+.ck-batt[data-tone='fail'] .ck-bar i {
+  background: var(--fail);
+}
+
+/* ---- Centre ---- */
+
+.ck-crosshair {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 22px;
+  height: 22px;
+  transform: translate(-50%, -50%);
+  border: 1.5px solid var(--txt-hi);
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px var(--ink-950);
+}
+
+.ck-crosshair::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 3px;
+  height: 3px;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: var(--txt-hi);
+}
+
+/* ---- Bottom: sticks and key bar ---- */
+
+.ck-stick {
+  position: absolute;
+  bottom: var(--ck-inset);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-2);
+}
+
+.ck-stick--left {
+  left: calc(var(--ck-inset) + 12px);
+}
+
+.ck-stick--right {
+  right: calc(var(--ck-inset) + 12px);
+}
+
+.ck-stick__well {
+  fill: var(--ink-900);
+  stroke: var(--line);
+}
+
+.ck-stick__cross {
+  stroke: var(--ink-700);
+  stroke-width: 1;
+}
+
+.ck-stick__knob {
+  fill: var(--txt-hi);
+}
+
+.ck-keybar {
+  position: absolute;
+  bottom: var(--ck-inset);
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1);
+}
+
+.ck-keybar button {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: var(--control-h);
+  padding: 0 var(--space-3) 0 var(--space-1);
+  background: none;
+  border: 1px solid transparent;
+  border-radius: var(--radius-control);
+}
+
+.ck-keybar button:hover {
+  background: var(--ink-800);
+}
+
+.ck-keybar button.is-on {
+  border-color: var(--txt-mid);
+}
+
+.ck-dev {
+  padding: 0 var(--space-2);
+  color: var(--txt-low);
+}
+
+/* ---- Quiet in flight: one bar on the bottom edge ---- */
+
+.ck-quiet {
+  position: absolute;
+  bottom: var(--ck-inset);
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  height: 36px;
+  padding: 0 var(--space-1) 0 var(--space-3);
+  background: var(--quiet-bar);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  white-space: nowrap;
+}
+
+.ck-quiet > span {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0 var(--space-3);
+}
+
+.ck-quiet > span + span {
+  border-left: 1px solid var(--line);
+}
+
+.ck-quiet b {
+  font: var(--type-label);
+  font-size: 13px;
+}
+
+.ck-quiet .ds-icon {
+  width: 8px;
+  height: 8px;
+  color: var(--armed);
+}
+
+.ck-quiet button {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: 28px;
+  margin-left: var(--space-1);
+  padding: 0 var(--space-2) 0 var(--space-1);
+  background: none;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+}
+
+/* ==========================================================================
+   The cards a flight stops on: pause, exit question, crash
+   ========================================================================== */
+
+.fcard-scrim {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: var(--space-6);
+  background: var(--scrim);
+  pointer-events: auto;
+  z-index: 20;
+}
+
+.fcard {
+  width: min(440px, 100%);
+  padding: var(--space-6);
+  background: var(--ink-800);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  color: var(--txt-hi);
+  font-family: var(--font-sans);
+  font-feature-settings: var(--font-numeric);
+}
+
+.fcard--crash {
+  width: min(560px, 100%);
+}
+
+.fcard__context {
+  margin: 0 0 var(--space-1);
+  font: var(--type-caption);
+  color: var(--txt-mid);
+}
+
+.fcard__title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-2);
+  font: var(--type-h3);
+}
+
+.fcard__title--fail .ds-icon {
+  width: 24px;
+  height: 24px;
+  color: var(--fail);
+}
+
+.fcard__line,
+.fcard__tip {
+  margin: 0 0 var(--space-4);
+  font: var(--type-body-sm);
+  color: var(--txt-mid);
+}
+
+.fcard__tip {
+  color: var(--txt-hi);
+  font-weight: 600;
+}
+
+.fcard__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.fcard__list .ds-btn,
+.fcard__row .ds-btn {
+  justify-content: space-between;
+}
+
+.fcard__list .ds-btn {
+  width: 100%;
+}
+
+.fcard__row {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+.fcard .ds-btn .ds-key {
+  margin-left: var(--space-3);
+}
+
+.fcard__exit {
+  height: var(--control-h);
+  padding: 0 var(--control-pad);
+  border: 0;
+  border-radius: var(--radius-control);
+  background: var(--fail);
+  color: var(--on-fill);
+  font: var(--type-control);
+  cursor: pointer;
+}
+
+.fcard__exit:focus-visible {
+  outline: var(--focus-width) solid var(--focus-color);
+  outline-offset: var(--focus-offset);
+}
+
+/* ==========================================================================
+   Side columns: telemetry dock (T, right) and HUD panel (H, left).
+   Each is a grid column of the app, so it pushes the flight view over. No
+   edge line on either (the shell has none, decision 11): the ink-950 column
+   against the live world is edge enough.
+   ========================================================================== */
+
+.app.is-fly.hudpanel-open {
+  grid-template-columns: 300px minmax(0, 1fr) auto;
+}
+
+.app.hudpanel-open .topbar-peek {
+  display: none;
+}
+
+.tdock,
+.hpanel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--ink-950);
+  color: var(--txt-hi);
+  font-family: var(--font-sans);
+  font-feature-settings: var(--font-numeric);
+  overflow: hidden;
+}
+
+.tdock {
+  grid-area: panel;
+  width: 340px;
+}
+
+.hpanel {
+  grid-area: nav;
+  width: 300px;
+}
+
+.tdock__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+}
+
+.tdock__close,
+.tdock__tabs button,
+.tdock-choice button,
+.tdock-pair button,
+.tdock-wide,
+.hpanel__switch {
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+.tdock__close {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: var(--control-h);
+  padding: 0 var(--space-2) 0 var(--space-1);
+  background: none;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+}
+
+.tdock__tabs {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-1);
+  margin: 0 var(--space-4) var(--space-3);
+  padding: var(--space-1);
+  background: var(--ink-900);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+}
+
+.tdock__tabs button,
+.tdock-choice button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1);
+  height: 28px;
+  background: none;
+  border: 0;
+  border-radius: var(--radius-small);
+  font: var(--type-label);
+  text-transform: uppercase;
+  color: var(--txt-mid);
+}
+
+.tdock__tabs button.is-on,
+.tdock-choice button.is-on {
+  background: var(--txt-hi);
+  color: var(--ink-950);
+  font-weight: 700;
+}
+
+.tdock__body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0 var(--space-4) var(--space-4);
+}
+
+.tdock__sec {
+  margin-top: var(--space-4);
+}
+
+.tdock__sec h3 {
+  margin: 0 0 var(--space-2);
+}
+
+.tdock__note {
+  margin: var(--space-3) 0;
+  font: var(--type-caption);
+  color: var(--txt-mid);
+}
+
+.tdock-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-1);
+}
+
+.tdock-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-2);
+  background: var(--ink-900);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-small);
+}
+
+.tdock-cell span {
+  font: var(--type-caption);
+  color: var(--txt-mid);
+}
+
+.tdock-cell b {
+  font: var(--type-label);
+  font-size: 14px;
+}
+
+.tdock-motors {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tdock-motors li {
+  display: grid;
+  grid-template-columns: 52px 1fr 40px;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 3px 0;
+  font: var(--type-caption);
+}
+
+.tdock-motors b {
+  text-align: right;
+  font-weight: 600;
+}
+
+.tdock-traces {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.tdock-trace {
+  padding: var(--space-2) var(--space-3);
+  background: var(--ink-900);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-small);
+}
+
+.tdock-trace__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+
+.tdock-trace__head b {
+  font: var(--type-label);
+}
+
+.tdock-trace__plot {
+  width: 100%;
+  margin: var(--space-1) 0;
+}
+
+.tdock-trace__range {
+  font: var(--type-caption);
+  color: var(--txt-mid);
+}
+
+.tdock-row {
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.tdock-row__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: var(--space-2);
+}
+
+.tdock-row__head b {
+  font: var(--type-label);
+}
+
+.tdock-choice {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(84px, 1fr));
+  gap: var(--space-1);
+}
+
+.tdock-choice button {
+  background: var(--ink-900);
+  border: 1px solid var(--line);
+}
+
+.tdock-pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-1);
+}
+
+.tdock-pair button,
+.tdock-wide {
+  height: 30px;
+  background: var(--ink-900);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-small);
+  font: var(--type-label);
+  text-transform: uppercase;
+}
+
+.tdock-wide {
+  width: 100%;
+}
+
+.tdock-pair button:hover,
+.tdock-wide:hover,
+.tdock-choice button:not(.is-on):hover {
+  background: var(--ink-800);
+}
+
+.tdock button:focus-visible,
+.hpanel button:focus-visible {
+  outline: var(--focus-width) solid var(--focus-color);
+  outline-offset: var(--focus-offset);
+}
+
+.hpanel__list,
+.hpanel__keys {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.hpanel__list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.hpanel__name b {
+  display: block;
+  font: var(--type-body-sm);
+  font-weight: 600;
+}
+
+.hpanel__name small {
+  display: block;
+  font: var(--type-caption);
+  color: var(--txt-mid);
+}
+
+.hpanel__switch {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  height: 26px;
+  min-width: 62px;
+  padding: 0 var(--space-2);
+  background: var(--ink-900);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-small);
+  font: var(--type-label);
+  text-transform: uppercase;
+  color: var(--txt-mid);
+}
+
+.hpanel__switch.is-on {
+  background: var(--txt-hi);
+  color: var(--ink-950);
+  font-weight: 700;
+}
+
+.hpanel__switch .ds-icon {
+  width: 10px;
+  height: 10px;
+}
+
+.hpanel__keys li {
+  display: grid;
+  grid-template-columns: 64px 1fr;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 3px 0;
+  font: var(--type-caption);
+}
+
+/* The keycap sits at the far end of its button ("Resume … Esc"), as in the
+   brief; the Button wraps label and cap in one span. */
+.fcard .ds-btn > span {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}

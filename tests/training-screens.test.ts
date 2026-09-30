@@ -61,8 +61,7 @@ vi.mock('../src/renderer/audio/sfx', () => ({
 }));
 vi.mock('../src/renderer/hud/LessonMap', () => ({ LessonMap: () => null }));
 vi.mock('../src/renderer/hud/StickIndicator', () => ({ StickIndicator: () => null }));
-vi.mock('../src/renderer/hud/CrashOverlay', () => ({ CrashOverlay: () => null }));
-vi.mock('../src/renderer/hud/PauseOverlay', () => ({ PauseOverlay: () => null }));
+vi.mock('../src/renderer/hud/FlightCards', () => ({ PauseCard: () => null, CrashCard: () => null }));
 
 const arm = getLesson('arm-takeoff')!;
 const land = getLesson('land-disarm')!;

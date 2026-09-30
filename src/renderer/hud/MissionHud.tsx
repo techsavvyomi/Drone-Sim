@@ -11,7 +11,7 @@ import { resetForMission } from '../missions/reset';
 import { playClick, playStar, playSuccess } from '../audio/sfx';
 import { useModalKeyLock } from '../input/useModalKeyLock';
 import { MissionMap } from './MissionMap';
-import { PauseOverlay } from './PauseOverlay';
+import { PauseCard } from './FlightCards';
 import { MissionCityMap } from './MissionCityMap';
 import { StepArt, missionImage } from './MissionArt';
 import { MISSIONS } from '../missions';
@@ -625,7 +625,9 @@ function ObjectiveBand({ mission }: { mission: Mission }) {
 /** RADIO · LATEST, or the whole log with L. */
 function RadioPanel({ open, onToggle }: { open: boolean; onToggle: () => void }) {
   const log = useMissionStore((s) => s.log);
-  const lines = open ? log : latestLog(log, 2);
+  // Closed, only the newest call — read from its first word (the whole of it
+  // is in the log, L). Two lines in a 96 px box clipped a long call's start.
+  const lines = open ? log : latestLog(log, 1);
   const listRef = useRef<HTMLOListElement>(null);
   useEffect(() => {
     const el = listRef.current;
@@ -661,7 +663,7 @@ function RadioPanel({ open, onToggle }: { open: boolean; onToggle: () => void })
 }
 
 /** The bottom strip: payload, points, direction, altitude, and the keys. */
-function MissionStrip({ mission, onExit }: { mission: Mission; onExit: () => void }) {
+function MissionStrip({ mission }: { mission: Mission }) {
   const leg = useMissionStore((s) => s.leg);
   const payload = useMissionStore((s) => s.payload);
   const points = useMissionStore((s) => s.points);
@@ -775,14 +777,44 @@ function MissionStrip({ mission, onExit }: { mission: Mission; onExit: () => voi
         <Badge tone={armed ? 'armed' : 'neutral'} icon={armed ? 'dot' : 'ring'}>
           {armed ? 'Armed' : 'Disarmed'}
         </Badge>
-        <KeyAction cap="P" onClick={togglePause}>
+        {/* Esc pauses (Phase 6); leaving is the pause card's Exit. */}
+        <KeyAction cap="Esc" onClick={togglePause}>
           Pause
-        </KeyAction>
-        <KeyAction cap="Esc" onClick={onExit}>
-          Mission list
         </KeyAction>
       </div>
     </div>
+  );
+}
+
+/** The pause card in a mission. Its own component, so the mission clock it
+ *  quotes re-renders only this. */
+function MissionPause({
+  mission,
+  onRestart,
+  onExit,
+}: {
+  mission: Mission;
+  onRestart: () => void;
+  onExit: () => void;
+}) {
+  const elapsed = useMissionStore((s) => s.elapsed);
+  const num = MISSIONS.findIndex((m) => m.id === mission.id) + 1;
+  return (
+    <PauseCard
+      context={{
+        kind: 'mission',
+        num,
+        name: mission.name,
+        usedSec: elapsed,
+        limitSec: mission.timeLimitSec,
+      }}
+      onRestart={onRestart}
+      onExit={() => {
+        const flight = useFlightStore.getState();
+        if (flight.paused) flight.togglePause();
+        onExit();
+      }}
+    />
   );
 }
 
@@ -1085,7 +1117,7 @@ export function MissionHud() {
 
   return (
     <div className="ms-hud mhud">
-      {flying && <PauseOverlay menu={false} />}
+      {flying && <MissionPause mission={mission} onRestart={flyAgain} onExit={leave} />}
 
       {!flying && <MissionBand mission={mission} onExit={leave} />}
 
@@ -1129,7 +1161,7 @@ export function MissionHud() {
           )}
           {leg === 'toPickup' && atPickup && <DeliveryChecklist fire={fire} pickup />}
 
-          <MissionStrip mission={mission} onExit={leave} />
+          <MissionStrip mission={mission} />
         </div>
       )}
 

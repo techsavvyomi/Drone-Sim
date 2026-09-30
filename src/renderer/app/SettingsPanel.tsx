@@ -9,6 +9,7 @@ import { useSettingsStore } from '../state/settingsStore';
 import { useUiStore } from '../state/uiStore';
 import { AboutSection } from './AboutSection';
 import { GamepadSetup } from './GamepadSetup';
+import { KEY_GROUPS } from '../hud/cockpitFacts';
 
 const GRAPHICS: GraphicsPreset[] = ['low', 'medium', 'high'];
 const PHYSICS: PhysicsPreset[] = ['beginner', 'intermediate', 'advanced'];
@@ -23,19 +24,9 @@ const CATEGORIES = [
 
 type Category = (typeof CATEGORIES)[number]['id'];
 
-/** Mode-2 layout, matching the keyboard bindings in `input/controls.ts`. */
-const KEYS: [string, string][] = [
-  ['W / S', 'Throttle up / down'],
-  ['A / D', 'Yaw left / right'],
-  ['↑ / ↓', 'Pitch forward / back'],
-  ['← / →', 'Roll left / right'],
-  ['Enter', 'Arm / disarm'],
-  ['Space', 'Take off / land'],
-  ['M', 'Cycle flight mode'],
-  ['C', 'Cycle camera'],
-  ['R', 'Reset flight'],
-  ['Esc', 'Back'],
-];
+/** Mode-2 layout, matching the keyboard bindings in `input/controls.ts` — the
+ *  cockpit's own list (HUD panel), flattened, so there is one list to keep. */
+const KEYS: [string, string][] = KEY_GROUPS.flatMap((g) => g.rows.map(([k, d]) => [k, d] as [string, string]));
 
 export function SettingsPanel() {
   const { settings, set, setHud } = useSettingsStore();

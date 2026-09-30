@@ -29,35 +29,51 @@ export interface SupportInfo {
 export type GraphicsPreset = 'low' | 'medium' | 'high';
 export type PhysicsPreset = 'beginner' | 'intermediate' | 'advanced';
 
-/** Which HUD widgets are visible in the flight view. */
+/** Which HUD widgets are visible in the flight view (the cockpit, Phase 6). */
 export interface HudWidgets {
-  altitudeTape: boolean;
-  horizon: boolean;
-  instruments: boolean;
+  /** After 3 s of steady flight the cockpit folds into one bottom bar. */
+  quiet: boolean;
+  /** The heading ribbon, top centre. */
   compass: boolean;
+  altitudeTape: boolean;
+  /** The attitude indicator. */
+  horizon: boolean;
+  /** Armed state (MOTORS). */
   status: boolean;
+  flightMode: boolean;
   battery: boolean;
-  throttle: boolean;
-  cameraInfo: boolean;
-  tiles: boolean;
   sticks: boolean;
+  /** The camera chip, top left. */
+  cameraInfo: boolean;
+  keyBar: boolean;
+  /** Centre mark, FPV only. */
+  crosshair: boolean;
+  /** The wind line under the heading ribbon. */
+  wind: boolean;
   /** Blue locator ring + tether line drawn on the surface under the drone. */
   groundMarker: boolean;
 }
 
-export const HUD_WIDGET_LABELS: Record<keyof HudWidgets, string> = {
-  altitudeTape: 'Altitude tape',
-  horizon: 'Artificial horizon',
-  instruments: 'Speed / VSI / Heading',
-  compass: 'Compass ribbon',
-  status: 'Armed + flight mode',
-  battery: 'Battery',
-  throttle: 'Throttle bar',
-  cameraInfo: 'Camera + FPS',
-  tiles: 'Flight time',
-  sticks: 'Virtual sticks',
-  groundMarker: 'Ground marker (blue ring)',
-};
+/** The HUD panel's rows, in its order: name and where the widget sits. */
+export const HUD_WIDGETS: readonly { key: keyof HudWidgets; label: string; where: string }[] = [
+  { key: 'quiet', label: 'Quiet in flight', where: 'After 3 s of steady flight, one bottom bar' },
+  { key: 'compass', label: 'Heading ribbon', where: 'Top centre' },
+  { key: 'altitudeTape', label: 'Altitude tape', where: 'Left column' },
+  { key: 'horizon', label: 'Attitude indicator', where: 'Left column' },
+  { key: 'status', label: 'Armed state', where: 'Right column' },
+  { key: 'flightMode', label: 'Flight mode', where: 'Right column' },
+  { key: 'battery', label: 'Battery', where: 'Right column' },
+  { key: 'sticks', label: 'Virtual sticks', where: 'Bottom corners' },
+  { key: 'cameraInfo', label: 'Camera chip', where: 'Top left' },
+  { key: 'keyBar', label: 'Key bar', where: 'Bottom centre' },
+  { key: 'crosshair', label: 'Crosshair', where: 'Centre · FPV only' },
+  { key: 'wind', label: 'Wind', where: 'Under the heading ribbon' },
+  { key: 'groundMarker', label: 'Ground marker', where: 'Blue ring under the drone' },
+];
+
+export const HUD_WIDGET_LABELS: Record<keyof HudWidgets, string> = Object.fromEntries(
+  HUD_WIDGETS.map((w) => [w.key, w.label]),
+) as Record<keyof HudWidgets, string>;
 
 export interface AppSettings {
   /** Persisted schema version, for future migrations. */
@@ -476,16 +492,18 @@ export const DEFAULT_SETTINGS: AppSettings = {
   resourcesPrepared: false,
   lastPilot: null,
   hud: {
+    quiet: true,
+    compass: true,
     altitudeTape: true,
     horizon: true,
-    instruments: true,
-    compass: true,
     status: true,
+    flightMode: true,
     battery: true,
-    throttle: true,
-    cameraInfo: true,
-    tiles: true,
     sticks: true,
+    cameraInfo: true,
+    keyBar: true,
+    crosshair: true,
+    wind: true,
     groundMarker: true,
   },
 };

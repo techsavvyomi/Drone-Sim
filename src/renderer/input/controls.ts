@@ -214,6 +214,7 @@ const CODE = {
   mode: 'KeyM',
   reset: 'KeyR',
   help: 'KeyH',
+  telemetry: 'KeyT',
   pause: 'KeyP',
 } as const;
 
@@ -224,6 +225,7 @@ const COMMAND_CODES = new Set<string>([
   CODE.mode,
   CODE.reset,
   CODE.help,
+  CODE.telemetry,
   CODE.pause,
 ]);
 
@@ -382,8 +384,13 @@ function runCommand(code: string): void {
     case CODE.mode:
       useFlightStore.getState().cycleMode();
       break;
+    // The HUD panel and the telemetry dock are Free Flight's; a lesson or a
+    // mission has its own screen and no room for either.
     case CODE.help:
-      useUiStore.getState().toggleControls();
+      if (useUiStore.getState().section === 'fly') useUiStore.getState().toggleHudPanel();
+      break;
+    case CODE.telemetry:
+      if (useUiStore.getState().section === 'fly') useUiStore.getState().togglePanel();
       break;
     case CODE.reset: {
       useSimStore.getState().requestReset();
@@ -398,6 +405,13 @@ function runCommand(code: string): void {
       break;
     }
   }
+}
+
+/** Everything R does: the drone back on its start pad, disarmed, uncrashed,
+ *  unpaused. The pause card's Restart and the crash card's Reset use it, so a
+ *  button and the key can never differ. */
+export function resetFlight(): void {
+  runCommand(CODE.reset);
 }
 
 function runGamepadAction(action: GamepadAction): void {

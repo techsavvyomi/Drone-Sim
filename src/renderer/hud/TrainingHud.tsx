@@ -7,8 +7,8 @@ import { getLesson, lessonIndex, nextLesson, LESSONS } from '../training/lessons
 import type { Lesson } from '../training/lessons';
 import { StickIndicator } from './StickIndicator';
 import { KeyActions, KeyHints } from './KeyHints';
-import { CrashOverlay } from './CrashOverlay';
-import { PauseOverlay } from './PauseOverlay';
+import { CrashCard, PauseCard } from './FlightCards';
+import { resetFlight } from '../input/controls';
 import { LessonMap } from './LessonMap';
 import { playClick, playSuccess, playStar, playRankUp } from '../audio/sfx';
 import { useModalKeyLock } from '../input/useModalKeyLock';
@@ -543,6 +543,31 @@ function ResultCard({ lesson, num }: { lesson: Lesson; num: number }) {
 
 // ---- The HUD -----------------------------------------------------------------
 
+/** The crash and pause cards of a lesson's practice. Its own component, so the
+ *  flight clock it quotes re-renders only this, not the whole HUD. */
+function LessonCards({ lesson, num }: { lesson: Lesson; num: number }) {
+  const flightSec = useTrainingStore((s) => s.flightSec);
+  const exitLesson = useTrainingStore((s) => s.exitLesson);
+  return (
+    <>
+      <CrashCard
+        context={`Module ${num} · ${lesson.title} · Fly step`}
+        when={`${flightSec.toFixed(1)} s`}
+        onReset={resetFlight}
+      />
+      <PauseCard
+        context={{ kind: 'lesson', num, title: lesson.title, step: 'Fly step', flightSec }}
+        onRestart={resetFlight}
+        onExit={() => {
+          const flight = useFlightStore.getState();
+          if (flight.paused) flight.togglePause();
+          exitLesson();
+        }}
+      />
+    </>
+  );
+}
+
 export function TrainingHud() {
   const phase = useTrainingStore((s) => s.phase);
   const activeLessonId = useTrainingStore((s) => s.activeLessonId);
@@ -564,15 +589,11 @@ export function TrainingHud() {
   const counting = phase === 'reward' && autoAdvance && !!next && isLessonUnlocked(next.id);
 
   const right =
+    // In practice Esc pauses (Phase 6); leaving is the pause card's Exit.
     phase === 'practice' ? (
-      <>
-        <KeyAction cap="P" onClick={togglePause}>
-          Pause
-        </KeyAction>
-        <KeyAction cap="Esc" onClick={exitLesson}>
-          Module list
-        </KeyAction>
-      </>
+      <KeyAction cap="Esc" onClick={togglePause}>
+        Pause
+      </KeyAction>
     ) : counting ? (
       <KeyAction cap="Esc" onClick={cancel}>
         Stop auto-advance
@@ -616,9 +637,8 @@ export function TrainingHud() {
 
         {/* The crash and pause cards are the free-flight ones: a crash in a lesson
           is the same event as anywhere else. Practice only — the demonstration
-          resets itself. */}
-        {phase === 'practice' && <CrashOverlay />}
-        {phase === 'practice' && <PauseOverlay menu={false} />}
+          resets itself. R restarts the practice (the Director sees the reset). */}
+        {phase === 'practice' && <LessonCards lesson={lesson} num={num} />}
 
         {phase === 'reward' && <ResultCard key={lesson.id} lesson={lesson} num={num} />}
       </div>

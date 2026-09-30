@@ -10,6 +10,7 @@ import { DEG2RAD, damp, spring } from '../sim/mathx';
 import { decayShake } from '../sim/effects';
 import { aimPitch, aimYaw, pilotAnchor, wrapAngle } from './groundView';
 import { staticHitDistance, staticSweepDistance } from './cameraProbe';
+import { chaseReport } from './cameraReport';
 
 // Positions the R3F camera for chase and FPV modes. The ground view (orbit
 // mode) is handled by OrbitCamera below, and this rig no-ops there so it does
@@ -82,7 +83,10 @@ export function CameraRig({ spec, env }: { spec: DroneSpec; env?: EnvironmentSpe
   const pull = useRef({ value: 0, vel: 0 });
 
   useFrame((_state, delta) => {
-    if (!dronePose.present || mode !== 'chase') freeReady.current = false;
+    if (!dronePose.present || mode !== 'chase') {
+      freeReady.current = false;
+      chaseReport.pulledIn = 0;
+    }
     if (!dronePose.present || mode === 'orbit') return;
 
     // Impact shake, decaying over time. Applied as a camera offset so it never
@@ -237,9 +241,12 @@ export function CameraRig({ spec, env }: { spec: DroneSpec; env?: EnvironmentSpe
         if (p.value > 1e-3 && d > 1e-3) {
           camera.position.lerpVectors(_pivot, _free, Math.max(d - p.value, 0.2) / d);
         }
+        chaseReport.pulledIn = p.value > 1e-3 && d > 1e-3 ? p.value : 0;
+        chaseReport.distance = Math.max(d - p.value, 0.2);
       } else {
         pull.current.value = 0;
         pull.current.vel = 0;
+        chaseReport.pulledIn = 0;
       }
 
       // Aim just above the airframe, scaled to its size.

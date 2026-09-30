@@ -38,9 +38,6 @@ const TOKENS = 'src/renderer/styles/tokens.css';
 /** Pre-redesign files that still carry their own colours (2026-09-28).
  *  Remove a file here when its phase moves it onto the tokens. */
 const LEGACY = [
-  'src/renderer/hud/AltitudeTape.tsx',
-  'src/renderer/hud/ArtificialHorizon.tsx',
-  'src/renderer/hud/Compass.tsx',
   'src/renderer/hud/MissionArt.tsx',
   'src/renderer/hud/MissionCityMap.tsx',
   'src/renderer/hud/MissionMap.tsx',
@@ -48,7 +45,6 @@ const LEGACY = [
   'src/renderer/hud/SupportDebugWidget.tsx',
   'src/renderer/hud/planLayers.ts',
   'src/renderer/index.css',
-  'src/renderer/ui/TelemetryChart.tsx',
 ];
 
 const EXT = /\.(css|tsx?|jsx?)$/;

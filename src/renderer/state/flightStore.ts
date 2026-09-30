@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import type { FlightMode } from '@shared/types';
 import { dronePose } from '../sim/drone/pose';
+import { useSimStore } from './simStore';
 
 export type AutoState = 'manual' | 'takeoff' | 'land';
 
@@ -20,8 +21,13 @@ interface FlightState {
   onGround: boolean;
   /** Set by a major impact; blocks control until reset. */
   crashed: boolean;
-  /** Impact speed of the crash, m/s — shown on the crash overlay. */
+  /** Impact speed of the crash, m/s — shown on the crash card. */
   crashSpeed: number;
+  /** Where the crash happened, for the crash card's "At 3:12, 1.2 m up" line.
+   *  Display only: stamped from the last published telemetry at `crash`. */
+  crashAt: { flightTime: number; altitude: number } | null;
+  /** The pause card is asking "Exit the mission?" (lessons and missions). */
+  exitAsk: boolean;
   /**
    * Everything the drone has hit while airborne, since the app started.
    *
@@ -69,6 +75,8 @@ interface FlightState {
   /** Record one contact with something that is not the floor. */
   registerTouch: () => void;
   togglePause: () => void;
+  /** Show or drop the pause card's exit question. */
+  setExitAsk: (ask: boolean) => void;
   setBatteryWarning: (on: boolean) => void;
   /** Begin the critical-battery forced landing (uncancellable). */
   triggerLowBattery: () => void;
@@ -91,6 +99,8 @@ export const useFlightStore = create<FlightState>((set, get) => ({
   onGround: true,
   crashed: false,
   crashSpeed: 0,
+  crashAt: null,
+  exitAsk: false,
   touches: 0,
   brokenProps: [],
   paused: false,
@@ -166,9 +176,19 @@ export const useFlightStore = create<FlightState>((set, get) => ({
     set((s) =>
       s.crashed
         ? s
-        : { crashed: true, crashSpeed: speed, brokenProps, armed: false, auto: 'manual' },
+        : {
+            crashed: true,
+            crashSpeed: speed,
+            crashAt: {
+              flightTime: useSimStore.getState().flightTime,
+              altitude: useSimStore.getState().altitude,
+            },
+            brokenProps,
+            armed: false,
+            auto: 'manual',
+          },
     ),
-  clearCrash: () => set({ crashed: false, crashSpeed: 0, brokenProps: [] }),
+  clearCrash: () => set({ crashed: false, crashSpeed: 0, crashAt: null, brokenProps: [] }),
 
   registerTouch: () => set((s) => ({ touches: s.touches + 1 })),
 
@@ -185,5 +205,8 @@ export const useFlightStore = create<FlightState>((set, get) => ({
       lowBattery: false,
       batteryWarning: false,
     })),
-  togglePause: () => set((s) => ({ paused: !s.paused })),
+  // Any change of pause drops the exit question: it belongs to one showing of
+  // the pause card.
+  togglePause: () => set((s) => ({ paused: !s.paused, exitAsk: false })),
+  setExitAsk: (exitAsk) => set({ exitAsk }),
 }));

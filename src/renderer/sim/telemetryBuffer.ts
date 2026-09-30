@@ -5,7 +5,6 @@
 export interface Series {
   key: string;
   label: string;
-  color: string;
 }
 
 const CAPACITY = 900; // ~15 s at 60 Hz
@@ -34,6 +33,28 @@ export class TelemetryBuffer {
   clear(): void {
     this.head = 0;
     this.filled = 0;
+  }
+
+  /**
+   * One series' samples from the last `seconds` (by the time each was pushed
+   * with), oldest first, as uPlot's [x, y]. Written into `out` when given, so a
+   * chart redrawing every frame reuses its arrays.
+   */
+  window(key: string, seconds: number, out: [number[], number[]] = [[], []]): [number[], number[]] {
+    const arr = this.data.get(key);
+    out[0].length = 0;
+    out[1].length = 0;
+    if (!arr || this.filled === 0) return out;
+    const last = (this.head - 1 + CAPACITY) % CAPACITY;
+    const from = this.time[last] - seconds;
+    const start = this.filled === CAPACITY ? this.head : 0;
+    for (let i = 0; i < this.filled; i++) {
+      const idx = (start + i) % CAPACITY;
+      if (this.time[idx] < from) continue;
+      out[0].push(this.time[idx]);
+      out[1].push(arr[idx]);
+    }
+    return out;
   }
 
   /** Snapshot in chronological order: [time, ...series] as uPlot expects. */

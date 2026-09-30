@@ -3,6 +3,8 @@ import { Sidebar } from './Sidebar';
 import { TopBar } from './TopBar';
 import { Home } from './Home';
 import { TelemetryPanel } from './TelemetryPanel';
+import { HudPanel } from '../hud/HudPanel';
+import { escapeStep } from '../hud/cockpitFacts';
 import { AboutScreen } from './AboutSection';
 import { SettingsPanel } from './SettingsPanel';
 import { Placeholder } from './Placeholder';
@@ -79,7 +81,7 @@ export function App() {
   const hydrated = useSettingsStore((s) => s.hydrated);
   const section = useUiStore((s) => s.section);
   const panelOpen = useUiStore((s) => s.panelOpen);
-  const togglePanel = useUiStore((s) => s.togglePanel);
+  const hudPanelOpen = useUiStore((s) => s.hudPanelOpen);
   const trainingLesson = useTrainingStore((s) => s.activeLessonId);
   const activeMission = useMissionStore((s) => s.mission);
   const accountStatus = useAccountStore((s) => s.status);
@@ -184,33 +186,23 @@ export function App() {
       if (menuShowing() && escapeToSidebar()) return;
       const ui = useUiStore.getState();
       const flight = useFlightStore.getState();
-      if (ui.section === 'fly') {
-        flight.togglePause();
-      } else if (flight.paused) {
-        // A mission or a lesson paused with P: Esc takes the pause off, it does
-        // not leave. Leaving is what Esc does to a RUNNING attempt, and a pilot
-        // who stopped to think should not lose the attempt to the key they
-        // reach for to get back to it.
-        flight.togglePause();
-      } else if (ui.section === 'training') {
-        // Inside a lesson: back out to the lesson list; on the list: back home.
-        // On the result card while it counts down, Esc stops the countdown
-        // first ("Esc Stop auto-advance"); the next Esc leaves.
-        const training = useTrainingStore.getState();
-        if (training.activeLessonId && training.phase === 'reward' && training.autoAdvance) {
-          training.cancelAutoAdvance();
-        } else if (training.activeLessonId) training.exitLesson();
-        else ui.goBack();
-      } else if (ui.section === 'missions') {
-        // Same one step at a time: out of the flight to the mission path, then
-        // out of the section. `exit` is the one teardown, so Esc cannot leave a
-        // half-open attempt behind any more than the Leave button can.
-        const missions = useMissionStore.getState();
-        if (missions.mission) missions.exit();
-        else ui.goBack();
-      } else if (ui.section !== 'home') {
-        ui.goBack();
-      }
+      // Esc pauses a flight and never ends one (Phase 6); off a flight it
+      // steps back. The rule itself is `escapeStep`.
+      const training = useTrainingStore.getState();
+      const missions = useMissionStore.getState();
+      const step = escapeStep({
+        section: ui.section,
+        paused: flight.paused,
+        lesson: training.activeLessonId
+          ? { phase: training.phase, autoAdvance: training.autoAdvance }
+          : null,
+        mission: missions.mission ? { phase: missions.phase } : null,
+      });
+      if (step === 'pause') flight.togglePause();
+      else if (step === 'cancelAdvance') training.cancelAutoAdvance();
+      else if (step === 'exitLesson') training.exitLesson();
+      else if (step === 'exitMission') missions.exit();
+      else if (step === 'back') ui.goBack();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -252,8 +244,8 @@ export function App() {
     <div
       className={`app ${section === 'home' ? 'is-home' : ''} ${
         flightLike ? 'is-fly' : ''
-      } ${section === 'fly' && !panelOpen ? 'no-panel' : ''} ${
-        section === 'fly' && panelOpen ? 'panel-open' : ''
+      } ${section === 'fly' && panelOpen ? 'panel-open' : ''} ${
+        section === 'fly' && hudPanelOpen ? 'hudpanel-open' : ''
       } ${inLesson ? 'in-lesson' : ''} ${inMission ? 'in-mission' : ''}`}
     >
       {/* Hover strip along the very top edge. In flight the bar is parked out of
@@ -269,18 +261,11 @@ export function App() {
       <main className="stage" data-nav-region="content">
         <MainArea />
       </main>
-      {/* Telemetry dock is hidden by default in flight so the viewport stays
-          clear; the tab on the right edge slides it back in. */}
+      {/* The cockpit's side columns (Phase 6): the HUD panel (H) on the left,
+          the telemetry dock (T) on the right. One at a time; each pushes the
+          flight view over instead of covering it. */}
+      {section === 'fly' && hudPanelOpen && <HudPanel />}
       {section === 'fly' && panelOpen && <TelemetryPanel />}
-      {section === 'fly' && (
-        <button
-          className={`panel-tab ${panelOpen ? 'open' : ''}`}
-          onClick={togglePanel}
-          title={panelOpen ? 'Hide telemetry' : 'Show telemetry'}
-        >
-          {panelOpen ? '›' : '‹'}
-        </button>
-      )}
       {!flightLike && <StatusBar />}
       <QualityNotice />
     </div>

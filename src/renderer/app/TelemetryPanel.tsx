@@ -1,13 +1,31 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { useSimStore } from '../state/simStore';
 import { useSettingsStore } from '../state/settingsStore';
 import { useFlightStore } from '../state/flightStore';
 import { usePhysicsStore } from '../state/physicsStore';
+import { useUiStore } from '../state/uiStore';
+import { devFpsEnabled } from '../state/shellStore';
 import { useWorldStore, TIME_PRESETS, type TimeOfDay } from '../state/worldStore';
 import { getDrone } from '../plugins/registry';
 import { RAD2DEG } from '../sim/mathx';
 import { TelemetryChart } from '../ui/TelemetryChart';
 import { SupportDebugWidget } from '../hud/SupportDebugWidget';
+import { Icon, Keycap } from '../ds';
+import {
+  GUST_LEVELS,
+  HUD_HZ,
+  MOTOR_LABELS,
+  clock,
+  fixed,
+  voltsText,
+  compassPoint,
+  gustLevel,
+  headingDeg,
+  headingText,
+  usedMah,
+  windFacts,
+  type GustLevel,
+} from '../hud/cockpitFacts';
 import {
   attitudeBuffer,
   gyroBuffer,
@@ -16,290 +34,311 @@ import {
   startTelemetryFeed,
 } from '../state/telemetryFeed';
 
+// The telemetry dock (T), Phase 6: a column on the right that pushes the
+// cockpit over rather than covering it. DATA is the numbers, GRAPHS the last
+// 6 s of four traces, PHYSICS the world's knobs — each change takes effect on
+// the next physics step.
+
 type Tab = 'data' | 'graphs' | 'physics';
+const TABS: { id: Tab; label: string }[] = [
+  { id: 'data', label: 'Data' },
+  { id: 'graphs', label: 'Graphs' },
+  { id: 'physics', label: 'Physics' },
+];
+
+const DEV = devFpsEnabled();
 
 export function TelemetryPanel() {
   const [tab, setTab] = useState<Tab>('data');
 
-  // One subscription for the panel's lifetime keeps the ring buffers fed.
+  // One subscription for the dock's lifetime keeps the ring buffers fed.
   useEffect(() => startTelemetryFeed(), []);
 
   return (
-    <aside className="panel">
-      <div className="panel-tabs">
-        {(['data', 'graphs', 'physics'] as Tab[]).map((t) => (
-          <button key={t} className={tab === t ? 'active' : ''} onClick={() => setTab(t)}>
-            {t}
+    <aside className="tdock" data-register="cockpit" aria-label="Telemetry">
+      <header className="tdock__head">
+        <span className="ck-label">Telemetry · {HUD_HZ} Hz</span>
+        <button
+          type="button"
+          className="tdock__close"
+          onClick={() => useUiStore.getState().togglePanel()}
+        >
+          <Keycap>T</Keycap>
+          <span className="ck-label">Close</span>
+        </button>
+      </header>
+      <div className="tdock__tabs" role="tablist">
+        {TABS.map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            role="tab"
+            aria-selected={tab === t.id}
+            className={tab === t.id ? 'is-on' : ''}
+            onClick={() => setTab(t.id)}
+          >
+            {t.label}
           </button>
         ))}
       </div>
-      {tab === 'data' && <DataTab />}
-      {tab === 'graphs' && <GraphsTab />}
-      {tab === 'physics' && <PhysicsTab />}
+      <div className="tdock__body">
+        {tab === 'data' && <DataTab />}
+        {tab === 'graphs' && <GraphsTab />}
+        {tab === 'physics' && <PhysicsTab />}
+        {DEV && (
+          <section className="tdock__sec">
+            <h3 className="ck-label">Dev · physical support</h3>
+            <SupportDebugWidget />
+          </section>
+        )}
+      </div>
     </aside>
   );
 }
 
-function DataTab() {
-  const { settings } = useSettingsStore();
-  const drone = getDrone(settings.selectedDroneId);
-
-  const altitude = useSimStore((s) => s.altitude);
-  const groundSpeed = useSimStore((s) => s.groundSpeed);
-  const verticalSpeed = useSimStore((s) => s.verticalSpeed);
-  const roll = useSimStore((s) => s.roll);
-  const pitch = useSimStore((s) => s.pitch);
-  const throttle = useSimStore((s) => s.throttle);
-  const motors = useSimStore((s) => s.motors);
-  const gyro = useSimStore((s) => s.gyro);
-  const accel = useSimStore((s) => s.accel);
-  const voltage = useSimStore((s) => s.batteryVoltage);
-  const current = useSimStore((s) => s.batteryCurrent);
-  const soc = useSimStore((s) => s.batterySoc);
-  const armed = useFlightStore((s) => s.armed);
-  const mode = useFlightStore((s) => s.mode);
-
-  return (
-    <>
-      <section className="panel-section">
-        <div className="kv">
-          <span>Drone</span>
-          <b>{drone?.name ?? '-'}</b>
-        </div>
-        <div className="kv">
-          <span>Armed</span>
-          <b style={{ color: armed ? 'var(--good)' : 'var(--text-dim)' }}>
-            {armed ? 'ARMED' : 'DISARMED'}
-          </b>
-        </div>
-        <div className="kv">
-          <span>Mode</span>
-          <b style={{ textTransform: 'capitalize' }}>{mode.replace('-', ' ')}</b>
-        </div>
-      </section>
-
-      <section className="panel-section">
-        <h3 className="panel-subtitle">Flight</h3>
-        <Kv label="Altitude" value={`${altitude.toFixed(2)} m`} />
-        <Kv label="Ground speed" value={`${groundSpeed.toFixed(2)} m/s`} />
-        <Kv label="Vertical speed" value={`${verticalSpeed.toFixed(2)} m/s`} />
-        <Kv
-          label="Roll / Pitch"
-          value={`${(roll * RAD2DEG).toFixed(0)}° / ${(pitch * RAD2DEG).toFixed(0)}°`}
-        />
-        <Kv label="Throttle" value={`${Math.round(throttle * 100)}%`} />
-      </section>
-
-      <section className="panel-section">
-        <h3 className="panel-subtitle">IMU</h3>
-        <Kv label="Gyro X/Y/Z" value={gyro.map((g) => g.toFixed(1)).join(' / ')} />
-        <Kv label="Accel (body up)" value={`${accel[1].toFixed(2)} g`} />
-      </section>
-
-      <section className="panel-section">
-        <h3 className="panel-subtitle">Power</h3>
-        <Kv label="Voltage" value={`${voltage.toFixed(2)} V`} />
-        <Kv label="Current" value={`${current.toFixed(2)} A`} />
-        <Kv label="Charge" value={`${Math.round(soc * 100)} %`} />
-      </section>
-
-      <section className="panel-section">
-        <h3 className="panel-subtitle">Motors</h3>
-        <div className="motor-bars">
-          {motors.map((m, i) => (
-            <div className="motor-bar" key={i}>
-              <div className="motor-fill" style={{ height: `${Math.round(m * 100)}%` }} />
-              <span>{['FR', 'FL', 'BR', 'BL'][i]}</span>
-            </div>
-          ))}
-        </div>
-      </section>
-    </>
-  );
+/** The sim store, re-read at the HUD's rate rather than every frame. */
+function useTenHz<T>(pick: () => T): T {
+  const [v, setV] = useState(pick);
+  useEffect(() => {
+    const id = window.setInterval(() => setV(pick()), 1000 / HUD_HZ);
+    return () => window.clearInterval(id);
+    // `pick` reads stores through getState, so the first one is the only one.
+  }, []);
+  return v;
 }
 
-function GraphsTab() {
+function Cell({ label, value }: { label: string; value: string }) {
   return (
-    <div className="charts">
-      <TelemetryChart buffer={gyroBuffer} title="Gyro (rad/s)" />
-      <TelemetryChart buffer={attitudeBuffer} title="Attitude (deg)" />
-      <TelemetryChart buffer={motorBuffer} title="Motor output" range={[0, 1]} />
-      <TelemetryChart buffer={powerBuffer} title="Battery V / A" />
-    </div>
-  );
-}
-
-function PhysicsTab() {
-  const wind = usePhysicsStore((s) => s.wind);
-  const setWind = usePhysicsStore((s) => s.setWind);
-  const groundEffectEnabled = usePhysicsStore((s) => s.groundEffectEnabled);
-  const setGroundEffect = usePhysicsStore((s) => s.setGroundEffect);
-  const batteryEnabled = usePhysicsStore((s) => s.batteryEnabled);
-  const setBattery = usePhysicsStore((s) => s.setBattery);
-  const ambientDrift = usePhysicsStore((s) => s.ambientDriftEnabled);
-  const setAmbientDrift = usePhysicsStore((s) => s.setAmbientDrift);
-
-  const timeOfDay = useWorldStore((s) => s.timeOfDay);
-  const setTimeOfDay = useWorldStore((s) => s.setTimeOfDay);
-  const clouds = useWorldStore((s) => s.cloudsEnabled);
-  const setClouds = useWorldStore((s) => s.setClouds);
-
-  // Reads the same setting as Settings > Interface, so the two stay in step and
-  // the choice persists — this is just a second way in, next to the flight aids
-  // it sits alongside.
-  const groundMarker = useSettingsStore((s) => s.settings.hud.groundMarker);
-  const setHud = useSettingsStore((s) => s.setHud);
-
-  return (
-    <>
-      <section className="panel-section">
-        <h3 className="panel-subtitle">Time of day</h3>
-        <div className="tod-grid">
-          {(Object.keys(TIME_PRESETS) as TimeOfDay[]).map((k) => (
-            <button
-              key={k}
-              className={timeOfDay === k ? 'active' : ''}
-              onClick={() => setTimeOfDay(k)}
-            >
-              {TIME_PRESETS[k].label}
-            </button>
-          ))}
-        </div>
-        <label className="toggle">
-          <input type="checkbox" checked={clouds} onChange={(e) => setClouds(e.target.checked)} />
-          <span>Clouds</span>
-        </label>
-      </section>
-
-      <section className="panel-section">
-        <h3 className="panel-subtitle">Wind</h3>
-        <Slider
-          label="Speed"
-          value={wind.speed}
-          min={0}
-          max={12}
-          step={0.1}
-          unit="m/s"
-          onChange={(v) => setWind('speed', v)}
-        />
-        <Slider
-          label="Direction"
-          value={wind.directionDeg}
-          min={0}
-          max={359}
-          step={1}
-          unit="°"
-          onChange={(v) => setWind('directionDeg', v)}
-        />
-        <Slider
-          label="Gustiness"
-          value={wind.gustiness}
-          min={0}
-          max={1}
-          step={0.05}
-          unit=""
-          onChange={(v) => setWind('gustiness', v)}
-        />
-      </section>
-
-      <section className="panel-section">
-        <h3 className="panel-subtitle">Effects</h3>
-        <label className="toggle">
-          <input
-            type="checkbox"
-            checked={groundEffectEnabled}
-            onChange={(e) => setGroundEffect(e.target.checked)}
-          />
-          <span>Ground effect</span>
-        </label>
-        <label className="toggle">
-          <input
-            type="checkbox"
-            checked={batteryEnabled}
-            onChange={(e) => setBattery(e.target.checked)}
-          />
-          <span>Battery sag</span>
-        </label>
-        <label className="toggle">
-          <input
-            type="checkbox"
-            checked={ambientDrift}
-            onChange={(e) => setAmbientDrift(e.target.checked)}
-          />
-          <span>Ambient air drift</span>
-        </label>
-      </section>
-
-      <section className="panel-section">
-        <h3 className="panel-subtitle">Battery</h3>
-        <button className="recharge-btn" onClick={() => useFlightStore.getState().recharge()}>
-          Recharge pack
-        </button>
-      </section>
-
-      <section className="panel-section">
-        <h3 className="panel-subtitle">Physical Support & Stability</h3>
-        <SupportDebugWidget />
-      </section>
-
-      <section className="panel-section">
-        <h3 className="panel-subtitle">Display</h3>
-        <label className="toggle">
-          <input
-            type="checkbox"
-            checked={groundMarker}
-            onChange={(e) => setHud('groundMarker', e.target.checked)}
-          />
-          <span>Ground marker (blue ring)</span>
-        </label>
-      </section>
-
-      <p className="panel-note">Changes take effect on the next physics step, no restart.</p>
-    </>
-  );
-}
-
-function Kv({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="kv">
+    <div className="tdock-cell">
       <span>{label}</span>
       <b>{value}</b>
     </div>
   );
 }
 
-function Slider({
-  label,
+function Section({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <section className="tdock__sec">
+      <h3 className="ck-label">{title}</h3>
+      {children}
+    </section>
+  );
+}
+
+function DataTab() {
+  const capacity = useSettingsStore(
+    (s) => getDrone(s.settings.selectedDroneId)?.battery.capacityMah ?? 0,
+  );
+  const s = useTenHz(() => {
+    const t = useSimStore.getState();
+    return {
+      altitude: t.altitude,
+      yaw: t.yaw,
+      speed: t.groundSpeed,
+      flightTime: t.flightTime,
+      roll: t.roll,
+      pitch: t.pitch,
+      yawRate: t.gyro[1] * RAD2DEG,
+      accelZ: t.accel[1] * 9.81,
+      soc: t.batterySoc,
+      voltage: t.batteryVoltage,
+      current: t.batteryCurrent,
+      motors: t.motors,
+    };
+  });
+
+  return (
+    <>
+      <Section title="Flight">
+        <div className="tdock-grid">
+          <Cell label="Altitude" value={`${s.altitude.toFixed(2)} m`} />
+          <Cell label="Heading" value={`${headingText(headingDeg(s.yaw))}°`} />
+          <Cell label="Speed" value={`${fixed(s.speed, 1)} m/s`} />
+          <Cell label="Flight time" value={clock(s.flightTime)} />
+        </div>
+      </Section>
+      <Section title="IMU">
+        <div className="tdock-grid">
+          <Cell label="Roll" value={`${fixed(s.roll * RAD2DEG, 1)}°`} />
+          <Cell label="Pitch" value={`${fixed(s.pitch * RAD2DEG, 1)}°`} />
+          <Cell label="Yaw rate" value={`${fixed(s.yawRate, 1)} °/s`} />
+          <Cell label="Accel Z" value={`${fixed(s.accelZ, 2)} m/s²`} />
+        </div>
+      </Section>
+      <Section title="Power">
+        <div className="tdock-grid">
+          <Cell label="Battery" value={`${Math.round(s.soc * 100)}%`} />
+          <Cell label="Voltage" value={voltsText(s.voltage)} />
+          <Cell label="Current" value={`${fixed(s.current, 1)} A`} />
+          <Cell label="Used" value={`${usedMah(capacity, s.soc)} mAh`} />
+        </div>
+      </Section>
+      <Section title="Motors">
+        <ul className="tdock-motors">
+          {MOTOR_LABELS.map((label, i) => {
+            const pct = Math.round((s.motors[i] ?? 0) * 100);
+            return (
+              <li key={label}>
+                <span>{label}</span>
+                <div className="ck-bar" aria-hidden="true">
+                  <i style={{ width: `${pct}%` }} />
+                </div>
+                <b>{pct}%</b>
+              </li>
+            );
+          })}
+        </ul>
+      </Section>
+    </>
+  );
+}
+
+function GraphsTab() {
+  return (
+    <div className="tdock-traces">
+      <TelemetryChart buffer={gyroBuffer} seriesKey="z" title="Gyro · yaw rate" unit=" °/s" minSpan={40} />
+      <TelemetryChart buffer={attitudeBuffer} seriesKey="roll" title="Attitude · roll" unit="°" minSpan={20} />
+      <TelemetryChart
+        buffer={motorBuffer}
+        seriesKey="mean"
+        title="Motor output · mean"
+        unit=""
+        digits={2}
+        minSpan={1}
+      />
+      <TelemetryChart buffer={powerBuffer} seriesKey="v" title="Battery" unit=" V" digits={2} minSpan={0.2} />
+    </div>
+  );
+}
+
+/** A row of choices: the selected one filled, with ✓ and weight. */
+function Choice<T extends string>({
+  options,
   value,
-  min,
-  max,
-  step,
-  unit,
   onChange,
 }: {
-  label: string;
-  value: number;
-  min: number;
-  max: number;
-  step: number;
-  unit: string;
-  onChange: (v: number) => void;
+  options: readonly { id: T; label: string }[];
+  value: T | null;
+  onChange: (v: T) => void;
 }) {
   return (
-    <div className="slider-row">
-      <span>{label}</span>
-      <input
-        type="range"
-        min={min}
-        max={max}
-        step={step}
-        value={value}
-        onChange={(e) => onChange(Number(e.target.value))}
-      />
-      <b>
-        {value.toFixed(step < 1 ? 1 : 0)}
-        {unit}
-      </b>
+    <div className="tdock-choice" role="radiogroup">
+      {options.map((o) => (
+        <button
+          key={o.id}
+          type="button"
+          role="radio"
+          aria-checked={value === o.id}
+          className={value === o.id ? 'is-on' : ''}
+          onClick={() => onChange(o.id)}
+        >
+          {value === o.id && <Icon name="check" />}
+          {o.label}
+        </button>
+      ))}
     </div>
+  );
+}
+
+const ON_OFF = [
+  { id: 'on', label: 'On' },
+  { id: 'off', label: 'Off' },
+] as const;
+
+function Row({ label, value, children }: { label: string; value: string; children: ReactNode }) {
+  return (
+    <div className="tdock-row">
+      <div className="tdock-row__head">
+        <span className="ck-label">{label}</span>
+        <b>{value}</b>
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function Toggle({ label, on, set }: { label: string; on: boolean; set: (on: boolean) => void }) {
+  return (
+    <Row label={label} value={on ? 'On' : 'Off'}>
+      <Choice options={ON_OFF} value={on ? 'on' : 'off'} onChange={(v) => set(v === 'on')} />
+    </Row>
+  );
+}
+
+function PhysicsTab() {
+  const wind = usePhysicsStore((s) => s.wind);
+  const setWind = usePhysicsStore((s) => s.setWind);
+  const groundEffect = usePhysicsStore((s) => s.groundEffectEnabled);
+  const setGroundEffect = usePhysicsStore((s) => s.setGroundEffect);
+  const batterySag = usePhysicsStore((s) => s.batteryEnabled);
+  const setBattery = usePhysicsStore((s) => s.setBattery);
+  const drift = usePhysicsStore((s) => s.ambientDriftEnabled);
+  const setDrift = usePhysicsStore((s) => s.setAmbientDrift);
+  const timeOfDay = useWorldStore((s) => s.timeOfDay);
+  const setTimeOfDay = useWorldStore((s) => s.setTimeOfDay);
+  const clouds = useWorldStore((s) => s.cloudsEnabled);
+  const setClouds = useWorldStore((s) => s.setClouds);
+  const soc = useTenHz(() => useSimStore.getState().batterySoc);
+
+  const w = windFacts(wind, 0);
+  const times = (Object.keys(TIME_PRESETS) as TimeOfDay[]).map((k) => ({
+    id: k,
+    label: TIME_PRESETS[k].label,
+  }));
+  const gusts = (Object.keys(GUST_LEVELS) as GustLevel[]).map((g) => ({
+    id: g,
+    label: g[0].toUpperCase() + g.slice(1),
+  }));
+  const speed = Math.round(wind.speed * 10) / 10;
+  // The sim stores where the wind blows TO; the buttons turn where it comes FROM.
+  const turn = (by: number) => setWind('directionDeg', (((wind.directionDeg + by) % 360) + 360) % 360);
+
+  return (
+    <>
+      <Row label="Time of day" value={TIME_PRESETS[timeOfDay].label}>
+        <Choice options={times} value={timeOfDay} onChange={setTimeOfDay} />
+      </Row>
+      <Toggle label="Clouds" on={clouds} set={setClouds} />
+      <Row label="Wind speed" value={`${speed} m/s`}>
+        <div className="tdock-pair">
+          <button type="button" onClick={() => setWind('speed', Math.max(0, Math.round(wind.speed - 1)))}>
+            − 1
+          </button>
+          <button type="button" onClick={() => setWind('speed', Math.min(12, Math.round(wind.speed + 1)))}>
+            + 1
+          </button>
+        </div>
+      </Row>
+      <Row label="Wind from" value={compassPoint(w.fromDeg)}>
+        <div className="tdock-pair">
+          <button type="button" onClick={() => turn(-45)}>
+            ‹ Turn
+          </button>
+          <button type="button" onClick={() => turn(45)}>
+            Turn ›
+          </button>
+        </div>
+      </Row>
+      <Row label="Gust" value={gusts.find((g) => g.id === gustLevel(wind.gustiness))?.label ?? ''}>
+        <Choice
+          options={gusts}
+          value={gustLevel(wind.gustiness)}
+          onChange={(g) => setWind('gustiness', GUST_LEVELS[g])}
+        />
+      </Row>
+      <Toggle label="Ground effect" on={groundEffect} set={setGroundEffect} />
+      <Toggle label="Battery sag" on={batterySag} set={setBattery} />
+      <Toggle label="Ambient air drift" on={drift} set={setDrift} />
+      <Row label="Recharge" value={`${Math.round(soc * 100)}%`}>
+        <button
+          type="button"
+          className="tdock-wide"
+          onClick={() => useFlightStore.getState().recharge()}
+        >
+          Recharge to 100%
+        </button>
+      </Row>
+      <p className="tdock__note">Changes take effect on the next physics step, no restart.</p>
+    </>
   );
 }

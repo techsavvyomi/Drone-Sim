@@ -24,10 +24,27 @@ interface SettingsState {
   set: <K extends keyof AppSettings>(key: K, value: AppSettings[K]) => void;
   /** Toggle a single HUD widget's visibility. */
   setHud: (widget: keyof HudWidgets, visible: boolean) => void;
+  /** Every HUD widget back to its default (the HUD panel's Reset to default). */
+  resetHud: () => void;
   /** Patch the gamepad config; the input module is kept in sync automatically. */
   setGamepad: (patch: Partial<GamepadSettings>) => void;
   /** A controller was detected: restore its mapping, or build one for it. */
   adoptDevice: (key: string, id: string, kind: GamepadKind, buttonCount: number) => void;
+}
+
+/**
+ * A saved HUD block on today's widgets: every known key from the file, defaults
+ * for the ones it predates, and nothing else — the widgets the cockpit dropped
+ * (instruments, throttle, tiles) would otherwise ride along in the file forever
+ * and count in the HUD panel's "n of N on".
+ */
+export function mergeHud(saved: object | undefined): HudWidgets {
+  const hud = { ...DEFAULT_SETTINGS.hud };
+  for (const key of Object.keys(hud) as (keyof HudWidgets)[]) {
+    const v = (saved as Record<string, unknown> | undefined)?.[key];
+    if (typeof v === 'boolean') hud[key] = v;
+  }
+  return hud;
 }
 
 export const useSettingsStore = create<SettingsState>((set, get) => ({
@@ -48,7 +65,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
         (loaded.graphics as string) === 'ultra'
           ? 'high'
           : (loaded.graphics ?? DEFAULT_SETTINGS.graphics),
-      hud: { ...DEFAULT_SETTINGS.hud, ...(loaded.hud ?? {}) },
+      hud: mergeHud(loaded.hud),
       gamepad: {
         ...DEFAULT_GAMEPAD,
         ...(loaded.gamepad ?? {}),
@@ -73,6 +90,12 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   setHud: (widget, visible) => {
     const current = get().settings;
     const next: AppSettings = { ...current, hud: { ...current.hud, [widget]: visible } };
+    set({ settings: next });
+    void window.api.saveSettings(next);
+  },
+
+  resetHud: () => {
+    const next: AppSettings = { ...get().settings, hud: { ...DEFAULT_SETTINGS.hud } };
     set({ settings: next });
     void window.api.saveSettings(next);
   },

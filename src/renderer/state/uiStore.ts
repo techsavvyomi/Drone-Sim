@@ -26,27 +26,32 @@ interface UiState {
   /** Where to return to when backing out of a sub-section (Esc / Back). */
   previousSection: Section;
   cameraMode: CameraMode;
-  /** Whether the full keyboard reference is pinned open in the flight view. */
-  showControls: boolean;
-  /** Telemetry dock visibility in the flight view (hidden by default). */
+  /** The HUD panel (H): widget toggles and the key list, a left column. */
+  hudPanelOpen: boolean;
+  /** The telemetry dock (T), a right column. Only one of the two is open. */
   panelOpen: boolean;
   setSection: (section: Section) => void;
   /** Return to whatever section we came from. */
   goBack: () => void;
   setCameraMode: (mode: CameraMode) => void;
   cycleCameraMode: () => void;
-  toggleControls: () => void;
+  toggleHudPanel: () => void;
   togglePanel: () => void;
+  /** Close the dock and the HUD panel (leaving the flight view). */
+  closePanels: () => void;
 }
 
 export const useUiStore = create<UiState>((set) => ({
   section: 'home',
   previousSection: 'home',
   cameraMode: 'chase',
-  showControls: false,
+  hudPanelOpen: false,
   panelOpen: false,
-  toggleControls: () => set((s) => ({ showControls: !s.showControls })),
-  togglePanel: () => set((s) => ({ panelOpen: !s.panelOpen })),
+  // Opening one side column closes the other: the Phase 6 cockpit has room for
+  // the HUD beside one column, not between two.
+  toggleHudPanel: () => set((s) => ({ hudPanelOpen: !s.hudPanelOpen, panelOpen: false })),
+  togglePanel: () => set((s) => ({ panelOpen: !s.panelOpen, hudPanelOpen: false })),
+  closePanels: () => set({ panelOpen: false, hudPanelOpen: false }),
   setSection: (section) =>
     set((s) => (s.section === section ? s : { section, previousSection: s.section })),
   goBack: () =>

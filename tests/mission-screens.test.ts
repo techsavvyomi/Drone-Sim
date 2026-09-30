@@ -62,7 +62,7 @@ vi.mock('../src/renderer/hud/MissionCityMap', () => ({
 vi.mock('../src/renderer/hud/MissionMap', () => ({
   MissionMap: () => h('div', { className: 'ms-map' }),
 }));
-vi.mock('../src/renderer/hud/PauseOverlay', () => ({ PauseOverlay: () => null }));
+vi.mock('../src/renderer/hud/FlightCards', () => ({ PauseCard: () => null, CrashCard: () => null }));
 
 const m1 = getMission('precision-delivery')!;
 const m3 = getMission('multi-point-delivery')!;
@@ -449,6 +449,24 @@ describe('mission HUD cards', () => {
     expect($(el, '.mobj__line').textContent).toContain('3 stars if you finish in the next 3:48');
     expect($(el, '.mstrip').textContent).toContain('Points');
     expect($(el, '.mradio').textContent).toContain('Radio · latest');
+  });
+
+  it('radio: closed shows only the newest call, from its first word; L-open shows them all', () => {
+    const s = useMissionStore.getState();
+    s.start(m1);
+    s.beginFlight();
+    useMissionStore.setState({
+      log: [
+        { id: 1, at: 0, kind: 'radio', text: 'Pilot, we have an emergency. A fire is burning deep in the forest.' },
+        { id: 2, at: 12, kind: 'radio', text: 'You are getting close.' },
+      ],
+    });
+    const el = mount(h(MissionHud));
+    const lines = () => $$(el, '.mradio__lines li').map((li) => li.textContent);
+    expect(lines()).toEqual(['0:12You are getting close.']);
+    act(() => window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyL', key: 'l' })));
+    expect(lines()).toHaveLength(2);
+    expect(lines()[0]).toContain('Pilot, we have an emergency.');
   });
 
   it('result: tiers, objective rows, Next focused', () => {
