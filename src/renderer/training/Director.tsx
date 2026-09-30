@@ -20,6 +20,7 @@ import { dronePose } from '../sim/drone/pose';
 import { demoLength, starsFor } from './lessons/types';
 import {
   insideBox,
+  isAirborne,
   lessonBox,
   newFlightClock,
   resetFlightClock,
@@ -657,7 +658,7 @@ export function Director() {
     if (box.current) {
       tickFlightClock(
         flightClock.current,
-        !flight.onGround,
+        isAirborne(flight.armed, flight.onGround),
         insideBox(box.current, sim.position[0], sim.position[2]),
         delta,
       );

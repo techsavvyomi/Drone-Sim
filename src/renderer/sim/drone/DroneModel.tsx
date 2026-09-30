@@ -141,6 +141,21 @@ function mergeStaticParts(root: THREE.Object3D): void {
       for (const name of Object.keys(geometry.attributes)) {
         if (!shared.includes(name)) geometry.deleteAttribute(name);
       }
+      // One array type per attribute across the group: the optimised models
+      // quantise some parts' uv / normal to Int16 and leave others Float32, and
+      // mergeGeometries refuses the mix (logging an error and keeping every part
+      // as its own draw call). Mixed ones go to plain Float32; get*() already
+      // undoes the normalisation, so the values are the same.
+      for (const name of shared) {
+        const types = new Set(group.map((m) => m.geometry.attributes[name].array.constructor));
+        if (types.size < 2) continue;
+        const src = geometry.getAttribute(name) as THREE.BufferAttribute;
+        const out = new Float32Array(src.count * src.itemSize);
+        for (let i = 0; i < src.count; i++) {
+          for (let c = 0; c < src.itemSize; c++) out[i * src.itemSize + c] = src.getComponent(i, c);
+        }
+        geometry.setAttribute(name, new THREE.BufferAttribute(out, src.itemSize, false));
+      }
       geometry.morphAttributes = {};
       geometry.clearGroups();
       // Into the root's frame, so the merged mesh can sit on the root at

@@ -676,7 +676,13 @@
   margin: 0;
   padding: 0;
   list-style: none;
-  max-height: 96px;
+}
+
+/* Closed: the newest call, from its first word, cut after four lines. */
+.mradio:not(.is-open) .mradio__lines li > span:last-child {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
   overflow: hidden;
 }
 

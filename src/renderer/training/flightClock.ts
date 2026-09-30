@@ -69,6 +69,17 @@ export function resetFlightClock(c: FlightClock): void {
   c.seconds = 0;
 }
 
+/**
+ * Whether the drone counts as flying, for the clock's take-off latch: armed AND
+ * off the ground. Off the ground alone is not enough — as practice opens after
+ * the demonstration the drone is put back on the pad, and for a frame or two
+ * `onGround` still holds the demo's "in the air". The clock latched on that and
+ * timed a drone that had not even been armed (found flying Module 3, 2026-09-30).
+ */
+export function isAirborne(armed: boolean, onGround: boolean): boolean {
+  return armed && !onGround;
+}
+
 /** One frame. Take-off latches: a landing later in the attempt does not stop the
  *  clock (the landing is part of the flight), only leaving the box does. */
 export function tickFlightClock(
