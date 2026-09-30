@@ -37,9 +37,5 @@ export function spring(
   return s.value;
 }
 
-export function lerp(a: number, b: number, t: number): number {
-  return a + (b - a) * t;
-}
-
 export const DEG2RAD = Math.PI / 180;
 export const RAD2DEG = 180 / Math.PI;

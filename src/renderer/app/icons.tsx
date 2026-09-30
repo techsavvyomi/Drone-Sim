@@ -13,14 +13,6 @@ const base = (size = 20) => ({
   strokeLinejoin: 'round' as const,
 });
 
-export const IconHome = ({ size }: P) => (
-  <svg {...base(size)}>
-    <path d="M3 10.5 12 3l9 7.5" />
-    <path d="M5.5 9.5V20h13V9.5" />
-    <path d="M9.5 20v-6h5v6" />
-  </svg>
-);
-
 export const IconDrone = ({ size }: P) => (
   <svg {...base(size)}>
     <rect x="9" y="9" width="6" height="6" rx="1.4" />
@@ -37,56 +29,6 @@ export const IconTarget = ({ size }: P) => (
     <circle cx="12" cy="12" r="8.5" />
     <circle cx="12" cy="12" r="4.6" />
     <circle cx="12" cy="12" r="1.2" fill="currentColor" stroke="none" />
-  </svg>
-);
-
-export const IconCap = ({ size }: P) => (
-  <svg {...base(size)}>
-    <path d="M2.5 9 12 4.5 21.5 9 12 13.5 2.5 9Z" />
-    <path d="M6.5 11v4.6c0 1.4 2.5 2.6 5.5 2.6s5.5-1.2 5.5-2.6V11" />
-  </svg>
-);
-
-export const IconUser = ({ size }: P) => (
-  <svg {...base(size)}>
-    <circle cx="12" cy="8.5" r="3.8" />
-    <path d="M4.5 20.5c.8-3.9 3.8-6 7.5-6s6.7 2.1 7.5 6" />
-  </svg>
-);
-
-export const IconMedal = ({ size }: P) => (
-  <svg {...base(size)}>
-    <path d="M12 3 4.5 6v5.2c0 4.3 3.1 7.7 7.5 9.3 4.4-1.6 7.5-5 7.5-9.3V6L12 3Z" />
-    <path d="m9.6 11.8 1.8 1.8 3.4-3.4" />
-  </svg>
-);
-
-export const IconTools = ({ size }: P) => (
-  <svg {...base(size)}>
-    <path d="M14.2 6.4a3.6 3.6 0 0 0 4.8 4.6l2.2 2.2-3 3-2.2-2.2a3.6 3.6 0 0 0-4.6-4.8" />
-    <path d="m10.4 13.6-6 6 2.6 2.6" opacity="0.9" />
-    <path d="M3.5 4.5 8 9" />
-  </svg>
-);
-
-export const IconGear = ({ size }: P) => (
-  <svg {...base(size)}>
-    <circle cx="12" cy="12" r="3.2" />
-    <path d="M12 2.8v2.4M12 18.8v2.4M4.7 7.5l2 1.2M17.3 15.3l2 1.2M4.7 16.5l2-1.2M17.3 8.7l2-1.2" />
-  </svg>
-);
-
-export const IconInfo = ({ size }: P) => (
-  <svg {...base(size)}>
-    <circle cx="12" cy="12" r="8.5" />
-    <path d="M12 11v5.5" />
-    <path d="M12 7.6v.1" />
-  </svg>
-);
-
-export const IconChevron = ({ size }: P) => (
-  <svg {...base(size)}>
-    <path d="m9 5 7 7-7 7" />
   </svg>
 );
 

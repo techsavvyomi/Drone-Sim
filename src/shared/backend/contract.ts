@@ -23,10 +23,8 @@ export const API_VERSION = 1;
 // ---------------------------------------------------------------------------
 
 export type FlightType = 'TRAINING' | 'MISSION' | 'FREE_FLIGHT';
-export const FLIGHT_TYPES: readonly FlightType[] = ['TRAINING', 'MISSION', 'FREE_FLIGHT'];
 
 export type SessionResult = 'SUCCESS' | 'FAILED' | 'ABORTED';
-export const SESSION_RESULTS: readonly SessionResult[] = ['SUCCESS', 'FAILED', 'ABORTED'];
 
 export type InputMode = 'KEYBOARD' | 'GAMEPAD' | 'RC_TRANSMITTER';
 
@@ -391,18 +389,6 @@ export type CrashKind =
   | 'WEBGL_CONTEXT_LOST'
   /** A native crash; Electron wrote a minidump, reported on the next launch. */
   | 'NATIVE_CRASH';
-
-export const CRASH_KINDS: readonly CrashKind[] = [
-  'MAIN_EXCEPTION',
-  'MAIN_REJECTION',
-  'RENDERER_EXCEPTION',
-  'RENDERER_REJECTION',
-  'RENDER_ERROR',
-  'RENDERER_GONE',
-  'CHILD_PROCESS_GONE',
-  'WEBGL_CONTEXT_LOST',
-  'NATIVE_CRASH',
-];
 
 export interface CrashReport {
   kind: CrashKind;

@@ -101,18 +101,6 @@ export function grassTexture(): THREE.CanvasTexture {
   return _grass;
 }
 
-/** Disposes cached textures (used on hot reload / teardown). */
-export function disposeTextures(): void {
-  [_concrete, _asphalt, _grass].forEach((t) => t?.dispose());
-  _concrete = _asphalt = _grass = null;
-  if (_streetPbr) {
-    _streetPbr.map.dispose();
-    _streetPbr.normalMap.dispose();
-    _streetPbr.roughnessMap.dispose();
-    _streetPbr = null;
-  }
-}
-
 let _cloud: THREE.CanvasTexture | null = null;
 
 /**

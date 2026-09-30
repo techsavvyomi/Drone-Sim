@@ -129,12 +129,6 @@ export function academyGate(id: string): AcademyGate {
   return gate;
 }
 
-export function academyPad(label: string): readonly [number, number, number] {
-  const pad = ACADEMY_PADS.find((p) => p.label === label);
-  if (!pad) throw new Error(`Unknown academy pad: ${label}`);
-  return pad.position;
-}
-
 /**
  * World position of one of the helipad's white perimeter markers.
  *

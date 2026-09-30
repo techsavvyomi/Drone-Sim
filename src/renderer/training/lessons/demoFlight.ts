@@ -58,18 +58,6 @@ export const MIN_TURN_DEG = 12;
 export const YAW_SETTLE = 0.6;
 
 /**
- * Horizontal acceleration from holding a tilt stick at `stick`.
- *
- * In altitude hold the controller keeps vertical thrust at `mg / cos θ`, so the
- * horizontal component is `mg · tan θ` — the mass cancels and every drone in
- * the sim accelerates the same, which is why one table of timings serves all of
- * them.
- */
-export function accelFor(stick: number): number {
-  return G * Math.tan(stick * PLAN_ENVELOPE.maxTiltDeg * DEG2RAD);
-}
-
-/**
  * A leg flown with no brake: push, let go, and drift onto the mark.
  *
  * The braked leg above is the right shape for a module that shows both pitch

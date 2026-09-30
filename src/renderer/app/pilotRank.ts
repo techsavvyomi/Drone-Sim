@@ -1,6 +1,4 @@
 import type { UserProfile } from '@shared/backend/contract';
-import { usePilotStore } from '../state/pilotStore';
-import { useAccountStore } from '../state/accountStore';
 
 // What the pilot badge, nav card and profile show as the pilot's standing.
 //
@@ -95,21 +93,3 @@ export interface PilotStanding {
   unit: string;
 }
 
-function fromProfile(p: UserProfile): PilotStanding {
-  return {
-    name: p.name,
-    rank: `Level ${p.level} · ${rankForLevel(p.level)}`,
-    current: p.levelPoints.current,
-    next: p.levelPoints.next,
-    unit: 'XP',
-  };
-}
-
-export function usePilotStanding(): PilotStanding {
-  const pilot = usePilotStore();
-  const profile = useAccountStore((s) => (s.status === 'signedIn' ? s.profile : null));
-  // The main process only stores whole profiles; this is the last guard, since a
-  // throw here takes the whole window down.
-  if (profile?.levelPoints) return fromProfile(profile);
-  return { name: pilot.callsign, rank: pilot.rank, current: pilot.xp, next: pilot.xpNext, unit: 'XP' };
-}

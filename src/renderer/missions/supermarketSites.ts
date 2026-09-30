@@ -33,8 +33,6 @@
 /** Where the store's front wall stands, world z. */
 export const STORE_FRONT_Z = -3.4;
 
-/** The roof inside the store, metres. Trusses hang below it in places. */
-export const STORE_CEILING = 6.0;
 /** The lowest a truss hangs, metres: what an indoor hover band is capped by. */
 export const STORE_TRUSS_LOW = 4.1;
 

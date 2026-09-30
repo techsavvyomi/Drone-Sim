@@ -1,4 +1,4 @@
-import type { DroneSpec, EnvironmentSpec, LessonSpec, MissionSpec } from '@shared/types';
+import type { DroneSpec, EnvironmentSpec, MissionSpec } from '@shared/types';
 
 // The extensibility core (Deliverable #6). Content is registered into typed maps
 // at startup. Engine services (scene, HUD, scoring, telemetry) read the active
@@ -7,7 +7,6 @@ import type { DroneSpec, EnvironmentSpec, LessonSpec, MissionSpec } from '@share
 const drones = new Map<string, DroneSpec>();
 const environments = new Map<string, EnvironmentSpec>();
 const missions = new Map<string, MissionSpec>();
-const lessons = new Map<string, LessonSpec>();
 
 export function registerDrone(spec: DroneSpec): void {
   drones.set(spec.id, spec);
@@ -17,9 +16,6 @@ export function registerEnvironment(spec: EnvironmentSpec): void {
 }
 export function registerMission(spec: MissionSpec): void {
   missions.set(spec.id, spec);
-}
-export function registerLesson(spec: LessonSpec): void {
-  lessons.set(spec.id, spec);
 }
 
 export function getDrone(id: string): DroneSpec | undefined {
@@ -34,10 +30,4 @@ export function listDrones(): DroneSpec[] {
 }
 export function listEnvironments(): EnvironmentSpec[] {
   return [...environments.values()];
-}
-export function listMissions(): MissionSpec[] {
-  return [...missions.values()];
-}
-export function listLessons(): LessonSpec[] {
-  return [...lessons.values()];
 }
