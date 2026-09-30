@@ -1,4 +1,4 @@
-﻿import { Suspense, useMemo } from 'react';
+﻿import { memo, Suspense, useMemo } from 'react';
 import { useThree, useFrame } from '@react-three/fiber';
 import { useGLTF } from '@react-three/drei';
 import { CuboidCollider, RigidBody } from '@react-three/rapier';
@@ -290,7 +290,13 @@ function NewYorkModel({ url }: { url: string }) {
             std.map = streetPbr.map;
             std.normalMap = streetPbr.normalMap;
             std.normalScale = new THREE.Vector2(0.4, 0.4);
-            std.roughnessMap = streetPbr.roughnessMap;
+            // No roughness map. Its bitumen base (0.62) times 0.9 left the road
+            // semi-gloss, and the normal map's fine grit caught the sun on every
+            // chip — each smaller than a pixel from the air — so the street
+            // sparkled white as the camera moved (user, 2026-09-30: "white white
+            // wala glitch"). A flat 0.9 is the matte tarmac this branch means;
+            // measured at one hover spot, 7,435 sparkle pixels became 579.
+            std.roughnessMap = null;
             // Asphalt is one of the darkest surfaces there is, and the texture
             // knows it — its bitumen base is #141618. It was arriving on screen
             // as pale grey-green all the same, in every time-of-day preset, for
@@ -403,6 +409,18 @@ function NewYorkModel({ url }: { url: string }) {
 
 useGLTF.preload(newYorkModelUrl, DRACO_DECODER_PATH);
 
+/**
+ * The city's ~3,400 collider boxes, rendered once. `NewYorkColliders` takes no
+ * props, but as a plain child it re-rendered with every render of NewYorkEnv
+ * and FlightScene above it — pause, resume, C for the camera, a graphics step,
+ * a HUD setting, the time of day — and React rebuilt and diffed thousands of
+ * collider elements each time: a 200-400 ms stall in the dev build, measured
+ * over CDP as the "mini second" hitches in New York (2026-09-30). Memoised, a
+ * parent's render stops at it. (NewYorkColliders.tsx is generated; the fix
+ * lives here, not in it.)
+ */
+const CityColliders = memo(NewYorkColliders);
+
 export function NewYorkEnv({ env }: { env: EnvironmentSpec }) {
   const url = env.model ?? newYorkModelUrl;
   // The world outside the city is painted the HORIZON's own colour, whatever the
@@ -444,7 +462,7 @@ export function NewYorkEnv({ env }: { env: EnvironmentSpec }) {
       </RigidBody>
 
       {/* Precision Analytical Colliders (0 physics triangles, 100% solid obstacles) */}
-      <NewYorkColliders />
+      <CityColliders />
 
       {/* Visual 3D City */}
       <Suspense fallback={null}>

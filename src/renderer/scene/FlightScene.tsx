@@ -37,6 +37,16 @@ import { DroneAudio } from '../audio/DroneAudio';
 // things of their own (a mission's casualty). `spawnOverride` launches the
 // drone somewhere other than the map's own spawn, for a mission that starts
 // from a place of its own (Mission 8, the site office) — R returns it there.
+/**
+ * One array for the whole app, never a new one per render. <Physics> rebuilds
+ * its context whenever `gravity` changes identity, and every collider in the
+ * map reads that context: an inline `[0, -GRAVITY, 0]` re-rendered all ~3,400
+ * of New York's colliders on each FlightScene render (camera switch, pause,
+ * HUD setting, graphics step…) — 150-400 ms stalls, measured over CDP
+ * (2026-09-30).
+ */
+const GRAVITY_VECTOR: [number, number, number] = [0, -GRAVITY, 0];
+
 export function FlightScene({
   envIdOverride,
   ceilingOverride,
@@ -196,7 +206,7 @@ export function FlightScene({
         timeStep={SIM_DT}
         interpolate
         paused={paused}
-        gravity={[0, -GRAVITY, 0]}
+        gravity={GRAVITY_VECTOR}
         predictionDistance={0.05}
         numSolverIterations={8}
       >

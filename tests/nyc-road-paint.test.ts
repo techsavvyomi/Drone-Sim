@@ -125,3 +125,18 @@ describe('the lane lines are never distance-culled', () => {
     expect(src).not.toMatch(/MICRO_PROP/);
   });
 });
+
+describe('the street does not sparkle', () => {
+  // With the roughness map the road was semi-gloss and the normal map's grit
+  // caught the sun chip by chip — white sparkle as the camera moved (user,
+  // 2026-09-30). 7,435 → 579 sparkle pixels at one hover spot without it.
+  it('the asphalt branch drops the roughness map and stays matte', () => {
+    const src = readFileSync('src/renderer/scene/environment/NewYorkEnv.tsx', 'utf8');
+    const at = src.indexOf('/CityGen_Streets/i.test(matName)');
+    const branch = src.slice(at, src.indexOf('} else if', at));
+    expect(branch).toContain('std.roughnessMap = null');
+    expect(branch).not.toContain('std.roughnessMap = streetPbr.roughnessMap');
+    expect(branch).toContain('std.roughness = 0.9');
+    expect(branch).toContain('std.metalness = 0');
+  });
+});
