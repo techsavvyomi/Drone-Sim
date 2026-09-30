@@ -37,7 +37,6 @@ vi.mock('../src/renderer/ui/TelemetryChart', () => ({
 }));
 vi.mock('../src/renderer/hud/SupportDebugWidget', () => ({ SupportDebugWidget: () => null }));
 vi.mock('../src/renderer/app/GamepadSetup', () => ({ GamepadSetup: () => null }));
-vi.mock('../src/renderer/app/AboutSection', () => ({ AboutSection: () => null }));
 
 let root: Root | undefined;
 let host: HTMLElement | undefined;
@@ -264,8 +263,8 @@ describe('pause card keyboard', () => {
 describe('Settings shows the same keys and HUD widgets', () => {
   it('Controls lists the cockpit key list, T, H and pause included', () => {
     const el = mount(h(SettingsPanel));
-    click(byText(el, 'button', '🎮Controls'));
-    const rows = [...el.querySelectorAll('.key-row')].map((r) => [r.querySelector('kbd')!.textContent, r.querySelector('span')!.textContent]);
+    click(byText(el, '[role="tab"]', 'Controls'));
+    const rows = [...el.querySelectorAll('.settings__key')].map((r) => [r.querySelector('kbd')!.textContent, r.querySelector('span')!.textContent]);
     expect(rows).toEqual(KEY_GROUPS.flatMap((g) => g.rows.map(([k, d]) => [k, d])));
     const keys = rows.map((r) => r[0]);
     for (const k of ['T', 'H', 'C', 'M', 'R', 'Enter', 'Space', 'Esc / P']) expect(keys).toContain(k);
@@ -273,11 +272,10 @@ describe('Settings shows the same keys and HUD widgets', () => {
 
   it('Interface lists every HUD widget and a switch writes the setting', () => {
     const el = mount(h(SettingsPanel));
-    click(byText(el, 'button', '📊Interface'));
-    const labels = [...el.querySelectorAll('.hud-toggle span')].map((s) => s.textContent);
+    click(byText(el, '[role="tab"]', 'Interface'));
+    const labels = [...el.querySelectorAll('.settings__widgets .ds-check__label')].map((s) => s.textContent);
     expect(labels).toEqual(HUD_WIDGETS.map((w) => w.label));
-    const box = el.querySelector('.hud-toggle input') as HTMLInputElement;
-    click(box);
+    click(el.querySelector('.settings__widgets [role="checkbox"]'));
     expect(useSettingsStore.getState().settings.hud[HUD_WIDGETS[0].key]).toBe(false);
   });
 });

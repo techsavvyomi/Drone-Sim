@@ -5,7 +5,7 @@ import { Home } from './Home';
 import { TelemetryPanel } from './TelemetryPanel';
 import { HudPanel } from '../hud/HudPanel';
 import { escapeStep } from '../hud/cockpitFacts';
-import { AboutScreen } from './AboutSection';
+import { AboutScreen } from './AboutScreen';
 import { SettingsPanel } from './SettingsPanel';
 import { Placeholder } from './Placeholder';
 import { StatusBar } from './StatusBar';

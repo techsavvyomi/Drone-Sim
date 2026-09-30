@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { isAllowedExternalUrl } from '../src/main/externalLinks';
-import { aboutRows, withSoftwareFlag } from '../src/renderer/app/AboutSection';
+import { aboutRows, withSoftwareFlag } from '../src/renderer/app/AboutScreen';
 
 // Settings → About shows what build this is and where it is running, and its
 // "Report a bug" is the one thing allowed to open something outside the app.

@@ -48,9 +48,14 @@ export function isTextField(el: Element | null): boolean {
   return el instanceof HTMLInputElement && TEXTLIKE.has(el.type) && el.type !== 'range';
 }
 
-function ownsArrows(el: Element | null): boolean {
+/** Whether `el` keeps an arrow key for itself. Exported for tests. */
+export function ownsArrows(el: Element | null, dir?: Direction): boolean {
   if (!el) return false;
   if (el instanceof HTMLInputElement && TEXTLIKE.has(el.type)) return true;
+  // A tab row keeps ← → for its tabs; ↑ ↓ move on to the panel and back.
+  if ((dir === 'up' || dir === 'down') && el.closest(OWNS_ARROWS)?.getAttribute('role') === 'tablist') {
+    return false;
+  }
   return !!el.closest(OWNS_ARROWS);
 }
 
@@ -208,7 +213,7 @@ export function attachMenuNav({ isMenu, jump }: MenuNavOptions): () => void {
     }
 
     const dir = ARROWS[e.key];
-    if (dir && !e.shiftKey && !ownsArrows(target)) {
+    if (dir && !e.shiftKey && !ownsArrows(target, dir)) {
       if (moveFocus(dir)) e.preventDefault();
     }
   };

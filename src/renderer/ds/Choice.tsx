@@ -19,16 +19,20 @@ const NEXT = new Set(['ArrowRight', 'ArrowDown']);
 const PREV = new Set(['ArrowLeft', 'ArrowUp']);
 
 /** Arrow keys walk the options, wrapping; Home / End jump. Selection follows
- *  focus, as radio groups and tab lists do. One Tab stop for the whole group. */
+ *  focus, as radio groups and tab lists do. One Tab stop for the whole group.
+ *  A tab row answers ← → only, so ↓ leaves it for the panel below. */
 function useRoving<T extends string>(
   options: readonly ChoiceOption<T>[],
   value: T,
   onChange: (v: T) => void,
+  horizontal = false,
 ) {
   const refs = useRef<(HTMLButtonElement | null)[]>([]);
   const onKeyDown = (e: KeyboardEvent<HTMLElement>) => {
     const at = options.findIndex((o) => o.value === value);
+    const vertical = e.key === 'ArrowDown' || e.key === 'ArrowUp';
     let to = -1;
+    if (horizontal && vertical) return;
     if (NEXT.has(e.key)) to = (at + 1) % options.length;
     else if (PREV.has(e.key)) to = (at - 1 + options.length) % options.length;
     else if (e.key === 'Home') to = 0;
@@ -91,7 +95,7 @@ export function Tabs<T extends string>({
   label,
   className,
 }: ChoiceProps<T>) {
-  const { refs, onKeyDown } = useRoving(options, value, onChange);
+  const { refs, onKeyDown } = useRoving(options, value, onChange, true);
   return (
     <div
       role="tablist"

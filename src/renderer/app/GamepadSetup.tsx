@@ -12,6 +12,7 @@ import {
   type GamepadAction,
   type GamepadBinding,
   type GamepadChannel,
+  type ChannelOrder,
   type GamepadKind,
 } from '@shared/types';
 import {
@@ -31,9 +32,15 @@ import {
   setBindHandlers,
 } from '../input/gamepad';
 import { useSettingsStore } from '../state/settingsStore';
+import { Badge, Button, Icon, Keycap, SegmentedControl, Slider, type ChoiceOption } from '../ds';
 
 const CHANNELS = Object.keys(GAMEPAD_CHANNEL_LABELS) as GamepadChannel[];
 const ACTIONS = Object.keys(GAMEPAD_ACTION_LABELS) as GamepadAction[];
+const ON_OFF: ChoiceOption<'on' | 'off'>[] = [
+  { value: 'on', label: 'On' },
+  { value: 'off', label: 'Off' },
+];
+const ORDERS: ChoiceOption<ChannelOrder>[] = CHANNEL_ORDERS.map((o) => ({ value: o, label: o }));
 
 function bindLabel(b: GamepadBinding | undefined): string {
   if (!b) return '-';
@@ -137,14 +144,15 @@ export function GamepadSetup() {
           // try and having to guess.
           if (sweep) {
             const p = progress[ch];
+            // Words, not ✓ / ·: this is plain text, and Geist has no ✓.
             sweep.textContent = p.done
-              ? 'ok'
+              ? 'Done'
               : cfg.axes[ch].unipolar
-                ? 'full travel'
-                : `${p.below >= CAL_MIN_SPAN ? '✓' : '·'} both ends ${
-                    p.above >= CAL_MIN_SPAN ? '✓' : '·'
+                ? 'Full travel'
+                : `Low ${p.below >= CAL_MIN_SPAN ? 'done' : 'to go'} · high ${
+                    p.above >= CAL_MIN_SPAN ? 'done' : 'to go'
                   }`;
-            sweep.classList.toggle('ok', p.done);
+            sweep.classList.toggle('is-done', p.done);
           }
         }
         const raw = readChannel(ch, cfg, gamepadLive.axes);
@@ -166,7 +174,7 @@ export function GamepadSetup() {
       if (row) {
         for (let i = 0; i < row.children.length; i++) {
           (row.children[i] as HTMLElement).classList.toggle(
-            'pressed',
+            'is-pressed',
             gamepadLive.buttons[i] === true,
           );
         }
@@ -183,29 +191,23 @@ export function GamepadSetup() {
     };
   }, []);
 
-  return (
-    <div className="gp-setup">
-      <div className="setting-row">
-        <label>Gamepad input</label>
-        <div className="segmented">
-          <button
-            className={gamepad.enabled ? 'active' : ''}
-            onClick={() => setGamepad({ enabled: true })}
-          >
-            on
-          </button>
-          <button
-            className={!gamepad.enabled ? 'active' : ''}
-            onClick={() => setGamepad({ enabled: false })}
-          >
-            off
-          </button>
-        </div>
-      </div>
+  const listening = (on: boolean) => (on ? 'is-listening' : undefined);
+  const calibratedCount = CHANNELS.filter((ch) => gamepad.axes[ch].cal).length;
 
-      <div className={`gp-device ${connected ? 'ok' : ''}`}>
-        <span className="gp-dot" />
-        <div className="gp-device-text">
+  return (
+    <div className="gp">
+      <SegmentedControl
+        label="Gamepad input"
+        options={ON_OFF}
+        value={gamepad.enabled ? 'on' : 'off'}
+        onChange={(v) => setGamepad({ enabled: v === 'on' })}
+      />
+
+      <div className="gp__device">
+        <Badge tone={connected ? 'armed' : 'neutral'} icon={connected ? 'dot' : 'ring'}>
+          {connected ? 'Connected' : 'Searching'}
+        </Badge>
+        <div className="gp__device-text">
           <b>{connected ? deviceName || 'Gamepad' : 'Searching for a controller…'}</b>
           <small>
             {connected
@@ -214,139 +216,147 @@ export function GamepadSetup() {
           </small>
         </div>
         {connected && (
-          <button
-            className="btn-sm ghost"
+          <Button
+            variant="ghost"
             title="Re-apply the detected layout for this device"
             onClick={() =>
               setGamepad({ axes: axesForKind(kind), bindings: { ...DEFAULT_BINDINGS } })
             }
           >
             Re-detect
-          </button>
+          </Button>
         )}
       </div>
 
       {others.length > 1 && (
-        <div className="gp-picker">
-          <span className="gp-name">Device</span>
-          {others.map((d) => (
-            <button
-              key={d.index}
-              className={`btn-sm ${d.index === gamepadLive.index ? 'listening' : ''}`}
-              onClick={() => selectGamepad(d.index)}
-            >
-              {d.id.slice(0, 26) || `Pad ${d.index}`}
-            </button>
-          ))}
+        <div className="gp__row gp__picker">
+          <span className="gp__name">Device</span>
+          {others.map((d) => {
+            const on = d.index === gamepadLive.index;
+            return (
+              <Button
+                key={d.index}
+                aria-pressed={on}
+                icon={on ? 'check' : undefined}
+                onClick={() => selectGamepad(d.index)}
+              >
+                {d.id.slice(0, 26) || `Pad ${d.index}`}
+              </Button>
+            );
+          })}
         </div>
       )}
 
-      <p className="section-lede">
+      <p className="settings__note">
         Controllers are detected automatically over USB or Bluetooth. Game pads and RC transmitters
         use different stick axes, so the right layout is applied on first connect and remembered per
         device. Keyboard and gamepad stay live together; whichever you touch last takes over.
       </p>
 
-      <h3 className="settings-h3">Stick channels</h3>
-      {CHANNELS.map((ch) => (
-        <div className="gp-axis-row" key={ch}>
-          <span className="gp-name">{GAMEPAD_CHANNEL_LABELS[ch]}</span>
-          <div className="gp-bar">
-            <div className="gp-center" />
-            <div
-              className="gp-fill"
-              ref={(el) => {
-                fills.current[ch] = el;
-              }}
-            />
-          </div>
-          <span
-            className="gp-val"
-            ref={(el) => {
-              values.current[ch] = el;
-            }}
-          >
-            0.00
-          </span>
-          {calibrating ? (
+      <h3 className="gp__title">Stick channels</h3>
+      <div className="gp__list">
+        {CHANNELS.map((ch) => (
+          <div className="gp__row gp__axis" key={ch}>
+            <span className="gp__name">{GAMEPAD_CHANNEL_LABELS[ch]}</span>
+            <div className="gp__meter" aria-hidden="true">
+              <div className="gp__center" />
+              <div
+                className="gp__fill"
+                ref={(el) => {
+                  fills.current[ch] = el;
+                }}
+              />
+            </div>
             <span
-              className="gp-sweep"
+              className="gp__val"
               ref={(el) => {
-                sweeps.current[ch] = el;
+                values.current[ch] = el;
               }}
             >
-              sweep it
+              0.00
             </span>
-          ) : (
-            <span className="gp-assigned">
-              axis {gamepad.axes[ch].axis}
-              {gamepad.axes[ch].invert ? ' (inv)' : ''}
-              {gamepad.axes[ch].cal ? ' ✓' : ''}
-            </span>
-          )}
-          <button
-            className={`btn-sm ${capture.channel === ch ? 'listening' : ''}`}
-            onClick={() => (capture.channel === ch ? cancelCapture() : beginDetectAxis(ch))}
-            disabled={!connected}
-          >
-            {capture.channel === ch ? 'wiggle…' : 'Detect'}
-          </button>
-          <button
-            className="btn-sm ghost"
-            title="Invert direction"
-            onClick={() =>
-              setGamepad({
-                axes: {
-                  ...gamepad.axes,
-                  [ch]: { ...gamepad.axes[ch], invert: !gamepad.axes[ch].invert },
-                },
-              })
-            }
-          >
-            ⇅
-          </button>
-        </div>
-      ))}
+            {calibrating ? (
+              <span
+                className="gp__sweep"
+                ref={(el) => {
+                  sweeps.current[ch] = el;
+                }}
+              >
+                Sweep it
+              </span>
+            ) : (
+              <span className="gp__assigned">
+                Axis {gamepad.axes[ch].axis}
+                {gamepad.axes[ch].invert ? ' · inverted' : ''}
+                {gamepad.axes[ch].cal && (
+                  <>
+                    {' · '}
+                    <Icon name="check" /> calibrated
+                  </>
+                )}
+              </span>
+            )}
+            <Button
+              className={listening(capture.channel === ch)}
+              onClick={() => (capture.channel === ch ? cancelCapture() : beginDetectAxis(ch))}
+              disabled={!connected}
+            >
+              {capture.channel === ch ? 'Wiggle it…' : 'Detect'}
+            </Button>
+            <Button
+              variant="ghost"
+              aria-pressed={gamepad.axes[ch].invert}
+              icon={gamepad.axes[ch].invert ? 'check' : undefined}
+              title="Invert direction"
+              onClick={() =>
+                setGamepad({
+                  axes: {
+                    ...gamepad.axes,
+                    [ch]: { ...gamepad.axes[ch], invert: !gamepad.axes[ch].invert },
+                  },
+                })
+              }
+            >
+              Invert
+            </Button>
+          </div>
+        ))}
+      </div>
 
       {kind === 'rc' && (
-        <div className="gp-order">
-          <span className="gp-name">Channel order</span>
-          {CHANNEL_ORDERS.map((o) => (
-            <button
-              key={o}
-              className={`btn-sm ${orderFromAxes(gamepad.axes) === o ? 'listening' : ''}`}
-              title={`Aileron/Elevator/Throttle/Rudder in ${o} order`}
-              onClick={() => setGamepad({ axes: axesForOrder(o) })}
-            >
-              {o}
-            </button>
-          ))}
-          <small className="gp-hint">
-            EdgeTX and OpenTX default to AETR. Move each stick and watch the meters above to
-            confirm.
+        <div className="gp__order">
+          <SegmentedControl
+            label="Channel order"
+            options={ORDERS}
+            value={(orderFromAxes(gamepad.axes) ?? '') as ChannelOrder}
+            onChange={(o) => setGamepad({ axes: axesForOrder(o) })}
+          />
+          <small className="settings__note">
+            Aileron, elevator, throttle and rudder, in that order of axes. EdgeTX and OpenTX default
+            to AETR. Move each stick and watch the meters above to confirm.
           </small>
         </div>
       )}
 
-      <h3 className="settings-h3">Stick calibration</h3>
-      <p className="section-lede">
+      <h3 className="gp__title">Stick calibration</h3>
+      <p className="settings__note">
         The Gamepad API is supposed to report -1 to +1, but most radios in USB-joystick mode swing
         less than that, and subtrim leaves the rest position off zero. Until the real endpoints are
         measured, a fully deflected stick lands short of full output. Calibrate once per controller
         and the whole range is available.
       </p>
       {calibrating ? (
-        <div className="gp-calibrate active">
-          <p className="section-note">
+        <div className="gp__calibrate is-active">
+          <p className="settings__note">
             Push <b>every stick to both ends</b> of each axis: left <i>and</i> right, up <i>and</i>{' '}
             down, then let them go. Each direction is measured separately, so a stick moved only one
-            way cannot be calibrated; the markers above turn to <b>ok</b> once a channel has seen
+            way cannot be calibrated; the markers above read <b>Done</b> once a channel has seen
             both. A radio&apos;s throttle is one travel instead: run it from the very bottom to the
             very top. Sticks are ignored by the aircraft until you save.
           </p>
-          <div className="gp-cal-actions">
-            <button
-              className="btn-sm"
+          <div className="settings__actions">
+            <Button
+              variant="primary"
               onClick={() => {
                 const measured = finishCalibration(gamepad);
                 const axes = { ...gamepad.axes };
@@ -360,29 +370,28 @@ export function GamepadSetup() {
               }}
             >
               Save calibration
-            </button>
-            <button
-              className="btn-sm ghost"
+            </Button>
+            <Button
+              variant="ghost"
               onClick={() => {
                 cancelCalibration();
                 setSaved(null);
               }}
             >
               Cancel
-            </button>
+            </Button>
           </div>
         </div>
       ) : (
-        <div className="gp-calibrate">
-          <span className="gp-name">
-            {CHANNELS.every((ch) => gamepad.axes[ch].cal)
+        <div className="gp__row gp__calibrate">
+          <span className="gp__name">
+            {calibratedCount === CHANNELS.length
               ? 'All four channels calibrated'
-              : CHANNELS.some((ch) => gamepad.axes[ch].cal)
-                ? 'Partly calibrated'
+              : calibratedCount > 0
+                ? `Partly calibrated · ${calibratedCount} of ${CHANNELS.length}`
                 : 'Not calibrated, using the assumed ±1 range'}
           </span>
-          <button
-            className="btn-sm"
+          <Button
             disabled={!connected}
             onClick={() => {
               setSaved(null);
@@ -390,10 +399,10 @@ export function GamepadSetup() {
             }}
           >
             Calibrate
-          </button>
-          <button
-            className="btn-sm ghost"
-            disabled={!CHANNELS.some((ch) => gamepad.axes[ch].cal)}
+          </Button>
+          <Button
+            variant="ghost"
+            disabled={calibratedCount === 0}
             onClick={() => {
               const axes = { ...gamepad.axes };
               for (const ch of CHANNELS) {
@@ -405,24 +414,27 @@ export function GamepadSetup() {
             }}
           >
             Clear
-          </button>
+          </Button>
         </div>
       )}
       {!calibrating && saved && (
-        <p className="section-note">
-          {saved.length === 0
-            ? 'Calibrated. All four channels now reach their full range.'
-            : `Saved, but ${saved.join(', ')} ${
-                saved.length === 1 ? 'was' : 'were'
-              } not swept to both ends and stayed uncalibrated. Run it again and move ${
-                saved.length === 1 ? 'that stick' : 'those sticks'
-              } fully in both directions.`}
+        <p className={saved.length === 0 ? 'gp__saved' : 'gp__saved is-partial'} role="status">
+          <Icon name={saved.length === 0 ? 'check' : 'warning'} />
+          <span>
+            {saved.length === 0
+              ? 'Calibrated. All four channels now reach their full range.'
+              : `Saved, but ${saved.join(', ')} ${
+                  saved.length === 1 ? 'was' : 'were'
+                } not swept to both ends and stayed uncalibrated. Run it again and move ${
+                  saved.length === 1 ? 'that stick' : 'those sticks'
+                } fully in both directions.`}
+          </span>
         </p>
       )}
 
-      <h3 className="settings-h3">Buttons</h3>
+      <h3 className="gp__title">Buttons</h3>
       {kind === 'rc' && counts.buttons > 0 && (
-        <p className="section-note">
+        <p className="settings__note">
           This radio enumerates {counts.buttons} buttons, but they stay dark until you map switches
           to them on the radio itself (EdgeTX: Model → USB Joystick, set a channel's mode to
           Button). You do not have to: hit <b>Bind</b> below and flick a switch, and it will be
@@ -430,39 +442,39 @@ export function GamepadSetup() {
         </p>
       )}
       {counts.buttons === 0 ? (
-        <p className="section-note">
+        <p className="settings__note">
           This device reports no buttons. Its switches and pots come through as extra <b>axes</b>{' '}
           instead. Use Bind below and flick a switch.
         </p>
       ) : (
-        <div className="gp-buttons" ref={buttonRow}>
+        <div className="gp__buttons" ref={buttonRow} aria-label="Buttons, lit while pressed">
           {Array.from({ length: counts.buttons }, (_, i) => (
-            <span className="gp-btn" key={i}>
+            <Keycap key={i} pad="face">
               {i}
-            </span>
+            </Keycap>
           ))}
         </div>
       )}
 
-      <h3 className="settings-h3">Actions</h3>
-      <p className="section-lede">
+      <h3 className="gp__title">Actions</h3>
+      <p className="settings__note">
         Bind to a button, or flick a switch. Transmitters expose their 2- and 3-position switches as
         axes, so those bind too.
       </p>
-      <div className="gp-bind-list">
+      <div className="gp__list">
         {ACTIONS.map((a) => (
-          <div className="gp-bind-row" key={a}>
-            <span className="gp-name">{GAMEPAD_ACTION_LABELS[a]}</span>
-            <span className="gp-binding">{bindLabel(gamepad.bindings[a])}</span>
-            <button
-              className={`btn-sm ${capture.action === a ? 'listening' : ''}`}
+          <div className="gp__row gp__bind" key={a}>
+            <span className="gp__name">{GAMEPAD_ACTION_LABELS[a]}</span>
+            <span className="gp__binding">{bindLabel(gamepad.bindings[a])}</span>
+            <Button
+              className={listening(capture.action === a)}
               onClick={() => (capture.action === a ? cancelCapture() : beginBindAction(a))}
               disabled={!connected}
             >
-              {capture.action === a ? 'press / flick…' : 'Bind'}
-            </button>
-            <button
-              className="btn-sm ghost"
+              {capture.action === a ? 'Press or flick…' : 'Bind'}
+            </Button>
+            <Button
+              variant="ghost"
               onClick={() => {
                 const next = { ...gamepad.bindings };
                 delete next[a];
@@ -470,61 +482,54 @@ export function GamepadSetup() {
               }}
             >
               Clear
-            </button>
+            </Button>
           </div>
         ))}
       </div>
 
-      <h3 className="settings-h3">Feel</h3>
-      <div className="setting-row">
-        <label>Deadzone</label>
-        <input
-          type="range"
+      <h3 className="gp__title">Feel</h3>
+      <div className="gp__feel">
+        <Slider
+          label="Deadzone"
           min={0}
           max={0.4}
           step={0.01}
           value={gamepad.deadzone}
-          onChange={(e) => setGamepad({ deadzone: Number(e.target.value) })}
+          onChange={(v) => setGamepad({ deadzone: v })}
+          format={(v) => `${Math.round(v * 100)} %`}
         />
-        <span className="setting-value">{Math.round(gamepad.deadzone * 100)}%</span>
-      </div>
-      <div className="setting-row">
-        <label>Expo</label>
-        <input
-          type="range"
+        <Slider
+          label="Expo"
           min={0}
           max={1}
           step={0.05}
           value={gamepad.expo}
-          onChange={(e) => setGamepad({ expo: Number(e.target.value) })}
+          onChange={(v) => setGamepad({ expo: v })}
+          format={(v) => (v === 0 ? 'Linear' : `${Math.round(v * 100)} %`)}
         />
-        <span className="setting-value">
-          {gamepad.expo === 0 ? 'linear' : `${Math.round(gamepad.expo * 100)}%`}
-        </span>
-      </div>
-      <div className="setting-row">
-        <label>Sensitivity</label>
-        <input
-          type="range"
+        <Slider
+          label="Sensitivity"
           min={0.2}
           max={1.5}
           step={0.05}
           value={gamepad.sensitivity}
-          onChange={(e) => setGamepad({ sensitivity: Number(e.target.value) })}
+          onChange={(v) => setGamepad({ sensitivity: v })}
+          format={(v) => `${v.toFixed(2)}×`}
         />
-        <span className="setting-value">{gamepad.sensitivity.toFixed(2)}×</span>
       </div>
-      <p className="section-note">
+      <p className="settings__note">
         Deadzone and sensitivity shape the middle of the travel only. Full deflection always
         commands full output, whatever these are set to.
       </p>
 
-      <button
-        className="btn-sm ghost gp-reset"
-        onClick={() => setGamepad({ axes: axesForKind(kind), bindings: { ...DEFAULT_BINDINGS } })}
-      >
-        Reset mapping to defaults
-      </button>
+      <div className="settings__actions">
+        <Button
+          variant="ghost"
+          onClick={() => setGamepad({ axes: axesForKind(kind), bindings: { ...DEFAULT_BINDINGS } })}
+        >
+          Reset mapping to defaults
+        </Button>
+      </div>
     </div>
   );
 }

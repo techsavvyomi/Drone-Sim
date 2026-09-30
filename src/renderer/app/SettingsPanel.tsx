@@ -1,200 +1,243 @@
-import { useState } from 'react';
-import {
-  HUD_WIDGET_LABELS,
-  type GraphicsPreset,
-  type HudWidgets,
-  type PhysicsPreset,
-} from '@shared/types';
+import { useEffect, useState, type ReactNode } from 'react';
+import { HUD_WIDGETS, type GraphicsPreset, type PhysicsPreset } from '@shared/types';
 import { useSettingsStore } from '../state/settingsStore';
-import { useUiStore } from '../state/uiStore';
-import { AboutSection } from './AboutSection';
+import { useShellStore } from '../state/shellStore';
+import { Button, Checkbox, Keycap, SegmentedControl, Slider, Tabs, type ChoiceOption } from '../ds';
+import { isTextField } from '../input/menuNav';
+import { captureState, isCalibrating } from '../input/gamepad';
 import { GamepadSetup } from './GamepadSetup';
-import { KEY_GROUPS } from '../hud/cockpitFacts';
+import { KEY_GROUPS, hudCount } from '../hud/cockpitFacts';
 
-const GRAPHICS: GraphicsPreset[] = ['low', 'medium', 'high'];
-const PHYSICS: PhysicsPreset[] = ['beginner', 'intermediate', 'advanced'];
+// Settings, in the shell like the Hangar and Profile. No PDF draws this page;
+// it is built from the Phase 0 parts in the classroom register. Four tabs —
+// ← → on the tab row, Q / E (LB / RB on a pad) step them from anywhere on the
+// page. About is its own sidebar page, not a tab here.
 
-const CATEGORIES = [
-  { id: 'video', label: 'Video', icon: '🖥' },
-  { id: 'audio', label: 'Audio', icon: '🔊' },
-  { id: 'controls', label: 'Controls', icon: '🎮' },
-  { id: 'interface', label: 'Interface', icon: '📊' },
-  { id: 'about', label: 'About', icon: 'ℹ' },
-] as const;
+export const SETTINGS_TABS = [
+  { value: 'video', label: 'Video' },
+  { value: 'audio', label: 'Audio' },
+  { value: 'controls', label: 'Controls' },
+  { value: 'interface', label: 'Interface' },
+] as const satisfies readonly ChoiceOption<string>[];
 
-type Category = (typeof CATEGORIES)[number]['id'];
+type Tab = (typeof SETTINGS_TABS)[number]['value'];
 
-/** Mode-2 layout, matching the keyboard bindings in `input/controls.ts` — the
- *  cockpit's own list (HUD panel), flattened, so there is one list to keep. */
-const KEYS: [string, string][] = KEY_GROUPS.flatMap((g) => g.rows.map(([k, d]) => [k, d] as [string, string]));
+const GRAPHICS: ChoiceOption<GraphicsPreset>[] = [
+  { value: 'low', label: 'Low' },
+  { value: 'medium', label: 'Medium' },
+  { value: 'high', label: 'High' },
+];
+
+const GRAPHICS_NOTE: Record<GraphicsPreset, string> = {
+  low: 'No post-processing. Best for integrated graphics.',
+  medium: 'Bloom and vignette.',
+  high: 'Bloom, vignette, SMAA anti-aliasing and sharper shadows.',
+};
+
+const PHYSICS: ChoiceOption<PhysicsPreset>[] = [
+  { value: 'beginner', label: 'Beginner' },
+  { value: 'intermediate', label: 'Intermediate' },
+  { value: 'advanced', label: 'Advanced' },
+];
+
+/** "Medium · 1.00×" — the chase camera's distance, in words and as a factor. */
+export function zoomText(zoom: number): string {
+  const word = zoom <= 0.85 ? 'Close' : zoom <= 1.4 ? 'Medium' : zoom <= 2 ? 'Far' : 'Very far';
+  return `${word} · ${zoom.toFixed(2)}×`;
+}
+
+const percent = (v: number) => `${Math.round(v * 100)} %`;
 
 export function SettingsPanel() {
-  const { settings, set, setHud } = useSettingsStore();
-  const [category, setCategory] = useState<Category>('video');
+  const [tab, setTab] = useState<Tab>('video');
+  const setContext = useShellStore((s) => s.setContext);
+  const label = SETTINGS_TABS.find((t) => t.value === tab)!.label;
+
+  useEffect(() => {
+    setContext(`Settings · ${label}`);
+    return () => setContext('');
+  }, [label, setContext]);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.ctrlKey || e.metaKey || e.altKey || isTextField(document.activeElement)) return;
+      // A bind or a calibration listens to the pad; switching tabs would end it.
+      if (isCalibrating() || captureState().action || captureState().channel) return;
+      const step = e.code === 'KeyQ' ? -1 : e.code === 'KeyE' ? 1 : 0;
+      if (!step) return;
+      e.preventDefault();
+      setTab((t) => {
+        const at = SETTINGS_TABS.findIndex((o) => o.value === t);
+        const n = SETTINGS_TABS.length;
+        return SETTINGS_TABS[(at + step + n) % n].value;
+      });
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
 
   return (
-    <div className="section-body settings-shell">
-      <button className="back-btn" onClick={() => useUiStore.getState().goBack()}>
-        ‹ Back
-      </button>
-      <h1 className="section-title">Settings</h1>
-
-      <div className="settings-tabs">
-        {CATEGORIES.map((c) => (
-          <button
-            key={c.id}
-            className={`settings-tab ${category === c.id ? 'active' : ''}`}
-            onClick={() => setCategory(c.id)}
-          >
-            <span className="settings-tab-icon">{c.icon}</span>
-            {c.label}
-          </button>
-        ))}
-      </div>
-
-      <div className="settings-pane">
-        {category === 'video' && (
-          <>
-            <div className="setting-row">
-              <label>Graphics quality</label>
-              <div className="segmented">
-                {GRAPHICS.map((g) => (
-                  <button
-                    key={g}
-                    className={settings.graphics === g ? 'active' : ''}
-                    onClick={() => set('graphics', g)}
-                  >
-                    {g}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <p className="section-lede">
-              Low: no post-processing (best for integrated GPUs). Medium: Bloom + Vignette. High: +
-              SMAA anti-aliasing and sharper shadows.
-            </p>
-            <label className="hud-toggle">
-              <input
-                type="checkbox"
-                checked={settings.autoGraphics}
-                onChange={(e) => set('autoGraphics', e.target.checked)}
-              />
-              Lower the graphics quality automatically when the frame rate drops
-            </label>
-
-            <div className="setting-row">
-              <label>Camera zoom</label>
-              <input
-                type="range"
-                min={0.5}
-                max={2.5}
-                step={0.05}
-                value={settings.cameraZoom}
-                onChange={(e) => set('cameraZoom', Number(e.target.value))}
-              />
-              <span className="setting-value">
-                {settings.cameraZoom <= 0.85
-                  ? 'Close'
-                  : settings.cameraZoom <= 1.4
-                    ? 'Medium'
-                    : settings.cameraZoom <= 2
-                      ? 'Far'
-                      : 'Very far'}{' '}
-                ({settings.cameraZoom.toFixed(2)}×)
-              </span>
-            </div>
-          </>
-        )}
-
-        {category === 'audio' && (
-          <>
-            <div className="setting-row">
-              <label>Master volume</label>
-              <input
-                type="range"
-                min={0}
-                max={1}
-                step={0.05}
-                value={settings.volume}
-                onChange={(e) => set('volume', Number(e.target.value))}
-              />
-              <span className="setting-value">{Math.round(settings.volume * 100)}%</span>
-            </div>
-            <div className="setting-row">
-              <label>Motor volume</label>
-              <input
-                type="range"
-                min={0}
-                max={1}
-                step={0.05}
-                value={settings.engineVolume}
-                onChange={(e) => set('engineVolume', Number(e.target.value))}
-              />
-              <span className="setting-value">{Math.round(settings.engineVolume * 100)}%</span>
-            </div>
-            <p className="section-note">
-              The rotor sound is synthesised from the selected drone's own motor and battery spec,
-              so each airframe has its own pitch: the Pluto whines, the Guru growls. Motor volume is
-              separate because it is the one sound that never stops.
-            </p>
-          </>
-        )}
-
-        {category === 'controls' && (
-          <>
-            <div className="setting-row">
-              <label>Physics difficulty</label>
-              <div className="segmented">
-                {PHYSICS.map((p) => (
-                  <button
-                    key={p}
-                    className={settings.physics === p ? 'active' : ''}
-                    onClick={() => set('physics', p)}
-                  >
-                    {p}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <h3 className="settings-h3">Keyboard</h3>
-            <div className="key-grid">
-              {KEYS.map(([k, d]) => (
-                <div className="key-row" key={k}>
-                  <kbd>{k}</kbd>
-                  <span>{d}</span>
-                </div>
-              ))}
-            </div>
-
-            <h3 className="settings-h3">Gamepad / transmitter</h3>
-            <GamepadSetup />
-          </>
-        )}
-
-        {category === 'interface' && (
-          <>
-            <h3 className="settings-h3">HUD widgets</h3>
-            <p className="section-lede">
-              Choose what appears in the flight view. Turn things off to declutter the screen.
-            </p>
-            <div className="hud-toggle-grid">
-              {(Object.keys(HUD_WIDGET_LABELS) as (keyof HudWidgets)[]).map((key) => (
-                <label className="hud-toggle" key={key}>
-                  <input
-                    type="checkbox"
-                    checked={settings.hud[key]}
-                    onChange={(e) => setHud(key, e.target.checked)}
-                  />
-                  <span>{HUD_WIDGET_LABELS[key]}</span>
-                </label>
-              ))}
-            </div>
-          </>
-        )}
-
-        {category === 'about' && <AboutSection />}
+    <div className="settings" data-register="classroom">
+      <header className="settings__head">
+        <h1 className="ds-h3">Settings</h1>
+        <p className="ds-caption">Saved as you change them · Q E or LB RB to change tab</p>
+      </header>
+      <Tabs label="Settings" options={SETTINGS_TABS} value={tab} onChange={setTab} />
+      <div className="settings__pane" role="tabpanel" aria-label={label}>
+        {tab === 'video' && <VideoTab />}
+        {tab === 'audio' && <AudioTab />}
+        {tab === 'controls' && <ControlsTab />}
+        {tab === 'interface' && <InterfaceTab />}
       </div>
     </div>
+  );
+}
+
+/** One titled group of rows on a settings tab. */
+function Section({
+  title,
+  meta,
+  children,
+}: {
+  title: string;
+  meta?: string;
+  children: ReactNode;
+}) {
+  return (
+    <section className="settings__card" aria-label={title}>
+      <header className="settings__card-head">
+        <h2 className="settings__card-title">{title}</h2>
+        {meta && <span className="settings__card-meta">{meta}</span>}
+      </header>
+      {children}
+    </section>
+  );
+}
+
+function VideoTab() {
+  const { settings, set } = useSettingsStore();
+  return (
+    <>
+      <Section title="Graphics quality">
+        <SegmentedControl
+          label="Graphics quality"
+          options={GRAPHICS}
+          value={settings.graphics}
+          onChange={(g) => set('graphics', g)}
+        />
+        <p className="settings__note">{GRAPHICS_NOTE[settings.graphics]}</p>
+        <Checkbox
+          checked={settings.autoGraphics}
+          onChange={(v) => set('autoGraphics', v)}
+          hint="Steps down one level at a time; it never raises the quality on its own."
+        >
+          Lower the quality automatically when the frame rate drops
+        </Checkbox>
+      </Section>
+      <Section title="Camera">
+        <Slider
+          label="Chase camera distance"
+          min={0.5}
+          max={2.5}
+          step={0.05}
+          value={settings.cameraZoom}
+          onChange={(v) => set('cameraZoom', v)}
+          format={zoomText}
+          minLabel="Close"
+          maxLabel="Very far"
+        />
+      </Section>
+    </>
+  );
+}
+
+function AudioTab() {
+  const { settings, set } = useSettingsStore();
+  return (
+    <Section title="Volume">
+      <Slider
+        label="Master volume"
+        min={0}
+        max={1}
+        step={0.05}
+        value={settings.volume}
+        onChange={(v) => set('volume', v)}
+        format={percent}
+      />
+      <Slider
+        label="Motor volume"
+        min={0}
+        max={1}
+        step={0.05}
+        value={settings.engineVolume}
+        onChange={(v) => set('engineVolume', v)}
+        format={percent}
+      />
+      <p className="settings__note">
+        The rotor sound is synthesised from the selected drone&apos;s own motor and battery spec,
+        so each airframe has its own pitch: the Pluto whines, the Guru growls. Motor volume is
+        separate because it is the one sound that never stops.
+      </p>
+    </Section>
+  );
+}
+
+function ControlsTab() {
+  const { settings, set } = useSettingsStore();
+  return (
+    <>
+      <Section title="Physics difficulty">
+        <SegmentedControl
+          label="Physics difficulty"
+          options={PHYSICS}
+          value={settings.physics}
+          onChange={(p) => set('physics', p)}
+        />
+      </Section>
+      <Section title="Keyboard" meta="Mode 2 · the same list as the HUD panel (H)">
+        <div className="settings__keys">
+          {KEY_GROUPS.map((g) => (
+            <div key={g.title} className="settings__keygroup">
+              <h3 className="ds-label">{g.title}</h3>
+              <ul>
+                {g.rows.map(([k, what]) => (
+                  <li key={k} className="settings__key">
+                    <Keycap>{k}</Keycap>
+                    <span>{what}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
+      </Section>
+      <Section title="Gamepad or transmitter">
+        <GamepadSetup />
+      </Section>
+    </>
+  );
+}
+
+function InterfaceTab() {
+  const hud = useSettingsStore((s) => s.settings.hud);
+  const setHud = useSettingsStore((s) => s.setHud);
+  const resetHud = useSettingsStore((s) => s.resetHud);
+  const { on, total } = hudCount(hud);
+  return (
+    <Section title="HUD widgets" meta={`${on} of ${total} on`}>
+      <p className="settings__note">
+        What the flight view shows. The same switches are in the HUD panel (H) during a flight.
+      </p>
+      <div className="settings__widgets">
+        {HUD_WIDGETS.map((w) => (
+          <Checkbox key={w.key} checked={hud[w.key]} onChange={(v) => setHud(w.key, v)} hint={w.where}>
+            {w.label}
+          </Checkbox>
+        ))}
+      </div>
+      <div className="settings__actions">
+        <Button onClick={resetHud}>Reset to default</Button>
+      </div>
+    </Section>
   );
 }

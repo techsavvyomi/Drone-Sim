@@ -1,0 +1,359 @@
+/* ==========================================================================
+   Settings and About — shell pages in the classroom register.
+   No PDF draws either page (SPEC.md, "Settings and About"); they are built
+   from the Phase 0 parts: tabs, segmented controls, sliders with the value
+   printed, checkboxes with ✓, keycaps, the panel wash. Values from tokens.css.
+   ========================================================================== */
+
+.settings {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  height: 100%;
+  padding: var(--shell-pad);
+  overflow-y: auto;
+  font-family: var(--font-sans);
+  font-feature-settings: var(--font-numeric);
+  color: var(--txt-hi);
+}
+
+.settings__head h1 {
+  margin: 0 0 var(--space-1);
+}
+.settings__head p {
+  margin: 0;
+  color: var(--txt-mid);
+}
+
+.settings > .ds-tabs {
+  flex: none;
+}
+
+.settings__pane {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  max-width: 920px;
+}
+
+/* One titled group: the panel wash, like Profile's cards. */
+.settings__card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-4);
+  padding: var(--space-5) var(--space-6);
+  background: var(--wash);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+}
+.settings__card > * {
+  max-width: 100%;
+}
+
+.settings__card-head {
+  display: flex;
+  align-self: stretch;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--space-4);
+}
+.settings__card-title {
+  margin: 0;
+  font: var(--type-title);
+}
+.settings__card-meta {
+  font: var(--type-caption);
+  color: var(--txt-mid);
+}
+
+.settings__note {
+  margin: 0;
+  max-width: 72ch;
+  font: var(--type-body-sm);
+  color: var(--txt-mid);
+}
+.settings__note b {
+  color: var(--txt-hi);
+  font-weight: 600;
+}
+
+.settings__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.settings__card .ds-slider {
+  align-self: stretch;
+  max-width: 480px;
+}
+.settings__card .ds-check__hint {
+  font: var(--type-caption);
+  color: var(--txt-mid);
+}
+
+/* ---- Controls: the key list (KEY_GROUPS) ---- */
+
+.settings__keys {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--space-5);
+  align-self: stretch;
+}
+.settings__keygroup h3 {
+  margin: 0 0 var(--space-2);
+  color: var(--txt-mid);
+}
+.settings__keygroup ul {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.settings__key {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  font: var(--type-body-sm);
+}
+.settings__key .ds-key {
+  min-width: 64px;
+}
+
+/* ---- Interface: HUD widgets ---- */
+
+.settings__widgets {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: var(--space-2) var(--space-5);
+  align-self: stretch;
+}
+
+/* ---- Gamepad setup (inside Controls) ---- */
+
+.gp {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-4);
+  align-self: stretch;
+}
+
+.gp__title {
+  margin: var(--space-2) 0 0;
+  font: var(--type-link);
+  color: var(--txt-hi);
+}
+
+.gp__device {
+  display: flex;
+  align-items: center;
+  align-self: stretch;
+  gap: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  background: var(--ink-900);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-small);
+}
+.gp__device-text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.gp__device-text b {
+  font: var(--type-link);
+  overflow-wrap: anywhere;
+}
+.gp__device-text small {
+  font: var(--type-caption);
+  color: var(--txt-mid);
+}
+
+.gp__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  align-self: stretch;
+}
+
+.gp__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.gp__axis {
+  display: grid;
+  grid-template-columns: 110px minmax(100px, 1fr) 52px minmax(150px, auto) auto auto;
+}
+.gp__bind {
+  display: grid;
+  grid-template-columns: minmax(140px, 1fr) minmax(140px, 1fr) auto auto;
+}
+
+.gp__name {
+  font: var(--type-body);
+}
+
+.gp__meter {
+  position: relative;
+  height: 8px;
+  overflow: hidden;
+  background: var(--ink-700);
+  border-radius: 999px;
+}
+.gp__center {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--txt-low);
+}
+.gp__fill {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 0;
+  background: var(--txt-hi);
+}
+
+.gp__val {
+  font: var(--type-body-sm);
+  text-align: right;
+}
+
+.gp__assigned,
+.gp__binding {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font: var(--type-body-sm);
+  color: var(--txt-mid);
+}
+.gp__assigned .ds-icon {
+  color: var(--armed);
+}
+
+.gp__sweep {
+  font: var(--type-body-sm);
+  color: var(--caution);
+}
+.gp__sweep.is-done {
+  color: var(--armed);
+}
+
+.gp__calibrate.is-active {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  align-self: stretch;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  background: var(--ink-900);
+  border: 1px solid var(--caution);
+  border-radius: var(--radius-small);
+}
+
+.gp__saved {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin: 0;
+  font: var(--type-body-sm);
+  color: var(--armed);
+}
+.gp__saved.is-partial {
+  color: var(--caution);
+}
+
+.gp__buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.gp__order {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.gp__feel {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--space-5);
+  align-self: stretch;
+}
+.gp__feel .ds-slider {
+  max-width: none;
+}
+
+/* Needs a controller: reads as locked (dashed, txt-mid), like the Phase 0 state. */
+.gp .ds-btn:disabled {
+  background: transparent;
+  color: var(--txt-mid);
+  border: 1px dashed var(--line);
+  cursor: not-allowed;
+}
+
+/* Waiting for the pilot to press, flick or wiggle something. */
+.gp .ds-btn.is-listening {
+  border-color: var(--caution);
+  color: var(--caution);
+  animation: gp-listen 1s ease-in-out infinite;
+}
+@keyframes gp-listen {
+  50% {
+    opacity: 0.6;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .gp .ds-btn.is-listening {
+    animation: none;
+  }
+}
+
+/* A toggle that is on: fill + weight + ✓, as a selected segment. */
+.gp .ds-btn[aria-pressed='true'] {
+  background: var(--ink-700);
+  color: var(--txt-hi);
+}
+
+/* ---- About ---- */
+
+.about__panel {
+  max-width: 720px;
+}
+
+.about__rows {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+}
+.about__row {
+  display: grid;
+  grid-template-columns: 180px minmax(0, 1fr);
+  gap: var(--space-4);
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--line);
+  font: var(--type-body-sm);
+}
+.about__row:last-child {
+  border-bottom: 0;
+}
+.about__row dt {
+  color: var(--txt-mid);
+}
+.about__row dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}

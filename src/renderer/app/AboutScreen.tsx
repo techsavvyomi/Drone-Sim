@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { AppInfo } from '@shared/types';
-import { useUiStore } from '../state/uiStore';
+import { Button, Panel } from '../ds';
 
 // About: the software and the machine it is running on, and a way to report a
 // bug with those details already filled in. Everything is read from the running
@@ -62,23 +62,10 @@ export function aboutRows(info: AppInfo, gpu: string): [string, string][] {
   ];
 }
 
-/** The About page reached from the sidebar. */
+/** The About page (sidebar 8): what build this is, the machine it runs on, and
+ *  a way to report a bug with those details filled in. No PDF draws it; it is
+ *  the Phase 0 panel and buttons in the classroom register. */
 export function AboutScreen() {
-  return (
-    <div className="section-body settings-shell">
-      <button className="back-btn" onClick={() => useUiStore.getState().goBack()}>
-        ‹ Back
-      </button>
-      <h1 className="section-title">About</h1>
-      <div className="settings-pane">
-        <AboutSection />
-      </div>
-    </div>
-  );
-}
-
-/** The About content, shared by the About page and Settings → About. */
-export function AboutSection() {
   const [info, setInfo] = useState<AppInfo | null>(null);
   const [copied, setCopied] = useState(false);
   const gpu = useMemo(graphicsRenderer, []);
@@ -87,21 +74,26 @@ export function AboutSection() {
     void window.api.appInfo().then(setInfo);
   }, []);
 
-  if (!info) return null;
-  const rows = aboutRows(info, gpu);
+  useEffect(() => {
+    if (!copied) return;
+    const t = setTimeout(() => setCopied(false), 2000);
+    return () => clearTimeout(t);
+  }, [copied]);
+
+  const rows = info ? aboutRows(info, gpu) : [];
   const details = rows.map(([label, value]) => `${label}: ${value}`).join('\n');
 
   const copy = async () => {
     try {
       await navigator.clipboard.writeText(details);
       setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
     } catch {
       setCopied(false);
     }
   };
 
   const reportBug = () => {
+    if (!info) return;
     const subject = `PlutoSim bug report (v${info.version}, build ${info.commit})`;
     const body = [
       'What happened:',
@@ -119,27 +111,37 @@ export function AboutSection() {
   };
 
   return (
-    <>
-      <div className="about-card">
-        {rows.map(([label, value]) => (
-          <div className="about-row" key={label}>
-            <span>{label}</span>
-            <b>{value}</b>
+    <div className="settings about" data-register="classroom">
+      <header className="settings__head">
+        <h1 className="ds-h3">About</h1>
+        <p className="ds-caption">PlutoSim · Flight Simulator by Drona Aviation</p>
+      </header>
+      {info && (
+        <>
+          <Panel title="This copy" meta={`v${info.version}`} className="about__panel">
+            <dl className="about__rows">
+              {rows.map(([label, value]) => (
+                <div className="about__row" key={label}>
+                  <dt>{label}</dt>
+                  <dd>{value}</dd>
+                </div>
+              ))}
+            </dl>
+          </Panel>
+          <div className="settings__actions">
+            <Button variant="primary" data-primary onClick={reportBug}>
+              Report a bug
+            </Button>
+            <Button icon={copied ? 'check' : undefined} onClick={() => void copy()}>
+              {copied ? 'Copied' : 'Copy details'}
+            </Button>
           </div>
-        ))}
-      </div>
-      <div className="about-actions">
-        <button className="btn-sm" onClick={reportBug}>
-          Report a bug
-        </button>
-        <button className="btn-sm ghost" onClick={() => void copy()}>
-          {copied ? 'Copied' : 'Copy details'}
-        </button>
-      </div>
-      <p className="about-note">
-        Report a bug opens an email to {SUPPORT_EMAIL} with these details filled in. Crashes are reported
-        automatically.
-      </p>
-    </>
+          <p className="settings__note">
+            Report a bug opens an email to {SUPPORT_EMAIL} with these details filled in. Crashes are
+            reported automatically.
+          </p>
+        </>
+      )}
+    </div>
   );
 }
