@@ -393,9 +393,10 @@
 
 /* ---- Flight views: the shell steps aside ------------------------------
    Full-bleed: no sidebar, no status bar, and the top bar parked above the
-   frame. It slides back when the pointer reaches the top edge; the reveal is
-   pure CSS, and an open chip menu is a child of the bar, so it counts as
-   hovering it and the bar can't slide away from under the mouse. */
+   frame. It comes down only on Free Flight's pause menu (Esc) — never on
+   hover: a pointer drifting to the top edge mid-flight used to pull it over
+   the view. Lessons and missions keep it parked; their HUD has its own way
+   out. */
 
 .app.is-fly {
   grid-template-columns: 0 minmax(0, 1fr) auto;
@@ -409,39 +410,26 @@
   height: var(--shell-top-h);
   background: color-mix(in srgb, var(--ink-950) 94%, transparent);
   transform: translateY(-100%);
-  /* The trailing 1 s is the delay before it leaves, so it can be read. */
-  transition: transform var(--dur) var(--ease) 1s;
+  transition: transform var(--dur) var(--ease);
   will-change: transform;
 }
 
-.app.is-fly .topbar:hover,
-.app.is-fly .topbar-peek:hover ~ .topbar {
+.app.is-fly.fly-paused .topbar {
   transform: translateY(0);
-  transition-delay: 0s;
 }
 
-/* Only armed in flight; elsewhere the bar is permanent. */
-.topbar-peek {
-  display: none;
-}
-
-.app.is-fly .topbar-peek {
-  display: block;
-  position: fixed;
-  inset: 0 0 auto 0;
-  /* Deep, not a hairline: in macOS full screen the very top edge belongs to
-     the system menu bar. Kept under the bar's own height so it never flickers. */
-  height: 56px;
-  z-index: 39;
-}
-
-/* Telemetry dock open, or inside a lesson or mission: stand down. Their own
-   controls sit where the strip would reach. Same specificity as the rule
-   above, so these MUST stay after it. */
-.app.panel-open .topbar-peek,
-.app.in-lesson .topbar-peek,
-.app.in-mission .topbar-peek {
-  display: none;
+/* No pointer over a flight: the drone is flown from the keys or a pad. It
+   comes back whenever there is something to click — paused (card and top
+   bar), a card or dialog up (crash, briefing, result), or a side column (H / T)
+   open. */
+.app.is-fly:not(.fly-paused, .panel-open, .hudpanel-open):not(
+    :has([role='dialog'], [role='alertdialog'])
+  ),
+.app.is-fly:not(.fly-paused, .panel-open, .hudpanel-open):not(
+    :has([role='dialog'], [role='alertdialog'])
+  )
+  * {
+  cursor: none !important;
 }
 
 /* ---- Hangar ------------------------------------------------------------- */

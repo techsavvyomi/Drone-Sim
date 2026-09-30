@@ -174,7 +174,7 @@ function PauseCardBody({ context, onRestart, onSettings, onExit }: PauseCardProp
                   Settings
                 </Button>
               )}
-              <Button onClick={exit}>Exit</Button>
+              <Button onClick={exit}>Exit Menu</Button>
             </div>
           </>
         )}

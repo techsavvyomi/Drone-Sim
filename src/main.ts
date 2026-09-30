@@ -51,6 +51,10 @@ function createWindow(): void {
     },
   });
 
+  // No File · Edit · View · Window bar under the title on Windows and Linux,
+  // not even on Alt. macOS keeps its menu, which lives in the system bar.
+  win.removeMenu();
+
   win.once('ready-to-show', () => win.show());
 
   // A screen smaller than the shell's 1100 × 720 minimum (in CSS px) gets the

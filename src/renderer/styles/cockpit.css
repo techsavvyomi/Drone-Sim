@@ -749,10 +749,6 @@
   grid-template-columns: 300px minmax(0, 1fr) auto;
 }
 
-.app.hudpanel-open .topbar-peek {
-  display: none;
-}
-
 .tdock,
 .hpanel {
   display: flex;

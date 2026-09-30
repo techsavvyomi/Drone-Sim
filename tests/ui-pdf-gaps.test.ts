@@ -476,7 +476,7 @@ describe('gamepad on the flight cards', () => {
     expect(focused()).toBe('Restart');
     tap(UP);
     tap(UP);
-    expect(focused()).toBe('Exit');
+    expect(focused()).toBe('Exit Menu');
     tap(DOWN);
     expect(focused()).toMatch(/^Resume/);
     tap(DOWN);
@@ -529,7 +529,7 @@ describe('gamepad on the flight cards', () => {
     tick(120);
     expect(focused()).toBe('Settings');
     tick(150);
-    expect(focused()).toBe('Exit');
+    expect(focused()).toBe('Exit Menu');
     detach();
   });
 

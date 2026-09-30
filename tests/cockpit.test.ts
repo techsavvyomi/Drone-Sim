@@ -396,7 +396,7 @@ describe('pause card', () => {
     );
     expect(el.textContent).toContain('Free Flight · Classroom · Pluto');
     expect(el.textContent).toContain('3:12 flown.');
-    expect(buttons(el)).toEqual(['Resume Esc', 'Restart', 'Settings', 'Exit']);
+    expect(buttons(el)).toEqual(['Resume Esc', 'Restart', 'Settings', 'Exit Menu']);
     expect(document.activeElement?.textContent).toBe('Resume Esc');
     press(el, 'Exit');
     expect(onExit).toHaveBeenCalledTimes(1);

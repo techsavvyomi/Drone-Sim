@@ -113,6 +113,9 @@ export function App() {
   // whose profile was taken over must still be signed out.
   const armed = useFlightStore((s) => s.armed);
   const midFlight = inBriefedFlight || (section === 'fly' && armed);
+  // Free Flight's parked top bar comes down only on the pause menu (Esc).
+  const paused = useFlightStore((s) => s.paused);
+  const flyPaused = section === 'fly' && paused;
 
   useEffect(() => {
     void hydrate();
@@ -254,17 +257,14 @@ export function App() {
         flightLike ? 'is-fly' : ''
       } ${section === 'fly' && panelOpen ? 'panel-open' : ''} ${
         section === 'fly' && hudPanelOpen ? 'hudpanel-open' : ''
-      } ${inLesson ? 'in-lesson' : ''} ${inMission ? 'in-mission' : ''}`}
+      } ${inLesson ? 'in-lesson' : ''} ${inMission ? 'in-mission' : ''} ${
+        flyPaused ? 'fly-paused' : ''
+      }`}
     >
-      {/* Hover strip along the very top edge. In flight the bar is parked out of
-          frame, and reaching this strip is what brings it back — see the
-          `.topbar-peek` rules. It must stay a sibling *before* `.topbar` for the
-          CSS reveal to match. */}
-      <div className="topbar-peek" aria-hidden="true" />
       <TopBar />
       {/* The sidebar and status bar frame every menu page, Home included. A
-          flight view is full-bleed: its way out is the pause menu (Esc), or the
-          logo in the parked top bar. */}
+          flight view is full-bleed: its way out is the pause menu (Esc), which
+          in Free Flight also brings the parked top bar down. */}
       {!flightLike && <Sidebar />}
       <main className="stage" data-nav-region="content">
         <MainArea />
