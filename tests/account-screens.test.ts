@@ -210,7 +210,7 @@ describe('the Activate / Sign in screen', () => {
     useSettingsStore.setState({ settings: { ...DEFAULT_SETTINGS, lastPilot: null } });
   });
 
-  it('captions the Pluto turntable "Pluto X", other drones by their own name', () => {
+  it('always shows the Pluto X on the turntable, whichever drone the pilot has selected', () => {
     registerDrone(plutoDrone);
     registerDrone(guruDrone);
     useSettingsStore.setState({ settings: { ...DEFAULT_SETTINGS, lastPilot: null, selectedDroneId: 'pluto' } });
@@ -219,7 +219,7 @@ describe('the Activate / Sign in screen', () => {
     act(() => root?.unmount());
     useSettingsStore.setState({ settings: { ...DEFAULT_SETTINGS, lastPilot: null, selectedDroneId: 'pluto-guru' } });
     el = mount(h(SignIn));
-    expect($(el, '.acct__caption').textContent).toBe(guruDrone.name);
+    expect($(el, '.acct__caption').textContent).toBe('Pluto X');
   });
 
   it('starts on Activate with the focus on Name, and the key field shows the fixed prefix', () => {

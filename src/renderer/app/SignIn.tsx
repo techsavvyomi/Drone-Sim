@@ -26,7 +26,7 @@ import logoMark from '../../assets/brand/plutosim-mark.svg';
 // drone on the left with the key-card note and the two keys that matter under
 // it; on the right a card with the title, the Activate / Sign in switch, the
 // fields, a help box and one full-width button. The brief's photo is the Hangar
-// turntable of the pilot's own drone. The key field's rules live in
+// turntable of the Pluto X, whichever drone the pilot flies. The key field's rules live in
 // activationKey.ts. Every error names what to do next and sits where the fix
 // is: a wrong key under the key (focus goes back to it), a problem with the
 // account or the connection as a banner above the button.
@@ -48,10 +48,11 @@ interface Banner {
   text: string;
 }
 
-/** The turntable's caption names the hardware on screen. The game calls its
- *  first drone "Pluto" everywhere else; its model is the Pluto X (the user,
- *  2026-09-29: "Pluto X likh do"). */
-const CAPTION: Record<string, string> = { pluto: 'Pluto X' };
+/** The door always shows the Pluto X, not the pilot's selected drone (the user,
+ *  2026-10-01). The game calls this drone "Pluto" everywhere else; its model is
+ *  the Pluto X (the user, 2026-09-29: "Pluto X likh do"). */
+const DOOR_DRONE_ID = 'pluto';
+const CAPTION = 'Pluto X';
 
 const reducedMotion = () =>
   typeof window !== 'undefined' &&
@@ -64,11 +65,10 @@ export function SignIn() {
   const activate = useAccountStore((s) => s.activate);
   const login = useAccountStore((s) => s.login);
   const lastPilot = useSettingsStore((s) => s.settings.lastPilot);
-  const droneId = useSettingsStore((s) => s.settings.selectedDroneId);
   const drone = useMemo(() => {
     const all = listDrones();
-    return all.find((d) => d.id === droneId) ?? all[0];
-  }, [droneId]);
+    return all.find((d) => d.id === DOOR_DRONE_ID) ?? all[0];
+  }, []);
 
   // The pilot to welcome back: the one whose sign-in expired, or the last one to
   // sign in on this computer (unless they asked to be forgotten).
@@ -271,7 +271,7 @@ export function SignIn() {
         </div>
         <div className="acct__visual">
           {drone && <HangarScene spec={drone} paused={reducedMotion()} />}
-          {drone && <span className="acct__caption">{CAPTION[drone.id] ?? drone.name}</span>}
+          {drone && <span className="acct__caption">{CAPTION}</span>}
         </div>
         <div className="acct__foot">
           <span>No key yet? Each student gets their own key with PlutoSim.</span>
