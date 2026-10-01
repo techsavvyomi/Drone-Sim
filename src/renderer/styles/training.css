@@ -749,17 +749,22 @@
   z-index: 4;
 }
 
+/* The band stands BETWEEN the two keycap clusters, never over them: a full
+   cluster is three caps (about 290 px) on a 22 px margin, and at 1100 px wide
+   the band covered "Throttle down" and "Yaw right" (the user, 2026-10-01).
+   What no longer fits on one line wraps, and the band grows upward. */
 .tdemo {
   bottom: var(--space-5);
-  width: min(1100px, calc(100% - 2 * var(--space-5)));
+  width: min(1100px, calc(100% - 2 * 328px));
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-4);
+  gap: var(--space-3) var(--space-4);
   padding: var(--space-3) var(--space-5);
 }
 
 .tdemo__text {
-  flex: 1;
+  flex: 1 1 220px;
   min-width: 0;
 }
 
@@ -779,6 +784,7 @@
 
 .tdemo__chips {
   display: flex;
+  flex-wrap: wrap;
   gap: var(--space-2);
   margin: 0;
   padding: 0;
@@ -811,6 +817,7 @@
 
 .tdemo__skip {
   flex: none;
+  margin-left: auto;
 }
 
 /* The scripted sticks glide rather than jump. */
