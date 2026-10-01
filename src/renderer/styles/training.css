@@ -230,12 +230,12 @@
   font-weight: 600;
 }
 
+/* The subtitle wraps to a second line rather than ending in "…": at 1100 px
+   wide Modules 7 and 8 lost half their sentence (the user, 2026-10-01: every
+   line must show in full). The 84 px row has room for two lines. */
 .tlist__module span {
   font: var(--type-body-sm);
   color: var(--txt-mid);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .tlist__time {
@@ -876,9 +876,11 @@
   font-size: 22px;
 }
 
+/* Like the demo band, between the keycap clusters: at 1100 px wide 46 % reached
+   12 px over "Yaw right". */
 .tbar {
   bottom: var(--space-5);
-  width: min(620px, 46%);
+  width: min(620px, calc(100% - 2 * 328px));
   padding: var(--space-4) var(--space-5) var(--space-3);
 }
 
