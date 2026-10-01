@@ -6,7 +6,7 @@ import logoMark from '../../assets/brand/plutosim-mark.svg';
 // few milliseconds, so App holds the splash for SPLASH_MIN_MS: without the hold
 // it flashed past before anyone could read it (the user, 2026-10-01).
 
-export const SPLASH_MIN_MS = 2000;
+export const SPLASH_MIN_MS = 4000;
 
 export function BootSplash() {
   const [version, setVersion] = useState<string | null>(null);

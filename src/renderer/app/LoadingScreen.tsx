@@ -26,6 +26,12 @@ export const SLOW_AFTER_MS = 30_000;
 const MB = 1048576;
 
 /** True once every preloaded model has loaded (or failed), or time ran out. */
+/** How long the first-launch screen stays up at the least. On a fast computer
+ *  everything is loaded before the boot splash has gone, and the screen was up
+ *  for half a second: too short to read, let alone press Next tip (the user,
+ *  2026-10-01). */
+export const LOADING_MIN_MS = 4000;
+
 export function useResourcesReady(): boolean {
   const settled = useResourceStore((s) => allSettled(s.entries));
   const [timedOut, setTimedOut] = useState(false);

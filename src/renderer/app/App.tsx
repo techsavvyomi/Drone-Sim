@@ -14,7 +14,7 @@ import { Hangar } from './Hangar';
 import { MissionScreen } from './MissionScreen';
 import { ProfileScreen } from './ProfileScreen';
 import { SignIn } from './SignIn';
-import { LoadingScreen, useResourcesReady } from './LoadingScreen';
+import { LoadingScreen, LOADING_MIN_MS, useResourcesReady } from './LoadingScreen';
 import { QualityNotice } from './QualityNotice';
 import { BootSplash, SPLASH_MIN_MS } from './BootSplash';
 import { allLoaded, useResourceStore } from '../assets/resourceTracker';
@@ -126,6 +126,23 @@ export function App() {
     void hydrate();
   }, [hydrate]);
 
+  // Whether this start is a first launch, read once: `prepared` flips to true
+  // the moment the models are in, which on a fast computer is before the boot
+  // splash has gone. Declared above the effect that flips it.
+  const [firstLaunch, setFirstLaunch] = useState<boolean | null>(null);
+  useEffect(() => {
+    if (hydrated && firstLaunch === null)
+      setFirstLaunch(!useSettingsStore.getState().settings.resourcesPrepared);
+  }, [hydrated, firstLaunch]);
+  // On a first launch the loading screen stays for LOADING_MIN_MS once the
+  // splash has gone, however fast the models arrived.
+  const [loadingHeld, setLoadingHeld] = useState(true);
+  useEffect(() => {
+    if (splashHeld || !firstLaunch) return;
+    const t = window.setTimeout(() => setLoadingHeld(false), LOADING_MIN_MS);
+    return () => window.clearTimeout(t);
+  }, [splashHeld, firstLaunch]);
+
   // The first launch that loads everything cleanly is the last to show the
   // loading screen. A launch with a failed model does not count, so the next
   // one tries again behind the screen rather than behind the menu.
@@ -233,7 +250,7 @@ export function App() {
   // never shown again: the models still load on every start (they are decrypted
   // in memory, never kept on disk), but behind the menu, and a map opened before
   // its model has arrived waits behind its own veil.
-  if (!prepared && !resourcesReady) {
+  if ((firstLaunch && loadingHeld) || (!prepared && !resourcesReady)) {
     return <LoadingScreen />;
   }
 
