@@ -2,8 +2,11 @@ import { useEffect, useState } from 'react';
 import logoMark from '../../assets/brand/plutosim-mark.svg';
 
 // What the window shows while settings and the account are read from disk: the
-// mark, the name, the version and one moving progress line. It stays exactly as
-// long as that takes — nothing holds it for show.
+// mark, the name, the version and one moving progress line. That read takes a
+// few milliseconds, so App holds the splash for SPLASH_MIN_MS: without the hold
+// it flashed past before anyone could read it (the user, 2026-10-01).
+
+export const SPLASH_MIN_MS = 2000;
 
 export function BootSplash() {
   const [version, setVersion] = useState<string | null>(null);

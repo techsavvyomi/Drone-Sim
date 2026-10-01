@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Sidebar } from './Sidebar';
 import { TopBar } from './TopBar';
 import { Home } from './Home';
@@ -16,7 +16,7 @@ import { ProfileScreen } from './ProfileScreen';
 import { SignIn } from './SignIn';
 import { LoadingScreen, useResourcesReady } from './LoadingScreen';
 import { QualityNotice } from './QualityNotice';
-import { BootSplash } from './BootSplash';
+import { BootSplash, SPLASH_MIN_MS } from './BootSplash';
 import { allLoaded, useResourceStore } from '../assets/resourceTracker';
 import { Viewport } from '../scene/Viewport';
 import { useUiStore } from '../state/uiStore';
@@ -86,6 +86,11 @@ function MainArea() {
 export function App() {
   const hydrate = useSettingsStore((s) => s.hydrate);
   const hydrated = useSettingsStore((s) => s.hydrated);
+  const [splashHeld, setSplashHeld] = useState(true);
+  useEffect(() => {
+    const t = window.setTimeout(() => setSplashHeld(false), SPLASH_MIN_MS);
+    return () => window.clearTimeout(t);
+  }, []);
   const section = useUiStore((s) => s.section);
   const panelOpen = useUiStore((s) => s.panelOpen);
   const hudPanelOpen = useUiStore((s) => s.hudPanelOpen);
@@ -219,7 +224,7 @@ export function App() {
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
-  if (!hydrated || accountStatus === 'loading') {
+  if (splashHeld || !hydrated || accountStatus === 'loading') {
     return <BootSplash />;
   }
 
