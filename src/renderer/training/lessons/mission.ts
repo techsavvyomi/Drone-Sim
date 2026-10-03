@@ -75,10 +75,21 @@ export interface LandingSpot {
   at: readonly [number, number];
   /** What to call it on screen, as it reads mid-sentence: 'the "H"'. */
   name: string;
+  /** How close counts as on it, in metres. Defaults to `PAD_R`. */
+  reach?: number;
 }
 
 /** The default: back on the painted "H" the flight took off from. */
 export const HOME: LandingSpot = { at: ACADEMY_PAD.center, name: 'the "H"' };
+
+/**
+ * The "H" for a drill with no pitch or roll keys on screen (Modules 3 and 4).
+ * The drone drifts in the air with nothing to hold its position, and over a
+ * 10-16 s hover that carries it 2-3 m off the spot — so a 1.6 m landing ring
+ * left the pilot told to "line up" with keys the module never shows. The whole
+ * painted mark counts instead, the same answer Module 2 came to (`landDisarm`).
+ */
+export const HOME_MARK: LandingSpot = { ...HOME, reach: ACADEMY_PAD.markRadius };
 
 /** What a whole flight does beyond arm, fly and land. */
 export interface MissionOpts {
@@ -156,6 +167,27 @@ export function flyMission(
 }
 
 /**
+ * Records `mem.touchVs`: the sink rate at the moment of contact, the hardest of
+ * them if the drone touches more than once.
+ *
+ * It used to be the fastest sink seen anywhere in the last metre, and that is
+ * the middle of the auto-land, not its end: the flare commands about 1.1 m/s at
+ * 1 m and slows to about 0.4 by the deck. Every SPACE landing therefore scored
+ * as a hard one, over Module 2's 3-star (0.5) and 2-star (0.9) limits. The last
+ * airborne frame's speed is the one the pad actually felt.
+ */
+export function trackTouchdown(p: Probe, mem: LessonMemory): void {
+  if (!p.onGround) {
+    mem.airVs = Math.max(0, -p.verticalSpeed);
+    return;
+  }
+  if (mem.airVs !== undefined) {
+    mem.touchVs = Math.max(mem.touchVs ?? 0, mem.airVs);
+    delete mem.airVs;
+  }
+}
+
+/**
  * Bring it down on `spot` — the last stage of any flight that ends on the deck.
  *
  * Shared because it is the same walk whether the flight was a route or a stick
@@ -173,7 +205,7 @@ export function landOn(
 ): ValidationResult {
   const flown = base;
   const dist = horizontalDist(p.position, spot.at[0], spot.at[1]);
-  const offSpot = dist > PAD_R;
+  const offSpot = dist > (spot.reach ?? PAD_R);
   if (!p.onGround && offSpot) {
     return {
       done: false,
@@ -191,10 +223,7 @@ export function landOn(
     };
   }
 
-  // Remember the hardest touchdown near the ground, for the lesson to score on.
-  if (!p.onGround && p.altitude < 1.0 && p.verticalSpeed < 0) {
-    mem.touchVs = Math.max(mem.touchVs ?? 0, Math.abs(p.verticalSpeed));
-  }
+  trackTouchdown(p, mem);
 
   const settled = holdFor(
     mem,

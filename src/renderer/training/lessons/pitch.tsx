@@ -143,7 +143,7 @@ export const pitchLesson: Lesson = {
   stars: [
     {
       stars: 3,
-      text: 'Pad to pad, out and back in 55s, under 2.5 m sideways, nothing touched',
+      text: 'Pad to pad, out and back in 55s, under 2.5 m sideways, smoothly, nothing touched',
       within: 55,
       test: ({ touches, timeSec, collisions, smoothness, mem }) =>
         collisions === 0 &&

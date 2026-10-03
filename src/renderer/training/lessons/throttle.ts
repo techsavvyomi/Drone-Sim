@@ -8,7 +8,7 @@ import {
   afterPreflightDemo,
   preflightDemo,
 } from './preflight';
-import { withFlight } from './mission';
+import { HOME_MARK, withFlight } from './mission';
 
 // Module 3 — Throttle. The drone is handed over already armed and already
 // hovering, so the whole lesson is one stick: down to the low band, hold it
@@ -166,6 +166,7 @@ export const throttleLesson: Lesson = {
         };
       },
       3,
+      HOME_MARK,
     ),
 
   // Every limit carries the whole flight now: the climb up and the landing back
@@ -180,7 +181,7 @@ export const throttleLesson: Lesson = {
     },
     {
       stars: 2,
-      text: 'Pad to pad, down, held and back up in 70s',
+      text: 'Pad to pad, down, held and back up in 70s, smoothly',
       within: 70,
       test: ({ timeSec, collisions, smoothness }) =>
         collisions === 0 && smoothness >= 0.25 && timeSec <= 70,

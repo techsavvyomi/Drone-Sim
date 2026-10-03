@@ -2,6 +2,7 @@ import { CUE, clamp01, holdFor, horizontalDist, type Lesson } from './types';
 import { home } from './arena';
 import { ACADEMY_PAD } from '../../plugins/environments/droneAcademy';
 import { PREFLIGHT_STAGES, afterPreflightDemo, preflightDemo, withPreflight } from './preflight';
+import { trackTouchdown } from './mission';
 
 const [PAD_X, PAD_Z] = ACADEMY_PAD.center;
 
@@ -107,10 +108,8 @@ export const landDisarmLesson: Lesson = {
 
       const dist = horizontalDist(p.position, PAD_X, PAD_Z);
 
-      // Remember the fastest descent seen near the ground, for scoring the touchdown.
-      if (!p.onGround && p.altitude < 1.0 && p.verticalSpeed < 0) {
-        mem.touchVs = Math.max(mem.touchVs ?? 0, Math.abs(p.verticalSpeed));
-      }
+      // How fast it was sinking when it touched, for scoring the landing.
+      trackTouchdown(p, mem);
 
       const down = p.onGround && dist <= TOUCHDOWN_R;
       const settled = holdFor(mem, 'settle', down && Math.abs(p.verticalSpeed) < 0.4, p.dt, 0.8);
@@ -179,7 +178,7 @@ export const landDisarmLesson: Lesson = {
   stars: [
     {
       stars: 3,
-      text: 'Soft landing, motors off in 2s, nothing touched',
+      text: 'Soft landing, motors off in 2s, smoothly, nothing touched',
       test: ({ touches, collisions, smoothness, mem }) =>
         collisions === 0 &&
         touches === 0 &&

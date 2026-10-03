@@ -413,13 +413,13 @@ export const multiPointDelivery: Mission = {
     {
       stars: 3,
       within: PAR,
-      text: 'All 3 delivered and home, no crashes, inside 7:00',
+      text: 'All 3 delivered and home, no collisions, inside 7:00',
       test: (r) =>
         r.delivered && r.landed && r.points >= GOLD && r.collisions === 0 && r.timeSec <= PAR,
     },
     {
       stars: 2,
-      text: 'All 3 delivered and home, one crash at most',
+      text: 'All 3 delivered and home, one collision at most',
       test: (r) => r.delivered && r.landed && r.points >= SILVER && r.collisions <= 1,
     },
     {

@@ -10,7 +10,7 @@ import {
   afterPreflightDemo,
   preflightDemo,
 } from './preflight';
-import { withFlight } from './mission';
+import { HOME_MARK, withFlight } from './mission';
 
 // Module 4 — Yaw. Rotate the drone about its vertical axis without
 // changing position. Practice: turn ~90°, then rotate back to the start heading.
@@ -118,7 +118,12 @@ export const yawLesson: Lesson = {
         }
 
         const delta = Math.abs(angleDiffDeg(p.yaw, mem.startYaw ?? 0));
-        mem.overshoot = Math.max(mem.overshoot ?? 0, delta - (TURN + REACH_TOL));
+        // How far past the 90° the nose was carried. Measured from the target
+        // itself, so the number the stars quote is the number the pilot sees.
+        // (It used to be measured from 90 + REACH_TOL, which made "within 8°"
+        // really mean 20° past.) The turn back cannot overshoot in any way that
+        // matters: it latches done on entering the 12° window round the start.
+        mem.overshoot = Math.max(mem.overshoot ?? 0, delta - TURN);
 
         if ((mem.stage ?? 0) === 0) {
           if (Math.abs(delta - TURN) <= REACH_TOL) mem.stage = 1;
@@ -143,6 +148,7 @@ export const yawLesson: Lesson = {
         };
       },
       2,
+      HOME_MARK,
     ),
 
   // Both limits carry the take-off now — about eight seconds before the first
@@ -150,17 +156,17 @@ export const yawLesson: Lesson = {
   stars: [
     {
       stars: 3,
-      text: 'Pad to pad, both turns within 8°, under 40s, nothing touched',
+      text: 'Pad to pad, turn stopped within 20° past 90°, under 40s, nothing touched',
       within: 40,
       test: ({ touches, timeSec, collisions, mem }) =>
-        collisions === 0 && touches === 0 && (mem.overshoot ?? 0) <= 8 && timeSec <= 40,
+        collisions === 0 && touches === 0 && (mem.overshoot ?? 0) <= 20 && timeSec <= 40,
     },
     {
       stars: 2,
-      text: 'Pad to pad, both turns within 25°, under 60s',
+      text: 'Pad to pad, turn stopped within 35° past 90°, under 60s',
       within: 60,
       test: ({ timeSec, collisions, mem }) =>
-        collisions === 0 && (mem.overshoot ?? 0) <= 25 && timeSec <= 60,
+        collisions === 0 && (mem.overshoot ?? 0) <= 35 && timeSec <= 60,
     },
   ],
 

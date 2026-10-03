@@ -327,12 +327,12 @@ export const forestFire: Mission = {
     {
       stars: 3,
       within: PAR,
-      text: 'All 6 points, no crashes, fire out inside 4:30',
+      text: 'All 6 points, no collisions, fire out inside 4:30',
       test: (r) => r.delivered && r.points >= GOLD && r.collisions === 0 && r.timeSec <= PAR,
     },
     {
       stars: 2,
-      text: 'Fire out, one crash at most',
+      text: 'Fire out, at least 5 of 6 points, one collision at most',
       test: (r) => r.delivered && r.points >= SILVER && r.collisions <= 1,
     },
     {

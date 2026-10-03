@@ -3,6 +3,7 @@ import { flyMission, type MissionLeg } from './mission';
 import { planDemo } from './demoFlight';
 import { HOVER, gate, home, routeLegs } from './arena';
 import {
+  AIRBORNE_ALT,
   KEYS_PITCH,
   KEYS_ROLL,
   KEYS_THROTTLE,
@@ -208,35 +209,38 @@ function navLesson(cfg: {
     ],
 
     validate: (p, mem) => {
-      // Height is only a technique score once the drone is up. Every module
-      // starts on the deck now, and grading the take-off against the first
-      // gate's altitude would spend the star before the flight began.
-      if (mem.airborne) {
-        mem.altDev = Math.max(mem.altDev ?? 0, Math.abs(p.altitude - route[0].at[1]));
-      }
-
       // The full circuit is a FLIGHT that also LANDS: arm, take off, the route,
-      // down on the "H". `flyMission` walks all of it, preflight included.
-      if (cfg.wholeFlight) {
-        return flyMission(p, mem, route, legs, {
-          strict: true,
-          wrongHint: `Wrong one. The route is ${labels}. Start again`,
-        });
-      }
-
-      // The shorter routes are the same flight minus the landing: `spot: null`
+      // down on the "H". `flyMission` walks all of it, preflight included. The
+      // shorter routes are the same flight minus the landing: `spot: null`
       // finishes them the moment the last gate is taken.
-      return flyMission(p, mem, route, legs, {
-        spot: null,
+      const res = flyMission(p, mem, route, legs, {
+        ...(cfg.wholeFlight ? {} : { spot: null }),
         strict: true,
         wrongHint: `Wrong one. The route is ${labels}. Start again`,
       });
+
+      // Height is a technique score for the ROUTE only, judged leg by leg
+      // against the band between the two ends of the leg being flown. It used
+      // to be one number against gate A for the whole flight, and that made the
+      // two top tiers unreachable: the take-off latches "airborne" at 1.2 m,
+      // already 1.8 m under A, and the landing on the "H" in Module 15 runs the
+      // altitude down to the deck — no pilot could finish inside 2.2 m. A band
+      // rather than a line, because the tip is "climb early": rising to D the
+      // moment C is behind you is the right way to fly it, not a deviation.
+      const leg = (mem.wp ?? 0) - PREFLIGHT_STEPS;
+      if (mem.airborne && leg >= 0 && leg < route.length) {
+        const from = leg === 0 ? AIRBORNE_ALT : route[leg - 1].at[1];
+        const to = route[leg].at[1];
+        const off = Math.max(0, Math.min(from, to) - p.altitude, p.altitude - Math.max(from, to));
+        mem.altDev = Math.max(mem.altDev ?? 0, off);
+      }
+      return res;
     },
 
     stars: [
       {
         stars: 3,
-        text: `Route in ${cfg.threeStarSec}s, height within 1.2 m, nothing touched`,
+        text: `Route in ${cfg.threeStarSec}s, height within 1.2 m, smoothly, nothing touched`,
         within: cfg.threeStarSec,
         test: ({ touches, timeSec, collisions, smoothness, mem }) =>
           collisions === 0 &&

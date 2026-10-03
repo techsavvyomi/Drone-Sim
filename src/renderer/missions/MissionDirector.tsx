@@ -411,7 +411,13 @@ export function MissionDirector() {
       return;
     }
 
-    clock.current += dt;
+    // Down and settled is FINISHED: the clock stops there. It used to run on
+    // through the 1.6 s safe-landing card, so the result was stamped later than
+    // the flight ended (a par met at touchdown could be missed by the card), and
+    // a landing settled with under 1.6 s left was failed as "Out of time" while
+    // the card was still up.
+    const finished = store.leg === 'landing' || store.leg === 'complete';
+    if (!finished) clock.current += dt;
     const flight = useFlightStore.getState();
     const collisions = Math.max(0, flight.touches - touchBase.current);
 
@@ -460,7 +466,7 @@ export function MissionDirector() {
         }
       }
     }
-    if (clock.current >= mission.timeLimitSec) {
+    if (!finished && clock.current >= mission.timeLimitSec) {
       playFail();
       store.setCollisions(collisions);
       store.fail('timeout');

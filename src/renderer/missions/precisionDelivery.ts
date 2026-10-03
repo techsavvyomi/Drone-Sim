@@ -346,13 +346,13 @@ export const precisionDelivery: Mission = {
     {
       stars: 3,
       within: PAR,
-      text: 'All 15 points, no crashes, home inside 5:00',
+      text: 'All 15 points, no collisions, home inside 5:00',
       test: (r) =>
         r.delivered && r.landed && r.points >= GOLD && r.collisions === 0 && r.timeSec <= PAR,
     },
     {
       stars: 2,
-      text: 'Delivered and home, one crash at most',
+      text: 'Delivered and home, one collision at most',
       test: (r) => r.delivered && r.landed && r.points >= SILVER && r.collisions <= 1,
     },
     {

@@ -97,9 +97,16 @@ export const circleLesson: Lesson = {
 
   validate: (p, mem) =>
     withPreflight(p, mem, (p, mem) => {
-      mem.altDev = Math.max(mem.altDev ?? 0, Math.abs(p.altitude - ALT));
-
       const r = Math.hypot(p.position[0], p.position[2]);
+      // The lap is scored from the moment the pilot is ON the line, not from
+      // when they enter the capture band. The pad is the ring's centre, so every
+      // flight crosses into the band at r = 7.6 m on the way out — measured from
+      // there, radius error read 2.4 m before the lap began, over both the 3-star
+      // (1.5 m) and 2-star (1.8 m) limits, and every lap scored one star. Height
+      // waits for the same latch, so the climb off the pad is not counted either.
+      if (Math.abs(r - RADIUS) <= LANE * 0.5) mem.onLane = 1;
+      if (mem.onLane) mem.altDev = Math.max(mem.altDev ?? 0, Math.abs(p.altitude - ALT));
+
       const onRing = Math.abs(r - RADIUS) <= BAND;
       const angle = Math.atan2(p.position[2], p.position[0]);
 
@@ -132,7 +139,7 @@ export const circleLesson: Lesson = {
         // which is what stops someone wobbling back and forth to farm sweep.
         if (!mem.dir && Math.abs(d) > 1e-3) mem.dir = Math.sign(d);
         mem.sweep = Math.max(0, (mem.sweep ?? 0) + d * (mem.dir || 1));
-        mem.radiusDev = Math.max(mem.radiusDev ?? 0, Math.abs(r - RADIUS));
+        if (mem.onLane) mem.radiusDev = Math.max(mem.radiusDev ?? 0, Math.abs(r - RADIUS));
       }
 
       const swept = mem.sweep ?? 0;
@@ -170,7 +177,7 @@ export const circleLesson: Lesson = {
   stars: [
     {
       stars: 3,
-      text: `Off the pad, within ${LANE} m of the ring, height within 0.9 m, lap under 80s, nothing touched`,
+      text: `Off the pad, within ${LANE} m of the ring, height within 0.9 m, lap under 80s, smoothly, nothing touched`,
       within: 80,
       test: ({ touches, timeSec, collisions, smoothness, mem }) =>
         collisions === 0 &&

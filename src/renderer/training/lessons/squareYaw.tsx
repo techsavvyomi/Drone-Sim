@@ -355,7 +355,13 @@ export const squareYawLesson: Lesson = {
       const onSquare = r.next > 1;
       // How far off the side being flown.
       const off = lineDeviation(p.position, from[0], from[2], target.at[0], target.at[2]);
-      if (onSquare) mem.cut = Math.max(mem.cut ?? 0, off);
+      // Not judged inside the corner just taken: a corner counts from `reach`
+      // (1.8 m) away, so at that moment the drone is still on the OLD side, up to
+      // 1.8 m off the new one — a perfect lap read 1.77 m against a 2.2 m
+      // three-star limit. Overshooting the corner by more than that still counts.
+      const inCorner =
+        Math.hypot(p.position[0] - from[0], p.position[2] - from[2]) <= ROUTE[r.next - 1].reach;
+      if (onSquare && !inCorner) mem.cut = Math.max(mem.cut ?? 0, off);
 
       // The heading that points at the corner FROM WHERE THE DRONE IS, not from
       // the corner behind it. A pilot who has drifted off the line is told to
@@ -419,7 +425,7 @@ export const squareYawLesson: Lesson = {
   stars: [
     {
       stars: 3,
-      text: 'Every side turned onto, nose within 25°, sides within 2.2 m, lap under 105s, nothing touched',
+      text: 'Every side turned onto, nose within 25°, sides within 2.2 m, lap under 105s, smoothly, nothing touched',
       within: 105,
       test: ({ touches, timeSec, collisions, smoothness, mem }) =>
         collisions === 0 &&

@@ -161,7 +161,14 @@ export const triangleLesson: Lesson = {
       const target = ROUTE[r.next];
       const from = r.next === 0 ? START : ROUTE[r.next - 1].at;
       const off = lineDeviation(p.position, from[0], from[2], target.at[0], target.at[2]);
-      if (r.next > 0) mem.cut = Math.max(mem.cut ?? 0, off);
+      // Not judged inside the corner just taken: a corner counts from `reach`
+      // (1.8 m) away, so at that moment the drone is still on the OLD side, up to
+      // 1.8 m off the new one — a perfect lap read 1.77 m against a 2.2 m
+      // three-star limit. Overshooting the corner by more than that still counts.
+      const inCorner =
+        r.next > 0 &&
+        Math.hypot(p.position[0] - from[0], p.position[2] - from[2]) <= ROUTE[r.next - 1].reach;
+      if (r.next > 0 && !inCorner) mem.cut = Math.max(mem.cut ?? 0, off);
 
       const wandered = r.next > 0 && off > SIDE_TOL;
       return {
@@ -179,7 +186,7 @@ export const triangleLesson: Lesson = {
   stars: [
     {
       stars: 3,
-      text: 'Off the pad, sides within 2.5 m, lap under 65s, nothing touched',
+      text: 'Off the pad, sides within 2.5 m, lap under 65s, smoothly, nothing touched',
       within: 65,
       test: ({ touches, timeSec, collisions, smoothness, mem }) =>
         collisions === 0 &&

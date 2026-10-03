@@ -143,7 +143,7 @@ export const rollLesson: Lesson = {
   stars: [
     {
       stars: 3,
-      text: 'Pad to pad, both markers in 46s, under 2 m off line, nothing touched',
+      text: 'Pad to pad, both markers in 46s, under 2 m off line, smoothly, nothing touched',
       within: 46,
       test: ({ touches, timeSec, collisions, smoothness, mem }) =>
         collisions === 0 &&
