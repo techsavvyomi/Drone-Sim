@@ -56,7 +56,9 @@ const BUILDING_MIN_Y = 1.0;
 const HEIGHT_BAND = 0.5;
 
 // Material name -> which collider set the geometry belongs to.
-const ROAD_RE = /street|lane|decal|grass|_LR_Facades$/i;
+// `CityGen_LR_Facades` is NOT road: it is the outer skin of real buildings, and
+// leaving it out put those walls' colliders 0.2-1 m inside the visible face.
+const ROAD_RE = /street|lane|decal|grass/i;
 const WALK_RE = /side_walks|curb|simple_concrete/i;
 const PROP_RE = /bark|trash|WetFloor|Street_Assets/i;
 const FOLIAGE_RE = /foliage|leaf|leaves/i;

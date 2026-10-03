@@ -184,7 +184,7 @@ const DELIVERIES: readonly MissionDelivery[] = [
     // The one rooftop on the map a drone can be delivered to. `deck` is what
     // the aircraft rests on (the collider) and `standsOn` is the roof the pilot
     // sees; the platform drawn between them is what makes those the same place.
-    zone: bay('Rooftop B', -13.5, 73, { deck: 25.14, radius: 1.8, max: 1.8, standsOn: 24.12 }),
+    zone: bay('Rooftop B', -13.5, 73.5, { deck: 25.14, radius: 1.8, max: 1.8, standsOn: 24.12 }),
     // West to the avenue at x = -29, north up it, then in over the roof. The
     // straight line from the pharmacy goes through a block at z = 43.
     via: [
