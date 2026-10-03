@@ -10,6 +10,7 @@ import { KeyActions, KeyHints } from './KeyHints';
 import { CrashCard, PauseCard } from './FlightCards';
 import { resetFlight } from '../input/controls';
 import { LessonMap } from './LessonMap';
+import { InstrumentPlate } from './FlightHud';
 import { playClick, playSuccess, playStar, playRankUp } from '../audio/sfx';
 import { useModalKeyLock } from '../input/useModalKeyLock';
 import { Badge, Button, Icon, Keycap, StarRating, StatTile } from '../ds';
@@ -615,6 +616,7 @@ export function TrainingHud() {
         {flying && (
           <div className="thud__flight" data-register="cockpit">
             <LessonMap lesson={lesson} target={routeTarget} />
+            <InstrumentPlate envId="drone-academy" />
             <div className={phase === 'demo' ? 'thud__sticks is-demo' : 'thud__sticks'}>
               <StickIndicator cue={phase === 'practice' ? cue : []} />
             </div>

@@ -571,6 +571,32 @@ function Attitude({ roll, pitch }: { roll: number; pitch: number }) {
   );
 }
 
+/**
+ * The cockpit's altitude + attitude plate on its own, for Flight School, which
+ * draws its own HUD rather than this one. Same instruments, same HUD settings;
+ * where it sits and how big it is belong to the screen that mounts it.
+ */
+export function InstrumentPlate({ envId }: { envId: string }) {
+  const s = useSample();
+  const hud = useSettingsStore((st) => st.settings.hud);
+  const droneId = useSettingsStore((st) => st.settings.selectedDroneId);
+  const ceiling = ceilingFor(getDrone(droneId), getEnvironment(envId)).metres;
+  if (!hud.altitudeTape && !hud.horizon) return null;
+  return (
+    <div className="ck-plate ck-instruments">
+      {hud.altitudeTape && (
+        <AltitudeTape
+          altitude={s.altitude}
+          verticalSpeed={s.verticalSpeed}
+          ceiling={ceiling}
+          near={nearCeiling(s.altitude, ceiling)}
+        />
+      )}
+      {hud.horizon && <Attitude roll={s.roll} pitch={s.pitch} />}
+    </div>
+  );
+}
+
 function MotorsBadge({ tone, word }: { tone: Tone; word: string }) {
   return (
     <span className="ck-motors" data-tone={tone}>

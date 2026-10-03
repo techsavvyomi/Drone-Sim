@@ -844,6 +844,32 @@
   border: 1px solid var(--line);
 }
 
+/* Height and attitude, the free-flight cockpit's plate made small, under the
+   lesson map (116 px canvas + 2 x 5 px padding). Scaled, not redrawn, so it reads
+   exactly like the cockpit's. It must end above the right gimbal (210 px x 0.82
+   standing 150 px up): at 0.7 it does from 760 px tall, at 0.6 down to 720. */
+.thud .ck-instruments {
+  position: absolute;
+  top: calc(var(--space-4) + 126px + var(--space-3));
+  right: var(--space-4);
+  display: flex;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  font-family: var(--font-sans);
+  font-feature-settings: var(--font-numeric);
+  color: var(--txt-hi);
+  transform: scale(0.7);
+  transform-origin: top right;
+  pointer-events: none;
+  z-index: 3;
+}
+
+@media (max-height: 760px) {
+  .thud .ck-instruments {
+    transform: scale(0.6);
+  }
+}
+
 /* ---- Fly: the instruction card and the bar ---- */
 
 .tfly {
