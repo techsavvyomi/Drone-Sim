@@ -21,6 +21,29 @@ const WHITE = '#eef2f5';
 
 /* ---------------------------------------------------------------- Helipad */
 
+/**
+ * Depth offset for paint laid over a flat surface, by layer: 1 lies on the
+ * surface, 2 on top of 1. A few millimetres of height is below what the depth
+ * buffer resolves at a low angle, so from the side the slab broke through the
+ * "H" and its white went missing; the factor scales with the surface's slope to
+ * the camera, which is exactly that case.
+ */
+function paintLayer(layer: 1 | 2) {
+  return {
+    polygonOffset: true,
+    polygonOffsetFactor: -4 * layer,
+    polygonOffsetUnits: -4 * layer,
+  };
+}
+
+/**
+ * Height of each paint layer over the helipad slab, metres: rings at 5 mm, the
+ * "H" at 10. It was 1.5-2.5 mm and the offsets alone did not save it. Painting
+ * the marks into the slab's texture instead was tried and turned the pad dark,
+ * so the marks stay meshes and get the height.
+ */
+const PAINT_LIFT = 0.005;
+
 export function Helipad({ position = [0, 0, 0] as [number, number, number] }) {
   const night = useWorldStore((s) => TIME_NIGHT(s.timeOfDay));
   const lights = ACADEMY_PAD.perimeterLights;
@@ -50,28 +73,28 @@ export function Helipad({ position = [0, 0, 0] as [number, number, number] }) {
       </RigidBody>
 
       {/* Yellow safety boundary */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.1215, 0]}>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, H + PAINT_LIFT, 0]}>
         <ringGeometry args={[6.1, 6.5, 64]} />
-        <meshStandardMaterial color={YELLOW} roughness={0.7} />
+        <meshStandardMaterial color={YELLOW} roughness={0.7} {...paintLayer(1)} />
       </mesh>
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.1215, 0]}>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, H + PAINT_LIFT, 0]}>
         <ringGeometry args={[4.5, 4.62, 64]} />
-        <meshStandardMaterial color={WHITE} roughness={0.7} />
+        <meshStandardMaterial color={WHITE} roughness={0.7} {...paintLayer(1)} />
       </mesh>
 
       {/* Painted "H" */}
-      <group position={[0, 0.1225, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+      <group position={[0, H + 2 * PAINT_LIFT, 0]} rotation={[-Math.PI / 2, 0, 0]}>
         <mesh position={[-1.05, 0, 0]}>
           <planeGeometry args={[0.52, 3.2]} />
-          <meshStandardMaterial color={WHITE} roughness={0.8} />
+          <meshStandardMaterial color={WHITE} roughness={0.8} {...paintLayer(2)} />
         </mesh>
         <mesh position={[1.05, 0, 0]}>
           <planeGeometry args={[0.52, 3.2]} />
-          <meshStandardMaterial color={WHITE} roughness={0.8} />
+          <meshStandardMaterial color={WHITE} roughness={0.8} {...paintLayer(2)} />
         </mesh>
         <mesh>
           <planeGeometry args={[1.6, 0.52]} />
-          <meshStandardMaterial color={WHITE} roughness={0.8} />
+          <meshStandardMaterial color={WHITE} roughness={0.8} {...paintLayer(2)} />
         </mesh>
       </group>
 
@@ -273,21 +296,15 @@ export function LandingTarget({
     <group position={position}>
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.014, 0]} receiveShadow>
         <circleGeometry args={[1.25, 40]} />
-        <meshStandardMaterial
-          color="#2c3136"
-          roughness={0.9}
-          polygonOffset
-          polygonOffsetFactor={-6}
-          polygonOffsetUnits={-6}
-        />
+        <meshStandardMaterial color="#2c3136" roughness={0.9} {...paintLayer(1)} />
       </mesh>
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.016, 0]}>
         <ringGeometry args={[0.95, 1.15, 40]} />
-        <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.35} />
+        <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.35} {...paintLayer(2)} />
       </mesh>
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.016, 0]}>
         <ringGeometry args={[0.4, 0.5, 32]} />
-        <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.35} />
+        <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.35} {...paintLayer(2)} />
       </mesh>
       {/* Corner ticks read as a pad marking without needing text geometry */}
       {[0, 1, 2, 3].map((i) => {
@@ -299,7 +316,7 @@ export function LandingTarget({
             rotation={[-Math.PI / 2, 0, -a]}
           >
             <planeGeometry args={[0.34, 0.1]} />
-            <meshStandardMaterial color={WHITE} />
+            <meshStandardMaterial color={WHITE} {...paintLayer(2)} />
           </mesh>
         );
       })}

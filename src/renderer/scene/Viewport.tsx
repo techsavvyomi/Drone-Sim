@@ -86,8 +86,10 @@ export function Viewport() {
               the map's spawn. Here, not in FlightScene, which missions share
               and which already paint theirs. Smaller than the mission pad
               (1.15 m): nothing is judged on it, and at full size it swamped
-              the drone. */}
-          {env && <Helipad env={env} scale={0.7} />}
+              the drone. Not on the Drone Academy, which has its own 14 m pad
+              with an "H" under the spawn: the dark disc sat on top of it and
+              covered the H's crossbar. */}
+          {env && env.id !== 'drone-academy' && <Helipad env={env} scale={0.7} />}
           <SceneReady onReady={onReady} />
         </Canvas>
       </SceneBoundary>
