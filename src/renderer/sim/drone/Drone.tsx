@@ -290,6 +290,8 @@ export function Drone({ spec, spawn, bounds, outdoor = false, groundY }: DronePr
   const prevVel = useRef({ x: 0, y: 0, z: 0 });
   const smoothLateralG = useRef(0);
   const crashHold = useRef(0);
+  /** Time spent flipped past CRASH_TILT_RAD against a surface, s. */
+  const flippedHold = useRef(0);
   /** Sim-time until which a soft wall bump keeps roll/pitch locked level (no flip). */
   const wallBumpUntil = useRef(0);
   /** Sim-time until which further contacts belong to the touchdown just made. */
@@ -337,6 +339,7 @@ export function Drone({ spec, spawn, bounds, outdoor = false, groundY }: DronePr
     lowVoltageFor.current = 0;
     smoothLateralG.current = 0;
     crashHold.current = 0;
+    flippedHold.current = 0;
     wallBumpUntil.current = 0;
     touchdownUntil.current = 0;
     peakSpeed.current = 0;
@@ -1012,6 +1015,34 @@ export function Drone({ spec, spawn, bounds, outdoor = false, groundY }: DronePr
       }
     } else {
       crashHold.current = 0;
+    }
+
+    // ---- On its back or side against a surface: a wreck in every mode ----
+    // The check above stands down in Acro and near the ground, and the contact
+    // rules never crash on the floor — so a drone flipped onto the street lay
+    // there armed, motors pushing it into the asphalt, with no crash card and
+    // no R. Past CRASH_TILT_RAD with something solid right under the rotors is
+    // not a flight attitude in any mode: an Acro flip is only safe in the air.
+    // The corner rays are cast straight down from the rotors, so they still
+    // measure the surface when the aircraft is inverted.
+    _q.set(rot.x, rot.y, rot.z, rot.w);
+    _up.set(0, 1, 0).applyQuaternion(_q);
+    const onSurface =
+      pos.y < 0.25 ||
+      Math.min(supportUnder[0], supportUnder[1], supportUnder[2], supportUnder[3]) < 0.15;
+    if (
+      !flightNow.crashed &&
+      onSurface &&
+      _up.y < Math.cos(CRASH_TILT_RAD) &&
+      simTime.current >= settleUntil.current
+    ) {
+      flippedHold.current += SIM_DT;
+      if (flippedHold.current >= CRASH_HOLD) {
+        flightNow.crash(impactSpeed.current, pickBrokenProps());
+        addShake(0.8);
+      }
+    } else {
+      flippedHold.current = 0;
     }
 
     // ---- Anti-tumble hold after a survivable bump ----
