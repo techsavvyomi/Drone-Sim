@@ -133,7 +133,15 @@ export function RaceGate({
   const w = kind === 'rect' ? size * 1.5 : size;
   const h = size;
   const t = size * 0.07;
-  const legH = position[1] - h / 2;
+  // Where the legs meet the frame. A square frame takes them at its bottom
+  // corners. A ring has no corners: legs at +-size/2 stopped at the corners of
+  // its bounding box, a hand's width out from the rim, and the ring floated
+  // over two posts it never touched. So a ring's legs stand in under it, at
+  // half the radius, and run up into the tube at the point the rim crosses
+  // them — the ring sits ON its posts.
+  const legX = kind === 'circle' ? size / 4 : w / 2;
+  const legTop = kind === 'circle' ? -Math.sqrt((size / 2) ** 2 - legX ** 2) : -h / 2;
+  const legH = position[1] + legTop;
 
   return (
     // The frame is SOLID and the opening is not — which is the whole of what a
@@ -180,8 +188,8 @@ export function RaceGate({
       {/* The legs, on the same test the meshes below use: a gate hung low
           enough to have none must not grow invisible ones. */}
       {legH > 0.2 &&
-        [-w / 2, w / 2].map((x) => (
-          <CylinderCollider key={x} args={[legH / 2, 0.06]} position={[x, -h / 2 - legH / 2, 0]} />
+        [-legX, legX].map((x) => (
+          <CylinderCollider key={x} args={[legH / 2, 0.06]} position={[x, legTop - legH / 2, 0]} />
         ))}
       {kind === 'circle' ? (
         <mesh castShadow>
@@ -212,14 +220,12 @@ export function RaceGate({
       {/* Support legs down to the ground */}
       {legH > 0.2 && (
         <>
-          <mesh position={[-w / 2, -h / 2 - legH / 2, 0]}>
-            <cylinderGeometry args={[0.05, 0.06, legH, 8]} />
-            <meshStandardMaterial color="#2b3038" roughness={0.7} />
-          </mesh>
-          <mesh position={[w / 2, -h / 2 - legH / 2, 0]}>
-            <cylinderGeometry args={[0.05, 0.06, legH, 8]} />
-            <meshStandardMaterial color="#2b3038" roughness={0.7} />
-          </mesh>
+          {[-legX, legX].map((x) => (
+            <mesh key={x} position={[x, legTop - legH / 2, 0]}>
+              <cylinderGeometry args={[0.05, 0.06, legH, 8]} />
+              <meshStandardMaterial color="#2b3038" roughness={0.7} />
+            </mesh>
+          ))}
         </>
       )}
     </RigidBody>

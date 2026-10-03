@@ -21,6 +21,11 @@ import type { Mission } from './types';
 //     and the tape is what says "the way in is here" from across the car park.
 //   - The rest of the truck's LOAD, on both missions: the trailer full of
 //     stacked cartons either side of the pallet (`truckCargo`), solid.
+//   - The trailer's OPEN SIDE, dressed as a curtain-sider (`TrailerSide`): the
+//     model just stops there — a roof one face thick, a bare floor edge — and
+//     read as a truck cut in half. An aluminium rail now caps the roof edge, a
+//     rub rail runs under the floor edge, and the side curtain hangs pulled
+//     back into folds at both ends, where a real one would be.
 //
 // Primitives, two instanced meshes and small canvas textures; no lights. The
 // mission's own boxes are not here: `Payload` draws them, standing on these
@@ -192,11 +197,7 @@ export function LoadingYard({ mission }: { mission: Mission }) {
         {cargo.map((b, i) => (
           <CuboidCollider
             key={`cargo-${i}`}
-            args={[
-              (b.max[0] - b.min[0]) / 2,
-              (b.max[1] - b.min[1]) / 2,
-              (b.max[2] - b.min[2]) / 2,
-            ]}
+            args={[(b.max[0] - b.min[0]) / 2, (b.max[1] - b.min[1]) / 2, (b.max[2] - b.min[2]) / 2]}
             position={[
               (b.min[0] + b.max[0]) / 2,
               (b.min[1] + b.max[1]) / 2,
@@ -246,8 +247,182 @@ export function LoadingYard({ mission }: { mission: Mission }) {
       >
         <planeGeometry args={[hold.max[0] - hold.min[0], TAPE]} />
       </mesh>
+
+      <TrailerSide hold={hold} />
     </group>
   );
+}
+
+/** The curtain-sider's rails and curtain, metres. Measured off the map: the
+ *  roof and the floor stop at the hold's open face, the front wall's frame
+ *  stands to x -12.4 and the rear door frame from x 1.2. */
+const RAIL = { top: 0.24, bottom: 0.26, depth: 0.16 };
+/** How far along the trailer each bunch of curtain reaches from its end. */
+const BUNCH = 0.7;
+/** The folds in a bunch: x along it (0 at the end), z out from the side, radius. */
+const FOLDS: [number, number, number][] = [
+  [0.08, 0.06, 0.07],
+  [0.2, 0.1, 0.075],
+  [0.32, 0.05, 0.07],
+  [0.43, 0.09, 0.065],
+  [0.53, 0.04, 0.06],
+  [0.62, 0.07, 0.05],
+];
+
+/**
+ * The trailer's open side, made to read as a curtain-sider with its curtain
+ * drawn back rather than a box sliced open: a top rail over the roof's cut
+ * edge, a rub rail under the floor's, and the curtain bunched at the front and
+ * rear corners with a buckle strap or two hanging off it.
+ *
+ * Nothing here reaches into the way in: the top rail hangs no lower than 4.23 m
+ * (the band over the pallet tops out at 3.67 m), the rub rail stays under the
+ * floor, and the bunches stand at the ends of the hold, metres from the
+ * pallet's opening. They are solid all the same, so a drone that flies into
+ * the curtain stops on it.
+ */
+function TrailerSide({
+  hold,
+}: {
+  hold: { min: [number, number, number]; max: [number, number, number] };
+}) {
+  const res = useMemo(() => {
+    const foldTex = curtainTexture();
+    return {
+      foldTex,
+      rail: new THREE.MeshStandardMaterial({ color: '#b9bec4', roughness: 0.38, metalness: 0.75 }),
+      rub: new THREE.MeshStandardMaterial({ color: '#2a2e33', roughness: 0.7, metalness: 0.4 }),
+      curtain: new THREE.MeshStandardMaterial({ map: foldTex, color: '#2f56b8', roughness: 0.82 }),
+      strap: new THREE.MeshStandardMaterial({ color: '#1d2125', roughness: 0.9 }),
+      buckle: new THREE.MeshStandardMaterial({ color: '#c9ccd0', roughness: 0.3, metalness: 0.9 }),
+      foldGeo: new THREE.CylinderGeometry(1, 1, 1, 12),
+    };
+  }, []);
+  useDisposable(res);
+
+  const x0 = hold.min[0] + 0.05;
+  const x1 = hold.max[0] - 0.05;
+  const len = x1 - x0;
+  const roof = hold.max[1];
+  const floor = hold.min[1];
+  const z = hold.max[2];
+  /** The curtain hangs from under the top rail to just above the floor. */
+  const cTop = roof - RAIL.top + 0.02;
+  const cBot = floor + 0.04;
+  const cH = cTop - cBot;
+  /** The two bunches: the front one reaches back from the front wall, the
+   *  rear one forward from the rear doors. */
+  const ends: { at: number; dir: 1 | -1 }[] = [
+    { at: x0, dir: 1 },
+    { at: x1, dir: -1 },
+  ];
+
+  return (
+    <group>
+      <RigidBody type="fixed" colliders={false} name="trailer-side">
+        <CuboidCollider
+          args={[len / 2, RAIL.top / 2, RAIL.depth / 2]}
+          position={[(x0 + x1) / 2, roof - RAIL.top / 2 + 0.03, z]}
+        />
+        {ends.map(({ at, dir }, i) => (
+          <CuboidCollider
+            key={i}
+            args={[BUNCH / 2, cH / 2, 0.12]}
+            position={[at + (dir * BUNCH) / 2, cBot + cH / 2, z + 0.06]}
+          />
+        ))}
+      </RigidBody>
+
+      {/* The top rail: an aluminium box section capping the roof's edge, with
+          a lip over the roof so the cut face never shows from above. */}
+      <mesh
+        material={res.rail}
+        position={[(x0 + x1) / 2, roof - RAIL.top / 2 + 0.03, z]}
+        castShadow
+        receiveShadow
+      >
+        <boxGeometry args={[len, RAIL.top, RAIL.depth]} />
+      </mesh>
+      <mesh material={res.rail} position={[(x0 + x1) / 2, roof + 0.035, z - 0.06]} receiveShadow>
+        <boxGeometry args={[len, 0.04, RAIL.depth + 0.12]} />
+      </mesh>
+      {/* The curtain track: a dark channel under the top rail. */}
+      <mesh material={res.rub} position={[(x0 + x1) / 2, roof - RAIL.top + 0.02, z]}>
+        <boxGeometry args={[len, 0.04, RAIL.depth * 0.7]} />
+      </mesh>
+
+      {/* The rub rail under the floor's edge: no lip over the floor. */}
+      <mesh
+        material={res.rub}
+        position={[(x0 + x1) / 2, floor - RAIL.bottom / 2 - 0.005, z]}
+        castShadow
+        receiveShadow
+      >
+        <boxGeometry args={[len, RAIL.bottom, RAIL.depth]} />
+      </mesh>
+      <mesh
+        material={res.rail}
+        position={[(x0 + x1) / 2, floor - 0.03, z + RAIL.depth / 2 + 0.006]}
+      >
+        <boxGeometry args={[len, 0.05, 0.012]} />
+      </mesh>
+
+      {/* The curtain, drawn back into folds at each end, and its straps. */}
+      {ends.map(({ at, dir }, i) => (
+        <group key={i}>
+          {FOLDS.map(([fx, fz, r], k) => (
+            <mesh
+              key={k}
+              geometry={res.foldGeo}
+              material={res.curtain}
+              position={[at + dir * fx, cBot + cH / 2, z + fz - 0.02]}
+              scale={[r, cH, r * 0.8]}
+              castShadow
+              receiveShadow
+            />
+          ))}
+          {[0.28, 0.55].map((h, k) => {
+            const sx = at + dir * (BUNCH - 0.06);
+            const sy = cBot + cH * h;
+            return (
+              <group key={k}>
+                <mesh material={res.strap} position={[sx, sy - 0.35, z + 0.08]} castShadow>
+                  <boxGeometry args={[0.05, 0.7, 0.012]} />
+                </mesh>
+                <mesh material={res.buckle} position={[sx, sy - 0.7, z + 0.09]}>
+                  <boxGeometry args={[0.07, 0.06, 0.02]} />
+                </mesh>
+              </group>
+            );
+          })}
+        </group>
+      ))}
+    </group>
+  );
+}
+
+/** Curtain fabric: vertical shading for the folds, and a seam near the hem. */
+function curtainTexture(): THREE.CanvasTexture {
+  const W = 64;
+  const H = 256;
+  const canvas = document.createElement('canvas');
+  canvas.width = W;
+  canvas.height = H;
+  const ctx = canvas.getContext('2d');
+  if (ctx) {
+    const g = ctx.createLinearGradient(0, 0, W, 0);
+    g.addColorStop(0, '#9a9a9a');
+    g.addColorStop(0.5, '#ffffff');
+    g.addColorStop(1, '#8c8c8c');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.25)';
+    ctx.fillRect(0, H * 0.94, W, 3);
+    ctx.fillRect(0, H * 0.04, W, 3);
+  }
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
 }
 
 /** Hazard tape: yellow and black diagonals, repeated along the edge. */
