@@ -10,17 +10,17 @@ export const plutoDrone: DroneSpec = {
   id: 'pluto',
   name: 'Pluto',
   frame: 'quad',
-  mass: 0.05, // 50 g
+  mass: 0.054, // 54 g, the PlutoX's published weight (dronaaviation.com)
   // 160 mm wheelbase measured motor-to-motor diagonally => 80 mm from CoG,
   // i.e. motors at ±56.6 mm per axis. With ~72 mm props this yields the
   // 186 mm overall span measured from the PlutoX CAD model.
   armLength: 0.08,
   motors: Array.from({ length: 4 }, () => ({
     kv: 20000,
-    // 4 x 0.25 N = 1.0 N against a 0.49 N weight -> thrust-to-weight ~2.0,
+    // 4 x 0.27 N = 1.08 N against a 0.53 N weight -> thrust-to-weight ~2.0,
     // which is typical for a trainer nano quad and puts hover at ~50% stick.
     // (At 2.8 TWR hover sat near 35% and everything above it was far too punchy.)
-    maxThrustN: 0.25,
+    maxThrustN: 0.27,
     responseTime: 0.03,
   })),
   propDiameterIn: 2.17, // 55 mm — measured from the airframe
@@ -32,6 +32,9 @@ export const plutoDrone: DroneSpec = {
     // release, matching the specified 3.85 V hover -> 3.72 V full-throttle.
     internalResistance: 0.035,
   },
+  // The default armLength^2 * 1.8 = 0.01152 m^2 was tuned at 50 g; scaled to
+  // 54 g with the thrust so drag and wind act on it as they did.
+  dragArea: 0.01244,
   maxSpeed: 8,
   /** Hard ceiling enforced by the flight controller (soft-limited from 2 m below). */
   maxAltitude: 20,

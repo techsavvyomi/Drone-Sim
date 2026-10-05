@@ -106,7 +106,7 @@ describe('loadout lines', () => {
       expect(droneLine(d)).toBe(`${formatMass(d.mass)} · ${droneBuild(d)}`);
       expect(droneBuild(d)).toMatch(/^(Quad|Hex) · \d+ mm props$/);
     }
-    expect(droneLine(plutoDrone).startsWith('50 g · ')).toBe(true);
+    expect(droneLine(plutoDrone).startsWith('54 g · ')).toBe(true);
   });
 
   it('an arena: indoor with its roof, or outdoor', () => {

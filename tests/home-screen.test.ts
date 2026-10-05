@@ -158,7 +158,7 @@ describe('what Home says (homePlan)', () => {
 describe('the drone facts', () => {
   it('come from the plugin: Pluto', () => {
     expect(homeDroneFacts(plutoDrone)).toEqual([
-      { label: 'Mass', value: '50 g' },
+      { label: 'Mass', value: '54 g' },
       { label: 'Motors', value: '4 × 20,000 kv' },
       { label: 'Props', value: '55 mm, 2-blade' },
       { label: 'Battery', value: '1S · 300 mAh' },
@@ -166,8 +166,8 @@ describe('the drone facts', () => {
   });
 
   it('one handling line per drone, starting with its mass', () => {
-    expect(handlingLine(plutoDrone)).toBe('50 g. Tilts 22° at full stick, tops out at 8 m/s.');
-    expect(handlingLine(guruDrone)).toBe('1.5 kg. Tilts 32° at full stick, tops out at 14 m/s.');
+    expect(handlingLine(plutoDrone)).toBe('54 g. Tilts 22° at full stick, tops out at 8 m/s.');
+    expect(handlingLine(guruDrone)).toBe('130.1 g. Tilts 32° at full stick, tops out at 14 m/s.');
     expect(handlingLine(racingDrone)).toBe('720 g. Tilts 45° at full stick, tops out at 17 m/s.');
   });
 });

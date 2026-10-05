@@ -25,7 +25,7 @@ const TURN_RATE = 0.35;
 /** Height of the disc's top face. */
 const DISC_TOP = -0.069;
 
-/** Every drone drawn at one size on the disc: a 50 g Pluto and a 1.5 kg Guru
+/** Every drone drawn at one size on the disc: a 54 g Pluto and a 720 g Racer
  *  would otherwise be a speck and a wall. Arm length is the airframe's scale. */
 function fit(spec: DroneSpec): number {
   return 0.09 / (spec.armLength * (spec.sizeScale ?? 1));

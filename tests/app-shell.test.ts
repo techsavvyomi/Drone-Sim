@@ -127,7 +127,9 @@ describe('the ceiling read-out', () => {
   it('formats metres and mass', () => {
     expect(formatMetres(2.5)).toBe('2.5 m');
     expect(formatMetres(20)).toBe('20 m');
-    expect(formatMass(0.05)).toBe('50 g');
+    expect(formatMass(0.054)).toBe('54 g');
+    expect(formatMass(0.1301)).toBe('130.1 g');
+    expect(formatMass(0.72)).toBe('720 g');
     expect(formatMass(1.5)).toBe('1.5 kg');
   });
 });
@@ -135,7 +137,7 @@ describe('the ceiling read-out', () => {
 describe('Hangar spec card', () => {
   it('reads only real plugin data for the Pluto', () => {
     expect(Object.fromEntries(droneFacts(plutoDrone).map((f) => [f.label, f.value]))).toEqual({
-      Mass: '50 g',
+      Mass: '54 g',
       Frame: 'Quad · 4 motors',
       Props: '55 mm',
       Battery: '1S · 300 mAh',
@@ -374,8 +376,8 @@ describe('Sidebar', () => {
 
 describe('LoadoutChip', () => {
   const options = [
-    { id: 'pluto', name: 'Pluto', meta: '50 g' },
-    { id: 'pluto-guru', name: 'Pluto Guru', meta: '1.5 kg' },
+    { id: 'pluto', name: 'Pluto', meta: '54 g' },
+    { id: 'pluto-guru', name: 'Pluto Guru', meta: '130.1 g' },
   ];
 
   function strip(onSelect = vi.fn()) {
@@ -463,7 +465,7 @@ describe('TopBar', () => {
     const el = mount(h(TopBar));
     act(() => $(el, '.loadout-chip__button').click());
     const pluto = $$(el, '[role="option"]')[0];
-    expect($(pluto, '.loadout-menu__meta').textContent?.trim()).toBe('50 g');
+    expect($(pluto, '.loadout-menu__meta').textContent?.trim()).toBe('54 g');
     expect($(pluto, '.loadout-menu__detail').textContent).toBe('Quad · 55 mm props');
   });
 
@@ -540,7 +542,7 @@ describe('Hangar', () => {
   it('the spec card is the plugin data', () => {
     const el = mount(h(Hangar));
     const facts = $$(el, '.hangar__fact').map((f) => f.textContent);
-    expect(facts).toContain('Mass50 g');
+    expect(facts).toContain('Mass54 g');
     expect(facts).toContain('Battery1S · 300 mAh');
   });
 });

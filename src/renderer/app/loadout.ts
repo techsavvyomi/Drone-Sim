@@ -9,9 +9,9 @@ export function formatMetres(m: number): string {
   return `${v} m`;
 }
 
-/** "50 g", "720 g", "1.5 kg". */
+/** "54 g", "130.1 g", "720 g", "1.5 kg": grams to one decimal, no ".0". */
 export function formatMass(kg: number): string {
-  return kg >= 1 ? `${Math.round(kg * 10) / 10} kg` : `${Math.round(kg * 1000)} g`;
+  return kg >= 1 ? `${Math.round(kg * 10) / 10} kg` : `${Math.round(kg * 10000) / 10} g`;
 }
 
 export interface Ceiling {
@@ -60,7 +60,7 @@ export function droneBuild(d: DroneSpec): string {
   return `${d.frame === 'hex' ? 'Hex' : 'Quad'} · ${Math.round(d.propDiameterIn * 25.4)} mm props`;
 }
 
-/** One line under a drone's name in a list: "50 g · Quad · 55 mm props". */
+/** One line under a drone's name in a list: "54 g · Quad · 55 mm props". */
 export function droneLine(d: DroneSpec): string {
   return `${formatMass(d.mass)} · ${droneBuild(d)}`;
 }

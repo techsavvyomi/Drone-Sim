@@ -192,7 +192,7 @@ export function homeDroneFacts(d: DroneSpec): { label: string; value: string }[]
 }
 
 /** One honest handling line, starting with the mass:
- *  "50 g. Tilts 22° at full stick, tops out at 8 m/s." */
+ *  "54 g. Tilts 22° at full stick, tops out at 8 m/s." */
 export function handlingLine(d: DroneSpec): string {
   const tilt = d.handling?.maxTiltDeg ?? BEGINNER_CONFIG.maxTiltDeg;
   return `${formatMass(d.mass)}. Tilts ${tilt}° at full stick, tops out at ${d.maxSpeed} m/s.`;

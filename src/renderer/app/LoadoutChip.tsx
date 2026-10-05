@@ -4,7 +4,7 @@ import { Icon } from '../ds';
 export interface LoadoutOption {
   id: string;
   name: string;
-  /** Short figure beside the name ("50 g"). */
+  /** Short figure beside the name ("54 g"). */
   meta?: string;
   /** One line under it ("Quad · 55 mm props"). */
   detail?: string;

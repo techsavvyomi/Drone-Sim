@@ -1474,7 +1474,7 @@ export function Drone({ spec, spawn, bounds, outdoor = false, groundY }: DronePr
             // fixed 0.05-0.3 N m s therefore span the wreck up at hundreds of
             // rad/s, which is exactly what read as the drone being flung away
             // instead of dropping. Scale by the body's real inertia so the same
-            // impact looks the same on a 50 g nano and a 1.5 kg trainer.
+            // impact looks the same on a 54 g nano and a 720 g racer.
             const pin = rb.principalInertia();
             const tumble = THREE.MathUtils.clamp(v * 0.4, 0.8, CRASH_TUMBLE_RATE);
             rb.applyTorqueImpulse(

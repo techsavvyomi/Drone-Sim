@@ -3,8 +3,8 @@ import type { DroneSpec } from '@shared/types';
 // resolves under Electron's file:// protocol in the packaged app).
 import guruModelUrl from '../../../assets/models/PlutoGuru.opt.glb?url';
 
-// Pluto Guru — the 230 mm trainer, roughly 8x the mass of the PlutoX nano and a
-// noticeably calmer, heavier machine to fly.
+// Pluto Guru — the 230 mm trainer, a bigger frame than the PlutoX nano and a
+// noticeably calmer machine to fly.
 //
 // Dimensions are real (supplied with the CAD): 230 mm diagonal wheelbase
 // motor-to-motor, 135 mm propellers. Everything the airframe does NOT dictate —
@@ -14,17 +14,19 @@ export const guruDrone: DroneSpec = {
   id: 'pluto-guru',
   name: 'Pluto Guru',
   frame: 'quad',
-  // 1.5 kg realistic trainer quad. Solid momentum, smooth gliding, and authentic airframe inertia.
-  mass: 1.5,
+  // 130.1 g, the real Guru's weight. The airframe was tuned at 1.5 kg, so the
+  // thrust and drag area below are scaled by the same 0.1301 / 1.5: hover
+  // throttle, tilt-to-speed and wind response stay what was flown and tuned.
+  mass: 0.1301,
   // Motor-to-CoG = half the 230 mm diagonal wheelbase. Confirmed against the
   // model: the four tagged props sit at +/-81.7 mm per axis, i.e. 115.5 mm out
   // on a clean 45-degree X.
   armLength: 0.115,
   motors: Array.from({ length: 4 }, () => ({
     kv: 2300,
-    // 4 x 7.36 N = 29.44 N against a 14.71 N weight -> thrust-to-weight ~2.0,
+    // 4 x 0.6384 N = 2.553 N against a 1.276 N weight -> thrust-to-weight ~2.0,
     // matching standard high-stability trainer flight characteristics.
-    maxThrustN: 7.36,
+    maxThrustN: 0.6384,
     responseTime: 0.05,
   })),
   propDiameterIn: 5.31, // 135 mm
@@ -36,13 +38,16 @@ export const guruDrone: DroneSpec = {
   },
   // Descriptive: nothing reads this yet. It is the figure the numbers below
   // actually produce, solved from tilt against damping and drag —
-  // 9.81 * tan(32 deg) = 0.3 v + (0.5 * 1.225 * 0.0238 / 1.5) v^2 -> 14 m/s.
+  // 9.81 * tan(32 deg) = 0.3 v + (0.5 * 1.225 * 0.002065 / 0.1301) v^2 -> 14 m/s.
   maxSpeed: 14,
+  // The default armLength^2 * 1.8 = 0.0238 m^2, scaled with the mass (see
+  // `mass`) so drag and wind accelerate this airframe exactly as they did.
+  dragArea: 0.002065,
   /** Hard ceiling enforced by the flight controller (soft-limited from 2 m below). */
   maxAltitude: 30,
   /**
    * A trainer, but no longer a trainer pinned to the beginner envelope. At 22
-   * degrees of tilt this 1.5 kg airframe cruised at about 10 m/s and felt like
+   * degrees of tilt this airframe cruised at about 10 m/s and felt like
    * it was wading; 32 degrees is still a long way from a freestyle lean and
    * takes it to roughly 14. The climb comes up with it, so the same stick that
    * banks harder also gets it off the deck without waiting.

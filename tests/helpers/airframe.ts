@@ -5,7 +5,7 @@ import type { DroneSpec } from '../../src/shared/types';
  * `plugins/drones/guru.ts` — that module imports its `.glb` through Vite's
  * `?url`, which is a renderer concern and nothing the flight controller needs.
  *
- * The numbers that matter to the controller are real Guru figures: 1.5 kg on
+ * The numbers that matter to the controller are the Guru as first tuned: 1.5 kg on
  * four 7.36 N motors, i.e. a hover at exactly half throttle.
  */
 export function testSpec(over: Partial<DroneSpec> = {}): DroneSpec {
