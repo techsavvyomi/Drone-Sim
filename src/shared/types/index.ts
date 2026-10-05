@@ -538,6 +538,19 @@ export interface AppInfo {
  */
 export type FlightMode = 'stabilize' | 'altitude-hold' | 'acro';
 
+/**
+ * Acro (rate mode) stick-to-rotation curve, in the units the real firmware is
+ * configured in — see `acroRateDps` in flightController.ts.
+ *
+ * `magis`: Drona's MagisV2 (Pluto), Cleanflight `pidRewrite` with the
+ * `rcRate8` / `rcExpo8` / `rates` of its control-rate profile.
+ * `actual`: Betaflight "Actual" rates — centre sensitivity and max rate in
+ * deg/s, expo 0..1.
+ */
+export type AcroRates =
+  | { kind: 'magis'; rcRate8: number; rcExpo8: number; rate: number }
+  | { kind: 'actual'; centerDps: number; maxDps: number; expo: number };
+
 /** Normalized, device-agnostic control input. throttle in [0,1], rest in [-1,1]. */
 export interface StickInput {
   roll: number;
@@ -633,6 +646,8 @@ export interface DroneSpec {
     maxRateSetpoint?: number;
     /** Climb/descent rate at full throttle stick in Altitude Hold, m/s. */
     maxClimbRate?: number;
+    /** How Acro turns stick into rotation rate. Defaults to the Magis (Pluto) curve. */
+    acroRates?: AcroRates;
   };
   /**
    * Effective frontal area × drag coefficient, m². Defaults to

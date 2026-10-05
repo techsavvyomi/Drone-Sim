@@ -1,5 +1,6 @@
 import type { DroneSpec } from '@shared/types';
 import racerModelUrl from '../../../assets/models/RacingDrone.opt.glb?url';
+import { BETAFLIGHT_ACRO_RATES } from '../../sim/control/flightController';
 
 // 5" freestyle/racing quad — the first airframe here that is game art rather
 // than CAD, which changes two things about how it is set up.
@@ -87,6 +88,9 @@ export const racingDrone: DroneSpec = {
     maxClimbRate: 3.5,
     maxYawRate: 4.0,
     maxRateSetpoint: 9,
+    // Not a Drona airframe, so not Magis: a 5" quad flies Betaflight, and these
+    // are its stock rates.
+    acroRates: BETAFLIGHT_ACRO_RATES,
   },
   /**
    * Measured off the airframe rather than taken from the armLength stand-in.

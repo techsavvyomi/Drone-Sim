@@ -93,6 +93,19 @@ const CRASH_SPIN_DECEL = 6;
 const CP_HEIGHT = 0.022;
 
 /**
+ * Most angular acceleration the aerodynamic moment may impose, in rad/s^2.
+ *
+ * Uncapped, the moment grows with airspeed until it beats the rate loop: at
+ * 12 m/s it was worth ~55 rad/s^2 against an I-term that may hold only 22.5
+ * (25% of `maxAngAccel`). In Acro, where nothing else holds the attitude, a
+ * drone rolled to 100 degrees and let go turned itself back to level at 87
+ * deg/s with centred sticks — a self-level that real Acro does not have. Held
+ * well inside the I-term, the moment stays what it is meant to be: a trim the
+ * controller carries (front motors lower in cruise), not an attitude it loses.
+ */
+const AERO_ALPHA_MAX = 6;
+
+/**
  * Battery thresholds are evaluated on the RESTING (open-circuit) voltage, not
  * the loaded reading. A pack sags under throttle and recovers on release, so
  * judging on the loaded value would force a landing during any hard climb while
@@ -755,7 +768,13 @@ export function Drone({ spec, spawn, bounds, outdoor = false, groundY }: DronePr
       const k = 0.55 * rb.mass(); // matches the rigid body's linear damping
       _drag.set(-lin.x, -lin.y, -lin.z).multiplyScalar(k);
       _cp.copy(_up).multiplyScalar(CP_HEIGHT);
-      _aeroTq.crossVectors(_cp, _drag).multiplyScalar(SIM_DT);
+      _aeroTq.crossVectors(_cp, _drag);
+      // Capped as an angular acceleration — see AERO_ALPHA_MAX. The smaller of
+      // the roll and pitch inertias is the conservative divisor.
+      const maxTq = AERO_ALPHA_MAX * Math.min(inertia.current[0], inertia.current[2]);
+      const tq = _aeroTq.length();
+      if (tq > maxTq) _aeroTq.multiplyScalar(maxTq / tq);
+      _aeroTq.multiplyScalar(SIM_DT);
       rb.applyTorqueImpulse({ x: _aeroTq.x, y: _aeroTq.y, z: _aeroTq.z }, true);
     }
 

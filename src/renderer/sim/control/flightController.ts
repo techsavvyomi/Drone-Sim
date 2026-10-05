@@ -1,5 +1,12 @@
 import * as THREE from 'three';
-import type { ContactState, DroneSpec, FlightMode, StickInput, Vec3 } from '@shared/types';
+import type {
+  AcroRates,
+  ContactState,
+  DroneSpec,
+  FlightMode,
+  StickInput,
+  Vec3,
+} from '@shared/types';
 import { clamp, DEG2RAD } from '../mathx';
 import { GRAVITY } from '../constants';
 import { PidController } from './pid';
@@ -109,6 +116,50 @@ export const SPRING_THROTTLE: FlightMode[] = [...ALT_MANAGED, 'acro'];
 export const THROTTLE_CENTER = 0.5;
 
 /**
+ * MagisV2's factory control-rate profile (`resetControlRateConfig`): what a
+ * Pluto flies Acro on out of the box. Full stick is ~137 deg/s.
+ */
+export const MAGIS_ACRO_RATES: AcroRates = { kind: 'magis', rcRate8: 90, rcExpo8: 65, rate: 0 };
+
+/** Betaflight 4.3+ defaults (`controlrate_profile.c`): Actual, 70 / 670 deg/s, no expo. */
+export const BETAFLIGHT_ACRO_RATES: AcroRates = {
+  kind: 'actual',
+  centerDps: 70,
+  maxDps: 670,
+  expo: 0,
+};
+
+/**
+ * Acro rotation rate for a stick position (-1..1), in deg/s — the firmware's
+ * own arithmetic, not a fit.
+ *
+ * Magis (`mw.cpp` + `rc_curves.cpp` + `pid.cpp` `pidRewrite`, the Pluto's
+ * default controller): the stick's 0..500 deflection is read off a 7-point
+ * table `(2500 + rcExpo8·(i²−25))·i·rcRate8/2500` with linear interpolation,
+ * giving rcCommand; the rate setpoint is `(rate+20)·rcCommand >> 4`, compared
+ * against `gyroADC/4` from an ICM20948 at ±2000 dps (16.4 LSB per deg/s), so
+ * one deg/s is 4.1 setpoint units.
+ *
+ * Betaflight Actual (`rc.c` `applyActualRates`):
+ * `x·centre + max(0, max−centre)·|x|·(x⁵·expo + x·(1−expo))`.
+ */
+export function acroRateDps(stick: number, rates: AcroRates): number {
+  const x = clamp(stick, -1, 1);
+  const ax = Math.abs(x);
+  if (rates.kind === 'actual') {
+    const expof = ax * (x ** 5 * rates.expo + x * (1 - rates.expo));
+    return x * rates.centerDps + Math.max(0, rates.maxDps - rates.centerDps) * expof;
+  }
+  const lookup = (i: number) =>
+    ((2500 + rates.rcExpo8 * (i * i - 25)) * i * rates.rcRate8) / 2500;
+  const tmp = ax * 500;
+  const i = Math.min(Math.floor(tmp / 100), 4);
+  const rcCommand = lookup(i) + ((tmp - i * 100) * (lookup(i + 1) - lookup(i))) / 100;
+  const dps = ((rates.rate + 20) * rcCommand) / 16 / 4.1;
+  return Math.sign(x) * dps;
+}
+
+/**
  * The envelope this airframe actually flies in: the shared trainer config with
  * the drone's own `handling` overrides laid over it.
  *
@@ -199,6 +250,7 @@ export class FlightController {
   private readonly armPerAxis: number;
 
   private readonly config: ControllerConfig;
+  private readonly acroRates: AcroRates;
 
   constructor(
     private spec: DroneSpec,
@@ -208,6 +260,7 @@ export class FlightController {
     // further and climbs faster than the trainer envelope allows.
     const config = configFor(spec, base);
     this.config = config;
+    this.acroRates = spec.handling?.acroRates ?? MAGIS_ACRO_RATES;
     // Term limits mirror the Magis V2 firmware's pidLuxFloat, which bounds the
     // I contribution to 250 and the D contribution to 300 of a +/-1000 output
     // range — i.e. 25% and 30% of full authority.
@@ -347,9 +400,12 @@ export class FlightController {
     let pitchRateSp: number;
 
     if (mode === 'acro') {
-      // Rate mode: sticks command angular rate directly, no auto-level.
-      rollRateSp = -input.roll * maxRate;
-      pitchRateSp = -input.pitch * maxRate;
+      // Rate mode: sticks command angular rate directly, no auto-level — on the
+      // airframe's own firmware curve (`acroRateDps`), not `maxRateSetpoint`,
+      // which is the angle loop's ceiling and made full stick 400 deg/s on a
+      // Pluto whose firmware turns 137.
+      rollRateSp = -acroRateDps(input.roll, this.acroRates) * DEG2RAD;
+      pitchRateSp = -acroRateDps(input.pitch, this.acroRates) * DEG2RAD;
     } else {
       // Stabilize / Altitude Hold: quaternion tilt error, valid at ANY attitude
       // (including upside-down), so the drone always self-rights.
