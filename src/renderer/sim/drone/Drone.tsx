@@ -591,7 +591,7 @@ export function Drone({ spec, spawn, bounds, outdoor = false, groundY }: DronePr
     // landing drill, both start armed and off the ground, and dead motors there
     // is a drop, not a safety.
     if (armed && !prevArmed.current) {
-      controller.captureAltitude(pos.y);
+      controller.captureAltitude(pos.y, lin.y);
       controller.resetIntegrators();
       if (useFlightStore.getState().onGround) controller.lockThrottle();
     }

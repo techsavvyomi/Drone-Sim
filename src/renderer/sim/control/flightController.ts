@@ -231,6 +231,22 @@ function maxDescentRate(maxClimbRate: number): number {
   return Math.min(maxClimbRate * 2, 5);
 }
 
+/**
+ * How hard Altitude Hold may slow a climb it was handed on ENTRY, in m/s^2.
+ *
+ * Entering Alt Hold used to capture the altitude of that instant and demand
+ * `climbP × (0 − vz)` at once. Climbing at 3 m/s that is −9.6 m/s^2, clamped at
+ * −9.8: about 2% of the aircraft's weight in thrust, motors at ~0.04. Now the
+ * climb-rate setpoint starts at the climb the aircraft has and comes down at
+ * this rate, and the hold height is where that brings it to rest. 2.5 is the
+ * user's starting value (2026-10-05), to be tuned by feel.
+ *
+ * Only a climb is eased. A descent handed over is not the motor-drop case, and
+ * easing it would let a fast descent near the ground arrive harder than the
+ * existing powered stop does.
+ */
+const ALT_ENTRY_DECEL = 2.5;
+
 export class FlightController {
   private rollRate: PidController;
   private pitchRate: PidController;
@@ -239,6 +255,8 @@ export class FlightController {
   private heading = 0;
   /** Altitude held when the throttle stick is centred (Altitude Hold). */
   private targetAltitude = 0;
+  /** Eased climb-rate setpoint after an entry into Alt Hold, or null. See ALT_ENTRY_DECEL. */
+  private entryClimbSp: number | null = null;
   /**
    * Arming interlock: the motors answer nothing until the pilot has commanded
    * the throttle down once. See `lockThrottle()`.
@@ -297,6 +315,7 @@ export class FlightController {
     this.heading = 0;
     this.lastMode = null;
     this.throttleInterlock = false;
+    this.entryClimbSp = null;
   }
 
   /**
@@ -310,9 +329,27 @@ export class FlightController {
     this.yawRate.resetIntegral();
   }
 
-  /** Capture the current altitude before handing an automatic climb to Alt Hold. */
-  captureAltitude(altitude: number): void {
-    this.targetAltitude = altitude;
+  /**
+   * Capture the altitude to hold, as an Alt Hold ENTRY: after an automatic climb,
+   * on arming in the air, on a reset. `vz` is the vertical speed at that moment —
+   * a climb still in progress is eased out (ALT_ENTRY_DECEL), not chopped.
+   */
+  captureAltitude(altitude: number, vz = 0): void {
+    this.beginAltEntry(altitude, vz);
+  }
+
+  private beginAltEntry(altitude: number, vz: number): void {
+    if (vz > 0) {
+      // Where the eased setpoint reaches zero, plus the distance covered while the
+      // climb loop lags it (vz / climbP): without the lag term it overshot that
+      // point by ~0.8 m from 3 m/s and then sank back to it.
+      this.targetAltitude =
+        altitude + (vz * vz) / (2 * ALT_ENTRY_DECEL) + vz / this.config.climbP;
+      this.entryClimbSp = vz;
+    } else {
+      this.targetAltitude = altitude;
+      this.entryClimbSp = null;
+    }
   }
 
   /**
@@ -405,7 +442,11 @@ export class FlightController {
 
     // Capture the hold altitude whenever the mode changes.
     if (mode !== this.lastMode) {
-      this.targetAltitude = state.position[1];
+      if (ALT_MANAGED.includes(mode)) this.beginAltEntry(state.position[1], state.velocityWorld[1]);
+      else {
+        this.targetAltitude = state.position[1];
+        this.entryClimbSp = null;
+      }
       this.lastMode = mode;
     }
 
@@ -473,7 +514,7 @@ export class FlightController {
     if (thrustOverride !== undefined) {
       thrust = thrustOverride;
     } else if (ALT_MANAGED.includes(mode)) {
-      thrust = this.altitudeThrust(input, state, tiltCos);
+      thrust = this.altitudeThrust(input, state, tiltCos, dt);
     } else {
       let t = clamp(input.throttle, 0, 1);
       // A spring-centred direct stick RESTS at centre, and on the pad that is
@@ -611,7 +652,12 @@ export class FlightController {
   }
 
   /** Thrust from the altitude controller (Altitude Hold). */
-  private altitudeThrust(input: StickInput, state: ControlState, tiltCos: number): number {
+  private altitudeThrust(
+    input: StickInput,
+    state: ControlState,
+    tiltCos: number,
+    dt: number,
+  ): number {
     const alt = state.position[1];
     const vz = state.velocityWorld[1];
 
@@ -643,6 +689,7 @@ export class FlightController {
     // nothing turns until the pilot actually commands a climb.
     if (state.onGround && !(stickActive && stick > 0)) {
       this.targetAltitude = alt;
+      this.entryClimbSp = null;
       return 0;
     }
 
@@ -660,13 +707,32 @@ export class FlightController {
         stick * 2 * this.config.maxClimbRate,
         -maxDescentRate(this.config.maxClimbRate),
       );
-      this.targetAltitude = alt; // follow the stick, resume holding on release
+      // Follow the stick, resume holding on release — unless an entry ease is
+      // running and the stick asks for LESS climb than it. That is either the
+      // pilot asking to slow down, which the ease already limits, or the stick
+      // the previous mode left behind: the throttle handover runs at render rate,
+      // after the first physics steps in the new mode, so for 2–4 steps Alt Hold
+      // saw Stabilize's raised stick, cancelled the ease and reset the hold to
+      // that instant's altitude — and chopped the motors anyway.
+      if (this.entryClimbSp === null || climbSp >= this.entryClimbSp) {
+        this.targetAltitude = alt;
+        this.entryClimbSp = null;
+      }
     } else {
       climbSp = clamp(
         this.config.altP * (this.targetAltitude - alt),
         -this.config.maxClimbRate,
         this.config.maxClimbRate,
       );
+    }
+
+    // Entry ease: the setpoint comes down from the inherited climb at
+    // ALT_ENTRY_DECEL until it meets what the stick or the hold loop asks for,
+    // then hands over.
+    if (this.entryClimbSp !== null) {
+      const eased = this.entryClimbSp - ALT_ENTRY_DECEL * dt;
+      if (eased <= climbSp) this.entryClimbSp = null;
+      else climbSp = this.entryClimbSp = eased;
     }
 
     /*
