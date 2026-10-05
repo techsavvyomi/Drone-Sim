@@ -56,6 +56,10 @@ const _rotor = new THREE.Vector3();
 const _drag = new THREE.Vector3();
 const _cp = new THREE.Vector3();
 const _aeroTq = new THREE.Vector3();
+const _aeroQInv = new THREE.Quaternion();
+const _aeroBody = new THREE.Vector3();
+/** The aero moment in body axes, handed to the controller (Acro feed-forward). */
+const _aeroBodyArr: Vec3 = [0, 0, 0];
 const UP_AXIS = new THREE.Vector3(0, 1, 0);
 /** Scratch for the ambient drift vector. */
 const _driftVec: Vec3 = [0, 0, 0];
@@ -702,6 +706,39 @@ export function Drone({ spec, spawn, bounds, outdoor = false, groundY }: DronePr
       );
     }
 
+    // Aerodynamic pitching moment: drag acts at the rotor plane, ABOVE the CoG,
+    // so forward flight generates a nose-up moment the controller must trim out.
+    // That trim is why the front motors sit lower than the rear in steady cruise
+    // — without it the motors equalise as soon as the tilt angle settles.
+    // (Linear drag itself is handled by the body's linearDamping; this adds only
+    // the moment, so translational feel is unchanged.) Worked out BEFORE the
+    // controller so Acro can feed it forward; the impulse is applied after the
+    // motors, as before.
+    _q.set(rot.x, rot.y, rot.z, rot.w);
+    _up.set(0, 1, 0).applyQuaternion(_q);
+    const speed = Math.hypot(lin.x, lin.y, lin.z);
+    const aeroActive = speed > 0.05;
+    if (aeroActive) {
+      const k = 0.55 * rb.mass(); // matches the rigid body's linear damping
+      _drag.set(-lin.x, -lin.y, -lin.z).multiplyScalar(k);
+      _cp.copy(_up).multiplyScalar(CP_HEIGHT);
+      _aeroTq.crossVectors(_cp, _drag);
+      // Capped as an angular acceleration — see AERO_ALPHA_MAX. The smaller of
+      // the roll and pitch inertias is the conservative divisor.
+      const maxTq = AERO_ALPHA_MAX * Math.min(inertia.current[0], inertia.current[2]);
+      const tq = _aeroTq.length();
+      if (tq > maxTq) _aeroTq.multiplyScalar(maxTq / tq);
+      _aeroQInv.copy(_q).invert();
+      _aeroBody.copy(_aeroTq).applyQuaternion(_aeroQInv);
+      _aeroBodyArr[0] = _aeroBody.x;
+      _aeroBodyArr[1] = _aeroBody.y;
+      _aeroBodyArr[2] = _aeroBody.z;
+    } else {
+      _aeroBodyArr[0] = 0;
+      _aeroBodyArr[1] = 0;
+      _aeroBodyArr[2] = 0;
+    }
+
     const out = controller.update(
       stick,
       mode,
@@ -717,6 +754,7 @@ export function Drone({ spec, spawn, bounds, outdoor = false, groundY }: DronePr
         onGround: useFlightStore.getState().onGround,
         contactState,
         isStable,
+        aeroTorque: _aeroBodyArr,
       },
       SIM_DT,
       thrustOverride,
@@ -761,23 +799,9 @@ export function Drone({ spec, spawn, bounds, outdoor = false, groundY }: DronePr
     const ty = yawTorque * SIM_DT;
     rb.applyTorqueImpulse({ x: _up.x * ty, y: _up.y * ty, z: _up.z * ty }, true);
 
-    // Aerodynamic pitching moment: drag acts at the rotor plane, ABOVE the CoG,
-    // so forward flight generates a nose-up moment the controller must trim out.
-    // That trim is why the front motors sit lower than the rear in steady cruise
-    // — without it the motors equalise as soon as the tilt angle settles.
-    // (Linear drag itself is handled by the body's linearDamping; this adds only
-    // the moment, so translational feel is unchanged.)
-    const speed = Math.hypot(lin.x, lin.y, lin.z);
-    if (speed > 0.05) {
-      const k = 0.55 * rb.mass(); // matches the rigid body's linear damping
-      _drag.set(-lin.x, -lin.y, -lin.z).multiplyScalar(k);
-      _cp.copy(_up).multiplyScalar(CP_HEIGHT);
-      _aeroTq.crossVectors(_cp, _drag);
-      // Capped as an angular acceleration — see AERO_ALPHA_MAX. The smaller of
-      // the roll and pitch inertias is the conservative divisor.
-      const maxTq = AERO_ALPHA_MAX * Math.min(inertia.current[0], inertia.current[2]);
-      const tq = _aeroTq.length();
-      if (tq > maxTq) _aeroTq.multiplyScalar(maxTq / tq);
+    // Aerodynamic pitching moment: computed before the controller ran (it is
+    // fed forward in Acro), applied here.
+    if (aeroActive) {
       _aeroTq.multiplyScalar(SIM_DT);
       rb.applyTorqueImpulse({ x: _aeroTq.x, y: _aeroTq.y, z: _aeroTq.z }, true);
     }

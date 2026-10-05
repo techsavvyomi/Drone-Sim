@@ -45,6 +45,11 @@ export interface ControlState {
   /** Physical contact & support stability state */
   contactState?: ContactState;
   isStable?: boolean;
+  /**
+   * The aerodynamic moment acting on the body this step, BODY frame, N·m
+   * (x pitch, y yaw, z roll). Acro feeds it forward — see `update()`.
+   */
+  aeroTorque?: Vec3;
 }
 
 export interface ControlOutput {
@@ -503,9 +508,24 @@ export class FlightController {
     const aYaw = this.yawRate.update(yawRateSp - yawRateMeasured, dt, yawRateMeasured);
 
     // Inertia-normalized torques (body frame).
-    const tauX = state.inertia[0] * aPitch;
-    const tauY = state.inertia[1] * aYaw;
-    const tauZ = state.inertia[2] * aRoll;
+    let tauX = state.inertia[0] * aPitch;
+    let tauY = state.inertia[1] * aYaw;
+    let tauZ = state.inertia[2] * aRoll;
+
+    // Acro: cancel the aerodynamic moment by feed-forward. Nothing else holds
+    // the attitude in rate mode, and the rate loop alone cannot. Its I-term only
+    // builds by letting the body turn D/Ki (6/8 rad, ~43°) first, which flew as a
+    // slow self-level: released at ~20° nose-down, the Pluto levelled out in 6 s.
+    // A real flight controller gets the same result from far higher gains. The
+    // moment still acts and the motors still carry it (front low in cruise),
+    // but the attitude stays where the pilot left it. Subtracted as a torque,
+    // not an acceleration, so it cancels whatever the inertia figures are.
+    // Acro only: Stabilize and Alt Hold have the angle loop and are unchanged.
+    if (mode === 'acro' && state.aeroTorque) {
+      tauX -= state.aeroTorque[0];
+      tauY -= state.aeroTorque[1];
+      tauZ -= state.aeroTorque[2];
+    }
 
     // ---- Collective thrust ----
     const tMaxNow = state.maxPerMotor * 4;
