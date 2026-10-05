@@ -31,6 +31,7 @@ import {
   stick,
   updateStick,
   resetStick,
+  throttleAfterModeChange,
   throttleRestsAtCentre,
 } from '../../input/controls';
 import { useSimStore } from '../../state/simStore';
@@ -1095,28 +1096,15 @@ export function Drone({ spec, spawn, bounds, outdoor = false, groundY }: DronePr
     // Throttle means different things either side of this boundary, so hand it
     // over sensibly when the mode changes.
     if (flight.mode !== prevMode.current) {
-      // Keyed on where the stick RESTS, not on what it commands: Acro's throttle
-      // is direct, but on a gamepad its stick is spring-centred too, so a switch
-      // into it wants the same handover Alt Hold gets. On the keyboard Acro's
-      // throttle holds its value, and gets the direct-mode handover instead.
-      const nowManaged = throttleRestsAtCentre(flight.mode);
-      const wasManaged = prevMode.current ? throttleRestsAtCentre(prevMode.current) : false;
-      if (nowManaged && !wasManaged) {
-        // Entering: centre the spring-loaded stick so it holds rather than dives.
-        stick.throttle = THROTTLE_CENTER;
-      } else if (!nowManaged && wasManaged) {
-        // Leaving: hand back a hover-equivalent throttle position, otherwise the
-        // drone would fall out of the sky the instant the stick becomes direct.
-        // Keyboard Acro on the pad is the exception: there is nothing to hold
-        // up, and a hover-equivalent stick is a raised one — `throttleSafeToArm`
-        // refused to arm after switching into Acro from Alt Hold. It starts at
-        // idle, like a radio's throttle.
-        const grounded = !flight.armed || flight.onGround;
-        stick.throttle =
-          grounded && flight.mode === 'acro'
-            ? 0
-            : clamp(hoverThrust / controller.maxThrust, 0, 1);
-      }
+      // See `throttleAfterModeChange`: keyed on where the stick RESTS on the
+      // device flying, and on whether there is anything to hold up.
+      const next = throttleAfterModeChange(
+        prevMode.current,
+        flight.mode,
+        !flight.armed || flight.onGround,
+        clamp(hoverThrust / controller.maxThrust, 0, 1),
+      );
+      if (next !== null) stick.throttle = next;
       prevMode.current = flight.mode;
     }
 

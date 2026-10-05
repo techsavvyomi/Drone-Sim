@@ -366,6 +366,32 @@ export function resetStick(): void {
 }
 
 /**
+ * Where the throttle stick goes when the flight mode changes, or null to leave
+ * it where it is. Keyed on where the stick RESTS on the device flying
+ * (`throttleRestsAtCentre`), not on what the mode does with it.
+ *
+ * - Into a centre-resting mode: the centre, so it holds rather than dives.
+ * - Out of one into a direct throttle, armed in the air: the hover-equivalent
+ *   position, or the drone would fall the instant the stick became direct.
+ * - The same, grounded or disarmed: idle. There is nothing to hold up, and a
+ *   hover-equivalent stick is a raised one, so `throttleSafeToArm` silently
+ *   refused to arm after Alt Hold → Stabilize (or keyboard Acro) on the pad.
+ *   A radio's throttle sits at the bottom there too.
+ */
+export function throttleAfterModeChange(
+  from: FlightMode | null,
+  to: FlightMode,
+  grounded: boolean,
+  hoverFraction: number,
+): number | null {
+  const now = throttleRestsAtCentre(to);
+  const was = from ? throttleRestsAtCentre(from) : false;
+  if (now && !was) return THROTTLE_CENTER;
+  if (!now && was) return grounded ? 0 : hoverFraction;
+  return null;
+}
+
+/**
  * Real flight controllers refuse to arm unless the throttle is at its safe
  * resting position — arming with the throttle raised would spin up and lurch.
  * Where that position IS depends on how the stick rests, not on how its value is

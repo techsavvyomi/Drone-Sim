@@ -7,6 +7,7 @@ import {
   setScripted,
   setScriptedStick,
   stick,
+  throttleAfterModeChange,
   throttleSafeToArm,
   updateStick,
 } from '../src/renderer/input/controls';
@@ -225,5 +226,34 @@ describe('scripted input', () => {
 
     expect(useFlightStore.getState().armed).toBe(false);
     expect(useFlightStore.getState().auto).toBe('manual');
+  });
+});
+
+describe('the throttle across a mode change', () => {
+  const HOVER = 0.49;
+
+  it('Alt Hold → Stabilize on the pad starts at idle, so arming is not refused', () => {
+    // It used to hand over the hover-equivalent 0.49, a raised stick to a
+    // direct mode, and ENTER did nothing.
+    const next = throttleAfterModeChange('altitude-hold', 'stabilize', true, HOVER);
+    expect(next).toBe(0);
+    useFlightStore.setState({ mode: 'stabilize' });
+    stick.throttle = next!;
+    expect(throttleSafeToArm()).toBe(true);
+  });
+
+  it('keyboard Acro on the pad starts at idle too', () => {
+    expect(throttleAfterModeChange('altitude-hold', 'acro', true, HOVER)).toBe(0);
+  });
+
+  it('armed in the air, leaving Alt Hold hands back the hover position', () => {
+    expect(throttleAfterModeChange('altitude-hold', 'stabilize', false, HOVER)).toBe(HOVER);
+    expect(throttleAfterModeChange('altitude-hold', 'acro', false, HOVER)).toBe(HOVER);
+  });
+
+  it('into Alt Hold centres the stick; between direct modes it is left alone', () => {
+    expect(throttleAfterModeChange('stabilize', 'altitude-hold', true, HOVER)).toBe(0.5);
+    expect(throttleAfterModeChange('stabilize', 'acro', false, HOVER)).toBeNull();
+    expect(throttleAfterModeChange('acro', 'stabilize', true, HOVER)).toBeNull();
   });
 });
