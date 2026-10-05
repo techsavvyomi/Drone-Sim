@@ -93,49 +93,35 @@ describe('throttle behaviour by mode', () => {
     expect(stick.throttle).toBeCloseTo(0.9, 3);
   });
 
-  it("TC-207 Acro's throttle springs back to centre once airborne", () => {
-    // Acro's thrust stays direct — this is only where the stick RESTS, matching
-    // the spring in a gamepad's left stick.
+  it("TC-207 the keyboard's Acro throttle holds where it was left, airborne", () => {
+    // Acro has no altitude logic, so a throttle that sprang back to a hover was
+    // a hidden assist. On the keyboard it is incremental, like a radio's stick.
+    // (A gamepad's stick still springs physically — that is the device, not this.)
     useFlightStore.setState({ mode: 'acro', onGround: false });
     stick.throttle = 0.9;
-
     for (let i = 0; i < 60; i++) updateStick(1 / 60);
+    expect(stick.throttle).toBeCloseTo(0.9, 3);
 
-    expect(stick.throttle).toBeCloseTo(0.5, 1);
-  });
-
-  it('TC-207 a low throttle springs UP to centre in Acro, not down', () => {
-    useFlightStore.setState({ mode: 'acro', onGround: false });
     stick.throttle = 0.1;
-
     for (let i = 0; i < 60; i++) updateStick(1 / 60);
-
-    expect(stick.throttle).toBeCloseTo(0.5, 1);
+    expect(stick.throttle).toBeCloseTo(0.1, 3);
   });
 
-  it('TC-208 the Acro spring works on the pad as well as in the air', () => {
-    // Where the stick rests is not a flight condition. What used to make a
-    // centred stick unsafe on the pad is covered in the controller now: the
-    // arming interlock, and a grounded stick at or below centre commanding
-    // nothing.
+  it("TC-208 the keyboard's Acro throttle holds on the pad too", () => {
     useFlightStore.setState({ mode: 'acro', onGround: true });
     stick.throttle = 0.2;
-
     for (let i = 0; i < 60; i++) updateStick(1 / 60);
-
-    expect(stick.throttle).toBeCloseTo(0.5, 1);
+    expect(stick.throttle).toBeCloseTo(0.2, 3);
   });
 
-  it('TC-208 a sprung centre is still safe to arm on in Acro', () => {
-    // Keyed on ALT_MANAGED, the interlock read Acro's sprung centre as a raised
-    // stick and refused to arm at all.
+  it('TC-208 on the keyboard, Acro arms near idle like any direct mode', () => {
     useFlightStore.setState({ mode: 'acro' });
     resetStick();
 
-    expect(stick.throttle).toBeCloseTo(0.5, 3);
+    expect(stick.throttle).toBe(0);
     expect(throttleSafeToArm()).toBe(true);
 
-    stick.throttle = 0.8;
+    stick.throttle = 0.5;
     expect(throttleSafeToArm()).toBe(false);
   });
 
@@ -153,9 +139,10 @@ describe('throttle behaviour by mode', () => {
     // A spring-centred mode rests at the centre; Stabilize rests at idle.
     expect(stick.throttle).toBeCloseTo(0.5, 3);
 
+    // Acro on the keyboard is a direct, incremental throttle: it starts at idle.
     useFlightStore.setState({ mode: 'acro' });
     resetStick();
-    expect(stick.throttle).toBeCloseTo(0.5, 3);
+    expect(stick.throttle).toBe(0);
 
     useFlightStore.setState({ mode: 'stabilize' });
     resetStick();

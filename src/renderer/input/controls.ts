@@ -1,4 +1,4 @@
-import type { GamepadAction, StickInput } from '@shared/types';
+import type { FlightMode, GamepadAction, StickInput } from '@shared/types';
 import { clamp, damp } from '../sim/mathx';
 import { useFlightStore } from '../state/flightStore';
 import { ALT_MANAGED, SPRING_THROTTLE, THROTTLE_CENTER } from '../sim/control/flightController';
@@ -133,6 +133,22 @@ export function activeInputSource(): Source {
   return activeSource;
 }
 
+/**
+ * Whether the throttle of the device flying RIGHT NOW rests at centre in `mode`.
+ *
+ * Alt Hold: always — its centre is "hold height" on any device. Acro: only on a
+ * gamepad, whose left stick springs back physically. The keyboard's Acro
+ * throttle is incremental and stays wherever W/S left it, like a radio's
+ * throttle stick. `SPRING_THROTTLE` answers the mode half of this; every place
+ * that needs the real answer (spring, reset, arm check, mode handover, the
+ * grounded centre-stick rule) asks here.
+ */
+export function throttleRestsAtCentre(mode: FlightMode): boolean {
+  if (!SPRING_THROTTLE.includes(mode)) return false;
+  if (ALT_MANAGED.includes(mode)) return true;
+  return activeSource === 'gamepad' && gamepadConnected();
+}
+
 /** Stick position that counts as the throttle's idle end, matching the flight
  *  controller's own `<= 0.08` idle test. */
 const IDLE_STICK = 0.08;
@@ -185,6 +201,13 @@ const THROTTLE_CENTER_LAMBDA = 15;
  * the start of the movement.
  */
 const KEYBOARD_EXPO = 0.35;
+
+/**
+ * Keyboard throttle travel in Acro, full range per second, both directions.
+ * 0.7 is the user's starting value (2026-10-05), to be tuned by feel; from idle
+ * it reaches the Pluto's hover (0.5) in about 0.7 s.
+ */
+const ACRO_KEY_THROTTLE_RATE = 0.7;
 
 function expo(x: number, e: number): number {
   return x * (e * x * x + (1 - e));
@@ -303,21 +326,15 @@ export function updateStick(dt: number): void {
     else stick.throttle = damp(stick.throttle, THROTTLE_CENTER, THROTTLE_CENTER_LAMBDA, dt);
   } else {
     // Direct-thrust modes: W increases throttle, S decreases throttle to descend.
-    if (up) stick.throttle += throttleRateUp * dt;
-    if (down) stick.throttle -= throttleRateDown * dt;
-    // Acro flies a direct throttle on a spring-centred stick: let go and it
-    // returns to mid-throttle, which is a hover on both Pluto airframes. It is
-    // the same left stick a gamepad already presents in this mode; the keyboard
-    // was the odd one out, holding whatever the last W or S left behind.
-    //
-    // On the pad as well as in the air. What used to make that unsafe — a stick
-    // resting at centre is a *raised* stick to a direct mode, so arming would
-    // spool straight to hover thrust — is now covered twice over: the arming
-    // interlock holds the motors until S is pressed, and the collective ignores
-    // a grounded stick at or below centre (both in `flightController`).
-    if (!up && !down && SPRING_THROTTLE.includes(flight.mode)) {
-      stick.throttle = damp(stick.throttle, THROTTLE_CENTER, THROTTLE_CENTER_LAMBDA, dt);
-    }
+    // The keyboard's throttle is incremental here and holds where it was left —
+    // in Acro as well, like a radio's throttle stick: Acro has no altitude
+    // logic, so a throttle that sprang back to a hover was a hidden assist.
+    // Acro's rate is its own (`ACRO_KEY_THROTTLE_RATE`), set to be tuned by feel.
+    const acro = flight.mode === 'acro';
+    const rateUp = acro ? ACRO_KEY_THROTTLE_RATE * throttleScale : throttleRateUp;
+    const rateDown = acro ? ACRO_KEY_THROTTLE_RATE * throttleScale : throttleRateDown;
+    if (up) stick.throttle += rateUp * dt;
+    if (down) stick.throttle -= rateDown * dt;
   }
   stick.throttle = clamp(stick.throttle, 0, 1);
 
@@ -343,8 +360,8 @@ export function resetStick(): void {
   rawRoll = 0;
   rawPitch = 0;
   rawYaw = 0;
-  // A spring-centred mode rests at centre; Stabilize's direct stick rests at zero.
-  stick.throttle = SPRING_THROTTLE.includes(useFlightStore.getState().mode) ? THROTTLE_CENTER : 0;
+  // A throttle that rests at centre starts there; a direct one starts at zero.
+  stick.throttle = throttleRestsAtCentre(useFlightStore.getState().mode) ? THROTTLE_CENTER : 0;
   pressed.clear();
 }
 
@@ -357,7 +374,7 @@ export function resetStick(): void {
  * having sprung to a centre the test read as raised. Returns true when it's safe.
  */
 export function throttleSafeToArm(): boolean {
-  const sprung = SPRING_THROTTLE.includes(useFlightStore.getState().mode);
+  const sprung = throttleRestsAtCentre(useFlightStore.getState().mode);
   const limit = sprung ? THROTTLE_CENTER + 0.12 : 0.15;
   return stick.throttle <= limit;
 }

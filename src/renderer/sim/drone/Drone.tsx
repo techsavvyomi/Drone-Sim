@@ -11,7 +11,6 @@ import * as THREE from 'three';
 import type { ContactState, DroneSpec, FlightMode, SupportInfo, Vec3 } from '@shared/types';
 import {
   FlightController,
-  SPRING_THROTTLE,
   THROTTLE_CENTER,
   type ControlOutput,
 } from '../control/flightController';
@@ -32,6 +31,7 @@ import {
   stick,
   updateStick,
   resetStick,
+  throttleRestsAtCentre,
 } from '../../input/controls';
 import { useSimStore } from '../../state/simStore';
 import { useFlightStore, type AutoState } from '../../state/flightStore';
@@ -719,6 +719,7 @@ export function Drone({ spec, spawn, bounds, outdoor = false, groundY }: DronePr
       SIM_DT,
       thrustOverride,
       isThrottleDown(),
+      throttleRestsAtCentre(mode),
     );
     lastOutput.current = out;
 
@@ -1095,17 +1096,26 @@ export function Drone({ spec, spawn, bounds, outdoor = false, groundY }: DronePr
     // over sensibly when the mode changes.
     if (flight.mode !== prevMode.current) {
       // Keyed on where the stick RESTS, not on what it commands: Acro's throttle
-      // is direct but its stick is spring-centred too, so a switch into it wants
-      // the same handover Alt Hold gets.
-      const nowManaged = SPRING_THROTTLE.includes(flight.mode);
-      const wasManaged = prevMode.current ? SPRING_THROTTLE.includes(prevMode.current) : false;
+      // is direct, but on a gamepad its stick is spring-centred too, so a switch
+      // into it wants the same handover Alt Hold gets. On the keyboard Acro's
+      // throttle holds its value, and gets the direct-mode handover instead.
+      const nowManaged = throttleRestsAtCentre(flight.mode);
+      const wasManaged = prevMode.current ? throttleRestsAtCentre(prevMode.current) : false;
       if (nowManaged && !wasManaged) {
         // Entering: centre the spring-loaded stick so it holds rather than dives.
         stick.throttle = THROTTLE_CENTER;
       } else if (!nowManaged && wasManaged) {
         // Leaving: hand back a hover-equivalent throttle position, otherwise the
         // drone would fall out of the sky the instant the stick becomes direct.
-        stick.throttle = clamp(hoverThrust / controller.maxThrust, 0, 1);
+        // Keyboard Acro on the pad is the exception: there is nothing to hold
+        // up, and a hover-equivalent stick is a raised one — `throttleSafeToArm`
+        // refused to arm after switching into Acro from Alt Hold. It starts at
+        // idle, like a radio's throttle.
+        const grounded = !flight.armed || flight.onGround;
+        stick.throttle =
+          grounded && flight.mode === 'acro'
+            ? 0
+            : clamp(hoverThrust / controller.maxThrust, 0, 1);
       }
       prevMode.current = flight.mode;
     }
@@ -1253,7 +1263,7 @@ export function Drone({ spec, spawn, bounds, outdoor = false, groundY }: DronePr
       // own. On an override the stick already holds what the pilot is asking
       // for, and overwriting it would throw that input away.
       if (!pilotOverride) {
-        stick.throttle = SPRING_THROTTLE.includes(flight.mode)
+        stick.throttle = throttleRestsAtCentre(flight.mode)
           ? THROTTLE_CENTER
           : clamp(hoverThrust / controller.maxThrust, 0, 1);
       }

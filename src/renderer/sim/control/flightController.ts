@@ -368,6 +368,13 @@ export class FlightController {
      * which is why it arrives as an argument and not as a field of `state`.
      */
     throttleDown = false,
+    /**
+     * The throttle stick of the device flying RESTS at centre (a spring), so a
+     * grounded centre stick is not a command. Device-dependent in Acro — a
+     * gamepad springs, the keyboard does not — hence an argument; the default
+     * is the mode's answer, for callers with no device (tests, demos).
+     */
+    throttleSprung: boolean = SPRING_THROTTLE.includes(mode),
   ): ControlOutput {
     _q.set(state.rotation[0], state.rotation[1], state.rotation[2], state.rotation[3]);
     _qInv.copy(_q).invert();
@@ -465,7 +472,7 @@ export class FlightController {
       // been asked for nothing (#15a, #16). Above centre it IS a command, and
       // centre is also exactly where a direct throttle makes hover thrust — so
       // the drone leaves the ground at the moment the stick says it should.
-      if (state.onGround && SPRING_THROTTLE.includes(mode) && t <= THROTTLE_CENTER) t = 0;
+      if (state.onGround && throttleSprung && t <= THROTTLE_CENTER) t = 0;
       thrust = t * this.maxThrust;
     }
 
