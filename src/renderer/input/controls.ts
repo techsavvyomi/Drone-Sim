@@ -203,11 +203,30 @@ const THROTTLE_CENTER_LAMBDA = 15;
 const KEYBOARD_EXPO = 0.35;
 
 /**
- * Keyboard throttle travel in Acro, full range per second, both directions.
- * 0.7 is the user's starting value (2026-10-05), to be tuned by feel; from idle
- * it reaches the Pluto's hover (0.5) in about 0.7 s.
+ * Keyboard throttle travel in Acro is set by TIME, not by stick fraction: W
+ * takes the throttle from idle to the airframe's hover in this many seconds,
+ * on every drone. A fixed 0.7 of the range per second was 0.7 s to hover on
+ * the Pluto (hover ~0.49) but 0.39 s on the Racer (hover ~0.28), so the same
+ * key was twice as hot there. The user's value (2026-10-05): the Pluto keeps
+ * its ~0.70/s; the Racer becomes ~0.39/s.
  */
-const ACRO_KEY_THROTTLE_RATE = 0.7;
+const ACRO_KEY_IDLE_TO_HOVER_S = 0.7;
+
+/** Hover throttle of the airframe flying (fraction of full thrust). See `setHoverThrottle`. */
+let hoverThrottle = 0.5;
+
+/**
+ * The flying airframe's hover throttle, weight over full thrust. The drone sets
+ * it when it mounts. Only the keyboard's Acro throttle rate reads it.
+ */
+export function setHoverThrottle(fraction: number): void {
+  hoverThrottle = clamp(fraction, 0.05, 1);
+}
+
+/** Keyboard Acro throttle travel, full range per second: hover / ACRO_KEY_IDLE_TO_HOVER_S. */
+export function acroKeyThrottleRate(): number {
+  return hoverThrottle / ACRO_KEY_IDLE_TO_HOVER_S;
+}
 
 function expo(x: number, e: number): number {
   return x * (e * x * x + (1 - e));
@@ -329,10 +348,10 @@ export function updateStick(dt: number): void {
     // The keyboard's throttle is incremental here and holds where it was left —
     // in Acro as well, like a radio's throttle stick: Acro has no altitude
     // logic, so a throttle that sprang back to a hover was a hidden assist.
-    // Acro's rate is its own (`ACRO_KEY_THROTTLE_RATE`), set to be tuned by feel.
+    // Acro's rate is its own, scaled to the airframe's hover (`acroKeyThrottleRate`).
     const acro = flight.mode === 'acro';
-    const rateUp = acro ? ACRO_KEY_THROTTLE_RATE * throttleScale : throttleRateUp;
-    const rateDown = acro ? ACRO_KEY_THROTTLE_RATE * throttleScale : throttleRateDown;
+    const rateUp = acro ? acroKeyThrottleRate() * throttleScale : throttleRateUp;
+    const rateDown = acro ? acroKeyThrottleRate() * throttleScale : throttleRateDown;
     if (up) stick.throttle += rateUp * dt;
     if (down) stick.throttle -= rateDown * dt;
   }

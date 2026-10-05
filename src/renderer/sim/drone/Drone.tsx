@@ -32,6 +32,7 @@ import {
   stick,
   updateStick,
   resetStick,
+  setHoverThrottle,
   throttleAfterModeChange,
   throttleRestsAtCentre,
 } from '../../input/controls';
@@ -1345,6 +1346,12 @@ export function Drone({ spec, spawn, bounds, outdoor = false, groundY }: DronePr
   }, [gl]);
 
   useEffect(() => resetStick, []);
+  // The keyboard's Acro throttle travels idle-to-hover in a fixed time, so it
+  // needs this airframe's hover fraction.
+  useEffect(() => {
+    const full = spec.motors.reduce((sum, m) => sum + m.maxThrustN, 0);
+    setHoverThrottle(hoverThrust / Math.max(full, 1e-6));
+  }, [spec, hoverThrust]);
 
   return (
     <RigidBody
