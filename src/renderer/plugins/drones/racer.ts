@@ -91,6 +91,9 @@ export const racingDrone: DroneSpec = {
     // Not a Drona airframe, so not Magis: a 5" quad flies Betaflight, and these
     // are its stock rates.
     acroRates: BETAFLIGHT_ACRO_RATES,
+    // A key is full stick, and 670 deg/s is a flip in half a second: the
+    // keyboard flies Acro at 0.4 of it (~268 deg/s). A gamepad keeps 670.
+    keyboardAcroScale: 0.4,
   },
   /**
    * Measured off the airframe rather than taken from the armLength stand-in.

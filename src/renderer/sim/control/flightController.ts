@@ -251,6 +251,8 @@ export class FlightController {
 
   private readonly config: ControllerConfig;
   private readonly acroRates: AcroRates;
+  /** Body-rate setpoints from the last `update()`, rad/s. Read-only outside. */
+  readonly rateSp = { roll: 0, pitch: 0, yaw: 0 };
 
   constructor(
     private spec: DroneSpec,
@@ -375,6 +377,12 @@ export class FlightController {
      * is the mode's answer, for callers with no device (tests, demos).
      */
     throttleSprung: boolean = SPRING_THROTTLE.includes(mode),
+    /**
+     * Multiplier on Acro's roll/pitch rate (deg/s), for the device flying —
+     * `handling.keyboardAcroScale` on the keyboard, 1 otherwise. Applied to the
+     * rate, not the stick, so the curve's shape is untouched.
+     */
+    acroRateScale = 1,
   ): ControlOutput {
     _q.set(state.rotation[0], state.rotation[1], state.rotation[2], state.rotation[3]);
     _qInv.copy(_q).invert();
@@ -411,8 +419,8 @@ export class FlightController {
       // airframe's own firmware curve (`acroRateDps`), not `maxRateSetpoint`,
       // which is the angle loop's ceiling and made full stick 400 deg/s on a
       // Pluto whose firmware turns 137.
-      rollRateSp = -acroRateDps(input.roll, this.acroRates) * DEG2RAD;
-      pitchRateSp = -acroRateDps(input.pitch, this.acroRates) * DEG2RAD;
+      rollRateSp = -acroRateDps(input.roll, this.acroRates) * acroRateScale * DEG2RAD;
+      pitchRateSp = -acroRateDps(input.pitch, this.acroRates) * acroRateScale * DEG2RAD;
     } else {
       // Stabilize / Altitude Hold: quaternion tilt error, valid at ANY attitude
       // (including upside-down), so the drone always self-rights.
@@ -445,6 +453,9 @@ export class FlightController {
     // Sign is negated so the left yaw key rotates the drone clockwise (viewed
     // from above) and the right key anticlockwise, per the requested feel.
     const yawRateSp = -input.yaw * this.config.maxYawRate;
+    this.rateSp.roll = rollRateSp;
+    this.rateSp.pitch = pitchRateSp;
+    this.rateSp.yaw = yawRateSp;
 
     const aRoll = this.rollRate.update(rollRateSp - rollRate, dt, rollRate);
     const aPitch = this.pitchRate.update(pitchRateSp - pitchRate, dt, pitchRate);

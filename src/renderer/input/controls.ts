@@ -1,4 +1,4 @@
-import type { FlightMode, GamepadAction, StickInput } from '@shared/types';
+import type { DroneSpec, FlightMode, GamepadAction, StickInput } from '@shared/types';
 import { clamp, damp } from '../sim/mathx';
 import { useFlightStore } from '../state/flightStore';
 import { ALT_MANAGED, SPRING_THROTTLE, THROTTLE_CENTER } from '../sim/control/flightController';
@@ -363,6 +363,16 @@ export function resetStick(): void {
   // A throttle that rests at centre starts there; a direct one starts at zero.
   stick.throttle = throttleRestsAtCentre(useFlightStore.getState().mode) ? THROTTLE_CENTER : 0;
   pressed.clear();
+}
+
+/**
+ * Acro roll/pitch rate multiplier for whatever is flying right now: the
+ * airframe's `keyboardAcroScale` when it is the keyboard, 1 for a gamepad or a
+ * scripted demonstration.
+ */
+export function acroRateScaleFor(spec: DroneSpec): number {
+  const keyboard = !scripted && !(activeSource === 'gamepad' && gamepadConnected());
+  return keyboard ? (spec.handling?.keyboardAcroScale ?? 1) : 1;
 }
 
 /**

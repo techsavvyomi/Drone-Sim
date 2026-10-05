@@ -648,6 +648,13 @@ export interface DroneSpec {
     maxClimbRate?: number;
     /** How Acro turns stick into rotation rate. Defaults to the Magis (Pluto) curve. */
     acroRates?: AcroRates;
+    /**
+     * Keyboard-only multiplier on the Acro roll/pitch RATE (the deg/s out of
+     * `acroRateDps`), default 1. A key is a full-deflection switch, so on an
+     * airframe whose full stick is very fast this is the only way to give the
+     * keyboard a usable rate without changing what a gamepad flies.
+     */
+    keyboardAcroScale?: number;
   };
   /**
    * Effective frontal area × drag coefficient, m². Defaults to

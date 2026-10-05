@@ -24,6 +24,7 @@ import { ambientDrift, groundEffect, windForce } from '../dynamics/environment';
 import { GRAVITY, SIM_DT } from '../constants';
 import { clamp, DEG2RAD } from '../mathx';
 import {
+  acroRateScaleFor,
   activeInputSource,
   isScripted,
   isThrottleCommanded,
@@ -721,6 +722,7 @@ export function Drone({ spec, spawn, bounds, outdoor = false, groundY }: DronePr
       thrustOverride,
       isThrottleDown(),
       throttleRestsAtCentre(mode),
+      acroRateScaleFor(spec),
     );
     lastOutput.current = out;
 
