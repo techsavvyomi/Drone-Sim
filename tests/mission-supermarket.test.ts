@@ -318,12 +318,13 @@ describe('the Supermarket colliders', () => {
     expect(r.w * r.d).toBeCloseTo(4, 6);
   });
 
-  it('turn most of the store into boxes, and the ground into one face', () => {
-    // It was one 96k-triangle trimesh. The shell that is left is the building
-    // shells and the parts with holes in them.
-    expect(set.boxes.length).toBeGreaterThan(1000);
-    expect(set.shell.length / 9).toBeLessThan(40_000);
-    expect(set.groundTris).toBeGreaterThan(5000);
+  it('keeps non-box surfaces exact and replaces only ground at zero height', () => {
+    // High box counts used to reward filling hollow and curved objects. Those
+    // surfaces now remain triangles; the spatial batches handle query cost.
+    expect(set.boxes.length).toBeGreaterThan(0);
+    expect(set.boxes.length).toBeLessThan(1000);
+    expect(set.shell.length / 9).toBeLessThan(100_000);
+    expect(set.groundTris).toBeGreaterThan(0);
   });
 });
 

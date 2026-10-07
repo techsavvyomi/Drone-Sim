@@ -12,7 +12,7 @@ import { FOLIAGE, ROAD_MARKINGS, ROAD_MARKING_OFFSET } from './newYorkMaterials'
 
 // High-Performance New York City Environment.
 // Optimized with:
-// 1. Analytical Physics Colliders (0 physics triangles, 100% collision-free avenues & cross-streets)
+// 1. Geometry-derived physics colliders preserve openings and thin surfaces
 // 2. Texture Memory & GPU Bandwidth Optimization (4x Anisotropy, Mipmap LOD optimization)
 // 3. Static Transform Freezing & Single-pass Shadows (castShadow = false, receiveShadow = true)
 // 4. Per-strip Submesh Splitting for View-Frustum Culling
@@ -162,7 +162,6 @@ function NewYorkModel({ url }: { url: string }) {
   const maxAniso = Math.min(gl.capabilities.getMaxAnisotropy(), 4);
   const streetPbr = useMemo(() => highResStreetPBR(maxAniso), [maxAniso]);
   const uTimeUniform = useMemo(() => ({ value: 0 }), []);
-
 
   const visualRoot = useMemo(() => {
     const root = scene.clone(true);
@@ -409,16 +408,7 @@ function NewYorkModel({ url }: { url: string }) {
 
 useGLTF.preload(newYorkModelUrl, DRACO_DECODER_PATH);
 
-/**
- * The city's ~3,400 collider boxes, rendered once. `NewYorkColliders` takes no
- * props, but as a plain child it re-rendered with every render of NewYorkEnv
- * and FlightScene above it — pause, resume, C for the camera, a graphics step,
- * a HUD setting, the time of day — and React rebuilt and diffed thousands of
- * collider elements each time: a 200-400 ms stall in the dev build, measured
- * over CDP as the "mini second" hitches in New York (2026-09-30). Memoised, a
- * parent's render stops at it. (NewYorkColliders.tsx is generated; the fix
- * lives here, not in it.)
- */
+/** Keep the static collision mesh out of unrelated HUD and camera renders. */
 const CityColliders = memo(NewYorkColliders);
 
 export function NewYorkEnv({ env }: { env: EnvironmentSpec }) {
@@ -461,8 +451,10 @@ export function NewYorkEnv({ env }: { env: EnvironmentSpec }) {
         />
       </RigidBody>
 
-      {/* Precision Analytical Colliders (0 physics triangles, 100% solid obstacles) */}
-      <CityColliders />
+      {/* Geometry-derived colliders load alongside the visual GLB. */}
+      <Suspense fallback={null}>
+        <CityColliders />
+      </Suspense>
 
       {/* Visual 3D City */}
       <Suspense fallback={null}>

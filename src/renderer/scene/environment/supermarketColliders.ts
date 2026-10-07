@@ -1,33 +1,7 @@
-// ----------------------------------------------------------------------------
-// The Supermarket's physics, derived from its own geometry.
-//
-// Plain arrays in, plain arrays out — no three.js — so SupermarketEnv runs it on
-// the loaded model and `tests/mission-supermarket.test.ts` runs the SAME code on
-// the GLB and checks the result against the missions' doors and marks.
-//
-// WHY NOT ONE TRIMESH. It was one: all 96k triangles, queried by the drone's 14
-// colliders on every one of 250 steps a second. Most of those triangles are
-// small things packed exactly where a mission flies — products on the shelves,
-// packs of cans, trolleys, the checkouts — and flying among them made the sim
-// visibly lag and the drone catch and stutter (the floor's own triangle seams
-// did the same on every touchdown). The same lesson as the Forest's trunks and
-// New York's hand-placed boxes; see docs/extending.md, "Physics for a new map".
-//
-// WHAT IT DOES. The export is split into its connected parts (2,251 of them),
-// and each part goes one of three ways:
-//
-//   - FLAT GROUND  → dropped. One cuboid under the whole map replaces it, so a
-//                    touchdown meets a single flat face, not triangle seams.
-//   - A SOLID PART → one box, turned about Y to fit (a minimum-area rectangle
-//                    over its footprint), because a shelf unit or a checkout at
-//                    30° is still a box, just not an axis-aligned one.
-//   - ANYTHING ELSE → kept as exact triangles: the building shells, and every
-//                    part with a hole in it. A door frame's box would seal the
-//                    doorway; a railing's would be a wall.
-//
-// "Solid" is measured, not named: a part is a box when its surfaces fill most of
-// the box around it, or when it is too small for a drone to fly through anyway.
-// ----------------------------------------------------------------------------
+// Geometry-derived static collision. Only a complete rectangular solid may be
+// replaced with a cuboid. Bounding boxes, surface-area ratios and "small enough"
+// are not shape tests: they fill open frames and protrude beyond curved props.
+// All other surfaces retain their original triangles.
 
 /** One mesh's triangles, in WORLD metres. */
 export interface ColliderSource {
@@ -51,20 +25,17 @@ export interface SupermarketColliderSet {
 }
 
 /** A part this flat, at ground level, is ground. */
-const GROUND_TOP = 0.06;
-const GROUND_THICK = 0.05;
-/** Wider than this and a part is a building shell, never a box. */
-const SHELL_SPAN = 6;
-/** A box face is never thinner than this — a sign is a plane. */
-const MIN_HALF = 0.01;
-/** Smaller than this in every direction and there is no flying through it. */
-const TOO_SMALL = 0.6;
-/** Surface area over its box's surface area, above which a part is solid. */
-const SOLID_FILL = 0.45;
+const GROUND_TOP = 1e-5;
+const GROUND_THICK = 2e-5;
+/** Numerical tolerance only; never a collision skin added to the shape. */
+const FACE_EPS = 1e-5;
 /** Vertices this close are one vertex, for finding which triangles connect. */
 const WELD = 1000; // 1 mm
 
-export function buildSupermarketColliders(sources: readonly ColliderSource[]): SupermarketColliderSet {
+export function buildSupermarketColliders(
+  sources: readonly ColliderSource[],
+  replaceGround = true,
+): SupermarketColliderSet {
   const boxes: ColliderBox[] = [];
   const shell: number[] = [];
   let groundTris = 0;
@@ -112,7 +83,6 @@ export function buildSupermarketColliders(sources: readonly ColliderSource[]): S
     for (const tris of parts.values()) {
       let yMin = Infinity;
       let yMax = -Infinity;
-      let area = 0;
       const xz: number[] = [];
       for (const t of tris) {
         const a = I[t * 3] * 3;
@@ -123,26 +93,33 @@ export function buildSupermarketColliders(sources: readonly ColliderSource[]): S
           yMax = Math.max(yMax, P[v + 1]);
           xz.push(P[v], P[v + 2]);
         }
-        const ux = P[b] - P[a], uy = P[b + 1] - P[a + 1], uz = P[b + 2] - P[a + 2];
-        const vx = P[c] - P[a], vy = P[c + 1] - P[a + 1], vz = P[c + 2] - P[a + 2];
-        area += 0.5 * Math.hypot(uy * vz - uz * vy, uz * vx - ux * vz, ux * vy - uy * vx);
       }
 
-      if (yMax <= GROUND_TOP && yMax - yMin < GROUND_THICK) {
+      if (
+        replaceGround &&
+        yMin >= -GROUND_TOP &&
+        yMax <= GROUND_TOP &&
+        yMax - yMin < GROUND_THICK
+      ) {
         groundTris += tris.length;
         continue;
       }
 
       const rect = minAreaRect(xz);
-      const hw = Math.max(rect.w / 2, MIN_HALF);
-      const hd = Math.max(rect.d / 2, MIN_HALF);
-      const hh = Math.max((yMax - yMin) / 2, MIN_HALF);
-      const boxArea = 8 * (hw * hd + hw * hh + hd * hh);
-      const small = Math.max(hw, hd, hh) * 2 < TOO_SMALL;
-      const solid = area / boxArea >= SOLID_FILL;
-
-      if (Math.max(rect.w, rect.d) <= SHELL_SPAN && (small || solid)) {
-        boxes.push({ pos: [rect.cx, (yMin + yMax) / 2, rect.cz], half: [hw, hh, hd], yaw: rect.yaw });
+      const hw = rect.w / 2;
+      const hd = rect.d / 2;
+      const hh = (yMax - yMin) / 2;
+      const box = {
+        pos: [rect.cx, (yMin + yMax) / 2, rect.cz],
+        half: [hw, hh, hd],
+        yaw: rect.yaw,
+      } as ColliderBox;
+      if (isRectangularSolid(P, I, tris, box)) {
+        boxes.push({
+          pos: [rect.cx, (yMin + yMax) / 2, rect.cz],
+          half: [hw, hh, hd],
+          yaw: rect.yaw,
+        });
         continue;
       }
       for (const t of tris) {
@@ -155,6 +132,63 @@ export function buildSupermarketColliders(sources: readonly ColliderSource[]): S
   }
 
   return { boxes, shell: new Float32Array(shell), groundTris };
+}
+
+/**
+ * Every triangle must lie on one of the six box faces, and all six faces must
+ * have the rectangle's full area. An open shelf, cylinder, sloped board, plane
+ * or U-shaped frame fails this check and remains a mesh. No minimum thickness.
+ */
+function isRectangularSolid(
+  P: ArrayLike<number>,
+  I: ArrayLike<number>,
+  tris: number[],
+  box: ColliderBox,
+): boolean {
+  const h = box.half;
+  if (h.some((v) => v <= FACE_EPS)) return false;
+  const c = Math.cos(box.yaw),
+    s = Math.sin(box.yaw);
+  const areas = new Float64Array(6);
+  const edges = new Map<string, number>();
+  const local = (i: number) => {
+    const x = P[i * 3] - box.pos[0],
+      z = P[i * 3 + 2] - box.pos[2];
+    return [x * c - z * s, P[i * 3 + 1] - box.pos[1], x * s + z * c];
+  };
+  for (const t of tris) {
+    const a = local(I[t * 3]),
+      b = local(I[t * 3 + 1]),
+      d = local(I[t * 3 + 2]);
+    let face = -1;
+    for (let axis = 0; axis < 3 && face < 0; axis++) {
+      for (const sign of [-1, 1]) {
+        if ([a, b, d].every((v) => Math.abs(v[axis] - sign * h[axis]) <= FACE_EPS)) {
+          face = axis * 2 + (sign > 0 ? 1 : 0);
+          break;
+        }
+      }
+    }
+    if (face < 0) return false;
+    const u = b.map((v, i) => v - a[i]),
+      v = d.map((v, i) => v - a[i]);
+    const keys = [a, b, d].map((p) => p.map((v) => Math.round(v / FACE_EPS)).join(','));
+    for (let i = 0; i < 3; i++) {
+      const x = keys[i],
+        y = keys[(i + 1) % 3];
+      const key = x < y ? `${x}|${y}` : `${y}|${x}`;
+      edges.set(key, (edges.get(key) ?? 0) + 1);
+    }
+    areas[face] +=
+      0.5 *
+      Math.hypot(u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]);
+  }
+  if (Array.from(edges.values()).some((count) => count !== 2)) return false;
+  return Array.from(areas).every((area, face) => {
+    const axis = Math.floor(face / 2);
+    const expected = 4 * h[(axis + 1) % 3] * h[(axis + 2) % 3];
+    return Math.abs(area - expected) <= Math.max(1e-10, expected * 1e-5);
+  });
 }
 
 /**
@@ -171,10 +205,15 @@ export function minAreaRect(xz: readonly number[]): {
 } {
   const hull = convexHull(xz);
   if (hull.length < 3) {
-    let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity;
+    let x0 = Infinity,
+      x1 = -Infinity,
+      z0 = Infinity,
+      z1 = -Infinity;
     for (let i = 0; i < xz.length; i += 2) {
-      x0 = Math.min(x0, xz[i]); x1 = Math.max(x1, xz[i]);
-      z0 = Math.min(z0, xz[i + 1]); z1 = Math.max(z1, xz[i + 1]);
+      x0 = Math.min(x0, xz[i]);
+      x1 = Math.max(x1, xz[i]);
+      z0 = Math.min(z0, xz[i + 1]);
+      z1 = Math.max(z1, xz[i + 1]);
     }
     return { cx: (x0 + x1) / 2, cz: (z0 + z1) / 2, w: x1 - x0, d: z1 - z0, yaw: 0 };
   }
@@ -185,17 +224,24 @@ export function minAreaRect(xz: readonly number[]): {
     const len = Math.hypot(bx - ax, bz - az);
     if (len < 1e-9) continue;
     // The edge's direction is the box's local X; local Z is perpendicular.
-    const ex = (bx - ax) / len, ez = (bz - az) / len;
-    let u0 = Infinity, u1 = -Infinity, v0 = Infinity, v1 = -Infinity;
+    const ex = (bx - ax) / len,
+      ez = (bz - az) / len;
+    let u0 = Infinity,
+      u1 = -Infinity,
+      v0 = Infinity,
+      v1 = -Infinity;
     for (const [px, pz] of hull) {
       const u = px * ex + pz * ez;
       const v = -px * ez + pz * ex;
-      u0 = Math.min(u0, u); u1 = Math.max(u1, u);
-      v0 = Math.min(v0, v); v1 = Math.max(v1, v);
+      u0 = Math.min(u0, u);
+      u1 = Math.max(u1, u);
+      v0 = Math.min(v0, v);
+      v1 = Math.max(v1, v);
     }
     const a = (u1 - u0) * (v1 - v0);
     if (a < best.area) {
-      const um = (u0 + u1) / 2, vm = (v0 + v1) / 2;
+      const um = (u0 + u1) / 2,
+        vm = (v0 + v1) / 2;
       best = {
         area: a,
         cx: um * ex - vm * ez,
@@ -219,13 +265,15 @@ function convexHull(xz: readonly number[]): [number, number][] {
     (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
   const lower: [number, number][] = [];
   for (const p of pts) {
-    while (lower.length >= 2 && cross(lower[lower.length - 2], lower[lower.length - 1], p) <= 0) lower.pop();
+    while (lower.length >= 2 && cross(lower[lower.length - 2], lower[lower.length - 1], p) <= 0)
+      lower.pop();
     lower.push(p);
   }
   const upper: [number, number][] = [];
   for (let i = pts.length - 1; i >= 0; i--) {
     const p = pts[i];
-    while (upper.length >= 2 && cross(upper[upper.length - 2], upper[upper.length - 1], p) <= 0) upper.pop();
+    while (upper.length >= 2 && cross(upper[upper.length - 2], upper[upper.length - 1], p) <= 0)
+      upper.pop();
     upper.push(p);
   }
   upper.pop();

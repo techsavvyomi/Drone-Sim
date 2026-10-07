@@ -6,7 +6,7 @@
 // 26% of the city's building geometry with no collider at all — including the
 // tallest tower on the map. A drone flew straight through it.
 //
-// Method: rasterise building geometry into a top-down height field, then greedy
+// Mission planning only: rasterise geometry into a top-down height field, then greedy
 // merge same-height cells into maximal rectangles and emit one box per
 // rectangle, spanning ground to roof. Props (poles, bins, tree trunks) use the
 // same pass at a finer cell size.
@@ -23,6 +23,7 @@ import draco3d from 'draco3dgltf';
 import fs from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
+import { buildSupermarketColliders } from '../src/renderer/scene/environment/supermarketColliders.ts';
 
 const MODEL = 'src/assets/models/new_york_city.opt.glb';
 const OUT = 'src/renderer/scene/environment/NewYorkColliders.tsx';
@@ -378,17 +379,35 @@ console.log(`Building boxes   : ${buildings.length}`);
 console.log(`Prop boxes       : ${props.length}`);
 console.log(`Sidewalk plates  : ${walks.length}`);
 console.log(`Verify cells     : ${checkField.size}  (independent ${CHECK_CELL} m raster)`);
-console.log(`SURFACE COVER    : ${pct.toFixed(2)}%   uncovered: ${misses.length}`);
+console.log(`PLANNING COVER   : ${pct.toFixed(2)}%   uncovered: ${misses.length}`);
 if (misses.length) {
   console.log('  worst gaps (world X, Z, height):');
   for (const [x, z, y] of misses.sort((p, q) => q[2] - p[2]).slice(0, 8))
     console.log(`    X=${x.toFixed(1).padStart(7)}  Z=${z.toFixed(1).padStart(7)}  ${y.toFixed(1)} m`);
 }
 
-if (CHECK_ONLY) {
-  console.log('\n--check: nothing written.');
-  process.exit(pct > 99 ? 0 : 1);
+// Physics no longer uses these raster envelopes. Audit the actual source
+// triangles with full world matrices, matching GeometryColliders at runtime.
+const nonSolid = /foliage|leaf|leaves|lanes|decal|Street_Assets\.001|grass/i;
+const exactSources = [];
+for (const node of doc.getRoot().listNodes()) {
+  const matrix = node.getWorldMatrix();
+  for (const primitive of node.getMesh()?.listPrimitives() ?? []) {
+    if (nonSolid.test(primitive.getMaterial()?.getName() ?? '')) continue;
+    const attribute = primitive.getAttribute('POSITION');
+    const positions = new Float32Array(attribute.getCount() * 3);
+    const point = [];
+    for (let i = 0; i < attribute.getCount(); i++) {
+      attribute.getElement(i, point);
+      for (let axis = 0; axis < 3; axis++) {
+        positions[i * 3 + axis] = matrix[axis] * point[0] + matrix[axis + 4] * point[1] + matrix[axis + 8] * point[2] + matrix[axis + 12] + CITY_OFFSET[axis];
+      }
+    }
+    exactSources.push({ positions, index: primitive.getIndices()?.getArray() ?? Uint32Array.from({ length: attribute.getCount() }, (_, i) => i) });
+  }
 }
+const precise = buildSupermarketColliders(exactSources, false);
+console.log(`PHYSICS SURFACES : ${precise.shell.length / 9} original triangles, ${precise.boxes.length} verified closed boxes; no footprint extrusion`);
 
 // ---- Emit -----------------------------------------------------------------
 
@@ -397,69 +416,60 @@ const fmt = (list) =>
     .map((b) => `  { pos: [${b.pos.join(', ')}], args: [${b.args.join(', ')}] },`)
     .join('\n');
 
-const out = `import { CuboidCollider, RigidBody } from '@react-three/rapier';
+const out = `import { useMemo } from 'react';
+import { useGLTF } from '@react-three/drei';
+import { CuboidCollider, RigidBody } from '@react-three/rapier';
+import modelUrl from '../../../assets/models/new_york_city.opt.glb?url';
+import { GeometryColliders } from './GeometryColliders';
 
 // GENERATED FILE — do not edit by hand.
-// Regenerate with:  node scripts/generate-nyc-colliders.mjs
-//
-// Analytical physics colliders for New York City, derived directly from the
-// visual GLB so collision can never drift from what the pilot sees. Zero physics
-// triangles; every box is restitution 0 so a crash drops rather than bounces.
-//
-// Coordinates are WORLD space — CITY_OFFSET is already applied. Do not offset
-// these again.
-//
-// Footprint coverage: ${pct.toFixed(1)}% of building geometry.
-
-/** Buildings: ground-to-roof volumes, ${BUILDING_CELL} m footprint resolution. */
+// Regenerate with: node scripts/generate-nyc-colliders.mjs
+// Physics uses the original GLB surfaces, including all parent rotations.
+// Raster envelopes below are retained ONLY for the existing mission-plan and
+// route-authoring scripts. They are never mounted as physics colliders.
+// Changing these envelopes must not change the visible mission map layout.
 const BUILDING_BOXES: Array<{ pos: [number, number, number]; args: [number, number, number] }> = [
 ${fmt(buildings)}
 ];
-
-/** Street furniture and tree trunks: poles, bins, signs. ${PROP_CELL} m resolution. */
 const PROP_BOXES: Array<{ pos: [number, number, number]; args: [number, number, number] }> = [
 ${fmt(props)}
 ];
-
-/** Raised sidewalk / curb plates, top face at Y = +0.12 m. */
 const SIDEWALK_PLATES: Array<{ pos: [number, number, number]; args: [number, number, number] }> = [
 ${fmt(walks)}
 ];
+export const NYC_PLANNING_ENVELOPES = { BUILDING_BOXES, PROP_BOXES, SIDEWALK_PLATES };
+
+// Exclude foliage cards, stains and painted markings, not street furniture.
+const NON_SOLID = /foliage|leaf|leaves|lanes|decal|Street_Assets\\.001|grass/i;
 
 export function NewYorkColliders() {
+  const { scene } = useGLTF(modelUrl, 'draco/gltf/');
+  const root = useMemo(() => {
+    const clone = scene.clone(true);
+    clone.position.set(${CITY_OFFSET.join(', ')});
+    clone.updateMatrixWorld(true);
+    return clone;
+  }, [scene]);
   return (
     <group name="new-york-colliders-group">
-      {/* Deep solid foundation floor — top face at Y = 0, buried 10 m. */}
       <RigidBody type="fixed" colliders={false} name="nyc-ground-floor">
         <CuboidCollider args={[3000, 10, 3000]} position={[0, -10, 0]} friction={0.8} restitution={0} />
       </RigidBody>
-
-      {/* Raised sidewalks. */}
-      <RigidBody type="fixed" colliders={false} name="nyc-sidewalks">
-        {SIDEWALK_PLATES.map((s, i) => (
-          <CuboidCollider key={\`sw-\${i}\`} args={s.args} position={s.pos} friction={0.8} restitution={0} />
-        ))}
-      </RigidBody>
-
-      {/* Buildings. All boxes share ONE fixed RigidBody: Rapier broad-phases
-          static colliders individually regardless, so a body per building only
-          adds per-body bookkeeping and a much slower scene mount. */}
-      <RigidBody type="fixed" colliders={false} name="nyc-buildings">
-        {BUILDING_BOXES.map((b, i) => (
-          <CuboidCollider key={\`bldg-\${i}\`} args={b.args} position={b.pos} friction={0.8} restitution={0} />
-        ))}
-      </RigidBody>
-
-      {/* Poles, bins, signs, tree trunks. */}
-      <RigidBody type="fixed" colliders={false} name="nyc-props">
-        {PROP_BOXES.map((p, i) => (
-          <CuboidCollider key={\`prop-\${i}\`} args={p.args} position={p.pos} friction={0.6} restitution={0} />
-        ))}
-      </RigidBody>
+      <GeometryColliders root={root} excludeMaterial={NON_SOLID} />
     </group>
   );
 }
 `;
+
+if (CHECK_ONLY) {
+  const current = fs.readFileSync(OUT, 'utf8');
+  if (current !== out) {
+    console.error('Generated component is stale. Regenerate with node scripts/generate-nyc-colliders.mjs');
+    process.exit(1);
+  }
+  console.log('\n--check: generated component matches the source; nothing written.');
+  process.exit(0);
+}
 
 fs.mkdirSync(path.dirname(OUT), { recursive: true });
 fs.writeFileSync(OUT, out, 'utf8');

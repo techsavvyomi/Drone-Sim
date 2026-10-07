@@ -1,18 +1,15 @@
+import { useMemo } from 'react';
+import { useGLTF } from '@react-three/drei';
 import { CuboidCollider, RigidBody } from '@react-three/rapier';
+import modelUrl from '../../../assets/models/new_york_city.opt.glb?url';
+import { GeometryColliders } from './GeometryColliders';
 
 // GENERATED FILE — do not edit by hand.
-// Regenerate with:  node scripts/generate-nyc-colliders.mjs
-//
-// Analytical physics colliders for New York City, derived directly from the
-// visual GLB so collision can never drift from what the pilot sees. Zero physics
-// triangles; every box is restitution 0 so a crash drops rather than bounces.
-//
-// Coordinates are WORLD space — CITY_OFFSET is already applied. Do not offset
-// these again.
-//
-// Footprint coverage: 100.0% of building geometry.
-
-/** Buildings: ground-to-roof volumes, 1 m footprint resolution. */
+// Regenerate with: node scripts/generate-nyc-colliders.mjs
+// Physics uses the original GLB surfaces, including all parent rotations.
+// Raster envelopes below are retained ONLY for the existing mission-plan and
+// route-authoring scripts. They are never mounted as physics colliders.
+// Changing these envelopes must not change the visible mission map layout.
 const BUILDING_BOXES: Array<{ pos: [number, number, number]; args: [number, number, number] }> = [
   { pos: [5.93, 2.23, -81.66], args: [10.44, 2.23, 0.66] },
   { pos: [-55.94, 2.23, -80.6], args: [11.96, 2.23, 0.6] },
@@ -1598,8 +1595,6 @@ const BUILDING_BOXES: Array<{ pos: [number, number, number]; args: [number, numb
   { pos: [1.5, 55.56, 7], args: [0.5, 55.56, 1] },
   { pos: [2.5, 56.11, 0], args: [1.5, 56.11, 1] },
 ];
-
-/** Street furniture and tree trunks: poles, bins, signs. 0.5 m resolution. */
 const PROP_BOXES: Array<{ pos: [number, number, number]; args: [number, number, number] }> = [
   { pos: [17.19, 0.55, -85.22], args: [0.31, 0.43, 0.28] },
   { pos: [18.69, 0.55, -85.22], args: [0.19, 0.43, 0.28] },
@@ -3421,8 +3416,6 @@ const PROP_BOXES: Array<{ pos: [number, number, number]; args: [number, number, 
   { pos: [95.05, 11.31, -41.23], args: [0.34, 11.19, 0.23] },
   { pos: [95.2, 11.31, -40.85], args: [0.2, 11.19, 0.15] },
 ];
-
-/** Raised sidewalk / curb plates, top face at Y = +0.12 m. */
 const SIDEWALK_PLATES: Array<{ pos: [number, number, number]; args: [number, number, number] }> = [
   { pos: [-74, 0.06, -63], args: [38, 0.06, 25] },
   { pos: [0, 0.06, -61], args: [24, 0.06, 27] },
@@ -3449,37 +3442,25 @@ const SIDEWALK_PLATES: Array<{ pos: [number, number, number]; args: [number, num
   { pos: [-25, 0.06, 62], args: [1, 0.06, 24] },
   { pos: [21, 0.06, 62], args: [1, 0.06, 24] },
 ];
+export const NYC_PLANNING_ENVELOPES = { BUILDING_BOXES, PROP_BOXES, SIDEWALK_PLATES };
+
+// Exclude foliage cards, stains and painted markings, not street furniture.
+const NON_SOLID = /foliage|leaf|leaves|lanes|decal|Street_Assets\.001|grass/i;
 
 export function NewYorkColliders() {
+  const { scene } = useGLTF(modelUrl, 'draco/gltf/');
+  const root = useMemo(() => {
+    const clone = scene.clone(true);
+    clone.position.set(61.68, 0, -30.56);
+    clone.updateMatrixWorld(true);
+    return clone;
+  }, [scene]);
   return (
     <group name="new-york-colliders-group">
-      {/* Deep solid foundation floor — top face at Y = 0, buried 10 m. */}
       <RigidBody type="fixed" colliders={false} name="nyc-ground-floor">
         <CuboidCollider args={[3000, 10, 3000]} position={[0, -10, 0]} friction={0.8} restitution={0} />
       </RigidBody>
-
-      {/* Raised sidewalks. */}
-      <RigidBody type="fixed" colliders={false} name="nyc-sidewalks">
-        {SIDEWALK_PLATES.map((s, i) => (
-          <CuboidCollider key={`sw-${i}`} args={s.args} position={s.pos} friction={0.8} restitution={0} />
-        ))}
-      </RigidBody>
-
-      {/* Buildings. All boxes share ONE fixed RigidBody: Rapier broad-phases
-          static colliders individually regardless, so a body per building only
-          adds per-body bookkeeping and a much slower scene mount. */}
-      <RigidBody type="fixed" colliders={false} name="nyc-buildings">
-        {BUILDING_BOXES.map((b, i) => (
-          <CuboidCollider key={`bldg-${i}`} args={b.args} position={b.pos} friction={0.8} restitution={0} />
-        ))}
-      </RigidBody>
-
-      {/* Poles, bins, signs, tree trunks. */}
-      <RigidBody type="fixed" colliders={false} name="nyc-props">
-        {PROP_BOXES.map((p, i) => (
-          <CuboidCollider key={`prop-${i}`} args={p.args} position={p.pos} friction={0.6} restitution={0} />
-        ))}
-      </RigidBody>
+      <GeometryColliders root={root} excludeMaterial={NON_SOLID} />
     </group>
   );
 }

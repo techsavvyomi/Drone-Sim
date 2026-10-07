@@ -36,5 +36,8 @@ export const constructionSite: EnvironmentSpec = {
    * applies here (unlike the Forest, which omits this because its ground is
    * real terrain at many heights).
    */
-  groundY: 0,
+  // The hardstanding mesh is 3 cm below the raft at y=0. The under-floor
+  // rescue must use that real ground height, otherwise it pushes the drone
+  // upwards before its feet reach the newly aligned ground collider.
+  groundY: -0.03,
 };

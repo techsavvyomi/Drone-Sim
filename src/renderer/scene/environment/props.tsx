@@ -1,12 +1,6 @@
 import { useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
-import {
-  BallCollider,
-  ConeCollider,
-  CuboidCollider,
-  CylinderCollider,
-  RigidBody,
-} from '@react-three/rapier';
+import { RigidBody } from '@react-three/rapier';
 import * as THREE from 'three';
 import { useWorldStore } from '../../state/worldStore';
 import { ACADEMY_PAD } from '../../plugins/environments/droneAcademy';
@@ -57,10 +51,8 @@ export function Helipad({ position = [0, 0, 0] as [number, number, number] }) {
   return (
     <group position={position}>
       {/* Concrete slab */}
-      <RigidBody type="fixed" colliders={false}>
-        {/* Circular pad, circular collider — the auto cuboid made the square
-            around the pad solid. */}
-        <CylinderCollider args={[H / 2, R]} position={[0, H / 2, 0]} />
+      <RigidBody type="fixed" colliders="trimesh">
+        {/* Slab collision follows the rendered circular polygon. */}
         <mesh position={[0, H / 2, 0]} receiveShadow castShadow>
           <cylinderGeometry args={[R, R, H, 48]} />
           <meshStandardMaterial
@@ -102,7 +94,14 @@ export function Helipad({ position = [0, 0, 0] as [number, number, number] }) {
       {Array.from({ length: lights }, (_, i) => {
         const a = (i / lights) * Math.PI * 2;
         return (
-          <mesh key={i} position={[Math.cos(a) * ACADEMY_PAD.lightRadius, 0.18, Math.sin(a) * ACADEMY_PAD.lightRadius]}>
+          <mesh
+            key={i}
+            position={[
+              Math.cos(a) * ACADEMY_PAD.lightRadius,
+              0.18,
+              Math.sin(a) * ACADEMY_PAD.lightRadius,
+            ]}
+          >
             <sphereGeometry args={[0.09, 8, 8]} />
             <meshStandardMaterial
               color={night ? '#fff2c0' : '#c8cdd0'}
@@ -124,9 +123,6 @@ function TIME_NIGHT(t: string): boolean {
 /* ------------------------------------------------------------------ Gates */
 
 export type GateKind = 'square' | 'circle' | 'rect';
-
-/** How many boxes stand in for a ring gate's torus. See `RaceGate`. */
-const RING_SEGMENTS = 24;
 
 export function RaceGate({
   position,
@@ -167,53 +163,8 @@ export function RaceGate({
   const legH = position[1] + legTop;
 
   return (
-    // The frame is SOLID and the opening is not — which is the whole of what a
-    // gate is, and it was the one part of it the physics did not know. Until
-    // this, an upright could be flown through as readily as the hole beside it,
-    // so the three navigation modules could be "flown" straight at the frame.
-    //
-    // Explicit colliders, never `colliders="cuboid"`: the automatic hull round
-    // a torus is a solid slab across the ring, and the hull round four bars is a
-    // solid pane over the opening. Either way the gate stops being a gate.
-    <RigidBody type="fixed" colliders={false} position={position} rotation={rotation}>
-      {kind === 'circle' ? (
-        // Rapier has no torus, so the ring is walled with a polygon of thin
-        // boxes, each one a chord of it. The COUNT is the thing to get right: a
-        // chord bows inside the true circle by R(1 - cos(pi/N)), and collider
-        // standing in front of a visible surface is the mistake that makes a
-        // map feel broken — a gentle approach sinks into nothing and is shoved
-        // back out. At 24 that bow is 1.5 cm on the widest ring here, well
-        // inside the drone's own body, and it stays clear of the volume the
-        // lesson scores (`arena.ts` judges a pass at 0.45 x size, against a rim
-        // at 0.451 x size).
-        Array.from({ length: RING_SEGMENTS }, (_, i) => {
-          const a = (i / RING_SEGMENTS) * Math.PI * 2;
-          const tube = t * 0.7;
-          return (
-            <CuboidCollider
-              key={i}
-              args={[Math.sin(Math.PI / RING_SEGMENTS) * (size / 2) + tube, tube, tube]}
-              position={[Math.cos(a) * (size / 2), Math.sin(a) * (size / 2), 0]}
-              rotation={[0, 0, a + Math.PI / 2]}
-            />
-          );
-        })
-      ) : (
-        // One box per bar, at the bar's own size and place. Fitting them to the
-        // FRAME's bounds instead would wall the hole shut.
-        <>
-          <CuboidCollider args={[w / 2, t / 2, t / 2]} position={[0, h / 2, 0]} />
-          <CuboidCollider args={[w / 2, t / 2, t / 2]} position={[0, -h / 2, 0]} />
-          <CuboidCollider args={[t / 2, h / 2, t / 2]} position={[-w / 2, 0, 0]} />
-          <CuboidCollider args={[t / 2, h / 2, t / 2]} position={[w / 2, 0, 0]} />
-        </>
-      )}
-      {/* The legs, on the same test the meshes below use: a gate hung low
-          enough to have none must not grow invisible ones. */}
-      {legH > 0.2 &&
-        [-legX, legX].map((x) => (
-          <CylinderCollider key={x} args={[legH / 2, 0.06]} position={[x, legTop - legH / 2, 0]} />
-        ))}
+    // Each mesh supplies its own surface collider; the gate opening stays empty.
+    <RigidBody type="fixed" colliders="trimesh" position={position} rotation={rotation}>
       {kind === 'circle' ? (
         <mesh castShadow>
           <torusGeometry args={[size / 2, t * 0.7, 12, 40]} />
@@ -262,9 +213,7 @@ export function TrafficCone({ position }: { position: [number, number, number] }
     // Solid. The slalom is nine cones to be flown AROUND — a cone the drone
     // passes through is a mark painted on the grass, not an obstacle, and the
     // yaw drill it exists for has nothing left to get wrong.
-    <RigidBody type="fixed" colliders={false} position={position}>
-      <ConeCollider args={[0.26, 0.17]} position={[0, 0.28, 0]} />
-      <CuboidCollider args={[0.21, 0.02, 0.21]} position={[0, 0.02, 0]} />
+    <RigidBody type="fixed" colliders="trimesh" position={position}>
       <mesh position={[0, 0.02, 0]} receiveShadow>
         <boxGeometry args={[0.42, 0.04, 0.42]} />
         <meshStandardMaterial color="#25282c" roughness={0.9} />
@@ -300,11 +249,21 @@ export function LandingTarget({
       </mesh>
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.016, 0]}>
         <ringGeometry args={[0.95, 1.15, 40]} />
-        <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.35} {...paintLayer(2)} />
+        <meshStandardMaterial
+          color={color}
+          emissive={color}
+          emissiveIntensity={0.35}
+          {...paintLayer(2)}
+        />
       </mesh>
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.016, 0]}>
         <ringGeometry args={[0.4, 0.5, 32]} />
-        <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.35} {...paintLayer(2)} />
+        <meshStandardMaterial
+          color={color}
+          emissive={color}
+          emissiveIntensity={0.35}
+          {...paintLayer(2)}
+        />
       </mesh>
       {/* Corner ticks read as a pad marking without needing text geometry */}
       {[0, 1, 2, 3].map((i) => {
@@ -346,7 +305,8 @@ export function HoverBox({
 }) {
   const ref = useRef<THREE.Group>(null);
   useFrame((s) => {
-    if (ref.current) ref.current.position.y = position[1] + Math.sin(s.clock.elapsedTime * 0.8) * 0.08;
+    if (ref.current)
+      ref.current.position.y = position[1] + Math.sin(s.clock.elapsedTime * 0.8) * 0.08;
   });
 
   return (
@@ -391,13 +351,11 @@ export function WaypointTower({
   });
 
   return (
-    <group position={position}>
-      <RigidBody type="fixed" colliders="cuboid">
-        <mesh position={[0, height / 2, 0]} castShadow>
-          <boxGeometry args={[0.16, height, 0.16]} />
-          <meshStandardMaterial color="#3a4048" roughness={0.7} metalness={0.3} />
-        </mesh>
-      </RigidBody>
+    <RigidBody type="fixed" colliders="trimesh" position={position}>
+      <mesh position={[0, height / 2, 0]} castShadow>
+        <boxGeometry args={[0.16, height, 0.16]} />
+        <meshStandardMaterial color="#3a4048" roughness={0.7} metalness={0.3} />
+      </mesh>
       <mesh position={[0, 0.06, 0]} receiveShadow>
         <cylinderGeometry args={[0.42, 0.5, 0.12, 12]} />
         <meshStandardMaterial color="#2a2f36" roughness={0.9} />
@@ -412,7 +370,7 @@ export function WaypointTower({
           toneMapped={false}
         />
       </mesh>
-    </group>
+    </RigidBody>
   );
 }
 
@@ -431,12 +389,18 @@ export function Windsock({ position }: { position: [number, number, number] }) {
     // The MAST only. The sock is cloth on a swivel that turns with the wind, and
     // a hard shell round something that visibly swings would be a collider in a
     // place the pilot watched it leave.
-    <RigidBody type="fixed" colliders={false} position={position}>
-      <CylinderCollider args={[2, 0.08]} position={[0, 2, 0]} />
-      <mesh position={[0, 2, 0]} castShadow>
-        <cylinderGeometry args={[0.06, 0.08, 4, 10]} />
-        <meshStandardMaterial color="#9aa3ad" metalness={0.7} roughness={0.35} envMapIntensity={1.2} />
-      </mesh>
+    <group position={position}>
+      <RigidBody type="fixed" colliders="trimesh">
+        <mesh position={[0, 2, 0]} castShadow>
+          <cylinderGeometry args={[0.06, 0.08, 4, 10]} />
+          <meshStandardMaterial
+            color="#9aa3ad"
+            metalness={0.7}
+            roughness={0.35}
+            envMapIntensity={1.2}
+          />
+        </mesh>
+      </RigidBody>
       <group ref={sock} position={[0, 3.9, 0]}>
         {[0, 1, 2, 3].map((i) => (
           <mesh key={i} position={[0.32 + i * 0.42, 0, 0]} rotation={[0, 0, Math.PI / 2]}>
@@ -449,7 +413,7 @@ export function Windsock({ position }: { position: [number, number, number] }) {
           </mesh>
         ))}
       </group>
-    </RigidBody>
+    </group>
   );
 }
 
@@ -493,66 +457,42 @@ export function Tree({
 
   return (
     <group position={position} scale={scale} rotation={[lean, twist * Math.PI, lean * 0.6]}>
-      {/* Trunk and canopy, both solid, and INSIDE the scaled group so the
-          colliders take the tree's own scale with it — a body hung outside it
-          would collide at the size of the smallest tree in the line.
+      <RigidBody type="fixed" colliders="trimesh">
+        {/* Tapered trunk */}
+        <mesh position={[0, 1.05, 0]} castShadow>
+          <cylinderGeometry args={[0.13, 0.26, 2.1, 7]} />
+          <meshStandardMaterial color="#4a3a2a" roughness={0.96} />
+        </mesh>
 
-          The treeline stands outside the fence, which is not the same as out of
-          reach: the fence is 2.4 m of a 30 m ceiling, so the drone flies over it
-          and the arena's bounds (60 m square) run past the trees at the corners.
-          One cone or one ball for the whole canopy rather than one per tier or
-          lobe — nobody threads the inside of a tree, and the difference is 34
-          bodies against 170. */}
-      <RigidBody type="fixed" colliders={false}>
-        <CylinderCollider args={[1.05, 0.2]} position={[0, 1.05, 0]} />
-        {conifer ? (
-          <ConeCollider args={[1.72, 1.32]} position={[0, 3.07, 0]} />
-        ) : (
-          <BallCollider args={[1.5]} position={[0, 2.95, 0]} />
-        )}
+        {conifer
+          ? // Stacked, shrinking, slightly offset tiers rather than one cone.
+            [0, 1, 2, 3].map((i) => (
+              <mesh key={i} position={[0, 2.1 + i * 0.72, 0]} rotation={[0, i * 0.7, 0]} castShadow>
+                <coneGeometry args={[1.32 - i * 0.27, 1.5 - i * 0.15, 8]} />
+                <meshStandardMaterial
+                  color={i % 2 ? '#33642f' : '#2b5629'}
+                  roughness={0.92}
+                  flatShading
+                />
+              </mesh>
+            ))
+          : // Broadleaf: overlapping spheres give an irregular canopy.
+            [
+              [0, 2.9, 0, 1.35],
+              [0.62, 2.55, 0.28, 0.95],
+              [-0.55, 2.62, -0.35, 0.88],
+              [0.12, 3.45, -0.5, 0.8],
+            ].map(([x, y, z, r], i) => (
+              <mesh key={i} position={[x, y, z]} castShadow>
+                <sphereGeometry args={[r, 9, 7]} />
+                <meshStandardMaterial
+                  color={i % 2 ? '#3d6b32' : '#456f38'}
+                  roughness={0.95}
+                  flatShading
+                />
+              </mesh>
+            ))}
       </RigidBody>
-
-      {/* Tapered trunk */}
-      <mesh position={[0, 1.05, 0]} castShadow>
-        <cylinderGeometry args={[0.13, 0.26, 2.1, 7]} />
-        <meshStandardMaterial color="#4a3a2a" roughness={0.96} />
-      </mesh>
-
-      {conifer ? (
-        // Stacked, shrinking, slightly offset tiers rather than one cone.
-        [0, 1, 2, 3].map((i) => (
-          <mesh
-            key={i}
-            position={[0, 2.1 + i * 0.72, 0]}
-            rotation={[0, i * 0.7, 0]}
-            castShadow
-          >
-            <coneGeometry args={[1.32 - i * 0.27, 1.5 - i * 0.15, 8]} />
-            <meshStandardMaterial
-              color={i % 2 ? '#33642f' : '#2b5629'}
-              roughness={0.92}
-              flatShading
-            />
-          </mesh>
-        ))
-      ) : (
-        // Broadleaf: overlapping spheres give an irregular canopy.
-        [
-          [0, 2.9, 0, 1.35],
-          [0.62, 2.55, 0.28, 0.95],
-          [-0.55, 2.62, -0.35, 0.88],
-          [0.12, 3.45, -0.5, 0.8],
-        ].map(([x, y, z, r], i) => (
-          <mesh key={i} position={[x, y, z]} castShadow>
-            <sphereGeometry args={[r, 9, 7]} />
-            <meshStandardMaterial
-              color={i % 2 ? '#3d6b32' : '#456f38'}
-              roughness={0.95}
-              flatShading
-            />
-          </mesh>
-        ))
-      )}
     </group>
   );
 }
@@ -566,16 +506,15 @@ export function Floodlight({
 }) {
   const night = useWorldStore((s) => TIME_NIGHT(s.timeOfDay));
   return (
-    <RigidBody type="fixed" colliders={false} position={position} rotation={[0, rotationY, 0]}>
-      {/* An 8 m mast standing at the edge of the practice area, and the lamp
-          head on top of it — the one thing here the drone meets at height
-          rather than on the ground. Both boxed at the size they are drawn: the
-          head is two lamps side by side, taken as the one block they read as. */}
-      <CylinderCollider args={[4, 0.14]} position={[0, 4, 0]} />
-      <CuboidCollider args={[0.85, 0.32, 0.14]} position={[0, 8.1, 0.2]} rotation={[0.5, 0, 0]} />
+    <RigidBody type="fixed" colliders="trimesh" position={position} rotation={[0, rotationY, 0]}>
       <mesh position={[0, 4, 0]} castShadow>
         <cylinderGeometry args={[0.1, 0.14, 8, 10]} />
-        <meshStandardMaterial color="#767f89" metalness={0.75} roughness={0.34} envMapIntensity={1.2} />
+        <meshStandardMaterial
+          color="#767f89"
+          metalness={0.75}
+          roughness={0.34}
+          envMapIntensity={1.2}
+        />
       </mesh>
       {[-0.45, 0.45].map((x) => (
         <mesh key={x} position={[x, 8.1, 0.2]} rotation={[0.5, 0, 0]} castShadow>
@@ -593,71 +532,24 @@ export function Floodlight({
   );
 }
 
-/**
- * The hangar's arched roof, as the collider has to see it.
- *
- * These describe the shell drawn inside `Hangar` and must not drift from it:
- * `SEGMENTS` is that `cylinderGeometry`'s own radial-segment count, which is
- * what lets each collider box land exactly on one drawn facet.
- */
-const ROOF_R = 5.1;
-const ROOF_SEGMENTS = 20;
-const ROOF_HALF_LEN = 8;
-const ROOF_THICKNESS = 0.12;
-/** Height of the eaves — the arch's centre, and the top of the walls. */
-const ROOF_EAVE_Y = 6;
-
-export function Hangar({ position, rotationY = 0 }: { position: [number, number, number]; rotationY?: number }) {
+export function Hangar({
+  position,
+  rotationY = 0,
+}: {
+  position: [number, number, number];
+  rotationY?: number;
+}) {
   return (
-    // Explicit collider only. With colliders="cuboid" the half-cylinder roof
-    // generated a ~10x10x16 m invisible box around the building, and the flat
-    // door plane produced a degenerate collider — both of which the drone hit
-    // well away from any visible surface.
-    //
-    // Two shapes, because the building is two shapes. A single box across both
-    // was the whole hangar's collider for a while: it stopped at y = 8.4 while
-    // the arched roof reaches 11.1, so a drone coming in over the top passed
-    // straight through the roof skin and came to rest INSIDE the building, three
-    // metres below the ridge — the clearest possible version of an obstacle the
-    // pilot can see and fly through. The same box was also 2.4 m taller than the
-    // walls it was standing in for, and 0.5 m wider than the arch above them, so
-    // approaching the eaves from the side hit nothing at all.
-    <RigidBody type="fixed" colliders={false} position={position} rotation={[0, rotationY, 0]}>
-      {/* Walls: exactly the box that is drawn. */}
-      <CuboidCollider args={[8, 3, 5]} position={[0, 3, 0]} />
-      {/* Roof: one box per facet of the arch, exactly as the ring gates wall
-          their torus.
-          A single cylinder collider is the obvious shape and cannot be made to
-          fit. Its radius has to come down to 5.0 to stay inside the walls —
-          anything wider bulges past them in the last metre under the eaves and
-          puts an invisible ledge down the side of the building — and at 5.0 it
-          sits 10 cm inside a 5.1 m roof, which is a third of a Pluto's width of
-          roof the drone sinks into before anything stops it.
-          The shell is drawn as a 20-sided fan, so 20 chords ARE the surface:
-          each box's outer face is placed on its facet's own plane, which is
-          neither proud of the roof nor behind it. Being boxes they also stop at
-          the eaves instead of continuing down past the walls. */}
-      {Array.from({ length: ROOF_SEGMENTS }, (_, i) => {
-        const step = Math.PI / ROOF_SEGMENTS;
-        // Facet centre, measured round the arch from the right-hand eave.
-        const a = (i + 0.5) * step;
-        // Half-chord, and the distance out to the facet's plane — less the
-        // box's own thickness, so its OUTER face is the one that lands there.
-        const chord = ROOF_R * Math.sin(step / 2);
-        const depth = ROOF_R * Math.cos(step / 2) - ROOF_THICKNESS;
-        return (
-          <CuboidCollider
-            key={i}
-            args={[ROOF_HALF_LEN, ROOF_THICKNESS, chord]}
-            position={[0, ROOF_EAVE_Y + depth * Math.sin(a), depth * Math.cos(a)]}
-            rotation={[Math.PI / 2 - a, 0, 0]}
-          />
-        );
-      })}
-
+    // The arched roof, trim and walls collide on their rendered surfaces.
+    <RigidBody type="fixed" colliders="trimesh" position={position} rotation={[0, rotationY, 0]}>
       <mesh position={[0, 3, 0]} castShadow receiveShadow>
         <boxGeometry args={[16, 6, 10]} />
-        <meshStandardMaterial color="#7a838d" roughness={0.62} metalness={0.35} envMapIntensity={0.9} />
+        <meshStandardMaterial
+          color="#7a838d"
+          roughness={0.62}
+          metalness={0.35}
+          envMapIntensity={0.9}
+        />
       </mesh>
       {/* Ribbed cladding — flat metal walls read as untextured boxes. */}
       {Array.from({ length: 15 }, (_, i) => (
@@ -671,12 +563,18 @@ export function Hangar({ position, rotationY = 0 }: { position: [number, number,
         <boxGeometry args={[16.3, 0.18, 10.3]} />
         <meshStandardMaterial color="#5d666f" roughness={0.55} metalness={0.5} />
       </mesh>
-      {/* Curved roof (visual only) */}
+      {/* Curved roof */}
       <mesh position={[0, 6, 0]} rotation={[0, 0, Math.PI / 2]} castShadow>
         <cylinderGeometry args={[5.1, 5.1, 16, 20, 1, false, 0, Math.PI]} />
-        <meshStandardMaterial color="#98a2ac" roughness={0.5} metalness={0.55} envMapIntensity={1.1} side={THREE.DoubleSide} />
+        <meshStandardMaterial
+          color="#98a2ac"
+          roughness={0.5}
+          metalness={0.55}
+          envMapIntensity={1.1}
+          side={THREE.DoubleSide}
+        />
       </mesh>
-      {/* Door opening (visual only) */}
+      {/* Door panel */}
       <mesh position={[0, 2.2, 5.02]}>
         <planeGeometry args={[7, 4.4]} />
         <meshStandardMaterial color="#20262d" roughness={0.9} />
@@ -690,18 +588,15 @@ export function ControlTower({ position }: { position: [number, number, number] 
   return (
     // Cylinder colliders: a cuboid hull around the mast and cab made the tower
     // noticeably wider to hit than it looks.
-    <RigidBody type="fixed" colliders={false} position={position}>
-      {/* The mast TAPERS, 2.1 m at the foot to 1.6 m under the cab, so one
-          cylinder at its base radius stands up to half a metre proud of the
-          shaft the pilot is looking at. Two stacked segments, each taken at the
-          radius of its own top edge, sit inside the cone the whole way up. */}
-      <CylinderCollider args={[2.5, 1.85]} position={[0, 2.5, 0]} />
-      <CylinderCollider args={[2.5, 1.6]} position={[0, 7.5, 0]} />
-      <CylinderCollider args={[1.2, 3.2]} position={[0, 11.2, 0]} />
-
+    <RigidBody type="fixed" colliders="trimesh" position={position}>
       <mesh position={[0, 5, 0]} castShadow receiveShadow>
         <cylinderGeometry args={[1.6, 2.1, 10, 14]} />
-        <meshStandardMaterial color="#8b949e" roughness={0.7} metalness={0.2} envMapIntensity={0.8} />
+        <meshStandardMaterial
+          color="#8b949e"
+          roughness={0.7}
+          metalness={0.2}
+          envMapIntensity={0.8}
+        />
       </mesh>
       <mesh position={[0, 10.8, 0]} castShadow>
         <cylinderGeometry args={[3.1, 2.6, 2.4, 14]} />
@@ -721,7 +616,11 @@ export function ControlTower({ position }: { position: [number, number, number] 
       {Array.from({ length: 14 }, (_, i) => {
         const a = (i / 14) * Math.PI * 2;
         return (
-          <mesh key={i} position={[Math.cos(a) * 2.95, 10.8, Math.sin(a) * 2.95]} rotation={[0, -a, 0]}>
+          <mesh
+            key={i}
+            position={[Math.cos(a) * 2.95, 10.8, Math.sin(a) * 2.95]}
+            rotation={[0, -a, 0]}
+          >
             <boxGeometry args={[0.08, 2.4, 0.12]} />
             <meshStandardMaterial color="#5d666f" roughness={0.6} metalness={0.4} />
           </mesh>
@@ -743,20 +642,26 @@ export function ControlTower({ position }: { position: [number, number, number] 
       </mesh>
       <mesh position={[0, 13.2, 0]}>
         <sphereGeometry args={[0.18, 10, 10]} />
-        <meshStandardMaterial color="#ff4444" emissive="#ff2222" emissiveIntensity={2} toneMapped={false} />
+        <meshStandardMaterial
+          color="#ff4444"
+          emissive="#ff2222"
+          emissiveIntensity={2}
+          toneMapped={false}
+        />
       </mesh>
     </RigidBody>
   );
 }
 
-export function Bench({ position, rotationY = 0 }: { position: [number, number, number]; rotationY?: number }) {
+export function Bench({
+  position,
+  rotationY = 0,
+}: {
+  position: [number, number, number];
+  rotationY?: number;
+}) {
   return (
-    <RigidBody type="fixed" colliders={false} position={position} rotation={[0, rotationY, 0]}>
-      {/* One box round seat, back and legs. The bench is 2 m of furniture
-          standing 11 m off the pad, which is exactly where a beginner's first
-          drift takes them. Fitted to what is drawn — the back leans 0.26 m
-          behind the seat, so the box is off-centre in z rather than square. */}
-      <CuboidCollider args={[1, 0.415, 0.37]} position={[0, 0.415, -0.09]} />
+    <RigidBody type="fixed" colliders="trimesh" position={position} rotation={[0, rotationY, 0]}>
       <mesh position={[0, 0.45, 0]} castShadow>
         <boxGeometry args={[2, 0.09, 0.55]} />
         <meshStandardMaterial color="#8a6a44" roughness={0.9} />
@@ -794,25 +699,10 @@ export function FenceRun({
   return (
     <RigidBody
       type="fixed"
-      colliders={false}
+      colliders="trimesh"
       position={[(from[0] + to[0]) / 2, 0, (from[1] + to[1]) / 2]}
       rotation={[0, angle, 0]}
     >
-      {/* The whole panel, not the posts. Chain-link is see-through, which is why
-          it is drawn at 0.18 opacity — it is not fly-through, and a fence the
-          drone crossed anywhere but over the top would be scenery. The run
-          points down local Z (the posts are laid out along it), so the wall is
-          thin in x and as long as the run in z.
-
-          It stops at 2.4 m ON PURPOSE, unlike Flight School's boundary walls,
-          which collide to the ceiling. Those walls ARE the edge of the world;
-          this is a fence round a field with 30 m of sky over it, and the arena's
-          own soft containment is what turns the drone back at the bounds. */}
-      <CuboidCollider args={[0.05, height / 2, len / 2]} position={[0, height / 2, 0]} />
-      <mesh position={[0, height / 2, 0]}>
-        <planeGeometry args={[0.02, height]} />
-        <meshStandardMaterial visible={false} />
-      </mesh>
       {/* Mesh panel */}
       <mesh position={[0, height / 2, 0]} rotation={[0, Math.PI / 2, 0]}>
         <planeGeometry args={[len, height]} />
@@ -919,24 +809,7 @@ export function Mountains() {
 
 export function MaintenanceTent({ position }: { position: [number, number, number] }) {
   return (
-    <RigidBody type="fixed" colliders={false} position={position}>
-      {/* The canopy is a four-sided cone — a pyramid whose corners point down
-          x and z — so the collider is a box turned 45 degrees to sit on its
-          EDGES: half a side is 4.2 / sqrt(2). Squared up to the axes instead it
-          would be a 8.4 m block with two metres of solid nothing at each corner.
-          It is boxed rather than tapered, so the very top overhangs the slope by
-          a little; a roof is a roof, and the alternative is four sloped hulls
-          for a prop nothing is flown through. */}
-      <CuboidCollider args={[2.97, 1.1, 2.97]} position={[0, 2.5, 0]} rotation={[0, Math.PI / 4, 0]} />
-      {[
-        [-2.6, -2.6],
-        [2.6, -2.6],
-        [-2.6, 2.6],
-        [2.6, 2.6],
-      ].map(([x, z]) => (
-        <CylinderCollider key={`${x},${z}`} args={[0.8, 0.06]} position={[x, 0.8, z]} />
-      ))}
-      <CuboidCollider args={[1.2, 0.04, 0.45]} position={[0, 0.8, -1.2]} />
+    <RigidBody type="fixed" colliders="trimesh" position={position}>
       <mesh position={[0, 2.5, 0]} castShadow>
         <coneGeometry args={[4.2, 2.2, 4]} />
         <meshStandardMaterial color="#b8452f" roughness={0.85} />
@@ -983,7 +856,12 @@ export function ChargingStation({ position }: { position: [number, number, numbe
       {[0, 1, 2].map((i) => (
         <mesh key={i} position={[-0.45 + i * 0.45, 0.35, 0.37]}>
           <sphereGeometry args={[0.07, 8, 8]} />
-          <meshStandardMaterial color="#37e08a" emissive="#37e08a" emissiveIntensity={1.6} toneMapped={false} />
+          <meshStandardMaterial
+            color="#37e08a"
+            emissive="#37e08a"
+            emissiveIntensity={1.6}
+            toneMapped={false}
+          />
         </mesh>
       ))}
     </group>

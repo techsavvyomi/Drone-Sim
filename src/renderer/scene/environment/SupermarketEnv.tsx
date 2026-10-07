@@ -1,10 +1,11 @@
 import { Suspense, useMemo } from 'react';
 import { useGLTF } from '@react-three/drei';
-import { CuboidCollider, RigidBody, TrimeshCollider } from '@react-three/rapier';
+import { CuboidCollider, RigidBody } from '@react-three/rapier';
 import * as THREE from 'three';
 import type { EnvironmentSpec } from '@shared/types';
 import supermarketModelUrl from '../../../assets/models/supermarket.opt.glb?url';
-import { buildSupermarketColliders, type ColliderSource } from './supermarketColliders';
+import { buildSupermarketColliders } from './supermarketColliders';
+import { collisionSources, GeometryColliderSet } from './GeometryColliders';
 
 // Supermarket scene. Draco-compressed; the decoder path is set globally at
 // startup (see main.tsx). Built by scripts/prepare-supermarket-model.mjs, which
@@ -86,23 +87,6 @@ const ROOF_MATERIAL = 'roadtest.003';
  */
 const GROUND_HALF = 0.5;
 
-/** A mesh's solid triangles in world metres, for the collider builder. */
-function sourceOf(mesh: THREE.Mesh): ColliderSource {
-  const pos = mesh.geometry.attributes.position as THREE.BufferAttribute;
-  const out = new Float32Array(pos.count * 3);
-  const v = new THREE.Vector3();
-  for (let i = 0; i < pos.count; i++) {
-    v.fromBufferAttribute(pos, i).applyMatrix4(mesh.matrixWorld);
-    out[i * 3] = v.x;
-    out[i * 3 + 1] = v.y;
-    out[i * 3 + 2] = v.z;
-  }
-  const index = mesh.geometry.index
-    ? mesh.geometry.index.array
-    : Uint32Array.from({ length: pos.count }, (_, i) => i);
-  return { positions: out, index };
-}
-
 function SupermarketModel({ url }: { url: string }) {
   const { scene } = useGLTF(url);
 
@@ -129,16 +113,7 @@ function SupermarketModel({ url }: { url: string }) {
   // supermarketColliders.ts. The root sits at the origin, so each mesh's world
   // matrix already carries the scale.
   const colliders = useMemo(() => {
-    const sources: ColliderSource[] = [];
-    model.traverse((o) => {
-      const mesh = o as THREE.Mesh;
-      if (!mesh.isMesh) return;
-      const mat = Array.isArray(mesh.material) ? mesh.material[0] : mesh.material;
-      if (NON_SOLID.test(mat?.name ?? '')) return;
-      sources.push(sourceOf(mesh));
-    });
-    const set = buildSupermarketColliders(sources);
-    const shellIndex = Uint32Array.from({ length: set.shell.length / 3 }, (_, i) => i);
+    const set = buildSupermarketColliders(collisionSources(model, NON_SOLID));
     if (import.meta.env.DEV) {
       console.info(
         `[supermarket] colliders: ${set.boxes.length} boxes, ` +
@@ -146,29 +121,13 @@ function SupermarketModel({ url }: { url: string }) {
           `${set.groundTris.toLocaleString()} ground triangles replaced by one cuboid`,
       );
     }
-    return { ...set, shellIndex };
+    return set;
   }, [model]);
 
   return (
     <>
       <primitive object={model} />
-      <RigidBody type="fixed" colliders={false}>
-        {colliders.boxes.map((b, i) => (
-          <CuboidCollider
-            key={i}
-            args={b.half}
-            position={b.pos}
-            rotation={[0, b.yaw, 0]}
-            friction={0.6}
-            restitution={0}
-          />
-        ))}
-        <TrimeshCollider
-          args={[colliders.shell, colliders.shellIndex]}
-          friction={0.6}
-          restitution={0}
-        />
-      </RigidBody>
+      <GeometryColliderSet set={colliders} />
     </>
   );
 }

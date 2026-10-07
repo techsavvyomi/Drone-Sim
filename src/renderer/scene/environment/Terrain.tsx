@@ -1,3 +1,4 @@
+import { RigidBody } from '@react-three/rapier';
 import { useMemo } from 'react';
 import * as THREE from 'three';
 import { grassNormal, grassTexture } from './textures';
@@ -68,18 +69,18 @@ export function Terrain() {
   const normalMap = useMemo(() => grassNormal(), []);
 
   return (
-    /* Lifted 2cm so the zero-displacement inner edge doesn't z-fight the ground
-       slab. Safe to lift here (unlike inside the play area) because this ring
-       starts at r=70, well outside the +/-60 flight bounds — nothing ever lands
-       on it. */
-    <mesh geometry={geometry} position={[0, 0.02, 0]} receiveShadow>
-      <meshStandardMaterial
-        map={map}
-        normalMap={normalMap}
-        normalScale={new THREE.Vector2(0.5, 0.5)}
-        roughness={1}
-        envMapIntensity={0.3}
-      />
-    </mesh>
+    // The ring enters the reachable corners of the square flight bounds.
+    // Landing there must meet the same rolling surface the pilot can see.
+    <RigidBody type="fixed" colliders="trimesh" restitution={0}>
+      <mesh geometry={geometry} position={[0, 0.02, 0]} receiveShadow>
+        <meshStandardMaterial
+          map={map}
+          normalMap={normalMap}
+          normalScale={new THREE.Vector2(0.5, 0.5)}
+          roughness={1}
+          envMapIntensity={0.3}
+        />
+      </mesh>
+    </RigidBody>
   );
 }

@@ -113,7 +113,7 @@ const APRON_HALF = 12;
 const PHYSICS_MARGIN = 25;
 
 /**
- * Drops triangles whose centroid lies outside the play area, returning a new
+ * Drops triangles whose entire footprint lies outside the play area, returning a new
  * geometry. Returns null when nothing survives, so the caller can skip the mesh
  * entirely. Only positions are kept — a collision proxy needs nothing else.
  */
@@ -139,9 +139,13 @@ function clipToPlayArea(
     a.fromBufferAttribute(src, i0).applyMatrix4(matrix);
     b.fromBufferAttribute(src, i1).applyMatrix4(matrix);
     c.fromBufferAttribute(src, i2).applyMatrix4(matrix);
-    const cx = (a.x + b.x + c.x) / 3;
-    const cz = (a.z + b.z + c.z) / 3;
-    if (cx < min.x || cx > max.x || cz < min.z || cz > max.z) continue;
+    if (
+      Math.max(a.x, b.x, c.x) < min.x ||
+      Math.min(a.x, b.x, c.x) > max.x ||
+      Math.max(a.z, b.z, c.z) < min.z ||
+      Math.min(a.z, b.z, c.z) > max.z
+    )
+      continue;
     out.push(a.x, a.y, a.z, b.x, b.y, b.z, c.x, c.y, c.z);
   }
   if (out.length === 0) return null;
@@ -389,6 +393,15 @@ function ForestModel({ url, bounds }: { url: string; bounds: EnvironmentSpec['bo
   );
 }
 
+/** Loading support is removed when the real, uneven terrain becomes solid. */
+function ForestSpawnSupport() {
+  return (
+    <RigidBody type="fixed" colliders={false}>
+      <CuboidCollider args={[APRON_HALF, 0.5, APRON_HALF]} position={[0, -0.5, 0]} />
+    </RigidBody>
+  );
+}
+
 export function ForestEnv({ env }: { env: EnvironmentSpec }) {
   const { min, max } = env.bounds;
   const spanX = max[0] - min[0];
@@ -405,8 +418,6 @@ export function ForestEnv({ env }: { env: EnvironmentSpec }) {
           args={[spanX, CATCH_HALF, spanZ]}
           position={[0, CATCH_TOP - CATCH_HALF, 0]}
         />
-        {/* Spawn apron — mounted before the terrain streams in. */}
-        <CuboidCollider args={[APRON_HALF, 0.5, APRON_HALF]} position={[0, -0.5, 0]} />
       </RigidBody>
 
       {/* Tree trunks as analytical boxes — see ForestColliders. Mounted outside
@@ -414,7 +425,7 @@ export function ForestEnv({ env }: { env: EnvironmentSpec }) {
           rather than only once the 15 MB scene has streamed in. */}
       <ForestColliders />
 
-      <Suspense fallback={null}>
+      <Suspense fallback={<ForestSpawnSupport />}>
         <ForestModel url={forestModelUrl} bounds={env.bounds} />
       </Suspense>
     </group>

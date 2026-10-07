@@ -8,7 +8,7 @@ import type { EnvironmentSpec } from '@shared/types';
 const WALL_H = 2.5;
 const WALL_T = 0.2;
 
-// Visual-only flight gates to aim at while learning.
+// Solid ring frames with open centres for practice.
 const GATES: { pos: [number, number, number]; rot: number }[] = [
   { pos: [6, 1.4, -4], rot: 0 },
   { pos: [-6, 1.6, 3], rot: Math.PI / 2 },
@@ -92,12 +92,21 @@ export function ArenaEnv({ env }: { env: EnvironmentSpec }) {
       {/* The helipad at spawn is painted by the Fly view — `Helipad` in
           missions/LaunchPad.tsx, the same pad every free flight gets. */}
 
-      {/* Reference gates (visual only for now) */}
+      {/* Collision uses the same torus mesh, preserving the opening. */}
       {GATES.map((g, i) => (
-        <mesh key={i} position={g.pos} rotation={[0, g.rot, 0]}>
-          <torusGeometry args={[0.7, 0.06, 12, 32]} />
-          <meshStandardMaterial color="#ff8a3d" emissive="#c2481a" emissiveIntensity={0.4} />
-        </mesh>
+        <RigidBody
+          key={i}
+          type="fixed"
+          colliders="trimesh"
+          position={g.pos}
+          rotation={[0, g.rot, 0]}
+          restitution={0}
+        >
+          <mesh>
+            <torusGeometry args={[0.7, 0.06, 12, 32]} />
+            <meshStandardMaterial color="#ff8a3d" emissive="#c2481a" emissiveIntensity={0.4} />
+          </mesh>
+        </RigidBody>
       ))}
     </group>
   );

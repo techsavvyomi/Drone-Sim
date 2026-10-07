@@ -1,9 +1,9 @@
 import { Suspense, useMemo } from 'react';
 import { useThree } from '@react-three/fiber';
 import { useGLTF } from '@react-three/drei';
-import { ConvexHullCollider, CuboidCollider, RigidBody } from '@react-three/rapier';
+import { CuboidCollider, RigidBody } from '@react-three/rapier';
 import * as THREE from 'three';
-import { ConvexHull } from 'three/examples/jsm/math/ConvexHull.js';
+import { GeometryColliders } from './GeometryColliders';
 import type { EnvironmentSpec } from '@shared/types';
 import sitePropsUrl from '../../../assets/models/site_props.opt.glb?url';
 import { useSiteMaterials, tiled, PROP_IDS, type SiteMaterials } from './siteMaterials';
@@ -208,29 +208,6 @@ function clearOfPads(p: Placement, pads: readonly (readonly [number, number])[])
 function debrisFor(env: EnvironmentSpec): Placement[] {
   const pads = [[env.spawn.position[0], env.spawn.position[2]] as const, OFFICE_PAD];
   return layOutDebris().filter((p) => clearOfPads(p, pads));
-}
-
-/**
- * The hull points of one prop's geometry, in its own space.
- *
- * Scanned debris is thousands of vertices; the hull is what a collider needs
- * and a small fraction of that, so it is worked out once per prop type and each
- * placement only transforms it.
- */
-function hullPoints(geo: THREE.BufferGeometry): Float32Array {
-  const pos = geo.getAttribute('position');
-  const pts: THREE.Vector3[] = [];
-  for (let i = 0; i < pos.count; i++) pts.push(new THREE.Vector3().fromBufferAttribute(pos, i));
-  const hull = new ConvexHull().setFromPoints(pts);
-  const out: number[] = [];
-  for (const v of hull.vertices) out.push(v.point.x, v.point.y, v.point.z);
-  return Float32Array.from(out);
-}
-
-/** A placement's transform: tilt, yaw, uniform scale, position. */
-function placementMatrix(p: Placement, m4: THREE.Matrix4) {
-  const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(p.tiltX, p.rotY, p.tiltZ));
-  return m4.compose(new THREE.Vector3(...p.pos), q, new THREE.Vector3(p.scale, p.scale, p.scale));
 }
 
 /** Lattice tower crane, built from boxes. */
@@ -620,126 +597,19 @@ function SiteVisual({ env }: { env: EnvironmentSpec }) {
     return g;
   }, [mat, propGeo, env]);
 
-  return <primitive object={root} />;
+  return (
+    <>
+      <primitive object={root} />
+      <GeometryColliders root={root} />
+    </>
+  );
 }
 
-/**
- * Analytic colliders for the whole site: no trimesh anywhere.
- *
- * The frame is the only map in the game you can fly inside, so its physics has
- * to be exact — a convex-hull or trimesh approximation of a slab-and-column
- * lattice would either seal the bays shut or leave the columns passable.
- */
-function SiteColliders({ env }: { env: EnvironmentSpec }) {
+/** Existing flight boundary, pending the maintainer's containment choice. */
+function SiteBoundary({ env }: { env: EnvironmentSpec }) {
   const ceiling = env.bounds.max[1];
-  const colH = STOREY - SLAB_T;
-
   return (
     <RigidBody type="fixed" colliders={false}>
-      {/* Ground */}
-      <CuboidCollider args={[SITE_HALF, 0.5, SITE_HALF]} position={[0, -0.5, 0]} friction={0.9} />
-
-      {/* Slabs */}
-      {Array.from({ length: LEVELS + 1 }, (_, k) =>
-        slabPlates(k).map(([cx, cz, sx, sz], i) => (
-          <CuboidCollider
-            key={`s${k}-${i}`}
-            args={[sx / 2, SLAB_T / 2, sz / 2]}
-            position={[cx, levelY(k) - SLAB_T / 2, cz]}
-            friction={0.8}
-          />
-        )),
-      )}
-
-      {/* Columns */}
-      {Array.from({ length: LEVELS }, (_, k) =>
-        XS.map((x) =>
-          ZS.map((z) => (
-            <CuboidCollider
-              key={`c${k}-${x}-${z}`}
-              args={[COL_W / 2, colH / 2, COL_W / 2]}
-              position={[x, levelY(k) + colH / 2, z]}
-              friction={0.3}
-            />
-          )),
-        ),
-      )}
-
-      {/* Core: three solid walls, and the fourth built around its doorways. */}
-      <CuboidCollider
-        args={[(CORE.x1 - CORE.x0) / 2, levelY(LEVELS) / 2, CORE_T / 2]}
-        position={[(CORE.x0 + CORE.x1) / 2, levelY(LEVELS) / 2, CORE.z0]}
-      />
-      <CuboidCollider
-        args={[(CORE.x1 - CORE.x0) / 2, levelY(LEVELS) / 2, CORE_T / 2]}
-        position={[(CORE.x0 + CORE.x1) / 2, levelY(LEVELS) / 2, CORE.z1]}
-      />
-      <CuboidCollider
-        args={[CORE_T / 2, levelY(LEVELS) / 2, (CORE.z1 - CORE.z0) / 2]}
-        position={[CORE.x0, levelY(LEVELS) / 2, (CORE.z0 + CORE.z1) / 2]}
-      />
-      {Array.from({ length: LEVELS }, (_, k) => {
-        const y0 = levelY(k);
-        const cd = CORE.z1 - CORE.z0;
-        const czm = (CORE.z0 + CORE.z1) / 2;
-        return (
-          <group key={`core${k}`}>
-            <CuboidCollider
-              args={[CORE_T / 2, (STOREY - 2.2) / 2, cd / 2]}
-              position={[CORE.x1, y0 + 2.2 + (STOREY - 2.2) / 2 - SLAB_T / 2, czm]}
-            />
-            <CuboidCollider
-              args={[CORE_T / 2, 1.1, cd / 4 - 0.375]}
-              position={[CORE.x1, y0 + 1.1, czm - (cd / 4 + 0.375)]}
-            />
-            <CuboidCollider
-              args={[CORE_T / 2, 1.1, cd / 4 - 0.375]}
-              position={[CORE.x1, y0 + 1.1, czm + (cd / 4 + 0.375)]}
-            />
-          </group>
-        );
-      })}
-
-      {/* Blockwork infill */}
-      {INFILL.map((w, i) => (
-        <CuboidCollider
-          key={`i${i}`}
-          args={[w.w / 2, w.h / 2, 0.1]}
-          position={[w.x, w.y, w.z]}
-          rotation={[0, w.rot, 0]}
-        />
-      ))}
-
-      {/* The site office and the skips. They were drawn with nothing behind
-          them, so a drone flew straight through the cabins — and Mission 8
-          launches from, and lands back beside, that office. Boxes match the
-          drawn ones exactly: both are one BoxGeometry with no overhang. */}
-      {CABINS.map(([x, z, tier], i) => (
-        <CuboidCollider
-          key={`cab${i}`}
-          args={[CABIN_SIZE[0] / 2, CABIN_SIZE[1] / 2, CABIN_SIZE[2] / 2]}
-          position={[x, cabinY(tier), z]}
-          friction={0.6}
-        />
-      ))}
-      {SKIPS.map(([x, z, yaw], i) => (
-        <CuboidCollider
-          key={`skip${i}`}
-          args={[SKIP_SIZE[0] / 2, SKIP_SIZE[1] / 2, SKIP_SIZE[2] / 2]}
-          position={[x, SKIP_SIZE[1] / 2, z]}
-          rotation={[0, yaw, 0]}
-          friction={0.6}
-        />
-      ))}
-
-      {/* Crane mast: one box round the lattice, so it stops the drone rather
-          than letting it thread between four 18 cm chords. */}
-      <CuboidCollider args={[1.3, 17, 1.3]} position={[-42, 17, 26]} />
-
-      {/* Site boundary. Visible hoarding is 2.4 m, but the collider runs to the
-          ceiling for the same reason the Arena's does: above the panel there
-          would otherwise be nothing but the positional clamp, which grades a
-          hit harder than a real wall contact. */}
       {(
         [
           [0, SITE_HALF, SITE_HALF, 0.2],
@@ -749,7 +619,7 @@ function SiteColliders({ env }: { env: EnvironmentSpec }) {
         ] as [number, number, number, number][]
       ).map(([x, z, hx, hz], i) => (
         <CuboidCollider
-          key={`b${i}`}
+          key={i}
           args={[hx, ceiling / 2, hz]}
           position={[x, ceiling / 2, z]}
           friction={0.05}
@@ -760,70 +630,23 @@ function SiteColliders({ env }: { env: EnvironmentSpec }) {
   );
 }
 
-/**
- * The debris on the ground is solid: one convex hull per piece, fitted to its
- * own scanned shape.
- *
- * It was drawn with nothing behind it, so a drone set down on a rubble heap or
- * a stone slab sank straight through it to the ground inside. A hull, not a
- * box: a box round a heap is the invisible wall of ONBOARDING's trap 4, standing
- * well off the rubble's sloping sides.
- *
- * Debris on the slabs stays visual only. The missions' marks and inspection
- * zones are up there, and a solid lump inside one would change what those
- * missions ask of the pilot.
- */
-function DebrisColliders({ env }: { env: EnvironmentSpec }) {
-  const { scene: propScene } = useGLTF(sitePropsUrl, DRACO_DECODER_PATH);
-
-  const hulls = useMemo(() => {
-    const byId = new Map<string, Float32Array>();
-    propScene.traverse((o) => {
-      const mesh = o as THREE.Mesh;
-      if (mesh.isMesh && !byId.has(mesh.name)) byId.set(mesh.name, hullPoints(mesh.geometry));
-    });
-
-    const m4 = new THREE.Matrix4();
-    const v = new THREE.Vector3();
-    const out: Float32Array[] = [];
-    for (const p of debrisFor(env)) {
-      // On the ground only — see above. Stacked beams sit at y > 0 in rows
-      // but stand on the ground, so they count.
-      if (p.pos[1] > 0 && !BEAMS.includes(p.id)) continue;
-      const local = byId.get(p.id);
-      if (!local || local.length < 12) continue;
-      placementMatrix(p, m4);
-      const world = new Float32Array(local.length);
-      for (let i = 0; i < local.length; i += 3) {
-        v.set(local[i], local[i + 1], local[i + 2]).applyMatrix4(m4);
-        world[i] = v.x;
-        world[i + 1] = v.y;
-        world[i + 2] = v.z;
-      }
-      out.push(world);
-    }
-    return out;
-  }, [propScene, env]);
-
-  return (
-    <RigidBody type="fixed" colliders={false}>
-      {hulls.map((pts, i) => (
-        <ConvexHullCollider key={i} args={[pts]} friction={0.8} restitution={0} />
-      ))}
-    </RigidBody>
-  );
-}
-
 useGLTF.preload(sitePropsUrl, DRACO_DECODER_PATH);
 
 export function ConstructionSiteEnv({ env }: { env: EnvironmentSpec }) {
   return (
     <group name="construction-site-environment">
-      <SiteColliders env={env} />
+      <SiteBoundary env={env} />
+      {/* Spawn support at the actual visible ground height while the GLB loads. */}
+      <RigidBody type="fixed" colliders={false}>
+        <CuboidCollider
+          args={[SITE_HALF, 0.5, SITE_HALF]}
+          position={[0, -0.53, 0]}
+          friction={0.9}
+        />
+      </RigidBody>
 
       <Suspense fallback={null}>
         <SiteVisual env={env} />
-        <DebrisColliders env={env} />
       </Suspense>
     </group>
   );

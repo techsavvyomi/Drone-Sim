@@ -1,6 +1,6 @@
 import { useLayoutEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
-import { BallCollider, RigidBody } from '@react-three/rapier';
+import { ConvexHullCollider, RigidBody } from '@react-three/rapier';
 
 // Ground clutter: rocks and shrubs across the open grass, plus weathering
 // patches on the apron.
@@ -89,6 +89,32 @@ export function Scatter() {
   const rockSpots = useMemo(() => scatterSpots(ROCKS, 3, 12, 150, 0.14, 0.55, 0.65, true), []);
   const bushSpots = useMemo(() => scatterSpots(BUSHES, 11, 26, 165, 0.5, 1.5, 0.75, true), []);
 
+  // The collider uses the same tilted, non-uniformly scaled icosahedron as
+  // each visible bush. A ball ignores the flattening and protrudes above it.
+  const bushHulls = useMemo(() => {
+    const geo = new THREE.IcosahedronGeometry(1, 0);
+    const pos = geo.attributes.position;
+    const matrix = new THREE.Matrix4();
+    const point = new THREE.Vector3();
+    const out = bushSpots
+      .filter((sp) => Math.hypot(sp.pos[0], sp.pos[2]) <= BUSH_REACH)
+      .map((sp) => {
+        matrix.compose(
+          new THREE.Vector3(...sp.pos),
+          new THREE.Quaternion().setFromEuler(new THREE.Euler(...sp.rot)),
+          new THREE.Vector3(...sp.scl),
+        );
+        const vertices = new Float32Array(pos.count * 3);
+        for (let i = 0; i < pos.count; i++) {
+          point.fromBufferAttribute(pos, i).applyMatrix4(matrix);
+          vertices.set([point.x, point.y, point.z], i * 3);
+        }
+        return vertices;
+      });
+    geo.dispose();
+    return out;
+  }, [bushSpots]);
+
   useLayoutEffect(() => {
     const m = new THREE.Matrix4();
     const q = new THREE.Quaternion();
@@ -148,26 +174,12 @@ export function Scatter() {
 
   return (
     <group>
-      {/* The shrubs are SOLID; the rocks are not.
-          A shrub is up to 1.5 m of standing obstacle out on the grass, at
-          exactly the height a beginner drifts at, and flying through one is the
-          kind of thing that makes a field read as a painted backdrop. A rock is
-          ground clutter half a metre high that the eye reads as texture — put
-          hard shells on 260 of them across the landing field and an ordinary
-          set-down on the grass becomes a coin toss between resting flat and
-          being tipped over by something nobody meant as an obstacle.
-
-          One ball each, at 0.7 of the instance's own size. The mesh is an
-          icosahedron whose faces sit at 0.79 of its radius, so this stays inside
-          the leaf it is drawn as — collider standing PROUD of a visible surface
-          is what a pilot feels as an invisible wall, and under-reaching is the
-          error worth having. */}
+      {/* Shrubs are solid on their visible polygon surfaces; decorative rocks
+          retain their existing visual-only role. */}
       <RigidBody type="fixed" colliders={false}>
-        {bushSpots
-          .filter((sp) => Math.hypot(sp.pos[0], sp.pos[2]) <= BUSH_REACH)
-          .map((sp, i) => (
-            <BallCollider key={i} args={[sp.scl[0] * 0.7]} position={sp.pos} />
-          ))}
+        {bushHulls.map((vertices, i) => (
+          <ConvexHullCollider key={i} args={[vertices]} restitution={0} />
+        ))}
       </RigidBody>
 
       <instancedMesh ref={rocks} args={[undefined, undefined, ROCKS]} castShadow receiveShadow>
