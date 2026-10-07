@@ -91,6 +91,16 @@ describe('arming', () => {
 });
 
 describe('auto take-off and landing', () => {
+  it('accepts both takeoff and landing commands in Acro', () => {
+    useFlightStore.setState({ mode: 'acro', armed: true, onGround: true });
+    useFlightStore.getState().requestTakeoffLand();
+    expect(useFlightStore.getState().auto).toBe('takeoff');
+    useFlightStore.getState().setAuto('manual');
+    hoverAt(3);
+    useFlightStore.getState().requestTakeoffLand();
+    expect(useFlightStore.getState().auto).toBe('land');
+    expect(useFlightStore.getState().mode).toBe('acro');
+  });
   it('TC-030 Space does nothing on a disarmed drone', () => {
     // invariants #16: a take-off command must NEVER arm the aircraft. This
     // shipped once — Space on a disarmed drone armed it and flew it.

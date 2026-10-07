@@ -276,6 +276,8 @@ export class FlightController {
   private readonly acroRates: AcroRates;
   /** Body-rate setpoints from the last `update()`, rad/s. Read-only outside. */
   readonly rateSp = { roll: 0, pitch: 0, yaw: 0 };
+  private previousRates = { roll: 0, pitch: 0, yaw: 0 };
+  private rateDerivativePrimed = false;
 
   constructor(
     private spec: DroneSpec,
@@ -321,6 +323,7 @@ export class FlightController {
     this.lastMode = null;
     this.throttleInterlock = false;
     this.entryClimbSp = null;
+    this.rateDerivativePrimed = false;
   }
 
   /**
@@ -447,6 +450,7 @@ export class FlightController {
 
     // Capture the hold altitude whenever the mode changes.
     if (mode !== this.lastMode) {
+      this.rateDerivativePrimed = false;
       if (ALT_MANAGED.includes(mode)) this.beginAltEntry(state.position[1], state.velocityWorld[1]);
       else {
         this.targetAltitude = state.position[1];
@@ -503,9 +507,39 @@ export class FlightController {
     this.rateSp.pitch = pitchRateSp;
     this.rateSp.yaw = yawRateSp;
 
-    const aRoll = this.rollRate.update(rollRateSp - rollRate, dt, rollRate);
-    const aPitch = this.pitchRate.update(pitchRateSp - pitchRate, dt, pitchRate);
-    const aYaw = this.yawRate.update(yawRateSp - yawRateMeasured, dt, yawRateMeasured);
+    // Ground contact can prevent a requested rate. Do not carry that stored
+    // correction into Acro takeoff, where there is no angle loop to undo it.
+    if (mode === 'acro' && state.onGround) this.resetIntegrators();
+
+    // Acro D responds to changes in gyro rate, not the rate itself. Feeding
+    // angular velocity here applied a permanent brake during a steady turn.
+    // Prime on entry/reset so the first gyro sample cannot produce a spike.
+    const derivativeDt = dt > 0 ? dt : 0;
+    const differentiate = mode === 'acro';
+    const ready = this.rateDerivativePrimed && derivativeDt > 0;
+    const rollD = differentiate
+      ? ready
+        ? (rollRate - this.previousRates.roll) / derivativeDt
+        : 0
+      : rollRate;
+    const pitchD = differentiate
+      ? ready
+        ? (pitchRate - this.previousRates.pitch) / derivativeDt
+        : 0
+      : pitchRate;
+    const yawD = differentiate
+      ? ready
+        ? (yawRateMeasured - this.previousRates.yaw) / derivativeDt
+        : 0
+      : yawRateMeasured;
+    this.previousRates.roll = rollRate;
+    this.previousRates.pitch = pitchRate;
+    this.previousRates.yaw = yawRateMeasured;
+    this.rateDerivativePrimed = true;
+
+    const aRoll = this.rollRate.update(rollRateSp - rollRate, dt, rollD);
+    const aPitch = this.pitchRate.update(pitchRateSp - pitchRate, dt, pitchD);
+    const aYaw = this.yawRate.update(yawRateSp - yawRateMeasured, dt, yawD);
 
     // Inertia-normalized torques (body frame).
     let tauX = state.inertia[0] * aPitch;
