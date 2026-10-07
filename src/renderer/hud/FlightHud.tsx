@@ -298,6 +298,9 @@ export function FlightHud() {
 
       {hud.crosshair && cameraMode === 'fpv' && <div className="ck-crosshair" aria-hidden="true" />}
 
+      {/* Stick inputs stay visible even when steady flight quiets the HUD. */}
+      {hud.sticks && <Sticks sticks={s.sticks} />}
+
       {quiet ? (
         <QuietBar
           armedWord={motors.word}
@@ -307,7 +310,6 @@ export function FlightHud() {
         />
       ) : (
         <>
-          {hud.sticks && <Sticks sticks={s.sticks} />}
           {(hud.keyBar || DEV_FPS) && (
             <KeyBar dockOpen={dockOpen} hudOpen={hudPanelOpen} fps={DEV_FPS ? s.fps : null} showKeys={hud.keyBar} />
           )}
