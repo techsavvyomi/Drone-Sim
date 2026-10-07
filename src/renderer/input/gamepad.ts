@@ -64,7 +64,7 @@ export function listGamepads(): { index: number; id: string; kind: GamepadKind }
 // Radios and their USB/BT sim dongles. Matched first because many of them do
 // report `mapping: 'standard'` while emphatically not being an Xbox pad.
 const RC_PATTERN =
-  /betaflight|betafpv|literadio|opentx|edgetx|taranis|radiomaster|tx16s|tx12|jumper|flysky|fs-?i6|frsky|spektrum|dsm|nirvana|jeti|futaba|rc ?sim|transmitter|joystick/i;
+  /interlink|betaflight|betafpv|literadio|opentx|edgetx|taranis|radiomaster|tx16s|tx12|jumper|flysky|fs-?i6|frsky|spektrum|dsm|nirvana|jeti|futaba|rc ?sim|transmitter|joystick/i;
 
 const PAD_PATTERN =
   /xbox|x-?box|playstation|dualshock|dualsense|wireless controller|nintendo|switch pro|joy-?con|8bitdo|steam|logitech|gamepad|046d|045e|054c/i;
@@ -78,7 +78,7 @@ const PAD_PATTERN =
  * are indistinguishable here — which is fine, the OS presents both as plain HID
  * gamepads and they behave identically.
  */
-export function detectKind(pad: Gamepad): GamepadKind {
+export function detectKind(pad: Pick<Gamepad, 'id' | 'mapping' | 'axes' | 'buttons'>): GamepadKind {
   if (RC_PATTERN.test(pad.id)) return 'rc';
   if (PAD_PATTERN.test(pad.id)) return 'standard';
   if (pad.mapping === 'standard') return 'standard';

@@ -131,7 +131,20 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     // Known device: restore it. New device: seed from the detected layout —
     // this is what makes a controller work correctly the first time it is
     // plugged in, since radios and gamepads use different axis orders.
-    const profile = known ?? {
+    // A corrected device classification must also repair its saved throttle
+    // style. Keep the pilot's axis mapping, inversion, calibration and buttons.
+    const corrected =
+      known && known.kind !== kind
+        ? {
+            ...known,
+            kind,
+            axes: {
+              ...known.axes,
+              throttle: { ...known.axes.throttle, unipolar: kind === 'rc' },
+            },
+          }
+        : known;
+    const profile = corrected ?? {
       id,
       kind,
       rev: PROFILE_REV,
@@ -153,7 +166,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     const next: AppSettings = { ...current, gamepad };
     set({ settings: next });
     setGamepadConfig(gamepad);
-    if (!known) void window.api.saveSettings(next);
+    if (!known || corrected !== known) void window.api.saveSettings(next);
   },
 
   set: (key, value) => {

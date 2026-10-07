@@ -220,7 +220,10 @@ export function GamepadSetup() {
             variant="ghost"
             title="Re-apply the detected layout for this device"
             onClick={() =>
-              setGamepad({ axes: axesForKind(kind), bindings: { ...DEFAULT_BINDINGS } })
+              setGamepad({
+                axes: axesForKind(kind),
+                bindings: kind === 'standard' ? { ...DEFAULT_BINDINGS } : {},
+              })
             }
           >
             Re-detect
@@ -525,7 +528,12 @@ export function GamepadSetup() {
       <div className="settings__actions">
         <Button
           variant="ghost"
-          onClick={() => setGamepad({ axes: axesForKind(kind), bindings: { ...DEFAULT_BINDINGS } })}
+          onClick={() =>
+            setGamepad({
+              axes: axesForKind(kind),
+              bindings: kind === 'standard' ? { ...DEFAULT_BINDINGS } : {},
+            })
+          }
         >
           Reset mapping to defaults
         </Button>

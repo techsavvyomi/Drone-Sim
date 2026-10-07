@@ -7,6 +7,7 @@ import { useSimStore } from '../state/simStore';
 import {
   consumeGamepadActivity,
   gamepadConnected,
+  gamepadLive,
   gamepadStick,
   setActionHandler,
 } from './gamepad';
@@ -146,7 +147,7 @@ export function activeInputSource(): Source {
 export function throttleRestsAtCentre(mode: FlightMode): boolean {
   if (!SPRING_THROTTLE.includes(mode)) return false;
   if (ALT_MANAGED.includes(mode)) return true;
-  return activeSource === 'gamepad' && gamepadConnected();
+  return activeSource === 'gamepad' && gamepadConnected() && gamepadLive.kind === 'standard';
 }
 
 /** Stick position that counts as the throttle's idle end, matching the flight
