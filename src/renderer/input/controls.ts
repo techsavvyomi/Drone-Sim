@@ -408,13 +408,20 @@ export function resetStick(): void {
 }
 
 /**
- * Acro roll/pitch rate multiplier for whatever is flying right now: the
- * airframe's `keyboardAcroScale` when it is the keyboard, 1 for a gamepad or a
- * scripted demonstration.
+ * Keyboard Acro rate multiplier when the airframe sets none. A key is full
+ * stick, and 620 deg/s is a flip in about half a second; 0.4 makes a full key
+ * ~248 deg/s.
+ */
+export const KEYBOARD_ACRO_SCALE = 0.4;
+
+/**
+ * Acro roll/pitch/yaw rate multiplier for whatever is flying right now: the
+ * airframe's `keyboardAcroScale` (default `KEYBOARD_ACRO_SCALE`) when it is the
+ * keyboard, 1 for a gamepad or a scripted demonstration.
  */
 export function acroRateScaleFor(spec: DroneSpec): number {
   const keyboard = !scripted && !(activeSource === 'gamepad' && gamepadConnected());
-  return keyboard ? (spec.handling?.keyboardAcroScale ?? 1) : 1;
+  return keyboard ? (spec.handling?.keyboardAcroScale ?? KEYBOARD_ACRO_SCALE) : 1;
 }
 
 /**

@@ -650,13 +650,13 @@ export interface DroneSpec {
     maxRateSetpoint?: number;
     /** Climb/descent rate at full throttle stick in Altitude Hold, m/s. */
     maxClimbRate?: number;
-    /** How Acro turns stick into rotation rate. Defaults to the Magis (Pluto) curve. */
+    /** How Acro turns stick into rotation rate. Defaults to `SIM_ACRO_RATES` (100 / 620 deg/s, expo 0.2). */
     acroRates?: AcroRates;
     /**
-     * Keyboard-only multiplier on the Acro roll/pitch RATE (the deg/s out of
-     * `acroRateDps`), default 1. A key is a full-deflection switch, so on an
-     * airframe whose full stick is very fast this is the only way to give the
-     * keyboard a usable rate without changing what a gamepad flies.
+     * Keyboard-only multiplier on the Acro roll/pitch/yaw RATE (the deg/s out of
+     * `acroRateDps`), default `KEYBOARD_ACRO_SCALE` (0.4). A key is a
+     * full-deflection switch, so this is the only way to give the keyboard a
+     * usable rate without changing what a gamepad flies.
      */
     keyboardAcroScale?: number;
   };

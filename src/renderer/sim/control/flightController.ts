@@ -135,6 +135,19 @@ export const BETAFLIGHT_ACRO_RATES: AcroRates = {
 };
 
 /**
+ * What every airframe flies Acro on, roll, pitch and yaw alike: Betaflight
+ * Actual, 100 deg/s at centre, 620 at full stick, expo 0.20. One curve so the
+ * feel learnt on one drone carries to the next; a firmware-true curve per
+ * airframe (MagisV2's ~137 deg/s on a Pluto) was too slow to flip.
+ */
+export const SIM_ACRO_RATES: AcroRates = {
+  kind: 'actual',
+  centerDps: 100,
+  maxDps: 620,
+  expo: 0.2,
+};
+
+/**
  * Acro rotation rate for a stick position (-1..1), in deg/s — the firmware's
  * own arithmetic, not a fit.
  *
@@ -320,7 +333,7 @@ export class FlightController {
     // further and climbs faster than the trainer envelope allows.
     const config = configFor(spec, base);
     this.config = config;
-    this.acroRates = spec.handling?.acroRates ?? MAGIS_ACRO_RATES;
+    this.acroRates = spec.handling?.acroRates ?? SIM_ACRO_RATES;
     // Term limits mirror the Magis V2 firmware's pidLuxFloat, which bounds the
     // I contribution to 250 and the D contribution to 300 of a +/-1000 output
     // range — i.e. 25% and 30% of full authority.
@@ -455,7 +468,7 @@ export class FlightController {
      */
     throttleSprung: boolean = SPRING_THROTTLE.includes(mode),
     /**
-     * Multiplier on Acro's roll/pitch rate (deg/s), for the device flying —
+     * Multiplier on Acro's roll/pitch/yaw rate (deg/s), for the device flying —
      * `handling.keyboardAcroScale` on the keyboard, 1 otherwise. Applied to the
      * rate, not the stick, so the curve's shape is untouched.
      */
@@ -505,9 +518,8 @@ export class FlightController {
 
     if (mode === 'acro') {
       // Rate mode: sticks command angular rate directly, no auto-level — on the
-      // airframe's own firmware curve (`acroRateDps`), not `maxRateSetpoint`,
-      // which is the angle loop's ceiling and made full stick 400 deg/s on a
-      // Pluto whose firmware turns 137.
+      // Acro rate curve (`acroRateDps`), not `maxRateSetpoint`, which is the
+      // angle loop's ceiling.
       rollRateSp = -acroRateDps(input.roll, this.acroRates) * acroRateScale * DEG2RAD;
       pitchRateSp = -acroRateDps(input.pitch, this.acroRates) * acroRateScale * DEG2RAD;
     } else {
@@ -541,7 +553,12 @@ export class FlightController {
 
     // Sign is negated so the left yaw key rotates the drone clockwise (viewed
     // from above) and the right key anticlockwise, per the requested feel.
-    const yawRateSp = -input.yaw * this.config.maxYawRate;
+    // Acro yaw rides the same rate curve as roll and pitch; the self-levelling
+    // modes keep the airframe's linear `maxYawRate`.
+    const yawRateSp =
+      mode === 'acro'
+        ? -acroRateDps(input.yaw, this.acroRates) * acroRateScale * DEG2RAD
+        : -input.yaw * this.config.maxYawRate;
     this.rateSp.roll = rollRateSp;
     this.rateSp.pitch = pitchRateSp;
     this.rateSp.yaw = yawRateSp;

@@ -1,18 +1,25 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { acroRateScaleFor, resetStick, setScripted } from '../src/renderer/input/controls';
+import {
+  acroRateScaleFor,
+  KEYBOARD_ACRO_SCALE,
+  resetStick,
+  setScripted,
+} from '../src/renderer/input/controls';
 import {
   acroRateDps,
-  BETAFLIGHT_ACRO_RATES,
   FlightController,
+  SIM_ACRO_RATES,
   type ControlState,
 } from '../src/renderer/sim/control/flightController';
 import { DEG2RAD } from '../src/renderer/sim/mathx';
+import { plutoDrone } from '../src/renderer/plugins/drones/pluto';
 import { racingDrone } from '../src/renderer/plugins/drones/racer';
 import { testSpec } from './helpers/airframe';
 
-// `handling.keyboardAcroScale`: the keyboard flies the Racer's Acro at 0.4 of
-// its Betaflight rate (670 -> ~268 deg/s at a full key). The scale is on the
-// RATE out of acroRateDps, roll and pitch only; yaw and the gamepad keep theirs.
+// Keyboard Acro scale: every airframe's keyboard flies Acro at 0.4 of the
+// shared curve (620 -> 248 deg/s at a full key), unless `handling.keyboardAcroScale`
+// says otherwise. The scale is on the RATE out of acroRateDps, on roll, pitch and
+// yaw; a gamepad keeps the full 620.
 
 const state: ControlState = {
   rotation: [0, 0, 0, 1],
@@ -33,10 +40,11 @@ beforeEach(() => {
 });
 
 describe('keyboard Acro rate scale', () => {
-  it('comes from the airframe, defaulting to 1', () => {
-    expect(racingDrone.handling?.keyboardAcroScale).toBe(0.4);
+  it('defaults to 0.4 on every airframe, overridable per airframe', () => {
+    expect(KEYBOARD_ACRO_SCALE).toBe(0.4);
     expect(acroRateScaleFor(racingDrone)).toBe(0.4); // no pad: the keyboard is flying
-    expect(acroRateScaleFor(testSpec())).toBe(1);
+    expect(acroRateScaleFor(plutoDrone)).toBe(0.4);
+    expect(acroRateScaleFor(testSpec({ handling: { keyboardAcroScale: 0.7 } }))).toBe(0.7);
   });
 
   it('is not applied to a scripted demonstration', () => {
@@ -44,22 +52,21 @@ describe('keyboard Acro rate scale', () => {
     expect(acroRateScaleFor(racingDrone)).toBe(1);
   });
 
-  it('scales the roll and pitch RATE: a full key is ~268 deg/s on the Racer', () => {
+  it('scales the roll, pitch and yaw RATE: a full key is 248 deg/s', () => {
     const fc = new FlightController(racingDrone);
-    fc.update({ roll: 1, pitch: -1, yaw: 0.5, throttle: 0.5 }, 'acro', state, 0.004, undefined, false, false, 0.4);
-    expect(-fc.rateSp.roll / DEG2RAD).toBeCloseTo(670 * 0.4, 6);
-    expect(fc.rateSp.pitch / DEG2RAD).toBeCloseTo(670 * 0.4, 6);
+    fc.update({ roll: 1, pitch: -1, yaw: 1, throttle: 0.5 }, 'acro', state, 0.004, undefined, false, false, 0.4);
+    expect(-fc.rateSp.roll / DEG2RAD).toBeCloseTo(620 * 0.4, 6);
+    expect(fc.rateSp.pitch / DEG2RAD).toBeCloseTo(620 * 0.4, 6);
+    expect(-fc.rateSp.yaw / DEG2RAD).toBeCloseTo(620 * 0.4, 6);
     // Scaled after the curve, so half a key is 0.4 of the curve at half, not the curve at 0.2.
     fc.update({ roll: 0.5, pitch: 0, yaw: 0, throttle: 0.5 }, 'acro', state, 0.004, undefined, false, false, 0.4);
-    expect(-fc.rateSp.roll / DEG2RAD).toBeCloseTo(acroRateDps(0.5, BETAFLIGHT_ACRO_RATES) * 0.4, 6);
+    expect(-fc.rateSp.roll / DEG2RAD).toBeCloseTo(acroRateDps(0.5, SIM_ACRO_RATES) * 0.4, 6);
   });
 
-  it('leaves yaw, and a scale of 1 (the gamepad), untouched', () => {
+  it('a scale of 1 (the gamepad) flies the full 620 on every axis', () => {
     const fc = new FlightController(racingDrone);
-    fc.update({ roll: 1, pitch: 0, yaw: 0.5, throttle: 0.5 }, 'acro', state, 0.004, undefined, false, false, 0.4);
-    const yawScaled = fc.rateSp.yaw;
-    fc.update({ roll: 1, pitch: 0, yaw: 0.5, throttle: 0.5 }, 'acro', state, 0.004, undefined, false, false, 1);
-    expect(fc.rateSp.yaw).toBe(yawScaled);
-    expect(-fc.rateSp.roll / DEG2RAD).toBeCloseTo(670, 6);
+    fc.update({ roll: 1, pitch: 0, yaw: -1, throttle: 0.5 }, 'acro', state, 0.004, undefined, false, false, 1);
+    expect(-fc.rateSp.roll / DEG2RAD).toBeCloseTo(620, 6);
+    expect(-fc.rateSp.yaw / DEG2RAD).toBeCloseTo(-620, 6);
   });
 });
