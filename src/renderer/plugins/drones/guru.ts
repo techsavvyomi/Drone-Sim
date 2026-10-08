@@ -69,7 +69,7 @@ export const guruDrone: DroneSpec = {
   // nose and just under the prop plane: the world is clear ahead and each front
   // prop clips the frame edge at about 38 degrees off-axis, which is the sliver
   // of blade a real FPV feed shows.
-  cameraMount: { position: [0, 0.036, -0.068], tiltDeg: 15 },
+  cameraMount: { position: [0, 0.036, -0.068], tiltDeg: 30 },
   // Guru Kit CAD export, optimized for realtime (222 draw calls, 275k tris —
   // on a par with the PlutoX's 219 / 277k).
   // The four props are tagged PROP_* by scripts/prepare-drone-model.mjs so the

@@ -43,7 +43,7 @@ export const plutoDrone: DroneSpec = {
   // Drawn, the frame's nose is at z = -0.084, the prop plane at y = 0.029 and
   // the front ducts run out from x = 0.055 — so (0, 0.026, -0.09) x 1.5 threads
   // between the ducts at prop height with nothing but sky ahead.
-  cameraMount: { position: [0, 0.0173, -0.06], tiltDeg: 15 },
+  cameraMount: { position: [0, 0.0173, -0.06], tiltDeg: 30 },
   // Real PlutoX CAD model, optimized for realtime (20 draw calls, 253k tris).
   // Authored in metres and origin-centred, so no scaling is needed.
   model: plutoModelUrl,

@@ -173,6 +173,7 @@ export function FlightHud() {
     minutesLeft: mins,
     warning: batteryWarning,
     critical: lowBattery,
+    autoLanding: auto === 'land' && mode !== 'acro',
     empty: batteryLocked,
   });
   const motors = motorsFacts({ armed, crashed, auto });
@@ -208,15 +209,11 @@ export function FlightHud() {
         <>
           {/* ---- Top row ---- */}
           <div className="ck-top-left">
-            {hud.cameraInfo && (
-              <CameraChip mode={cameraMode} open={camMenu} setOpen={setCamMenu} />
-            )}
+            {hud.cameraInfo && <CameraChip mode={cameraMode} open={camMenu} setOpen={setCamMenu} />}
             {cameraMode === 'chase' && s.pulledIn > PULL_IN_NOTICE && (
               <div className="ck-plate ck-pulled" role="status">
                 <Icon name="warning" />
-                <span>
-                  Chase pulled in to {s.pullDistance.toFixed(1)} m · something behind
-                </span>
+                <span>Chase pulled in to {s.pullDistance.toFixed(1)} m · something behind</span>
               </div>
             )}
           </div>
@@ -264,7 +261,16 @@ export function FlightHud() {
           {!quiet && hud.flightMode && (
             <section className="ck-sec">
               <span className="ck-label">Flight mode</span>
-              <b className="ck-mode">{flightModeLine(mode)}</b>
+              <b
+                className="ck-mode"
+                title={
+                  mode === 'acro'
+                    ? 'Manual control. Switch mode to use automatic takeoff or landing.'
+                    : undefined
+                }
+              >
+                {flightModeLine(mode)}
+              </b>
             </section>
           )}
           {hud.battery && (
@@ -311,7 +317,12 @@ export function FlightHud() {
       ) : (
         <>
           {(hud.keyBar || DEV_FPS) && (
-            <KeyBar dockOpen={dockOpen} hudOpen={hudPanelOpen} fps={DEV_FPS ? s.fps : null} showKeys={hud.keyBar} />
+            <KeyBar
+              dockOpen={dockOpen}
+              hudOpen={hudPanelOpen}
+              fps={DEV_FPS ? s.fps : null}
+              showKeys={hud.keyBar}
+            />
           )}
         </>
       )}
@@ -378,7 +389,12 @@ function CameraChip({
       e.stopPropagation();
       const d = e.key === 'ArrowDown' ? 1 : -1;
       items[(at + d + items.length) % items.length]?.focus();
-    } else if (e.key === 'Escape' || e.key === 'Tab' || e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+    } else if (
+      e.key === 'Escape' ||
+      e.key === 'Tab' ||
+      e.key === 'ArrowLeft' ||
+      e.key === 'ArrowRight'
+    ) {
       e.preventDefault();
       e.stopPropagation();
       setOpen(false);
@@ -602,7 +618,13 @@ export function InstrumentPlate({ envId }: { envId: string }) {
 function MotorsBadge({ tone, word }: { tone: Tone; word: string }) {
   return (
     <span className="ck-motors" data-tone={tone}>
-      {tone === 'fail' ? <Icon name="cross" /> : tone === 'armed' ? <Icon name="dot" /> : <Icon name="ring" />}
+      {tone === 'fail' ? (
+        <Icon name="cross" />
+      ) : tone === 'armed' ? (
+        <Icon name="dot" />
+      ) : (
+        <Icon name="ring" />
+      )}
       <span>{word}</span>
     </span>
   );
@@ -617,7 +639,17 @@ function Sticks({ sticks }: { sticks: Sample['sticks'] }) {
   );
 }
 
-function Gimbal({ side, label, x, y }: { side: 'left' | 'right'; label: string; x: number; y: number }) {
+function Gimbal({
+  side,
+  label,
+  x,
+  y,
+}: {
+  side: 'left' | 'right';
+  label: string;
+  x: number;
+  y: number;
+}) {
   const cx = 40 + Math.max(-1, Math.min(1, x)) * 26;
   const cy = 40 - Math.max(-1, Math.min(1, y)) * 26;
   return (
@@ -648,11 +680,19 @@ function KeyBar({
     <div className="ck-plate ck-keybar">
       {showKeys && (
         <>
-          <button type="button" className={dockOpen ? 'is-on' : ''} onClick={() => ui().togglePanel()}>
+          <button
+            type="button"
+            className={dockOpen ? 'is-on' : ''}
+            onClick={() => ui().togglePanel()}
+          >
             <Keycap>T</Keycap>
             <span className="ck-label">Telemetry</span>
           </button>
-          <button type="button" className={hudOpen ? 'is-on' : ''} onClick={() => ui().toggleHudPanel()}>
+          <button
+            type="button"
+            className={hudOpen ? 'is-on' : ''}
+            onClick={() => ui().toggleHudPanel()}
+          >
             <Keycap>H</Keycap>
             <span className="ck-label">HUD</span>
           </button>

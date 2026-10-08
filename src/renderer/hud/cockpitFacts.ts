@@ -135,7 +135,7 @@ export function windFacts(
 export const FLIGHT_MODES: Record<FlightMode, { name: string; note: string }> = {
   'altitude-hold': { name: 'Alt Hold', note: 'holds height' },
   stabilize: { name: 'Stabilize', note: 'self-level' },
-  acro: { name: 'Acro', note: 'no self-level' },
+  acro: { name: 'Acro', note: 'manual control' },
 };
 
 /** "Alt Hold · holds height"; an unknown mode reads as itself. */
@@ -192,13 +192,22 @@ export function batteryFacts(b: {
   minutesLeft: number | null;
   warning: boolean;
   critical: boolean;
+  autoLanding?: boolean;
   empty: boolean;
 }): BatteryFacts {
   const pct = Math.max(0, Math.min(100, Math.round(b.soc * 100)));
   const volts = voltsText(b.voltage);
   if (b.empty) return { pct, volts, tone: 'fail', note: 'Empty · press R', warn: true };
-  if (b.critical) return { pct, volts, tone: 'fail', note: 'Critical · landing', warn: true };
-  if (b.soc < LOW_SOC || b.warning) return { pct, volts, tone: 'caution', note: 'Land soon', warn: true };
+  if (b.critical)
+    return {
+      pct,
+      volts,
+      tone: 'fail',
+      note: b.autoLanding === false ? 'Critical · manual control' : 'Critical · landing',
+      warn: true,
+    };
+  if (b.soc < LOW_SOC || b.warning)
+    return { pct, volts, tone: 'caution', note: 'Land soon', warn: true };
   const m = b.minutesLeft;
   const note = m === null ? '' : m < 1 ? '< 1 min left' : `~${Math.round(m)} min left`;
   return { pct, volts, tone: 'neutral', note, warn: false };
@@ -316,7 +325,7 @@ export const KEY_GROUPS: readonly { title: string; rows: readonly [string, strin
     title: 'Aircraft',
     rows: [
       ['Enter', 'Arm / disarm'],
-      ['Space', 'Take off / land'],
+      ['Space', 'Auto take off / land (not in Acro)'],
       ['M', 'Next flight mode'],
       ['R', 'Reset to the start pad'],
     ],

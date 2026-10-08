@@ -4,6 +4,7 @@ import { OrbitControls } from '@react-three/drei';
 import * as THREE from 'three';
 import type { DroneSpec, EnvironmentSpec } from '@shared/types';
 import { useUiStore } from '../state/uiStore';
+import { useFlightStore } from '../state/flightStore';
 import { useSettingsStore } from '../state/settingsStore';
 import { dronePose } from '../sim/drone/pose';
 import { DEG2RAD, damp, spring } from '../sim/mathx';
@@ -81,9 +82,12 @@ export function CameraRig({ spec, env }: { spec: DroneSpec; env?: EnvironmentSpe
   // into it — and how far in from there the wall currently holds it, m.
   const freeReady = useRef(false);
   const pull = useRef({ value: 0, vel: 0 });
+  const acroHeading = useRef<number | null>(null);
+  const seenReset = useRef(-1);
 
   useFrame((_state, delta) => {
     if (!dronePose.present || mode !== 'chase') {
+      acroHeading.current = null;
       freeReady.current = false;
       chaseReport.pulledIn = 0;
     }
@@ -94,9 +98,37 @@ export function CameraRig({ spec, env }: { spec: DroneSpec; env?: EnvironmentSpe
     const shake = decayShake(delta);
 
     if (mode === 'chase') {
-      // Follow heading (yaw only) so the view turns with the drone but stays level.
-      _euler.setFromQuaternion(dronePose.quaternion, 'YXZ');
-      _yawQuat.setFromAxisAngle(UP, _euler.y);
+      if (seenReset.current !== dronePose.resetVersion) {
+        seenReset.current = dronePose.resetVersion;
+        acroHeading.current = dronePose.spawnHeading;
+        overhead.current.value = 0;
+        overhead.current.vel = 0;
+        clearFor.current = 0;
+        blockedFor.current = 0;
+        pull.current.value = 0;
+        pull.current.vel = 0;
+        chaseReport.pulledIn = 0;
+        _yawQuat.setFromAxisAngle(UP, dronePose.spawnHeading);
+        _free.copy(CHASE_OFFSET).applyQuaternion(_yawQuat).add(dronePose.position);
+        camera.position.copy(_free);
+        _currentLook.copy(dronePose.position).addScaledVector(UP, spec.armLength * 1.5);
+        freeReady.current = true;
+      }
+      // Euler yaw jumps 180 degrees during a pitch flip. In Acro, follow the
+      // twist of the attitude about world UP instead: it turns with the drone's
+      // yaw but stays continuous through flips and rolls. Only exactly inverted
+      // is it undefined, and there the last heading is held.
+      if (useFlightStore.getState().mode === 'acro') {
+        const q = dronePose.quaternion;
+        if (Math.hypot(q.y, q.w) > 0.15) acroHeading.current = 2 * Math.atan2(q.y, q.w);
+        else if (acroHeading.current === null) acroHeading.current = dronePose.spawnHeading;
+        _yawQuat.setFromAxisAngle(UP, acroHeading.current);
+      } else {
+        acroHeading.current = null;
+        _euler.setFromQuaternion(dronePose.quaternion, 'YXZ');
+        _yawQuat.setFromAxisAngle(UP, _euler.y);
+      }
+      camera.up.copy(UP);
       _offset.copy(CHASE_OFFSET).applyQuaternion(_yawQuat);
       _target.copy(dronePose.position).add(_offset);
 
@@ -144,8 +176,7 @@ export function CameraRig({ spec, env }: { spec: DroneSpec; env?: EnvironmentSpe
           (rising && !blocked && clearFor.current < RETURN_HOLD)
             ? 1
             : 0;
-        const overClear =
-          want === 0 || staticSweepDistance(_pivot, _over, camRadius) === Infinity;
+        const overClear = want === 0 || staticSweepDistance(_pivot, _over, camRadius) === Infinity;
         const goal = overClear ? want : 0;
         const t = spring(overhead.current, goal, goal ? RISE_TIME : DROP_TIME, delta);
         if (t > 0.001) _target.lerp(_over, t);

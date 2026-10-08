@@ -83,7 +83,11 @@ describe('heading', () => {
     const labels = ticks.filter((t) => t.label).map((t) => t.label);
     expect(labels).toEqual(['N', '030', '060', 'E']);
     // Across north the labels wrap, never 360.
-    expect(ribbonTicks(5).map((t) => t.label).filter(Boolean)).toEqual(['330', 'N', '030', '060']);
+    expect(
+      ribbonTicks(5)
+        .map((t) => t.label)
+        .filter(Boolean),
+    ).toEqual(['330', 'N', '030', '060']);
   });
 
   it('wind names where it comes FROM (the sim stores where it blows to)', () => {
@@ -111,7 +115,7 @@ describe('motors, mode, battery', () => {
   it('flight modes are the game three, named with what they do', () => {
     expect(flightModeLine('altitude-hold')).toBe('Alt Hold · holds height');
     expect(flightModeLine('stabilize')).toBe('Stabilize · self-level');
-    expect(flightModeLine('acro')).toBe('Acro · no self-level');
+    expect(flightModeLine('acro')).toBe('Acro · manual control');
   });
 
   it('motors state carries a word for every tone', () => {
@@ -136,7 +140,13 @@ describe('motors, mode, battery', () => {
   it('battery: percent, volts, ~n MIN LEFT; under 20 % it turns LAND SOON and must show', () => {
     const base = { voltage: 4, minutesLeft: 6.2, warning: false, critical: false, empty: false };
     const ok = batteryFacts({ ...base, soc: 0.78 });
-    expect(ok).toMatchObject({ pct: 78, volts: '4.00 V', tone: 'neutral', note: '~6 min left', warn: false });
+    expect(ok).toMatchObject({
+      pct: 78,
+      volts: '4.00 V',
+      tone: 'neutral',
+      note: '~6 min left',
+      warn: false,
+    });
     const low = batteryFacts({ ...base, soc: 0.16, voltage: 3.44 });
     expect(low).toMatchObject({ pct: 16, tone: 'caution', note: 'Land soon', warn: true });
     expect(batteryFacts({ ...base, soc: 0.5, warning: true }).tone).toBe('caution');
@@ -204,10 +214,12 @@ describe('crash and pause lines', () => {
   });
 
   it('one pause card: only the context line and the one line change', () => {
-    expect(pauseLines({ kind: 'free', arena: 'Classroom', drone: 'Pluto', flownSec: 192 })).toEqual({
-      context: 'Free Flight · Classroom · Pluto',
-      line: '3:12 flown. The drone holds its position while paused. Nothing is lost.',
-    });
+    expect(pauseLines({ kind: 'free', arena: 'Classroom', drone: 'Pluto', flownSec: 192 })).toEqual(
+      {
+        context: 'Free Flight · Classroom · Pluto',
+        line: '3:12 flown. The drone holds its position while paused. Nothing is lost.',
+      },
+    );
     expect(
       pauseLines({ kind: 'lesson', num: 2, title: 'Land', step: 'Fly step', flightSec: 12 }).line,
     ).toBe('12.0 s on the flight clock. The timer is paused and resumes where it stopped.');
@@ -360,8 +372,16 @@ beforeAll(() => {
 });
 
 beforeEach(() => {
-  useSettingsStore.setState({ settings: { ...DEFAULT_SETTINGS, hud: { ...DEFAULT_SETTINGS.hud } } });
-  useFlightStore.setState({ paused: false, crashed: false, exitAsk: false, armed: false, onGround: true });
+  useSettingsStore.setState({
+    settings: { ...DEFAULT_SETTINGS, hud: { ...DEFAULT_SETTINGS.hud } },
+  });
+  useFlightStore.setState({
+    paused: false,
+    crashed: false,
+    exitAsk: false,
+    armed: false,
+    onGround: true,
+  });
 });
 
 afterEach(() => {
@@ -421,7 +441,7 @@ describe('pause card', () => {
     expect(useFlightStore.getState().paused).toBe(false);
   });
 
-  it('the question\'s Exit leaves; P resumes', () => {
+  it("the question's Exit leaves; P resumes", () => {
     const onExit = vi.fn();
     useFlightStore.setState({ paused: true });
     const el = mount(
@@ -448,7 +468,9 @@ describe('crash card', () => {
     useSimStore.setState({ flightTime: 192, altitude: 1.2 });
     useFlightStore.getState().crash(2.4);
     const onReset = vi.fn();
-    const el = mount(h(CrashCard, { context: 'Free Flight · Classroom · Pluto', when: '3:12', onReset }));
+    const el = mount(
+      h(CrashCard, { context: 'Free Flight · Classroom · Pluto', when: '3:12', onReset }),
+    );
     expect(el.textContent).toContain('Drone crashed');
     expect(el.textContent).toContain('At 3:12, 1.2 m up, flying at 2.4 m/s.');
     expect(el.textContent).toContain('Ease off about 1 m');
@@ -466,7 +488,9 @@ describe('HUD panel', () => {
   it('counts, toggles and resets the widgets, and carries the key list', () => {
     const el = mount(h(HudPanel));
     expect(el.textContent).toContain('HUD widgets · 13 of 13 on');
-    const sw = el.querySelector<HTMLButtonElement>('[role="switch"][aria-label="Attitude indicator"]')!;
+    const sw = el.querySelector<HTMLButtonElement>(
+      '[role="switch"][aria-label="Attitude indicator"]',
+    )!;
     act(() => sw.click());
     expect(useSettingsStore.getState().settings.hud.horizon).toBe(false);
     expect(el.textContent).toContain('12 of 13 on');
@@ -475,6 +499,25 @@ describe('HUD panel', () => {
     expect(useSettingsStore.getState().settings.hud.horizon).toBe(true);
     expect(el.textContent).toContain('Keys · Flight');
     expect(el.textContent).toContain('Telemetry');
+  });
+
+  it("lists the controller's own button bindings while a controller is on", () => {
+    const gamepad = useSettingsStore.getState().settings.gamepad;
+    const set = (g: typeof gamepad) =>
+      useSettingsStore.setState((s) => ({ settings: { ...s.settings, gamepad: g } }));
+    set({
+      ...gamepad,
+      enabled: true,
+      bindings: { arm: { t: 'b', i: 7 }, modeCycle: { t: 'a', a: 5, p: 'hi' } },
+    });
+    const el = mount(h(HudPanel));
+    const rows = [...el.querySelectorAll('.hpanel__keys--pad li')].map((li) => li.textContent);
+    expect(rows).toContain('Button 7Arm');
+    expect(rows).toContain('Axis 5 highCycle flight mode');
+    expect(rows).toContain('Not setReset flight');
+    act(() => set({ ...gamepad, enabled: false }));
+    expect(el.querySelector('.hpanel__keys--pad')).toBeNull();
+    set(gamepad);
   });
 });
 
@@ -525,7 +568,10 @@ describe('cockpit', () => {
   it('crosshair in FPV only, and hidden widgets stay hidden', () => {
     useUiStore.setState({ cameraMode: 'fpv' });
     useSettingsStore.setState({
-      settings: { ...DEFAULT_SETTINGS, hud: { ...DEFAULT_SETTINGS.hud, compass: false, keyBar: false } },
+      settings: {
+        ...DEFAULT_SETTINGS,
+        hud: { ...DEFAULT_SETTINGS.hud, compass: false, keyBar: false },
+      },
     });
     const el = mount(h(FlightHud));
     expect(el.querySelector('.ck-crosshair')).not.toBeNull();

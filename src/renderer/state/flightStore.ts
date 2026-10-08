@@ -12,6 +12,10 @@ export type DroneStatus = 'disarmed' | 'armed' | 'flying' | 'crashed';
 const TAKEOFF_ALT_GATE = 1.2;
 
 interface FlightState {
+  /** Arm was pressed with the throttle raised and refused; the HUD says so. On a
+   *  radio the request stands: lowering the stick to the bottom completes it. */
+  armThrottleHigh: boolean;
+  setArmThrottleHigh: (high: boolean) => void;
   armed: boolean;
   mode: FlightMode;
   /** See `setAutoDisarmOnLand`. */
@@ -86,10 +90,12 @@ interface FlightState {
   recharge: () => void;
 }
 
-// All eight modes are selectable from Phase 2 onward.
+// The three supported flight modes.
 const CYCLE: FlightMode[] = ['stabilize', 'altitude-hold', 'acro'];
 
 export const useFlightStore = create<FlightState>((set, get) => ({
+  armThrottleHigh: false,
+  setArmThrottleHigh: (armThrottleHigh) => set({ armThrottleHigh }),
   armed: false,
   autoDisarmOnLand: true,
   // Altitude Hold by default: the drone holds height when the throttle stick
@@ -122,24 +128,28 @@ export const useFlightStore = create<FlightState>((set, get) => ({
       if (s.crashed) return s;
       // Disarming is always allowed; arming on a dead pack is not.
       if (!s.armed && s.batteryLocked) return s;
-      return { armed: !s.armed, auto: 'manual' };
+      return { armed: !s.armed, auto: 'manual', armThrottleHigh: false };
     }),
-  disarm: () => set({ armed: false, auto: 'manual' }),
-  setMode: (mode) => set((s) => (s.lowBattery ? s : { mode })),
+  disarm: () => set({ armed: false, auto: 'manual', armThrottleHigh: false }),
+  // Acro has no automatic takeoff or landing: entering it hands a running one
+  // back to the pilot, so no assisted thrust is ever flown in Acro.
+  setMode: (mode) =>
+    set((s) => (s.lowBattery ? s : { mode, auto: mode === 'acro' ? 'manual' : s.auto })),
   cycleMode: () =>
     set((s) => {
       // The critical-battery landing must not be cancellable.
       if (s.lowBattery) return s;
-      const i = CYCLE.indexOf(s.mode);
-      return { mode: CYCLE[(i + 1) % CYCLE.length] };
+      const mode = CYCLE[(CYCLE.indexOf(s.mode) + 1) % CYCLE.length];
+      return { mode, auto: mode === 'acro' ? 'manual' : s.auto };
     }),
   setAuto: (auto) => set({ auto }),
   setAutoDisarmOnLand: (autoDisarmOnLand) => set({ autoDisarmOnLand }),
   setOnGround: (onGround) => set({ onGround }),
 
   requestTakeoffLand: () => {
-    const { armed, onGround, crashed, batteryLocked, lowBattery, auto } = get();
-    if (crashed || lowBattery) return;
+    const { armed, onGround, crashed, batteryLocked, lowBattery, auto, mode } = get();
+    // Acro is flown by hand from the pad to the pad.
+    if (mode === 'acro' || crashed || lowBattery) return;
     if (onGround && batteryLocked) return;
     // Already climbing out on auto-takeoff — don't flip to land on a second Space.
     if (auto === 'takeoff') return;
@@ -186,9 +196,11 @@ export const useFlightStore = create<FlightState>((set, get) => ({
             brokenProps,
             armed: false,
             auto: 'manual',
+            armThrottleHigh: false,
           },
     ),
-  clearCrash: () => set({ crashed: false, crashSpeed: 0, crashAt: null, brokenProps: [] }),
+  clearCrash: () =>
+    set({ crashed: false, crashSpeed: 0, crashAt: null, brokenProps: [], armThrottleHigh: false }),
 
   registerTouch: () => set((s) => ({ touches: s.touches + 1 })),
 

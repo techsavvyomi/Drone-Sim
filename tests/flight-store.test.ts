@@ -91,15 +91,26 @@ describe('arming', () => {
 });
 
 describe('auto take-off and landing', () => {
-  it('accepts both takeoff and landing commands in Acro', () => {
+  it('ignores takeoff and landing commands in Acro', () => {
     useFlightStore.setState({ mode: 'acro', armed: true, onGround: true });
     useFlightStore.getState().requestTakeoffLand();
-    expect(useFlightStore.getState().auto).toBe('takeoff');
-    useFlightStore.getState().setAuto('manual');
+    expect(useFlightStore.getState().auto).toBe('manual');
     hoverAt(3);
     useFlightStore.getState().requestTakeoffLand();
-    expect(useFlightStore.getState().auto).toBe('land');
+    expect(useFlightStore.getState().auto).toBe('manual');
     expect(useFlightStore.getState().mode).toBe('acro');
+  });
+  it('switching into Acro hands a running takeoff or landing back to the pilot', () => {
+    useFlightStore.setState({ mode: 'altitude-hold', armed: true, onGround: false, auto: 'land' });
+    useFlightStore.getState().cycleMode();
+    expect(useFlightStore.getState().mode).toBe('acro');
+    expect(useFlightStore.getState().auto).toBe('manual');
+    useFlightStore.setState({ mode: 'stabilize', auto: 'takeoff' });
+    useFlightStore.getState().setMode('acro');
+    expect(useFlightStore.getState().auto).toBe('manual');
+    // Leaving Acro does not invent one.
+    useFlightStore.getState().cycleMode();
+    expect(useFlightStore.getState().auto).toBe('manual');
   });
   it('TC-030 Space does nothing on a disarmed drone', () => {
     // invariants #16: a take-off command must NEVER arm the aircraft. This

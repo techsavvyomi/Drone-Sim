@@ -6,4 +6,6 @@ export const dronePose = {
   position: new THREE.Vector3(),
   quaternion: new THREE.Quaternion(),
   present: false,
+  resetVersion: 0,
+  spawnHeading: 0,
 };
