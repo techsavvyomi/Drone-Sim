@@ -1,6 +1,8 @@
 import { absorbButtons, captureState, isCalibrating } from './gamepad';
 import { focusPrimary, moveFocus, type Direction } from './menuNav';
 import { useShellStore } from '../state/shellStore';
+import { useFlightStore } from '../state/flightStore';
+import { useSettingsStore } from '../state/settingsStore';
 
 // ----------------------------------------------------------------------------
 // A gamepad in the menus: D-pad or left stick moves the focus, A presses, B is
@@ -89,6 +91,21 @@ export function attachMenuGamepad(
     const busy =
       !(menu || card) || isCalibrating() || !!captureState().action || !!captureState().channel;
     const move = (d: Direction) => (card ? key(ARROW[d], ARROW[d]) : moveFocus(d));
+
+    // A custom respawn binding can be A, B or a D-pad button. On the crash
+    // card it belongs to the flight input loop, not menu navigation.
+    const reset = useSettingsStore.getState().settings.gamepad.bindings.reset;
+    if (
+      !busy &&
+      card &&
+      useFlightStore.getState().crashed &&
+      reset?.t === 'b' &&
+      buttons[reset.i]
+    ) {
+      heldDir = null;
+      prev = buttons;
+      return;
+    }
 
     if (!busy) {
       const setInput = useShellStore.getState().setInput;

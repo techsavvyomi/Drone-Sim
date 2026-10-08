@@ -134,6 +134,19 @@ export function activeInputSource(): Source {
   return activeSource;
 }
 
+/** The pilot is flying on a radio (InterLink and the like), not a gamepad or keys. */
+export function flyingOnRadio(): boolean {
+  return activeSource === 'gamepad' && gamepadConnected() && gamepadLive.kind === 'rc';
+}
+
+/**
+ * A radio arms only from the bottom of its throttle travel, in every mode —
+ * as on the real aircraft. Not 0, and not 5%: an uncalibrated radio parked at
+ * the bottom (InterLink among them) reads around -0.9, which is 5% here, and
+ * at 5% it could never arm.
+ */
+const RADIO_ARM_STICK = 0.1;
+
 /**
  * Whether the throttle of the device flying RIGHT NOW rests at centre in `mode`.
  *
@@ -326,6 +339,13 @@ export function updateStick(dt: number): void {
     stick.pitch = gamepadStick.pitch * commandScale;
     stick.yaw = gamepadStick.yaw * commandScale;
     stick.throttle = gamepadStick.throttle;
+    // An Arm refused for a raised throttle: on a radio, the stick reaching the
+    // bottom completes it; anywhere else it only clears the notice.
+    const flight = useFlightStore.getState();
+    if (flight.armThrottleHigh && throttleSafeToArm()) {
+      if (flyingOnRadio() && !flight.armed && flight.onGround) flight.toggleArm();
+      else flight.setArmThrottleHigh(false);
+    }
     throttleCommanded = true;
     return;
   }
@@ -357,6 +377,8 @@ export function updateStick(dt: number): void {
     if (down) stick.throttle -= rateDown * dt;
   }
   stick.throttle = clamp(stick.throttle, 0, 1);
+  if (useFlightStore.getState().armThrottleHigh && throttleSafeToArm())
+    useFlightStore.getState().setArmThrottleHigh(false);
 
   // Self-centering sticks ease toward the key-implied target.
   const rollTarget = axis(pressed.has(CODE.rollLeft), pressed.has(CODE.rollRight));
@@ -430,9 +452,27 @@ export function throttleAfterModeChange(
  * having sprung to a centre the test read as raised. Returns true when it's safe.
  */
 export function throttleSafeToArm(): boolean {
+  if (flyingOnRadio()) return stick.throttle <= RADIO_ARM_STICK;
   const sprung = throttleRestsAtCentre(useFlightStore.getState().mode);
   const limit = sprung ? THROTTLE_CENTER + 0.12 : 0.15;
   return stick.throttle <= limit;
+}
+
+/**
+ * Arm on request. With the throttle raised it refuses and puts the notice up.
+ * On a radio the request then stands — still disarmed, notice up — and bringing
+ * the stick to the bottom completes it (see `updateStick`), so the props start
+ * at idle rather than straight into that much collective.
+ *
+ * Only on the ground. Armed again in the AIR is a recovery from a falling
+ * aircraft: it arms at once on any throttle, with no notice, and the motors
+ * answer the stick straight away (the drone never locks them off the pad).
+ */
+function requestArm(): void {
+  const flight = useFlightStore.getState();
+  if (flight.armed) return;
+  if (!flight.onGround || throttleSafeToArm()) flight.toggleArm();
+  else flight.setArmThrottleHigh(true);
 }
 
 function runCommand(code: string): void {
@@ -443,9 +483,9 @@ function runCommand(code: string): void {
       break;
     case CODE.arm: {
       const flight = useFlightStore.getState();
-      // Block arming with the throttle up; disarming is always allowed.
-      if (!flight.armed && !throttleSafeToArm()) break;
-      flight.toggleArm();
+      // Disarming is always allowed; arming goes through the throttle check.
+      if (flight.armed) flight.toggleArm();
+      else requestArm();
       break;
     }
     case CODE.takeoffLand:
@@ -495,7 +535,11 @@ function runGamepadAction(action: GamepadAction): void {
   if (flight.paused && action !== 'cameraCycle' && action !== 'reset') return;
   switch (action) {
     case 'arm':
-      if (!flight.armed && throttleSafeToArm()) flight.toggleArm();
+      // A button press also selects the controller: a stationary low stick
+      // must not leave idle detection and arming checks on stale keyboard input.
+      activeSource = 'gamepad';
+      stick.throttle = gamepadStick.throttle;
+      requestArm();
       break;
     case 'disarm':
       flight.disarm();

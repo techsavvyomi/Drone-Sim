@@ -3,6 +3,7 @@ import { Canvas } from '@react-three/fiber';
 import * as THREE from 'three';
 import { FlightScene } from './FlightScene';
 import { FlightHud } from '../hud/FlightHud';
+import { ArmWarning } from '../hud/ArmWarning';
 import { useControls } from '../input/useControls';
 import { useSettingsStore } from '../state/settingsStore';
 import { qualityFor } from './quality';
@@ -94,6 +95,7 @@ export function Viewport() {
         </Canvas>
       </SceneBoundary>
       <FlightHud />
+      <ArmWarning />
       {!ready && <SceneVeil label="Getting the arena ready" />}
     </div>
   );

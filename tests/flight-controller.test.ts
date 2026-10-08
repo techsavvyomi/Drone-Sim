@@ -1,7 +1,11 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import type { ContactState, StickInput } from '../src/shared/types';
-import { FlightController, type ControlState } from '../src/renderer/sim/control/flightController';
+import {
+  ACRO_THRUST_BOOST,
+  FlightController,
+  type ControlState,
+} from '../src/renderer/sim/control/flightController';
 import { testSpec } from './helpers/airframe';
 
 // The collective end of the flight controller: what the motors are asked for
@@ -48,8 +52,9 @@ describe('the ESC idle', () => {
     const out = fc.update(sticks({ throttle: 0 }), 'acro', state(), 1 / 250, undefined, true);
 
     for (const m of out.motors) expect(m).toBeGreaterThan(0);
-    // Five per cent of full collective, split four ways.
-    expect(out.throttleFraction).toBeCloseTo(0.05, 2);
+    // Five per cent of the rated collective, split four ways — read against
+    // Acro's raised ceiling, so a smaller share of it.
+    expect(out.throttleFraction).toBeCloseTo(0.05 / ACRO_THRUST_BOOST, 3);
   });
 
   it('TC-209 the idle is far too small to arrest a descent', () => {
@@ -307,7 +312,7 @@ describe('the arming throttle interlock', () => {
 
     // S: the release. The motors idle rather than staying dead (#15d).
     const idling = fc.update(sticks({ throttle: 0 }), 'acro', pad(), 1 / 250, undefined, true);
-    expect(idling.throttleFraction).toBeCloseTo(0.05, 2);
+    expect(idling.throttleFraction).toBeCloseTo(0.05 / ACRO_THRUST_BOOST, 3);
     expect(fc.throttleLocked).toBe(false);
 
     // W, S released.

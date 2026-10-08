@@ -10,6 +10,7 @@ import { useWorldStore } from '../state/worldStore';
 import { useControls } from '../input/useControls';
 import { setCommandScale } from '../input/controls';
 import { MissionHud } from '../hud/MissionHud';
+import { ArmWarning } from '../hud/ArmWarning';
 import { MissionDirector } from './MissionDirector';
 import { MissionMarkers } from './MissionMarkers';
 import { CasualtyCollider } from './CasualtyCollider';
@@ -196,6 +197,7 @@ export function MissionViewport({ mission }: { mission: Mission }) {
         </Canvas>
       </SceneBoundary>
       <MissionHud />
+      <ArmWarning />
       {/* The map is named, not assumed. "Getting the city ready" over a forest
           was the one line in the mission view that could be plainly wrong. */}
       {!ready && (

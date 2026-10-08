@@ -155,8 +155,7 @@ export function acroRateDps(stick: number, rates: AcroRates): number {
     const expof = ax * (x ** 5 * rates.expo + x * (1 - rates.expo));
     return x * rates.centerDps + Math.max(0, rates.maxDps - rates.centerDps) * expof;
   }
-  const lookup = (i: number) =>
-    ((2500 + rates.rcExpo8 * (i * i - 25)) * i * rates.rcRate8) / 2500;
+  const lookup = (i: number) => ((2500 + rates.rcExpo8 * (i * i - 25)) * i * rates.rcRate8) / 2500;
   const tmp = ax * 500;
   const i = Math.min(Math.floor(tmp / 100), 4);
   const rcCommand = lookup(i) + ((tmp - i * 100) * (lookup(i + 1) - lookup(i))) / 100;
@@ -200,6 +199,40 @@ const _desiredUp = new THREE.Vector3();
 const _axis = new THREE.Vector3();
 
 const STICK_DEADBAND = 0.06;
+
+// Controller response tuning, chosen for a firmer collective around hover.
+// Continuous and monotonic: idle, centre and full travel stay exactly 0/.5/1.
+// This changes thrust demand, never holds height in Acro or Stabilize.
+// The gain is the extra slope at centre: 0.6 gives 1.6x there and 0.4x at the
+// ends; it must stay below 1 or the curve flattens out at idle and full.
+const CONTROLLER_THROTTLE_GAIN = 0.6;
+function controllerThrottle(t: number): number {
+  const x = clamp(t, 0, 1) * 2 - 1;
+  return (x * (1 + CONTROLLER_THROTTLE_GAIN * (1 - Math.abs(x))) + 1) / 2;
+}
+
+/**
+ * Thrust Acro can call on, as a multiple of the airframe's rated full thrust.
+ * Acro is flown for punch: at the rated ~2:1 the Pluto climbed and checked a
+ * descent too gently for it. 1.5 makes ~3:1 and puts hover near 33% collective.
+ * Acro only. Applied here to the collective AND to the motors' ceiling, so the
+ * mixer saturates where the collective does; callers pass the rated ceiling.
+ */
+export const ACRO_THRUST_BOOST = 1.5;
+
+/**
+ * Acro's controller collective. Acro has no climb loop behind the stick, so it
+ * gets the sharper response: x * (1 + k(1 - |x|)^2) is (1 + k)x slope at centre
+ * and back to 1x at idle and full, so neither end goes dead. The slope is
+ * lowest two thirds of the way out, at 1 - k/3, so it is monotonic for k < 3;
+ * at 2 the centre is 3x and the slope never falls below 0.33x anywhere.
+ */
+const ACRO_CONTROLLER_THROTTLE_GAIN = 2;
+function acroControllerThrottle(t: number): number {
+  const x = clamp(t, 0, 1) * 2 - 1;
+  const r = 1 - Math.abs(x);
+  return (x * (1 + ACRO_CONTROLLER_THROTTLE_GAIN * r * r) + 1) / 2;
+}
 
 /**
  * Below this much commanded collective (N) the motors are treated as STOPPED.
@@ -351,8 +384,7 @@ export class FlightController {
       // Where the eased setpoint reaches zero, plus the distance covered while the
       // climb loop lags it (vz / climbP): without the lag term it overshot that
       // point by ~0.8 m from 3 m/s and then sank back to it.
-      this.targetAltitude =
-        altitude + (vz * vz) / (2 * ALT_ENTRY_DECEL) + vz / this.config.climbP;
+      this.targetAltitude = altitude + (vz * vz) / (2 * ALT_ENTRY_DECEL) + vz / this.config.climbP;
       this.entryClimbSp = vz;
     } else {
       this.targetAltitude = altitude;
@@ -428,7 +460,14 @@ export class FlightController {
      * rate, not the stick, so the curve's shape is untouched.
      */
     acroRateScale = 1,
+    controllerIdle = false,
+    /**
+     * Flying on a radio. Its props idle from the moment it arms in every mode,
+     * Acro included; a gamepad's Acro keeps them stopped on a low stick.
+     */
+    radio = false,
   ): ControlOutput {
+    const idleSpin = controllerIdle && (mode !== 'acro' || radio);
     _q.set(state.rotation[0], state.rotation[1], state.rotation[2], state.rotation[3]);
     _qInv.copy(_q).invert();
     _euler.setFromQuaternion(_q, 'YXZ'); // HUD only — singular past 90°
@@ -562,15 +601,21 @@ export class FlightController {
     }
 
     // ---- Collective thrust ----
-    const tMaxNow = state.maxPerMotor * 4;
+    // Per-motor ceiling this mode may use: the rated one, raised in Acro.
+    const motorCeil = state.maxPerMotor * (mode === 'acro' ? ACRO_THRUST_BOOST : 1);
+    const tMaxNow = motorCeil * 4;
     let thrust: number;
 
     if (thrustOverride !== undefined) {
       thrust = thrustOverride;
     } else if (ALT_MANAGED.includes(mode)) {
-      thrust = this.altitudeThrust(input, state, tiltCos, dt);
+      thrust = this.altitudeThrust(input, state, tiltCos, dt, controllerIdle);
     } else {
-      let t = clamp(input.throttle, 0, 1);
+      let t = !controllerIdle
+        ? clamp(input.throttle, 0, 1)
+        : mode === 'acro'
+          ? acroControllerThrottle(input.throttle)
+          : controllerThrottle(input.throttle);
       // A spring-centred direct stick RESTS at centre, and on the pad that is
       // not a command — it is only where the spring left it. Alt Hold already
       // refuses to lift on a centred stick while grounded (#15c); acro has to do
@@ -579,7 +624,7 @@ export class FlightController {
       // centre is also exactly where a direct throttle makes hover thrust — so
       // the drone leaves the ground at the moment the stick says it should.
       if (state.onGround && throttleSprung && t <= THROTTLE_CENTER) t = 0;
-      thrust = t * this.maxThrust;
+      thrust = t * this.maxThrust * (mode === 'acro' ? ACRO_THRUST_BOOST : 1);
     }
 
     // ---- Arming interlock ----
@@ -603,7 +648,10 @@ export class FlightController {
     // position test would spin the props the instant the aircraft armed (#15a),
     // and in Altitude Hold the stick rests at centre while `altitudeThrust()`
     // correctly returns nothing on the pad — the #15b creep, handed a floor.
-    if (throttleDown) thrust = Math.max(thrust, IDLE_COLLECTIVE * this.maxThrust);
+    // Not in Acro on a gamepad: there it only gets the firmer collective curve,
+    // and a centred-to-low stick on the pad still means stopped motors.
+    if (throttleDown || (idleSpin && !this.throttleInterlock))
+      thrust = Math.max(thrust, IDLE_COLLECTIVE * this.maxThrust);
 
     thrust = clamp(thrust * state.groundEffect, 0, tMaxNow);
     // Altitude ceiling applies in every mode, including manual throttle.
@@ -654,6 +702,15 @@ export class FlightController {
       };
     }
 
+    // Idle on the pad spins all four motors equally, without trying to tilt
+    // the aircraft before the pilot supplies enough collective to lift.
+    if (
+      idleSpin &&
+      state.onGround &&
+      thrust <= IDLE_COLLECTIVE * this.maxThrust * state.groundEffect + THRUST_CUTOFF
+    )
+      torqueScale = 0;
+
     // ---- Mix to motors (saturation is physically real from here on) ----
     const mix: MixResult = mixQuad(
       thrust,
@@ -662,10 +719,10 @@ export class FlightController {
       tauY * torqueScale,
       this.armPerAxis,
       this.kQ,
-      state.maxPerMotor,
+      motorCeil,
     );
 
-    const perMotorMax = Math.max(state.maxPerMotor, 1e-6);
+    const perMotorMax = Math.max(motorCeil, 1e-6);
     const motors = mix.thrusts.map((f) => clamp(f / perMotorMax, 0, 1)) as [
       number,
       number,
@@ -711,6 +768,7 @@ export class FlightController {
     state: ControlState,
     tiltCos: number,
     dt: number,
+    controllerInput = false,
   ): number {
     const alt = state.position[1];
     const vz = state.velocityWorld[1];
@@ -735,7 +793,8 @@ export class FlightController {
      * stick that is not commanding a climb and returns 0.
      */
     // Throttle stick above/below centre commands climb rate; centred = hold.
-    const stick = clamp(input.throttle, 0, 1) - 0.5;
+    const stick =
+      (controllerInput ? controllerThrottle(input.throttle) : clamp(input.throttle, 0, 1)) - 0.5;
     const stickActive = Math.abs(stick) > STICK_DEADBAND;
 
     // Armed and resting on the ground with no climb commanded: motors stay
@@ -749,16 +808,11 @@ export class FlightController {
 
     let climbSp: number;
     if (stickActive) {
-      // Full stick asks for twice the configured rate, which is what makes a
-      // deliberate climb feel like one. DESCENT is capped at the plain rate.
-      //
-      // It was symmetric, so a throttle held down commanded 2x: 5.2 m/s on the
-      // Guru and 7 m/s on the racer, from a stick the pilot was pushing gently.
-      // Coming down is not the same manoeuvre as going up — the floor is at the
-      // bottom of it — and a descent nobody asked to be that fast arrived at the
-      // deck fast enough to write the aircraft off.
+      // Controller full travel asks for twice the usual climb rate. Keep the
+      // existing descent cap so extra response does not command a hard landing.
+      // Keyboard rates and the centred-stick height hold retain their settings.
       climbSp = Math.max(
-        stick * 2 * this.config.maxClimbRate,
+        stick * 2 * this.config.maxClimbRate * (controllerInput ? 2 : 1),
         -maxDescentRate(this.config.maxClimbRate),
       );
       // Follow the stick, resume holding on release — unless an entry ease is

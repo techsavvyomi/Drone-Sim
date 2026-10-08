@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import type { FlightMode, Vec3 } from '../src/shared/types';
-import { FlightController, type ControlState } from '../src/renderer/sim/control/flightController';
+import {
+  ACRO_THRUST_BOOST,
+  FlightController,
+  type ControlState,
+} from '../src/renderer/sim/control/flightController';
 import { mixQuad } from '../src/renderer/sim/control/mixer';
 import { testSpec } from './helpers/airframe';
 
@@ -31,16 +35,30 @@ function state(aero?: Vec3): ControlState {
 }
 
 function step(mode: FlightMode, aero?: Vec3) {
-  return new FlightController(spec).update({ roll: 0, pitch: 0, yaw: 0, throttle: 0.5 }, mode, state(aero), 0.004);
+  return new FlightController(spec).update(
+    { roll: 0, pitch: 0, yaw: 0, throttle: 0.5 },
+    mode,
+    state(aero),
+    0.004,
+  );
 }
 
 describe('Acro aero feed-forward', () => {
   it('in Acro the motors carry exactly minus the aero moment', () => {
     const out = step('acro', AERO);
-    const thrust = 0.5 * 4 * 7.36;
+    // Acro's collective and motor ceiling both carry ACRO_THRUST_BOOST.
+    const thrust = 0.5 * 4 * 7.36 * ACRO_THRUST_BOOST;
     const arm = spec.armLength / Math.SQRT2;
     const kQ = Math.max(spec.armLength * 0.15, 0.005);
-    const expected = mixQuad(thrust, -AERO[0], -AERO[2], -AERO[1], arm, kQ, 7.36).thrusts;
+    const expected = mixQuad(
+      thrust,
+      -AERO[0],
+      -AERO[2],
+      -AERO[1],
+      arm,
+      kQ,
+      7.36 * ACRO_THRUST_BOOST,
+    ).thrusts;
     out.motorThrusts.forEach((f, i) => expect(f).toBeCloseTo(expected[i], 9));
     // and it is a real differential, not nothing
     expect(Math.max(...out.motorThrusts) - Math.min(...out.motorThrusts)).toBeGreaterThan(0.01);

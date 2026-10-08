@@ -11,6 +11,7 @@ import { useFlightStore } from '../state/flightStore';
 import { Director } from './Director';
 import { RouteGuide } from './RouteGuide';
 import { TrainingHud } from '../hud/TrainingHud';
+import { ArmWarning } from '../hud/ArmWarning';
 
 // The Flight School flight view: the same 3D flight scene as free-flight but
 // pinned to the Drone Academy, with the headless Director and the route guide
@@ -77,6 +78,7 @@ export function TrainingViewport() {
         </Canvas>
       </SceneBoundary>
       <TrainingHud />
+      <ArmWarning />
       {!ready && <SceneVeil label="Getting the arena ready" />}
     </div>
   );

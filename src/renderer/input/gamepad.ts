@@ -13,6 +13,7 @@ import {
   type StickInput,
 } from '@shared/types';
 import { clamp } from '../sim/mathx';
+import { useFlightStore } from '../state/flightStore';
 
 // USB gamepad / RC transmitter input.
 //
@@ -92,9 +93,8 @@ export function deviceKey(pad: Gamepad): string {
   return pad.id.trim() || `gamepad-${pad.axes.length}x${pad.buttons.length}`;
 }
 
-let onDevice:
-  | ((key: string, id: string, kind: GamepadKind, buttonCount: number) => void)
-  | null = null;
+let onDevice: ((key: string, id: string, kind: GamepadKind, buttonCount: number) => void) | null =
+  null;
 
 /** Register the callback that loads/creates this device's saved mapping. */
 export function setDeviceHandler(
@@ -148,10 +148,7 @@ let bindBaselinePos: AxisPos[] = [];
 let onBind: ((r: BindResult) => void) | null = null;
 let onCaptureChange: (() => void) | null = null;
 
-export function setBindHandlers(
-  bound: (r: BindResult) => void,
-  changed: () => void,
-): void {
+export function setBindHandlers(bound: (r: BindResult) => void, changed: () => void): void {
   onBind = bound;
   onCaptureChange = changed;
 }
@@ -352,21 +349,68 @@ function shapeUnipolar(n: number): number {
  * live meters even while gamepad input is switched off — otherwise you could
  * not check that a controller works without first enabling it.
  */
-export function readChannel(
-  name: GamepadChannel,
-  cfg: GamepadSettings,
-  axes: number[],
-): number {
+export function readChannel(name: GamepadChannel, cfg: GamepadSettings, axes: number[]): number {
   const c = cfg.axes[name];
   const raw = c.invert ? -(axes[c.axis] ?? 0) : (axes[c.axis] ?? 0);
   // Inverting flips which physical end is which, so the calibration has to be
   // read through the same flip or lo and hi land on the wrong sides.
-  const cal = c.cal && c.invert
-    ? { lo: -c.cal.hi, mid: -c.cal.mid, hi: -c.cal.lo }
-    : c.cal;
+  const cal = c.cal && c.invert ? { lo: -c.cal.hi, mid: -c.cal.mid, hi: -c.cal.lo } : c.cal;
   return c.unipolar
     ? shapeUnipolar(normalizeUnipolar(raw, cal))
     : shapeCentered(normalizeAxis(raw, cal), cfg);
+}
+
+/**
+ * Bottom of an uncalibrated radio's throttle, learnt from where its stick sits.
+ *
+ * Without a calibration the throttle is read as if the axis spanned -1..1, and
+ * an InterLink parked at the bottom reads well above 0 — high enough that it
+ * could never arm and never asked for idle. Until the pilot calibrates, the
+ * lowest reading seen is taken as 0 and the travel above it stretched to 1.
+ *
+ * Learnt only while DISARMED, and only from the bottom third of the travel: a
+ * floor that moved in flight would cut collective the pilot was relying on.
+ */
+const FLOOR_LEARN_MAX = 0.3;
+let throttleFloor: number | null = null;
+function radioThrottle(t: number): number {
+  if (gamepadLive.kind !== 'rc' || config?.axes.throttle.cal) return t;
+  if (
+    !useFlightStore.getState().armed &&
+    t < FLOOR_LEARN_MAX &&
+    (throttleFloor === null || t < throttleFloor)
+  )
+    throttleFloor = t;
+  if (throttleFloor === null || throttleFloor <= 0) return t;
+  return clamp((t - throttleFloor) / (1 - throttleFloor), 0, 1);
+}
+
+/** Fresh calibrated throttle for every flight mode. Button edges stay in tick(). */
+export function readControllerThrottle(): number | null {
+  if (
+    !config?.enabled ||
+    gamepadLive.index === null ||
+    pendingAction ||
+    pendingChannel ||
+    isCalibrating()
+  )
+    return null;
+  const pad = navigator.getGamepads?.()[gamepadLive.index];
+  if (!pad || pad.id !== gamepadLive.id) return null;
+  const channel = config.axes.throttle;
+  const raw = pad.axes[channel.axis];
+  if (!Number.isFinite(raw)) return null;
+  // Normalize in the calibration's original frame, then invert. This preserves
+  // both calibrated endpoints without adding a centre deadzone or attitude expo.
+  const normalized = channel.unipolar
+    ? normalizeUnipolar(raw, channel.cal)
+    : normalizeAxis(raw, channel.cal);
+  const throttle = radioThrottle(
+    (shapeUnipolar(channel.invert ? -normalized : normalized) + 1) / 2,
+  );
+  // Idle/arming checks must see the same sample as the collective command.
+  gamepadStick.throttle = throttle;
+  return throttle;
 }
 
 function findAction(pred: (b: GamepadBinding) => boolean): GamepadAction | null {
@@ -491,7 +535,7 @@ function tick(): void {
   // hover point in altitude-managed modes and roughly hover in direct modes.
   // A radio's throttle does not spring, so its own resting position is the
   // command and the full 0..1 travel is available.
-  const throttle = clamp((thr + 1) / 2, 0, 1);
+  const throttle = radioThrottle(clamp((thr + 1) / 2, 0, 1));
   gamepadStick.throttle = throttle;
 
   // Throttle is tested for *movement*, not deflection. A radio's throttle rests
@@ -551,6 +595,7 @@ function adopt(pad: Gamepad): void {
   gamepadLive.index = pad.index;
   gamepadLive.id = pad.id;
   gamepadLive.kind = detectKind(pad);
+  if (deviceKey(pad) !== activeKey) throttleFloor = null;
   activeKey = deviceKey(pad);
   prevButtons = [];
   prevPos = [];

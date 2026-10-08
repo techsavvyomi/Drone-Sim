@@ -1,8 +1,15 @@
-import { HUD_WIDGETS } from '@shared/types';
+import {
+  GAMEPAD_ACTION_LABELS,
+  HUD_WIDGETS,
+  gamepadBindingLabel,
+  type GamepadAction,
+} from '@shared/types';
 import { useSettingsStore } from '../state/settingsStore';
 import { useUiStore } from '../state/uiStore';
 import { Icon, Keycap } from '../ds';
 import { KEY_GROUPS, hudCount } from './cockpitFacts';
+
+const PAD_ACTIONS = Object.keys(GAMEPAD_ACTION_LABELS) as GamepadAction[];
 
 // The HUD panel (H), Phase 6: a column on the left that pushes the cockpit over,
 // so the live HUD beside it is the preview. One row per widget with where it
@@ -13,6 +20,7 @@ export function HudPanel() {
   const hud = useSettingsStore((s) => s.settings.hud);
   const setHud = useSettingsStore((s) => s.setHud);
   const resetHud = useSettingsStore((s) => s.resetHud);
+  const gamepad = useSettingsStore((s) => s.settings.gamepad);
   const { on, total } = hudCount(hud);
 
   return (
@@ -56,8 +64,8 @@ export function HudPanel() {
           })}
         </ul>
         <p className="tdock__note">
-          Changes show on the live HUD beside this panel. The panel pushes the HUD over, so
-          nothing is covered.
+          Changes show on the live HUD beside this panel. The panel pushes the HUD over, so nothing
+          is covered.
         </p>
         <button type="button" className="tdock-wide" onClick={resetHud}>
           Reset to default
@@ -76,6 +84,23 @@ export function HudPanel() {
             </ul>
           </section>
         ))}
+
+        {gamepad.enabled && (
+          <section className="tdock__sec">
+            <h3 className="ck-label">Controller · Buttons</h3>
+            <ul className="hpanel__keys hpanel__keys--pad">
+              {PAD_ACTIONS.map((a) => (
+                <li key={a}>
+                  <Keycap>
+                    {gamepad.bindings[a] ? gamepadBindingLabel(gamepad.bindings[a]) : 'Not set'}
+                  </Keycap>
+                  <span>{GAMEPAD_ACTION_LABELS[a]}</span>
+                </li>
+              ))}
+            </ul>
+            <p className="tdock__note">Your bindings from Settings → Controls.</p>
+          </section>
+        )}
       </div>
     </aside>
   );

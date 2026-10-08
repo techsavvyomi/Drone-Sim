@@ -4,6 +4,9 @@ import { useModalKeyLock } from '../input/useModalKeyLock';
 import { playClick } from '../audio/sfx';
 import { Button, Icon, Keycap } from '../ds';
 import { crashLine, crashTip, exitAsk, pauseLines, type PauseContext } from './cockpitFacts';
+import { useSettingsStore } from '../state/settingsStore';
+import { activeInputSource } from '../input/controls';
+import { gamepadConnected } from '../input/gamepad';
 
 // ----------------------------------------------------------------------------
 // The cards a flight stops on (Phase 6): one pause card for Free Flight, lessons
@@ -201,6 +204,14 @@ export function CrashCard({ context, when, onReset }: CrashCardProps) {
 }
 
 function CrashCardBody({ context, when, onReset }: CrashCardProps) {
+  const gamepad = useSettingsStore((s) => s.settings.gamepad);
+  const controller = activeInputSource() === 'gamepad' && gamepadConnected() && gamepad.enabled;
+  const binding = controller ? gamepad.bindings.reset : undefined;
+  const resetLabel = binding
+    ? binding.t === 'b'
+      ? `Button ${binding.i}`
+      : `Axis ${binding.a} ${binding.p === 'hi' ? 'high' : binding.p === 'lo' ? 'low' : 'centre'}`
+    : 'R';
   const speed = useFlightStore((s) => s.crashSpeed);
   const at = useFlightStore((s) => s.crashAt);
   const cardRef = useRef<HTMLDivElement>(null);
@@ -236,10 +247,18 @@ function CrashCardBody({ context, when, onReset }: CrashCardProps) {
           <span>Drone crashed</span>
         </h2>
         <p className="fcard__line">
-          {crashLine({ when, altitude: at?.altitude ?? 0, speed })} The drone is on the ground;
-          reset puts it back on its start pad.
+          {crashLine({ when, altitude: at?.altitude ?? 0, speed })} The drone is on the ground.
+          Reset puts it back on its start pad.
         </p>
         <p className="fcard__tip">{crashTip(speed)}</p>
+        {controller && (
+          <div className="fcard__respawn" role="status">
+            <div>
+              Press <Keycap>{resetLabel}</Keycap> to respawn
+            </div>
+            {!binding && <small>No controller reset button assigned. Use keyboard R.</small>}
+          </div>
+        )}
         <div className="fcard__row">
           <Button
             onClick={() => {
@@ -257,7 +276,7 @@ function CrashCardBody({ context, when, onReset }: CrashCardProps) {
               onReset();
             }}
           >
-            Reset to start pad <Keycap>R</Keycap>
+            Reset to start pad <Keycap>{resetLabel}</Keycap>
           </Button>
         </div>
       </div>

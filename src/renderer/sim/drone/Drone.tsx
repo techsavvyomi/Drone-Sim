@@ -8,8 +8,10 @@ import {
   type RapierRigidBody,
 } from '@react-three/rapier';
 import * as THREE from 'three';
+import { readControllerThrottle } from '../../input/gamepad';
 import type { ContactState, DroneSpec, FlightMode, SupportInfo, Vec3 } from '@shared/types';
 import {
+  ACRO_THRUST_BOOST,
   FlightController,
   THROTTLE_CENTER,
   type ControlOutput,
@@ -26,6 +28,7 @@ import { clamp, DEG2RAD } from '../mathx';
 import {
   acroRateScaleFor,
   activeInputSource,
+  flyingOnRadio,
   isScripted,
   isThrottleCommanded,
   isThrottleDown,
@@ -144,8 +147,6 @@ const MAJOR_IMPACT = 4.5;
  * either number on its own.
  */
 const FLOOR_CRASH = 6;
-/** Walls / furniture — only crash on a clear fast hit. Slow/medium bumps must not flip. */
-const WALL_CRASH_SPEED = 3.2;
 /**
  * Hitting a building, pole or tree while airborne becomes a crash from here up.
  * Below it the contact is a bump: the drone is knocked about and shaken, and the
@@ -351,6 +352,12 @@ export function Drone({ spec, spawn, bounds, outdoor = false, groundY }: DronePr
     _q.setFromAxisAngle(UP_AXIS, spawn.heading * DEG2RAD);
     rb.setTranslation({ x, y: y + lift, z }, true);
     rb.setRotation({ x: _q.x, y: _q.y, z: _q.z, w: _q.w }, true);
+    // Publish the respawn pose together with its generation so the camera
+    // cannot reset against the previous crash's position or orientation.
+    dronePose.position.set(x, y + lift, z);
+    dronePose.quaternion.copy(_q);
+    dronePose.spawnHeading = spawn.heading * DEG2RAD;
+    dronePose.resetVersion++;
     rb.setLinvel({ x: 0, y: 0, z: 0 }, true);
     rb.setAngvel({ x: 0, y: 0, z: 0 }, true);
     controller.reset();
@@ -598,7 +605,16 @@ export function Drone({ spec, spawn, bounds, outdoor = false, groundY }: DronePr
     if (armed && !prevArmed.current) {
       controller.captureAltitude(pos.y, lin.y);
       controller.resetIntegrators();
-      if (useFlightStore.getState().onGround) controller.lockThrottle();
+      if (useFlightStore.getState().onGround) {
+        // The arm action already validated the controller's throttle. Do not
+        // require a second low-stick gesture after a valid arm command. A radio
+        // only arms from the bottom of the stick, so that holds in Acro too.
+        // A radio only ever arms from the bottom of the stick, so that holds in
+        // Acro too.
+        if (activeInputSource() === 'gamepad' && (mode !== 'acro' || flyingOnRadio()))
+          controller.unlockThrottle();
+        else controller.lockThrottle();
+      }
     }
     prevArmed.current = armed;
 
@@ -650,7 +666,9 @@ export function Drone({ spec, spawn, bounds, outdoor = false, groundY }: DronePr
     const prevFraction = lastOutput.current?.throttleFraction ?? 0;
     // Fraction of maximum thrust that corresponds to a hover, so the battery can
     // scale its drain against it (idle 0.3x, hover 1.0x, full throttle 1.7x).
-    const hoverFraction = clamp(hoverThrust / controller.maxThrust, 0.05, 1);
+    // Acro's motors can make more than the rated thrust (`ACRO_THRUST_BOOST`).
+    const authority = mode === 'acro' ? ACRO_THRUST_BOOST : 1;
+    const hoverFraction = clamp(hoverThrust / (controller.maxThrust * authority), 0.05, 1);
     const batt = physics.batteryEnabled
       ? battery.update(prevFraction, hoverFraction, SIM_DT)
       : {
@@ -762,6 +780,8 @@ export function Drone({ spec, spawn, bounds, outdoor = false, groundY }: DronePr
       isThrottleDown(),
       throttleRestsAtCentre(mode),
       acroRateScaleFor(spec),
+      !scripted && activeInputSource() === 'gamepad',
+      !scripted && flyingOnRadio(),
     );
     lastOutput.current = out;
 
@@ -779,7 +799,7 @@ export function Drone({ spec, spawn, bounds, outdoor = false, groundY }: DronePr
     const m = motorThrust.current;
     for (let i = 0; i < 4; i++) {
       m[i] += (out.motorThrusts[i] - m[i]) * alpha;
-      motorNorm.current[i] = clamp(m[i] / Math.max(maxPerMotor, 1e-6), 0, 1);
+      motorNorm.current[i] = clamp(m[i] / Math.max(maxPerMotor * authority, 1e-6), 0, 1);
     }
 
     for (let i = 0; i < 4; i++) {
@@ -965,7 +985,6 @@ export function Drone({ spec, spawn, bounds, outdoor = false, groundY }: DronePr
       let vy = lv.y;
       let vz = lv.z;
       let clamped = false;
-      let ceilingOnly = false;
       if (x < bounds.min[0] + pad) {
         x = bounds.min[0] + pad;
         if (vx < 0) vx = 0;
@@ -989,26 +1008,13 @@ export function Drone({ spec, spawn, bounds, outdoor = false, groundY }: DronePr
         y = bounds.max[1] - 0.07;
         vy = Math.min(vy, -0.55);
         clamped = true;
-        ceilingOnly = true;
       }
       if (clamped) {
-        const hitSpeed = Math.max(impactSpeed.current, peakSpeed.current);
+        // Containment is a map limit, not contact with a visible object.
+        // Only Rapier's actual surface contacts can crash the aircraft here.
         rb.setTranslation({ x, y, z }, true);
         rb.setLinvel({ x: vx, y: vy, z: vz }, true);
         rb.setAngvel({ x: 0, y: rb.angvel().y * 0.2, z: 0 }, true);
-        // Fast wall tunnel → crash. Soft roof touch → peel only (unless slam).
-        // Skip during auto-takeoff so a bound scrape can't abort the climb.
-        const crashThresh = ceilingOnly ? MAJOR_IMPACT : WALL_CRASH_SPEED;
-        if (
-          hitSpeed >= crashThresh &&
-          useFlightStore.getState().auto !== 'takeoff' &&
-          !useFlightStore.getState().crashed
-        ) {
-          useFlightStore.getState().crash(hitSpeed, pickBrokenProps());
-          addShake(1);
-          peakSpeed.current = 0;
-          return;
-        }
         wallBumpUntil.current = simTime.current + WALL_BUMP_HOLD;
       }
     }
@@ -1111,10 +1117,20 @@ export function Drone({ spec, spawn, bounds, outdoor = false, groundY }: DronePr
     }
   });
 
+  // Pilot input must be ready before Rapier advances this frame. Read throttle
+  // directly from the device rather than waiting for the independent UI poll.
+  useFrame((_state, delta) => {
+    const flight = useFlightStore.getState();
+    if (flight.paused || isScripted()) return;
+    updateStick(delta);
+    if (activeInputSource() === 'gamepad') {
+      const throttle = readControllerThrottle();
+      if (throttle !== null) stick.throttle = throttle;
+    }
+  }, -100);
+
   // Input easing, telemetry and auto-sequences run at render rate.
   useFrame((_state, delta) => {
-    updateStick(delta);
-
     const rb = body.current;
     if (!rb) return;
 
@@ -1129,7 +1145,11 @@ export function Drone({ spec, spawn, bounds, outdoor = false, groundY }: DronePr
         prevMode.current,
         flight.mode,
         !flight.armed || flight.onGround,
-        clamp(hoverThrust / controller.maxThrust, 0, 1),
+        clamp(
+          hoverThrust / (controller.maxThrust * (flight.mode === 'acro' ? ACRO_THRUST_BOOST : 1)),
+          0,
+          1,
+        ),
       );
       if (next !== null) stick.throttle = next;
       prevMode.current = flight.mode;
@@ -1347,9 +1367,9 @@ export function Drone({ spec, spawn, bounds, outdoor = false, groundY }: DronePr
 
   useEffect(() => resetStick, []);
   // The keyboard's Acro throttle travels idle-to-hover in a fixed time, so it
-  // needs this airframe's hover fraction.
+  // needs this airframe's hover fraction — of Acro's full thrust.
   useEffect(() => {
-    const full = spec.motors.reduce((sum, m) => sum + m.maxThrustN, 0);
+    const full = spec.motors.reduce((sum, m) => sum + m.maxThrustN, 0) * ACRO_THRUST_BOOST;
     setHoverThrottle(hoverThrust / Math.max(full, 1e-6));
   }, [spec, hoverThrust]);
 
@@ -1411,9 +1431,7 @@ export function Drone({ spec, spawn, bounds, outdoor = false, groundY }: DronePr
         // drone does next.
         const inTouchdown = simTime.current < touchdownUntil.current;
         const isTouchdown =
-          !isTilted &&
-          Math.hypot(pv.x, pv.z) < OBSTACLE_CRASH_SPEED &&
-          (pv.y < 0 || inTouchdown);
+          !isTilted && Math.hypot(pv.x, pv.z) < OBSTACLE_CRASH_SPEED && (pv.y < 0 || inTouchdown);
         if (isTouchdown && v < FLOOR_CRASH) {
           touchdownUntil.current = simTime.current + TOUCHDOWN_WINDOW;
           peakSpeed.current = 0;
