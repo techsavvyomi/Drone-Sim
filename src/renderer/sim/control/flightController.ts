@@ -248,6 +248,28 @@ function acroControllerThrottle(t: number): number {
 }
 
 /**
+ * Radio stick position that makes exactly the aircraft's weight in Acro.
+ *
+ * A radio's throttle stays where it is put, so it gets the transmitter feel
+ * rather than a pad's centre-hover curve: the stick is linear in collective,
+ * crossing hover low on the travel so 25% already lifts, 30% lifts more, and
+ * every step after that is more climb, up to the Acro ceiling at full stick.
+ * On the pad curve the same radio sat still to ~43% and then jumped.
+ */
+export const RADIO_ACRO_HOVER_STICK = 0.22;
+
+/**
+ * Acro collective on a radio, in N: 0 at the bottom, the aircraft's weight at
+ * `RADIO_ACRO_HOVER_STICK`, `fullN` at the top, a straight line either side.
+ */
+export function radioAcroThrust(stick: number, hoverN: number, fullN: number): number {
+  const t = clamp(stick, 0, 1);
+  const h = RADIO_ACRO_HOVER_STICK;
+  if (t <= h) return (t / h) * hoverN;
+  return hoverN + ((t - h) / (1 - h)) * Math.max(0, fullN - hoverN);
+}
+
+/**
  * Below this much commanded collective (N) the motors are treated as STOPPED.
  * Not a tuning knob — see the cut in `update()`.
  */
@@ -627,6 +649,8 @@ export class FlightController {
       thrust = thrustOverride;
     } else if (ALT_MANAGED.includes(mode)) {
       thrust = this.altitudeThrust(input, state, tiltCos, dt, controllerIdle);
+    } else if (mode === 'acro' && radio) {
+      thrust = radioAcroThrust(input.throttle, state.mass * GRAVITY, tMaxNow);
     } else {
       let t = !controllerIdle
         ? clamp(input.throttle, 0, 1)
