@@ -14,8 +14,8 @@ export function FlightSchoolEnv({ env }: { env: EnvironmentSpec }) {
   const sizeZ = max[2] - min[2];
   const cx = (max[0] + min[0]) / 2;
   const cz = (max[2] + min[2]) / 2;
-  /** Walls collide up to the ceiling, however low the visible panel is drawn. */
-  const wallColliderH = max[1];
+  /** Only the visible wall is solid; the world limit is separate. */
+  const wallColliderH = WALL_H;
 
   return (
     <group>
@@ -27,17 +27,7 @@ export function FlightSchoolEnv({ env }: { env: EnvironmentSpec }) {
         </mesh>
       </RigidBody>
 
-      {/* Boundary walls. The visible mesh stays low and translucent so it never
-          hides the drone, but the COLLIDER runs the full height of the ceiling —
-          the same "solid all the way up" treatment the forest trunks get.
-
-          They used to be one and the same at WALL_H, which left everything above
-          2.5 m unwalled while the ceiling sits at bounds.max[1]. Up there the only
-          containment was the positional hard-rescue clamp in `Drone.tsx`, and that
-          grades a hit at WALL_CRASH_SPEED (3.2 m/s) instead of the collider path's
-          MINOR_IMPACT (1.8) — so a fast angled hit slid along an invisible boundary
-          and never registered as a crash. Classroom 2 already sized its walls off
-          the ceiling; these two hard-coded 2.5. */}
+      {/* Boundary collision matches the visible wall height. */}
       <RigidBody type="fixed" colliders={false}>
         <mesh position={[cx, WALL_H / 2, min[2]]} receiveShadow>
           <boxGeometry args={[sizeX, WALL_H, WALL_T]} />

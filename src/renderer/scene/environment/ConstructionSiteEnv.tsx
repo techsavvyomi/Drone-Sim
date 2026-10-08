@@ -605,37 +605,11 @@ function SiteVisual({ env }: { env: EnvironmentSpec }) {
   );
 }
 
-/** Existing flight boundary, pending the maintainer's containment choice. */
-function SiteBoundary({ env }: { env: EnvironmentSpec }) {
-  const ceiling = env.bounds.max[1];
-  return (
-    <RigidBody type="fixed" colliders={false}>
-      {(
-        [
-          [0, SITE_HALF, SITE_HALF, 0.2],
-          [0, -SITE_HALF, SITE_HALF, 0.2],
-          [SITE_HALF, 0, 0.2, SITE_HALF],
-          [-SITE_HALF, 0, 0.2, SITE_HALF],
-        ] as [number, number, number, number][]
-      ).map(([x, z, hx, hz], i) => (
-        <CuboidCollider
-          key={i}
-          args={[hx, ceiling / 2, hz]}
-          position={[x, ceiling / 2, z]}
-          friction={0.05}
-          restitution={0}
-        />
-      ))}
-    </RigidBody>
-  );
-}
-
 useGLTF.preload(sitePropsUrl, DRACO_DECODER_PATH);
 
 export function ConstructionSiteEnv({ env }: { env: EnvironmentSpec }) {
   return (
     <group name="construction-site-environment">
-      <SiteBoundary env={env} />
       {/* Spawn support at the actual visible ground height while the GLB loads. */}
       <RigidBody type="fixed" colliders={false}>
         <CuboidCollider

@@ -4,7 +4,6 @@ import { CuboidCollider, RigidBody } from '@react-three/rapier';
 import * as THREE from 'three';
 import type { EnvironmentSpec } from '@shared/types';
 import forestModelUrl from '../../../assets/models/forest.opt.glb?url';
-import { ForestColliders } from './ForestColliders';
 
 // Forest scene. Draco-compressed like the classroom; the decoder path is set
 // globally at startup (see main.tsx) so nothing needs passing here.
@@ -60,14 +59,11 @@ const MODEL_OFFSET: [number, number, number] = [
  * walls in mid-air wherever a leaf plane sits, and they are most of the scene's
  * 341k triangles.
  *
- * TRUNKS ARE ALSO EXCLUDED, and handled analytically by ForestColliders.
- * They were 83,074 of this trimesh's 140,545 triangles — 59% of the geometry
- * the drone queried against on every one of the 250 physics steps per second,
- * for objects that are just vertical posts. Terrain stays a trimesh because it
- * is genuinely uneven ground the drone lands on.
+ * Trunks and branches use their original surfaces too. Raster boxes once
+ * extended them to the canopy and blocked empty air beside branches.
  */
 const SOLID =
-  /Terrain|Aerial_Grass|Grass_Close|Ground_Dirt|Dirt_Road|Cobblestone|Sloped_Rock|Tall_Cliff|Broken_Rocks|Wood_Log|Metal_Fence|Wood_Fence|Road_Edge|Gravel|Mud|Puddle|Decal/i;
+  /Trunk_|Terrain|Aerial_Grass|Grass_Close|Ground_Dirt|Dirt_Road|Cobblestone|Sloped_Rock|Tall_Cliff|Broken_Rocks|Wood_Log|Metal_Fence|Wood_Fence|Road_Edge|Gravel|Mud|Puddle|Decal/i;
 
 /**
  * Top face of the catch floor — a backstop for anything that finds a seam in
@@ -90,12 +86,10 @@ const CATCH_HALF = 5;
  * This is not a substitute for the terrain — it exists because the terrain
  * arrives inside a Suspense boundary. Until the 15 MB scene finishes streaming
  * there is no ground at all, and the drone drops away from the pad before the
- * map appears. The apron is always mounted, so spawn is solid immediately.
+ * map appears. The apron is the loading fallback, so spawn is solid immediately.
  *
- * It is also honest here: the road surface within this radius sits between
- * -0.19 m and +0.05 m of the spawn height, so a flat plate matches what you see
- * to within a couple of centimetres. Whichever is higher wins, so once the
- * terrain loads the drone rests on the real surface anywhere it rises above 0.
+ * Once the scene loads, remove this support: the road varies from -0.19 m
+ * to +0.05 m here, so keeping the flat plate would create an invisible floor.
  */
 const APRON_HALF = 12;
 
@@ -419,11 +413,6 @@ export function ForestEnv({ env }: { env: EnvironmentSpec }) {
           position={[0, CATCH_TOP - CATCH_HALF, 0]}
         />
       </RigidBody>
-
-      {/* Tree trunks as analytical boxes — see ForestColliders. Mounted outside
-          the Suspense boundary so trees are solid the moment the map opens,
-          rather than only once the 15 MB scene has streamed in. */}
-      <ForestColliders />
 
       <Suspense fallback={<ForestSpawnSupport />}>
         <ForestModel url={forestModelUrl} bounds={env.bounds} />
