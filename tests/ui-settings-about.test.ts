@@ -17,7 +17,7 @@ import { useShellStore } from '../src/renderer/state/shellStore';
 import { declsFor, parseCss, stylesheet } from './helpers/css';
 
 // Settings and About on the design system. No PDF draws either page, so these
-// pin what was decided (2026-09-30): four tabs (Video · Audio · Controls ·
+// pin what was decided (2026-09-30): five tabs (Video · Audio · Controls · Rates ·
 // Interface), About only as its own sidebar page, every control a Phase 0
 // part writing the same setting it always did, the key list = KEY_GROUPS, the
 // HUD list = HUD_WIDGETS, and the old index.css rules gone.
@@ -85,11 +85,11 @@ afterEach(() => {
   cancelCapture();
 });
 
-describe('Settings: four tabs, About not among them', () => {
-  it('Video · Audio · Controls · Interface, Video first, in the classroom register', () => {
+describe('Settings: five tabs, About not among them', () => {
+  it('Video · Audio · Controls · Rates · Interface, Video first, in the classroom register', () => {
     const el = mount(h(SettingsPanel));
-    expect($$(el, '[role="tab"]').map((t) => t.textContent)).toEqual(['Video', 'Audio', 'Controls', 'Interface']);
-    expect(SETTINGS_TABS.map((t) => t.value)).toEqual(['video', 'audio', 'controls', 'interface']);
+    expect($$(el, '[role="tab"]').map((t) => t.textContent)).toEqual(['Video', 'Audio', 'Controls', 'Rates', 'Interface']);
+    expect(SETTINGS_TABS.map((t) => t.value)).toEqual(['video', 'audio', 'controls', 'rates', 'interface']);
     expect(el.querySelector('[role="tab"][aria-selected="true"]')!.textContent).toBe('Video');
     expect(el.querySelector('.settings')!.getAttribute('data-register')).toBe('classroom');
     expect(el.querySelector('h1')!.textContent).toBe('Settings');

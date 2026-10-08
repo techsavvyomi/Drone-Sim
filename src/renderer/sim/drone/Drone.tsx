@@ -40,6 +40,7 @@ import {
   throttleRestsAtCentre,
 } from '../../input/controls';
 import { useSimStore } from '../../state/simStore';
+import { useSettingsStore } from '../../state/settingsStore';
 import { useFlightStore, type AutoState } from '../../state/flightStore';
 import { usePhysicsStore } from '../../state/physicsStore';
 import { DroneModel } from './DroneModel';
@@ -275,6 +276,15 @@ export function Drone({ spec, spawn, bounds, outdoor = false, groundY }: DronePr
   const visual = useRef<THREE.Group>(null);
   const controller = useMemo(() => new FlightController(spec), [spec]);
   const battery = useMemo(() => new Battery(spec.battery), [spec]);
+
+  // Acro flies the pilot's Settings → Rates, and picks up an edit mid-flight.
+  useEffect(() => {
+    controller.setRates(useSettingsStore.getState().settings.rates.profile);
+    return useSettingsStore.subscribe((now, before) => {
+      if (now.settings.rates !== before.settings.rates)
+        controller.setRates(now.settings.rates.profile);
+    });
+  }, [controller]);
 
   const inertia = useRef<Vec3>([1, 1, 1]);
   const lastOutput = useRef<ControlOutput | null>(null);

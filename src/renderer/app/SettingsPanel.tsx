@@ -15,10 +15,11 @@ import {
 import { isTextField } from '../input/menuNav';
 import { captureState, isCalibrating } from '../input/gamepad';
 import { GamepadSetup } from './GamepadSetup';
+import { RatesTab } from './RatesTab';
 import { KEY_GROUPS, hudCount } from '../hud/cockpitFacts';
 
 // Settings, in the shell like the Hangar and Profile. No PDF draws this page;
-// it is built from the Phase 0 parts in the classroom register. Four tabs —
+// it is built from the Phase 0 parts in the classroom register. Five tabs —
 // ← → on the tab row, Q / E (LB / RB on a pad) step them from anywhere on the
 // page. About is its own sidebar page, not a tab here.
 
@@ -26,6 +27,7 @@ export const SETTINGS_TABS = [
   { value: 'video', label: 'Video' },
   { value: 'audio', label: 'Audio' },
   { value: 'controls', label: 'Controls' },
+  { value: 'rates', label: 'Rates' },
   { value: 'interface', label: 'Interface' },
 ] as const satisfies readonly ChoiceOption<string>[];
 
@@ -90,6 +92,7 @@ export function SettingsPanel() {
         {tab === 'video' && <VideoTab />}
         {tab === 'audio' && <AudioTab />}
         {tab === 'controls' && <ControlsTab />}
+        {tab === 'rates' && <RatesTab />}
         {tab === 'interface' && <InterfaceTab />}
       </div>
     </div>

@@ -6,6 +6,7 @@ import {
   DEFAULT_SETTINGS,
   DEFAULT_TRAINING,
   PROFILE_REV,
+  sanitizeRates,
   type AppSettings,
   type GamepadKind,
   type GamepadSettings,
@@ -75,6 +76,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
         bindings: { ...DEFAULT_GAMEPAD.bindings, ...(loaded.gamepad?.bindings ?? {}) },
         devices: loaded.gamepad?.devices ?? {},
       },
+      rates: sanitizeRates(loaded.rates),
       training: {
         ...DEFAULT_TRAINING,
         ...(loaded.training ?? {}),

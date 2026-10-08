@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import type {
   AcroRates,
+  AxisRate,
+  RateProfile,
   ContactState,
   DroneSpec,
   FlightMode,
@@ -146,6 +148,25 @@ export const SIM_ACRO_RATES: AcroRates = {
   maxDps: 620,
   expo: 0.2,
 };
+
+/** One Settings → Rates axis as the curve `acroRateDps` flies. */
+export function actualRates(axis: AxisRate): AcroRates {
+  return { kind: 'actual', centerDps: axis.center, maxDps: axis.max, expo: axis.expo };
+}
+
+/**
+ * Betaflight's throttle curve (`thr_mid`, `thr_expo`), on 0..1: the stick is
+ * bent about `mid`, flatter there the higher `expo`, and 0 and 1 stay put.
+ * `mid + d·(1 − expo + expo·d²/y²)` with d the distance from mid and y the
+ * room on that side. 0 / 0 is the stick unchanged.
+ */
+export function throttleCurve(stick: number, mid: number, expo: number): number {
+  const t = clamp(stick, 0, 1);
+  const d = t - mid;
+  const y = d > 0 ? 1 - mid : d < 0 ? mid : 1;
+  if (y <= 0) return t;
+  return clamp(mid + d * (1 - expo + (expo * d * d) / (y * y)), 0, 1);
+}
 
 /**
  * Acro rotation rate for a stick position (-1..1), in deg/s — the firmware's
@@ -341,7 +362,10 @@ export class FlightController {
   private readonly armPerAxis: number;
 
   private readonly config: ControllerConfig;
-  private readonly acroRates: AcroRates;
+  /** Acro rate curve per axis — Settings → Rates once `setRates` is called. */
+  private acroRates: { roll: AcroRates; pitch: AcroRates; yaw: AcroRates };
+  private throttleMid = 0;
+  private throttleExpo = 0;
   /** Body-rate setpoints from the last `update()`, rad/s. Read-only outside. */
   readonly rateSp = { roll: 0, pitch: 0, yaw: 0 };
   private previousRates = { roll: 0, pitch: 0, yaw: 0 };
@@ -355,7 +379,8 @@ export class FlightController {
     // further and climbs faster than the trainer envelope allows.
     const config = configFor(spec, base);
     this.config = config;
-    this.acroRates = spec.handling?.acroRates ?? SIM_ACRO_RATES;
+    const rates = spec.handling?.acroRates ?? SIM_ACRO_RATES;
+    this.acroRates = { roll: rates, pitch: rates, yaw: rates };
     // Term limits mirror the Magis V2 firmware's pidLuxFloat, which bounds the
     // I contribution to 250 and the D contribution to 300 of a +/-1000 output
     // range — i.e. 25% and 30% of full authority.
@@ -425,6 +450,17 @@ export class FlightController {
       this.targetAltitude = altitude;
       this.entryClimbSp = null;
     }
+  }
+
+  /** Fly Acro on the pilot's Settings → Rates: per-axis curves and the throttle curve. */
+  setRates(profile: RateProfile): void {
+    this.acroRates = {
+      roll: actualRates(profile.roll),
+      pitch: actualRates(profile.pitch),
+      yaw: actualRates(profile.yaw),
+    };
+    this.throttleMid = profile.throttleMid;
+    this.throttleExpo = profile.throttleExpo;
   }
 
   /**
@@ -542,8 +578,8 @@ export class FlightController {
       // Rate mode: sticks command angular rate directly, no auto-level — on the
       // Acro rate curve (`acroRateDps`), not `maxRateSetpoint`, which is the
       // angle loop's ceiling.
-      rollRateSp = -acroRateDps(input.roll, this.acroRates) * acroRateScale * DEG2RAD;
-      pitchRateSp = -acroRateDps(input.pitch, this.acroRates) * acroRateScale * DEG2RAD;
+      rollRateSp = -acroRateDps(input.roll, this.acroRates.roll) * acroRateScale * DEG2RAD;
+      pitchRateSp = -acroRateDps(input.pitch, this.acroRates.pitch) * acroRateScale * DEG2RAD;
     } else {
       // Stabilize / Altitude Hold: quaternion tilt error, valid at ANY attitude
       // (including upside-down), so the drone always self-rights.
@@ -579,7 +615,7 @@ export class FlightController {
     // modes keep the airframe's linear `maxYawRate`.
     const yawRateSp =
       mode === 'acro'
-        ? -acroRateDps(input.yaw, this.acroRates) * acroRateScale * DEG2RAD
+        ? -acroRateDps(input.yaw, this.acroRates.yaw) * acroRateScale * DEG2RAD
         : -input.yaw * this.config.maxYawRate;
     this.rateSp.roll = rollRateSp;
     this.rateSp.pitch = pitchRateSp;
@@ -650,7 +686,8 @@ export class FlightController {
     } else if (ALT_MANAGED.includes(mode)) {
       thrust = this.altitudeThrust(input, state, tiltCos, dt, controllerIdle);
     } else if (mode === 'acro' && radio) {
-      thrust = radioAcroThrust(input.throttle, state.mass * GRAVITY, tMaxNow);
+      const t = throttleCurve(input.throttle, this.throttleMid, this.throttleExpo);
+      thrust = radioAcroThrust(t, state.mass * GRAVITY, tMaxNow);
     } else {
       let t = !controllerIdle
         ? clamp(input.throttle, 0, 1)
@@ -665,6 +702,7 @@ export class FlightController {
       // centre is also exactly where a direct throttle makes hover thrust — so
       // the drone leaves the ground at the moment the stick says it should.
       if (state.onGround && throttleSprung && t <= THROTTLE_CENTER) t = 0;
+      if (mode === 'acro') t = throttleCurve(t, this.throttleMid, this.throttleExpo);
       thrust = t * this.maxThrust * (mode === 'acro' ? ACRO_THRUST_BOOST : 1);
     }
 

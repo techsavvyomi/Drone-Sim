@@ -56,6 +56,10 @@
   --caution: #ffc24b; /* warning */
   --fail: #ff5a5f; /* failure */
   --plot: #6fc3ff; /* graph lines only */
+  /* Rates graph series, validated as a set against ink-900 (dataviz palette check). */
+  --rate-roll: #e0620f;
+  --rate-pitch: #3b8fd0;
+  --rate-yaw: #869e28;
 
   /* Text that sits ON a signal / signal-d / fail / armed fill. */
   --on-fill: var(--ink-950);

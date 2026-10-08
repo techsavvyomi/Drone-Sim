@@ -102,6 +102,8 @@ export interface AppSettings {
   hud: HudWidgets;
   /** USB gamepad / RC transmitter configuration. */
   gamepad: GamepadSettings;
+  /** Acro rates and throttle curve (Settings → Rates). */
+  rates: RatesSettings;
   /** Flight School progression (completed lessons, stars, pilot XP). */
   training: TrainingProgress;
   /** Mission progression (best rating, points and time per mission). */
@@ -479,6 +481,166 @@ export function axisPos(v: number): AxisPos {
   return v > SWITCH_HI ? 'hi' : v < SWITCH_LO ? 'lo' : 'mid';
 }
 
+/** One axis on Settings → Rates: Betaflight Actual, in deg/s, expo 0..1. */
+export interface AxisRate {
+  center: number;
+  max: number;
+  expo: number;
+}
+
+/**
+ * What the pilot tunes on Settings → Rates. Acro only: the self-levelling
+ * modes fly the angle loop and never read it.
+ *
+ * Throttle midpoint and expo are Betaflight's `thr_mid` / `thr_expo`, both 0..1:
+ * the stick is bent about the midpoint, flatter there the higher the expo, and
+ * still runs 0 to 1 end to end. 0 / 0 is a straight stick.
+ */
+export interface RateProfile {
+  roll: AxisRate;
+  pitch: AxisRate;
+  yaw: AxisRate;
+  throttleMid: number;
+  throttleExpo: number;
+}
+
+export interface SavedRatePreset {
+  name: string;
+  profile: RateProfile;
+}
+
+export interface RatesSettings {
+  profile: RateProfile;
+  /** Editing roll edits pitch too, and the other way round. */
+  linkRollPitch: boolean;
+  /** The pilot's own presets, from "Save as preset". */
+  saved: SavedRatePreset[];
+}
+
+/** Bounds every field is clamped to, on the page and when a file is read. */
+export const RATE_LIMITS = {
+  center: { min: 10, max: 1000, step: 10 },
+  max: { min: 10, max: 2000, step: 10 },
+  expo: { min: 0, max: 1, step: 0.01 },
+} as const;
+
+const axisRate = (center: number, max: number, expo: number): AxisRate => ({ center, max, expo });
+
+/** 100 / 620 deg/s, expo 0.20 on every axis, straight throttle. */
+export const DEFAULT_RATE_PROFILE: RateProfile = {
+  roll: axisRate(100, 620, 0.2),
+  pitch: axisRate(100, 620, 0.2),
+  yaw: axisRate(100, 620, 0.2),
+  throttleMid: 0,
+  throttleExpo: 0,
+};
+
+/** The built-in presets in the Rates dropdown. Chosen by judgement, not measured. */
+export const RATE_PRESETS: readonly { id: string; name: string; profile: RateProfile }[] = [
+  { id: 'default', name: 'Default', profile: DEFAULT_RATE_PROFILE },
+  {
+    id: 'beginner',
+    name: 'Beginner',
+    profile: {
+      roll: axisRate(70, 400, 0.3),
+      pitch: axisRate(70, 400, 0.3),
+      yaw: axisRate(70, 300, 0.3),
+      throttleMid: 0,
+      throttleExpo: 0,
+    },
+  },
+  {
+    id: 'freestyle',
+    name: 'Freestyle',
+    profile: {
+      roll: axisRate(120, 800, 0.45),
+      pitch: axisRate(120, 800, 0.45),
+      yaw: axisRate(120, 600, 0.4),
+      throttleMid: 0,
+      throttleExpo: 0,
+    },
+  },
+  {
+    id: 'racing',
+    name: 'Racing',
+    profile: {
+      roll: axisRate(180, 700, 0.25),
+      pitch: axisRate(180, 700, 0.25),
+      yaw: axisRate(150, 550, 0.25),
+      throttleMid: 0,
+      throttleExpo: 0,
+    },
+  },
+  {
+    id: 'betaflight',
+    name: 'Betaflight stock',
+    profile: {
+      roll: axisRate(70, 670, 0),
+      pitch: axisRate(70, 670, 0),
+      yaw: axisRate(70, 670, 0),
+      throttleMid: 0,
+      throttleExpo: 0,
+    },
+  },
+];
+
+export const DEFAULT_RATES: RatesSettings = {
+  profile: DEFAULT_RATE_PROFILE,
+  linkRollPitch: false,
+  saved: [],
+};
+
+const clampTo = (v: unknown, lo: number, hi: number, fallback: number): number =>
+  typeof v === 'number' && Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : fallback;
+
+function sanitizeAxis(v: unknown, fallback: AxisRate): AxisRate {
+  const a = (v ?? {}) as Partial<AxisRate>;
+  const L = RATE_LIMITS;
+  return {
+    center: clampTo(a.center, L.center.min, L.center.max, fallback.center),
+    max: clampTo(a.max, L.max.min, L.max.max, fallback.max),
+    expo: clampTo(a.expo, L.expo.min, L.expo.max, fallback.expo),
+  };
+}
+
+export function sanitizeRateProfile(v: unknown): RateProfile {
+  const p = (v ?? {}) as Partial<RateProfile>;
+  const d = DEFAULT_RATE_PROFILE;
+  return {
+    roll: sanitizeAxis(p.roll, d.roll),
+    pitch: sanitizeAxis(p.pitch, d.pitch),
+    yaw: sanitizeAxis(p.yaw, d.yaw),
+    throttleMid: clampTo(p.throttleMid, 0, 1, d.throttleMid),
+    throttleExpo: clampTo(p.throttleExpo, 0, 1, d.throttleExpo),
+  };
+}
+
+/** A saved Rates block on today's shape: every field present and in range. */
+export function sanitizeRates(v: unknown): RatesSettings {
+  const r = (v ?? {}) as Partial<RatesSettings>;
+  return {
+    profile: sanitizeRateProfile(r.profile),
+    linkRollPitch: r.linkRollPitch === true,
+    saved: Array.isArray(r.saved)
+      ? r.saved
+          .filter((p) => p && typeof p.name === 'string' && p.name.trim())
+          .map((p) => ({ name: p.name.trim(), profile: sanitizeRateProfile(p.profile) }))
+      : [],
+  };
+}
+
+export function sameRateProfile(a: RateProfile, b: RateProfile): boolean {
+  const axis = (x: AxisRate, y: AxisRate) =>
+    x.center === y.center && x.max === y.max && Math.abs(x.expo - y.expo) < 1e-9;
+  return (
+    axis(a.roll, b.roll) &&
+    axis(a.pitch, b.pitch) &&
+    axis(a.yaw, b.yaw) &&
+    Math.abs(a.throttleMid - b.throttleMid) < 1e-9 &&
+    Math.abs(a.throttleExpo - b.throttleExpo) < 1e-9
+  );
+}
+
 export const SETTINGS_VERSION = 1;
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -491,6 +653,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   engineVolume: 0.75,
   cameraZoom: 1,
   gamepad: DEFAULT_GAMEPAD,
+  rates: DEFAULT_RATES,
   training: DEFAULT_TRAINING,
   missions: DEFAULT_MISSIONS,
   resourcesPrepared: false,
