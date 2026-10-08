@@ -142,6 +142,22 @@
   align-self: stretch;
 }
 
+.settings__info.ds-btn {
+  display: inline-flex;
+  vertical-align: middle;
+  min-height: 32px;
+  height: 32px;
+  width: 32px;
+  padding: 6px;
+  margin-left: var(--space-2);
+  border-radius: 50%;
+  color: var(--txt-mid);
+}
+
+.settings__info.ds-btn > span:empty {
+  display: none;
+}
+
 .gp__title {
   margin: var(--space-2) 0 0;
   font: var(--type-link);

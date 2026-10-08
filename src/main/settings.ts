@@ -14,7 +14,10 @@ function settingsFile(): string {
 export async function loadSettings(): Promise<AppSettings> {
   try {
     const raw = await fs.readFile(settingsFile(), 'utf-8');
-    const parsed = JSON.parse(raw) as Partial<AppSettings>;
+    const parsed = JSON.parse(raw) as Partial<AppSettings> & { physics?: unknown };
+    // The old "Physics difficulty" choice was never read by anything and is gone;
+    // dropped here so the next save leaves it out of the file.
+    delete parsed.physics;
     // Merge over defaults so newly-added fields are always populated.
     return { ...DEFAULT_SETTINGS, ...parsed, version: SETTINGS_VERSION };
   } catch {

@@ -232,12 +232,11 @@ describe('Settings → Audio', () => {
 });
 
 describe('Settings → Controls', () => {
-  it('physics difficulty is a segmented control writing `physics`', () => {
+  it('has no physics difficulty control: nothing ever read it', () => {
     const el = mount(h(SettingsPanel));
     tab(el, 'Controls');
-    const group = el.querySelector('[role="radiogroup"][aria-label="Physics difficulty"]')!;
-    click(byText(group, '[role="radio"]', 'Advanced'));
-    expect(settings().physics).toBe('advanced');
+    expect(el.querySelector('[aria-label="Physics difficulty"]')).toBeNull();
+    expect(el.textContent).not.toContain('Physics difficulty');
   });
 
   it('the key list is KEY_GROUPS, group by group, on keycaps', () => {

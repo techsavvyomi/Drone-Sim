@@ -27,7 +27,6 @@ export interface SupportInfo {
 // ----------------------------------------------------------------------------
 
 export type GraphicsPreset = 'low' | 'medium' | 'high';
-export type PhysicsPreset = 'beginner' | 'intermediate' | 'advanced';
 
 /** Which HUD widgets are visible in the flight view (the cockpit, Phase 6). */
 export interface HudWidgets {
@@ -84,7 +83,6 @@ export interface AppSettings {
    * scene/AutoQuality.tsx). Settings → Video.
    */
   autoGraphics: boolean;
-  physics: PhysicsPreset;
   /** Currently selected drone / environment plugin ids. */
   selectedDroneId: string;
   selectedEnvironmentId: string;
@@ -297,6 +295,13 @@ export const GAMEPAD_ACTION_LABELS: Record<GamepadAction, string> = {
   reset: 'Reset flight',
 };
 
+/** A binding as the pilot reads it, in Settings and on the HUD panel alike. */
+export function gamepadBindingLabel(b: GamepadBinding | undefined): string {
+  if (!b) return '-';
+  if (b.t === 'b') return `Button ${b.i}`;
+  return `Axis ${b.a} ${b.p === 'hi' ? 'high' : 'low'}`;
+}
+
 export const GAMEPAD_CHANNEL_LABELS: Record<GamepadChannel, string> = {
   roll: 'Roll',
   pitch: 'Pitch',
@@ -480,7 +485,6 @@ export const DEFAULT_SETTINGS: AppSettings = {
   version: SETTINGS_VERSION,
   graphics: 'medium',
   autoGraphics: true,
-  physics: 'beginner',
   selectedDroneId: 'pluto',
   selectedEnvironmentId: 'drone-academy',
   volume: 0.7,

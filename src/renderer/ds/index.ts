@@ -2,6 +2,7 @@
 // styles/tokens.css. Wrap a subtree in data-register="cockpit" | "classroom"
 // (or <Register>) to pick its sizes.
 export { Icon, type IconName } from './Icon';
+export { InfoButton } from './InfoButton';
 export { Button, type ButtonProps, type ButtonVariant } from './Button';
 export { SegmentedControl, Tabs, type ChoiceOption } from './Choice';
 export { Slider, Checkbox, TextInput, Select, type SelectOption } from './Field';

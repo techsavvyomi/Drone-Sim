@@ -6,11 +6,11 @@ import {
   CHANNEL_ORDERS,
   orderFromAxes,
   GAMEPAD_ACTION_LABELS,
+  gamepadBindingLabel,
   GAMEPAD_CHANNEL_LABELS,
   GAMEPAD_KIND_LABELS,
   DEFAULT_BINDINGS,
   type GamepadAction,
-  type GamepadBinding,
   type GamepadChannel,
   type ChannelOrder,
   type GamepadKind,
@@ -32,7 +32,16 @@ import {
   setBindHandlers,
 } from '../input/gamepad';
 import { useSettingsStore } from '../state/settingsStore';
-import { Badge, Button, Icon, Keycap, SegmentedControl, Slider, type ChoiceOption } from '../ds';
+import {
+  Badge,
+  Button,
+  Icon,
+  InfoButton,
+  Keycap,
+  SegmentedControl,
+  Slider,
+  type ChoiceOption,
+} from '../ds';
 
 const CHANNELS = Object.keys(GAMEPAD_CHANNEL_LABELS) as GamepadChannel[];
 const ACTIONS = Object.keys(GAMEPAD_ACTION_LABELS) as GamepadAction[];
@@ -41,12 +50,6 @@ const ON_OFF: ChoiceOption<'on' | 'off'>[] = [
   { value: 'off', label: 'Off' },
 ];
 const ORDERS: ChoiceOption<ChannelOrder>[] = CHANNEL_ORDERS.map((o) => ({ value: o, label: o }));
-
-function bindLabel(b: GamepadBinding | undefined): string {
-  if (!b) return '-';
-  if (b.t === 'b') return `Button ${b.i}`;
-  return `Axis ${b.a} ${b.p === 'hi' ? 'high' : 'low'}`;
-}
 
 /**
  * Live gamepad monitor + mapping editor.
@@ -250,11 +253,14 @@ export function GamepadSetup() {
         </div>
       )}
 
-      <p className="settings__note">
-        Controllers are detected automatically over USB or Bluetooth. Game pads and RC transmitters
-        use different stick axes, so the right layout is applied on first connect and remembered per
-        device. Keyboard and gamepad stay live together; whichever you touch last takes over.
-      </p>
+      <h3 className="gp__title">
+        Controller connection
+        <InfoButton title="Controller connection">
+          Controllers connect automatically over USB or Bluetooth. Each controller gets its own
+          saved stick layout. You can use the keyboard and controller together. The one you touch
+          last takes control.
+        </InfoButton>
+      </h3>
 
       <h3 className="gp__title">Stick channels</h3>
       <div className="gp__list">
@@ -341,22 +347,25 @@ export function GamepadSetup() {
         </div>
       )}
 
-      <h3 className="gp__title">Stick calibration</h3>
-      <p className="settings__note">
-        The Gamepad API is supposed to report -1 to +1, but most radios in USB-joystick mode swing
-        less than that, and subtrim leaves the rest position off zero. Until the real endpoints are
-        measured, a fully deflected stick lands short of full output. Calibrate once per controller
-        and the whole range is available.
-      </p>
-      {calibrating ? (
-        <div className="gp__calibrate is-active">
-          <p className="settings__note">
+      <h3 className="gp__title">
+        Stick calibration
+        <InfoButton title="Stick calibration">
+          <p>
+            Some controllers report a smaller stick range or an off-centre resting position.
+            Calibration measures the real endpoints so moving a stick all the way gives full output.
+            Calibrate each controller once.
+          </p>
+          <p>
             Push <b>every stick to both ends</b> of each axis: left <i>and</i> right, up <i>and</i>{' '}
             down, then let them go. Each direction is measured separately, so a stick moved only one
-            way cannot be calibrated; the markers above read <b>Done</b> once a channel has seen
+            way cannot be calibrated. The markers above read <b>Done</b> once a channel has seen
             both. A radio&apos;s throttle is one travel instead: run it from the very bottom to the
             very top. Sticks are ignored by the aircraft until you save.
           </p>
+        </InfoButton>
+      </h3>
+      {calibrating ? (
+        <div className="gp__calibrate is-active">
           <div className="settings__actions">
             <Button
               variant="primary"
@@ -435,15 +444,17 @@ export function GamepadSetup() {
         </p>
       )}
 
-      <h3 className="gp__title">Buttons</h3>
-      {kind === 'rc' && counts.buttons > 0 && (
-        <p className="settings__note">
-          This radio enumerates {counts.buttons} buttons, but they stay dark until you map switches
-          to them on the radio itself (EdgeTX: Model → USB Joystick, set a channel's mode to
-          Button). You do not have to: hit <b>Bind</b> below and flick a switch, and it will be
-          captured as an axis position instead.
-        </p>
-      )}
+      <h3 className="gp__title">
+        Buttons
+        {kind === 'rc' && counts.buttons > 0 && (
+          <InfoButton title="Radio buttons">
+            This radio enumerates {counts.buttons} buttons, but they stay dark until you map
+            switches to them on the radio itself (EdgeTX: Model → USB Joystick, set a channel's mode
+            to Button). You do not have to: hit <b>Bind</b> below and flick a switch, and it will be
+            captured as an axis position instead.
+          </InfoButton>
+        )}
+      </h3>
       {counts.buttons === 0 ? (
         <p className="settings__note">
           This device reports no buttons. Its switches and pots come through as extra <b>axes</b>{' '}
@@ -459,16 +470,18 @@ export function GamepadSetup() {
         </div>
       )}
 
-      <h3 className="gp__title">Actions</h3>
-      <p className="settings__note">
-        Bind to a button, or flick a switch. Transmitters expose their 2- and 3-position switches as
-        axes, so those bind too.
-      </p>
+      <h3 className="gp__title">
+        Actions
+        <InfoButton title="Action bindings">
+          Click Bind, then press a controller button or move a switch. Two- and three-position
+          switches can also be used for actions.
+        </InfoButton>
+      </h3>
       <div className="gp__list">
         {ACTIONS.map((a) => (
           <div className="gp__row gp__bind" key={a}>
             <span className="gp__name">{GAMEPAD_ACTION_LABELS[a]}</span>
-            <span className="gp__binding">{bindLabel(gamepad.bindings[a])}</span>
+            <span className="gp__binding">{gamepadBindingLabel(gamepad.bindings[a])}</span>
             <Button
               className={listening(capture.action === a)}
               onClick={() => (capture.action === a ? cancelCapture() : beginBindAction(a))}
@@ -490,7 +503,13 @@ export function GamepadSetup() {
         ))}
       </div>
 
-      <h3 className="gp__title">Feel</h3>
+      <h3 className="gp__title">
+        Feel
+        <InfoButton title="Stick feel">
+          Deadzone, expo and sensitivity adjust the roll, pitch and yaw sticks. Full travel still
+          gives full output. Throttle uses its calibrated range and separate flight response.
+        </InfoButton>
+      </h3>
       <div className="gp__feel">
         <Slider
           label="Deadzone"
@@ -520,10 +539,6 @@ export function GamepadSetup() {
           format={(v) => `${v.toFixed(2)}×`}
         />
       </div>
-      <p className="settings__note">
-        Deadzone and sensitivity shape the middle of the travel only. Full deflection always
-        commands full output, whatever these are set to.
-      </p>
 
       <div className="settings__actions">
         <Button

@@ -30,9 +30,18 @@ describe('loading', () => {
     const s = await loadSettings();
 
     expect(s.graphics).toBe(DEFAULT_SETTINGS.graphics);
-    expect(s.physics).toBe(DEFAULT_SETTINGS.physics);
     expect(s.selectedDroneId).toBe('pluto');
     expect(s.selectedEnvironmentId).toBe('drone-academy');
+  });
+
+  it('drops the retired physics difficulty from an older file', async () => {
+    await fs.writeFile(
+      path.join(userData, 'settings.json'),
+      JSON.stringify({ graphics: 'high', physics: 'advanced' }),
+    );
+    const s = await loadSettings();
+    expect(s.graphics).toBe('high');
+    expect('physics' in s).toBe(false);
   });
 
   it('TC-008 every HUD widget is on by default', async () => {

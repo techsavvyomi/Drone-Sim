@@ -1,8 +1,17 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { HUD_WIDGETS, type GraphicsPreset, type PhysicsPreset } from '@shared/types';
+import { HUD_WIDGETS, type GraphicsPreset } from '@shared/types';
 import { useSettingsStore } from '../state/settingsStore';
 import { useShellStore } from '../state/shellStore';
-import { Button, Checkbox, Keycap, SegmentedControl, Slider, Tabs, type ChoiceOption } from '../ds';
+import {
+  Button,
+  Checkbox,
+  InfoButton,
+  Keycap,
+  SegmentedControl,
+  Slider,
+  Tabs,
+  type ChoiceOption,
+} from '../ds';
 import { isTextField } from '../input/menuNav';
 import { captureState, isCalibrating } from '../input/gamepad';
 import { GamepadSetup } from './GamepadSetup';
@@ -33,12 +42,6 @@ const GRAPHICS_NOTE: Record<GraphicsPreset, string> = {
   medium: 'Bloom and vignette.',
   high: 'Bloom, vignette, SMAA anti-aliasing and sharper shadows.',
 };
-
-const PHYSICS: ChoiceOption<PhysicsPreset>[] = [
-  { value: 'beginner', label: 'Beginner' },
-  { value: 'intermediate', label: 'Intermediate' },
-  { value: 'advanced', label: 'Advanced' },
-];
 
 /** "Medium · 1.00×" — the chase camera's distance, in words and as a factor. */
 export function zoomText(zoom: number): string {
@@ -97,16 +100,21 @@ export function SettingsPanel() {
 function Section({
   title,
   meta,
+  info,
   children,
 }: {
   title: string;
   meta?: string;
+  info?: ReactNode;
   children: ReactNode;
 }) {
   return (
     <section className="settings__card" aria-label={title}>
       <header className="settings__card-head">
-        <h2 className="settings__card-title">{title}</h2>
+        <h2 className="settings__card-title">
+          {title}
+          {info && <InfoButton title={title}>{info}</InfoButton>}
+        </h2>
         {meta && <span className="settings__card-meta">{meta}</span>}
       </header>
       {children}
@@ -129,7 +137,7 @@ function VideoTab() {
         <Checkbox
           checked={settings.autoGraphics}
           onChange={(v) => set('autoGraphics', v)}
-          hint="Steps down one level at a time; it never raises the quality on its own."
+          hint="Steps down one level at a time. It never raises the quality on its own."
         >
           Lower the quality automatically when the frame rate drops
         </Checkbox>
@@ -154,7 +162,10 @@ function VideoTab() {
 function AudioTab() {
   const { settings, set } = useSettingsStore();
   return (
-    <Section title="Volume">
+    <Section
+      title="Volume"
+      info="Each drone has its own motor sound. Master volume changes all sounds. Motor volume adjusts only the drone motors."
+    >
       <Slider
         label="Master volume"
         min={0}
@@ -173,27 +184,13 @@ function AudioTab() {
         onChange={(v) => set('engineVolume', v)}
         format={percent}
       />
-      <p className="settings__note">
-        The rotor sound is synthesised from the selected drone&apos;s own motor and battery spec,
-        so each airframe has its own pitch: the Pluto whines, the Guru growls. Motor volume is
-        separate because it is the one sound that never stops.
-      </p>
     </Section>
   );
 }
 
 function ControlsTab() {
-  const { settings, set } = useSettingsStore();
   return (
     <>
-      <Section title="Physics difficulty">
-        <SegmentedControl
-          label="Physics difficulty"
-          options={PHYSICS}
-          value={settings.physics}
-          onChange={(p) => set('physics', p)}
-        />
-      </Section>
       <Section title="Keyboard" meta="Mode 2 · the same list as the HUD panel (H)">
         <div className="settings__keys">
           {KEY_GROUPS.map((g) => (
@@ -230,7 +227,12 @@ function InterfaceTab() {
       </p>
       <div className="settings__widgets">
         {HUD_WIDGETS.map((w) => (
-          <Checkbox key={w.key} checked={hud[w.key]} onChange={(v) => setHud(w.key, v)} hint={w.where}>
+          <Checkbox
+            key={w.key}
+            checked={hud[w.key]}
+            onChange={(v) => setHud(w.key, v)}
+            hint={w.where}
+          >
             {w.label}
           </Checkbox>
         ))}

@@ -12,6 +12,7 @@
 import type { ReactElement } from 'react';
 
 export type IconName =
+  | 'info'
   | 'check'
   | 'cross'
   | 'star'
@@ -29,6 +30,13 @@ export type IconName =
   | 'square';
 
 const PATHS: Record<IconName, ReactElement> = {
+  info: (
+    <>
+      <circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" strokeWidth="1.5" />
+      <circle cx="8" cy="5" r="0.9" fill="currentColor" />
+      <path d="M8 7.5v4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+    </>
+  ),
   check: (
     <path
       d="M3 8.5l3.2 3.2L13 4.8"
