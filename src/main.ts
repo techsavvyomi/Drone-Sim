@@ -41,6 +41,13 @@ function createWindow(): void {
     // The main process can't read the stylesheet, so this one copy lives here.
     backgroundColor: '#0e0f0e',
     title: 'PlutoSim',
+    // Opens over the whole screen: no title bar, no minimise/maximise/close.
+    // The size above is what the window returns to if fullscreen is left.
+    fullscreen: true,
+    // Windows and Linux: no title bar at all, so the minimise/close strip
+    // cannot come back even when the fullscreen flag above is dropped.
+    // macOS keeps its frame; its fullscreen already hides the traffic lights.
+    frame: process.platform === 'darwin',
     show: false,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -55,7 +62,12 @@ function createWindow(): void {
   // not even on Alt. macOS keeps its menu, which lives in the system bar.
   win.removeMenu();
 
-  win.once('ready-to-show', () => win.show());
+  // On Windows a hidden window can ignore `fullscreen` from the constructor,
+  // so it is applied again once the window is on screen.
+  win.once('ready-to-show', () => {
+    win.show();
+    win.setFullScreen(true);
+  });
 
   // A screen smaller than the shell's 1100 × 720 minimum (in CSS px) gets the
   // page zoomed out instead of a layout reflowed below the minimum. Content
