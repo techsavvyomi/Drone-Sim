@@ -122,9 +122,18 @@ export function timeLeftText(progress: number, elapsedMs: number): string | null
 }
 
 export const TIPS: { title: string; text: string }[] = [
-  { title: 'Arm, then take off', text: 'Press Enter to arm the motors, then Space to take off. Space again lands.' },
-  { title: 'Small stick moves', text: 'W and S climb and sink, A and D turn. The arrow keys tilt the drone to move it.' },
-  { title: 'Lost the drone?', text: 'C changes the camera, R puts the drone back on its start pad, and P pauses.' },
+  {
+    title: 'Arm, then take off',
+    text: 'Press Enter to arm the motors, then Space to take off. Space again lands.',
+  },
+  {
+    title: 'Small stick moves',
+    text: 'W and S climb and sink, A and D turn. The arrow keys tilt the drone to move it.',
+  },
+  {
+    title: 'Lost the drone?',
+    text: 'C changes the camera, R puts the drone back on its start pad, and P pauses.',
+  },
 ];
 
 const GLYPH: Record<RowState, { icon: 'check' | 'dot' | 'ring' | 'cross'; word: string }> = {
@@ -178,7 +187,9 @@ export function LoadingScreen({ checkingSignIn = false }: { checkingSignIn?: boo
         <div className="loading__pct">
           <b>{f.pct}%</b>
           <span>
-            {f.totalMb > 0 ? `${f.loadedMb} of ${f.totalMb} MB` : `${f.done} of ${f.rows.length} items`}
+            {f.totalMb > 0
+              ? `${f.loadedMb} of ${f.totalMb} MB`
+              : `${f.done} of ${f.rows.length} items`}
             {left ? ` · ${left}` : ''}
           </span>
         </div>
@@ -205,8 +216,8 @@ export function LoadingScreen({ checkingSignIn = false }: { checkingSignIn?: boo
             <Icon name="warning" />
             <span>
               <b>Slower than usual.</b>
-              Loading carries on. A slower computer can need a minute or more the first time; PlutoSim opens by
-              itself when this is done.
+              Loading carries on. A slower computer can need a minute or more the first time.
+              PlutoSim opens by itself when this is done.
             </span>
           </div>
         )}
@@ -217,7 +228,11 @@ export function LoadingScreen({ checkingSignIn = false }: { checkingSignIn?: boo
             <span className="loading__tip-count">
               {tip + 1} of {TIPS.length}
             </span>
-            <Button variant="secondary" iconAfter="chevron" onClick={() => setTip((t) => (t + 1) % TIPS.length)}>
+            <Button
+              variant="secondary"
+              iconAfter="chevron"
+              onClick={() => setTip((t) => (t + 1) % TIPS.length)}
+            >
               Next tip
             </Button>
           </div>

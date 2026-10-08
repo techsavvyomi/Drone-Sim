@@ -20,7 +20,9 @@ function graphicsRenderer(): string {
     const gl = document.createElement('canvas').getContext('webgl2');
     if (!gl) return 'WebGL 2 unavailable';
     const debug = gl.getExtension('WEBGL_debug_renderer_info');
-    const name = debug ? gl.getParameter(debug.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER);
+    const name = debug
+      ? gl.getParameter(debug.UNMASKED_RENDERER_WEBGL)
+      : gl.getParameter(gl.RENDERER);
     gl.getExtension('WEBGL_lose_context')?.loseContext();
     return withSoftwareFlag(String(name));
   } catch {
@@ -36,7 +38,9 @@ const SOFTWARE_RENDERER = /swiftshader|llvmpipe|softpipe|basic render/i;
  * that a packaged build (no DevTools) cannot otherwise show.
  */
 export function withSoftwareFlag(name: string): string {
-  return SOFTWARE_RENDERER.test(name) ? `${name} (software, no GPU; update the graphics driver)` : name;
+  return SOFTWARE_RENDERER.test(name)
+    ? `${name} (software, no GPU. Update the graphics driver)`
+    : name;
 }
 
 function formatBuildDate(iso: string): string {

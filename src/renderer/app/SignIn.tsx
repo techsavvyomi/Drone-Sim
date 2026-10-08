@@ -158,7 +158,8 @@ export function SignIn() {
         return;
       }
       setElsewhere(null);
-      const text = res.code === 'DEVICE_MISMATCH' ? res.message : (ERROR_TEXT[res.code] ?? res.message);
+      const text =
+        res.code === 'DEVICE_MISMATCH' ? res.message : (ERROR_TEXT[res.code] ?? res.message);
       const place = errorPlace(res.code);
       if (place === 'key' || place === 'email') {
         setErrors({ [place]: text });
@@ -175,7 +176,11 @@ export function SignIn() {
       // A failure inside the app, not the connection. The server may already
       // have the activation, and trying again signs in.
       setElsewhere(null);
-      setBanner({ tone: 'fail', title: 'Something went wrong in PlutoSim', text: 'Press Try again.' });
+      setBanner({
+        tone: 'fail',
+        title: 'Something went wrong in PlutoSim',
+        text: 'Press Try again.',
+      });
     } finally {
       setBusy(false);
     }
@@ -252,7 +257,10 @@ export function SignIn() {
           ['Name', 'Shown on your pilot profile. Use the name people know you by.'],
         ]
       : [
-          ['Email and key', 'Use the ones you activated with. Your flights, stars and XP load from your profile.'],
+          [
+            'Email and key',
+            'Use the ones you activated with. Your flights, stars and XP load from your profile.',
+          ],
           [
             'Shared computer',
             'PlutoSim remembers the last pilot on this computer. If that isn’t you, press Not you? first.',
@@ -284,7 +292,11 @@ export function SignIn() {
       <main className="acct__right">
         <form className="acct-card" onSubmit={submit} noValidate>
           <h1 className="acct-card__title">
-            {welcome ? `Welcome back, ${firstName(welcome.name)}` : mode === 'activate' ? 'Activate PlutoSim' : 'Sign in'}
+            {welcome
+              ? `Welcome back, ${firstName(welcome.name)}`
+              : mode === 'activate'
+                ? 'Activate PlutoSim'
+                : 'Sign in'}
           </h1>
 
           <SegmentedControl
@@ -393,8 +405,9 @@ export function SignIn() {
               <Icon name="warning" />
               <span>
                 <b>This profile is signed in on another computer</b>
-                {sendEmail || 'This profile'} is signed in on {elsewhere}, and a profile works on one computer at a
-                time. Press Sign out of all devices to use it here; its flights so far are kept.
+                {sendEmail || 'This profile'} is signed in on {elsewhere}, and a profile works on
+                one computer at a time. Press Sign out of all devices to use it here. Its flights so
+                far are kept.
               </span>
             </div>
           )}
@@ -418,7 +431,9 @@ export function SignIn() {
               </Button>
             )}
           </div>
-          {busy && <p className="acct-card__wait">This can take up to a minute. Keep this window open.</p>}
+          {busy && (
+            <p className="acct-card__wait">This can take up to a minute. Keep this window open.</p>
+          )}
         </form>
       </main>
     </div>
