@@ -35,7 +35,14 @@ import {
 export type EndSnapshot = Omit<EndSessionRequest, 'sessionId'>;
 
 type Item =
-  | { id: string; userId: string; kind: 'start'; key: string; payload: StartSessionRequest; tries: number }
+  | {
+      id: string;
+      userId: string;
+      kind: 'start';
+      key: string;
+      payload: StartSessionRequest;
+      tries: number;
+    }
   | { id: string; userId: string; kind: 'end'; key: string; payload: EndSnapshot; tries: number }
   | {
       id: string;
@@ -155,7 +162,14 @@ export class Outbox {
         payload: [{ eventType: 'SESSION_RECOVERED', eventData: { reason }, timestamp: at }],
         tries: 0,
       });
-      this.push({ id: randomUUID(), userId, kind: 'end', key, payload: { ...end, result: 'ABORTED' }, tries: 0 });
+      this.push({
+        id: randomUUID(),
+        userId,
+        kind: 'end',
+        key,
+        payload: { ...end, result: 'ABORTED' },
+        tries: 0,
+      });
     }
     this.state.open = {};
     void this.persist();
@@ -163,7 +177,9 @@ export class Outbox {
   }
 
   recordCrash(userId: string | null, report: CrashReport): void {
-    const queued = this.state.items.filter((i) => i.kind === 'crashes').reduce((n, i) => n + i.payload.length, 0);
+    const queued = this.state.items
+      .filter((i) => i.kind === 'crashes')
+      .reduce((n, i) => n + i.payload.length, 0);
     if (queued >= MAX_QUEUED_CRASHES) return;
     const last = this.state.items[this.state.items.length - 1];
     if (
@@ -176,7 +192,14 @@ export class Outbox {
     ) {
       last.payload.push(report);
     } else {
-      this.push({ id: randomUUID(), userId, kind: 'crashes', key: null, payload: [report], tries: 0 });
+      this.push({
+        id: randomUUID(),
+        userId,
+        kind: 'crashes',
+        key: null,
+        payload: [report],
+        tries: 0,
+      });
     }
     // Written straight away: the process that reported it may be about to go.
     void this.persist();
@@ -184,7 +207,11 @@ export class Outbox {
   }
 
   status(): OutboxStatus {
-    return { pending: this.state.items.length, lastError: this.lastError, authBlocked: [...this.blocked] };
+    return {
+      pending: this.state.items.length,
+      lastError: this.lastError,
+      authBlocked: [...this.blocked],
+    };
   }
 
   hasPendingFor(userId: string): boolean {
@@ -245,11 +272,27 @@ export class Outbox {
       last.payload.push(...events);
     } else {
       for (let i = 0; i < events.length; i += EVENT_BATCH) {
-        this.push({ id: randomUUID(), userId, kind: 'events', key, payload: events.slice(i, i + EVENT_BATCH), tries: 0 });
+        this.push({
+          id: randomUUID(),
+          userId,
+          kind: 'events',
+          key,
+          payload: events.slice(i, i + EVENT_BATCH),
+          tries: 0,
+        });
       }
     }
     void this.persist();
     this.kick();
+  }
+
+  /**
+   * The backend just answered: the network is back. Stop waiting out the
+   * backoff a run of failures built up (up to 5 minutes) and send now.
+   */
+  retryNow(): void {
+    this.failures = 0;
+    if (this.state.items.length > 0) this.schedule(0);
   }
 
   /** A user signed in again: their held items can go. */
@@ -300,7 +343,9 @@ export class Outbox {
     while (index < this.state.items.length) {
       const item = this.state.items[index];
       const token =
-        item.userId === null || this.blocked.has(item.userId) ? undefined : this.deps.tokenFor(item.userId);
+        item.userId === null || this.blocked.has(item.userId)
+          ? undefined
+          : this.deps.tokenFor(item.userId);
       // A crash report is sent whether or not its pilot can still sign in.
       if (!token && item.kind !== 'crashes') {
         // Held until this user signs in again. Their later items stay behind it,
@@ -313,7 +358,9 @@ export class Outbox {
       if (item.kind !== 'start' && item.key !== null) {
         sessionId = this.state.sessionIds[item.key];
         if (!sessionId) {
-          const startQueued = this.state.items.some((i) => i.kind === 'start' && i.key === item.key);
+          const startQueued = this.state.items.some(
+            (i) => i.kind === 'start' && i.key === item.key,
+          );
           if (startQueued) {
             index += 1;
             continue;
@@ -346,7 +393,9 @@ export class Outbox {
       // A server error that keeps coming back for one item is a bug in that item,
       // not an outage; it must not hold up everything queued behind it forever.
       if (res.code === 'SERVER_ERROR' && item.tries + 1 >= MAX_SERVER_ERROR_TRIES) {
-        console.warn(`[telemetry] dropped ${item.kind} after repeated server errors: ${res.message}`);
+        console.warn(
+          `[telemetry] dropped ${item.kind} after repeated server errors: ${res.message}`,
+        );
         this.lastError = res.message;
         this.dropped(item);
         this.remove(item);
@@ -378,7 +427,9 @@ export class Outbox {
 
       // A definitive refusal (validation, not found, forbidden). Retrying would
       // get the same answer forever and block everything queued behind it.
-      console.warn(`[telemetry] dropped ${item.kind} for ${item.userId}: ${res.code} ${res.message}`);
+      console.warn(
+        `[telemetry] dropped ${item.kind} for ${item.userId}: ${res.code} ${res.message}`,
+      );
       this.lastError = res.message;
       this.dropped(item);
       this.remove(item);
@@ -387,7 +438,11 @@ export class Outbox {
     await this.persist();
   }
 
-  private sendItem(item: Item, token: string | undefined, sessionId: string | undefined): Promise<ApiResponse<unknown>> {
+  private sendItem(
+    item: Item,
+    token: string | undefined,
+    sessionId: string | undefined,
+  ): Promise<ApiResponse<unknown>> {
     switch (item.kind) {
       case 'start':
         return this.deps.send('startSession', item.payload, token);
@@ -401,7 +456,8 @@ export class Outbox {
   }
 
   private dropped(item: Item): void {
-    if ((item.kind === 'start' || item.kind === 'end') && item.key) this.deps.onSessionDropped?.(item.key);
+    if ((item.kind === 'start' || item.kind === 'end') && item.key)
+      this.deps.onSessionDropped?.(item.key);
   }
 
   private remove(item: Item): void {

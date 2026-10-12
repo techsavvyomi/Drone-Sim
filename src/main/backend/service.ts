@@ -252,6 +252,8 @@ export class BackendService {
       if (this.endsApplied === applied) this.file.accounts[userId].profile = res.data;
       await this.persistAccounts();
       this.deps.notify(this.account());
+      // The backend answered, so the network is back: queued flights go now.
+      this.outbox.retryNow();
       if (!this.historySynced) void this.syncHistory();
     }
     return res;
@@ -509,6 +511,7 @@ export class BackendService {
     this.storeToken(userId, res.data.authToken, res.data.profile);
     await this.persistAccounts();
     this.outbox.unblock(userId);
+    this.outbox.retryNow();
     this.deps.notify(this.account());
     void this.syncHistory();
     return { success: true, data: res.data.profile };
@@ -530,6 +533,7 @@ export class BackendService {
     this.handleAuthFailure(res);
     if (!res.success || !isProfileOf(res.data?.profile, userId)) return;
     this.withLocal((l) => l.importServer(userId, res.data));
+    this.outbox.retryNow();
     if (this.endsApplied === applied) this.file.accounts[userId].profile = res.data.profile;
     this.historySynced = true;
     await this.persistAccounts();

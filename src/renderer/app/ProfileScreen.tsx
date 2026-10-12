@@ -426,9 +426,7 @@ export function ProfileScreen() {
           name={p.name}
           email={p.email}
           unsynced={sync?.unsyncedFlights ?? 0}
-          offline={
-            (typeof navigator !== 'undefined' && navigator.onLine === false) || !!sync?.lastError
-          }
+          offline={!online}
           onStay={() => setConfirming(false)}
           onSignOut={doSignOut}
         />

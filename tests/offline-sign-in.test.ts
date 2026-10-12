@@ -253,6 +253,46 @@ describe('back online', () => {
   });
 });
 
+describe('upload after the network returns', () => {
+  it('sends flights flown offline as soon as the backend answers, not after the backoff', async () => {
+    await boot();
+    await svc.login({ email: EMAIL, activationKey: KEY });
+    online = false;
+    svc.startSession({
+      flightType: 'MISSION',
+      missionId: 'MISSION-010',
+      droneId: 'DRONE-002',
+      inputMode: 'KEYBOARD',
+      startTime: new Date(Date.now() - 300_000).toISOString(),
+      clientSessionKey: 'k9',
+    });
+    svc.endSession('k9', {
+      endTime: new Date().toISOString(),
+      duration: 290,
+      flightTime: 280,
+      result: 'SUCCESS',
+      score: 6,
+      stars: 3,
+      crashCount: 0,
+      attempts: 1,
+    });
+    // Tried offline a few times: the next try is now minutes away.
+    for (let i = 0; i < 6; i++) await svc.outbox.flush();
+    // The end only goes once a start has been accepted.
+    expect(calls('endSession')).toHaveLength(0);
+    expect(svc.telemetryStatus().unsyncedFlights).toBe(1);
+
+    online = true;
+    // What the app's `online` event (or the 30 s check) does.
+    await svc.refreshProfile();
+    await flush();
+    // Nothing else nudges the queue here: only `retryNow` can have sent it.
+    await new Promise((r) => setTimeout(r, 50));
+    expect(calls('endSession')).toHaveLength(1);
+    expect(svc.telemetryStatus().unsyncedFlights).toBe(0);
+  });
+});
+
 describe('the profile and sign-out', () => {
   it('answers the Profile page from this computer, offline too', async () => {
     await boot();
