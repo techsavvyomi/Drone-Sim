@@ -7,6 +7,8 @@ import type { Tone } from './Display';
 export interface ModalAction {
   label: string;
   onClick: () => void;
+  /** Locked: shown instead of the label, saying what unlocks it (see Button). */
+  locked?: string;
 }
 
 export interface ModalProps {
@@ -84,7 +86,7 @@ export function Modal({ title, tone = 'neutral', children, safe, danger, primary
             {safe.label}
           </Button>
           {danger && (
-            <Button variant="danger" onClick={danger.onClick}>
+            <Button variant="danger" locked={danger.locked} onClick={danger.onClick}>
               {danger.label}
             </Button>
           )}

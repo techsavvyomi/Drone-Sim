@@ -874,6 +874,11 @@
   margin: 0;
 }
 
+.profile-signout .ds-modal__body p.profile-signout__warn {
+  margin-top: var(--space-3);
+  color: var(--caution);
+}
+
 .profile-signout__forget {
   margin-top: var(--space-4);
   padding: var(--space-3) var(--space-4);

@@ -34,28 +34,60 @@ import {
 export function SignOutDialog({
   name,
   email,
+  unsynced = 0,
+  offline = false,
   onStay,
   onSignOut,
 }: {
   name: string;
   email: string;
+  /** Flights the backend does not have yet. */
+  unsynced?: number;
+  /** The backend cannot be reached right now. */
+  offline?: boolean;
   onStay: () => void;
   onSignOut: (forget: boolean) => void;
 }) {
   const [forget, setForget] = useState(false);
+  const flights = `${unsynced} ${unsynced === 1 ? 'flight is' : 'flights are'}`;
+  const them = unsynced === 1 ? 'it' : 'them';
+  // Forgetting deletes this computer's copy, and with it flights nobody else has.
+  const blocked = forget && unsynced > 0;
   return (
     <div data-register="classroom" className="profile-signout">
       <Modal
         title={`Sign out, ${firstName(name)}?`}
         safe={{ label: 'Stay signed in', onClick: onStay }}
-        danger={{ label: 'Sign out', onClick: () => onSignOut(forget) }}
+        danger={{
+          label: 'Sign out',
+          onClick: () => onSignOut(forget),
+          locked: blocked ? 'Connect to the internet first' : undefined,
+        }}
       >
         <p>
-          Your flights, stars and XP are saved to your profile. Sign back in any time with your email and
-          activation key.
+          Your flights, stars and XP are saved to your profile. Sign back in any time with your
+          email and activation key.
         </p>
+        {blocked ? (
+          <p className="profile-signout__warn" role="status">
+            {flights} not saved online yet. Connect to the internet to save {them} before you forget
+            this computer, or untick the box.
+          </p>
+        ) : (
+          offline &&
+          unsynced > 0 && (
+            <p className="profile-signout__warn" role="status">
+              {flights} not saved online yet. Connect to the internet to save {them}, or sign out
+              anyway.
+            </p>
+          )
+        )}
         <div className="profile-signout__forget">
-          <Checkbox checked={forget} onChange={setForget} hint="Choose this on a shared classroom computer.">
+          <Checkbox
+            checked={forget}
+            onChange={setForget}
+            hint="Choose this on a shared classroom computer."
+          >
             Forget {email} on this computer
           </Checkbox>
         </div>
@@ -90,14 +122,17 @@ export function ProfileScreen() {
     }
   }, []);
 
-  // Reload when a finished session lands and the profile's totals move.
-  const flights = profile?.stats.totalFlights;
+  // Reload when the profile changes: a flight ended here, or the backend's
+  // history arrived. The page is read from this computer, so this is cheap.
   useEffect(() => {
     void load();
-  }, [load, flights]);
+  }, [load, profile]);
 
   useEffect(() => {
-    const poll = () => void AnalyticsService.status().then(setSync).catch(() => undefined);
+    const poll = () =>
+      void AnalyticsService.status()
+        .then(setSync)
+        .catch(() => undefined);
     poll();
     const id = setInterval(poll, 5000);
     return () => clearInterval(id);
@@ -109,14 +144,17 @@ export function ProfileScreen() {
   const standing = rankStanding(p);
   const history = dash ? dash.recentSessions.slice(0, HISTORY_ROWS) : [];
   const longest = dash ? longestFreeFlight(dash.recentSessions) : null;
-  const counts = dash ? progressCounts(dash, { lessons: LESSONS.length, missions: MISSIONS.length }) : null;
+  const counts = dash
+    ? progressCounts(dash, { lessons: LESSONS.length, missions: MISSIONS.length })
+    : null;
   const sinceDay = p.registeredAt ? dayMonth(new Date(p.registeredAt)) : null;
-  const pending = sync?.pending ?? 0;
+  // Flights, not queue items: one flight is a start, its events and an end.
+  const pending = sync?.unsyncedFlights ?? 0;
 
   const doSignOut = (forget: boolean) => {
     setConfirming(false);
     if (forget) useSettingsStore.getState().set('lastPilot', null);
-    void signOut();
+    void signOut(forget);
   };
 
   return (
@@ -157,7 +195,13 @@ export function ProfileScreen() {
               aria-current={r.state === 'current' ? 'step' : undefined}
             >
               <span className="profile__node" aria-hidden="true">
-                {r.state === 'reached' ? <Icon name="check" /> : r.state === 'current' ? <Icon name="dot" /> : i + 1}
+                {r.state === 'reached' ? (
+                  <Icon name="check" />
+                ) : r.state === 'current' ? (
+                  <Icon name="dot" />
+                ) : (
+                  i + 1
+                )}
               </span>
               <span className="profile__rung-name">{r.name}</span>
               <span className="profile__rung-xp">
@@ -221,7 +265,12 @@ export function ProfileScreen() {
                   {n} of {of} complete
                 </span>
               </span>
-              <Progress value={Number(n)} max={Number(of)} label={`${label} complete`} tone="neutral" />
+              <Progress
+                value={Number(n)}
+                max={Number(of)}
+                label={`${label} complete`}
+                tone="neutral"
+              />
             </div>
           ))}
         </div>
@@ -239,9 +288,13 @@ export function ProfileScreen() {
           )}
         </header>
         {!dash ? (
-          <p className="profile__empty">{error ? 'Flight history needs a connection.' : 'Loading your flights…'}</p>
+          <p className="profile__empty">
+            {error ? 'Flight history needs a connection.' : 'Loading your flights…'}
+          </p>
         ) : history.length === 0 ? (
-          <p className="profile__empty">No flights yet. A lesson, a mission or a free flight will show up here.</p>
+          <p className="profile__empty">
+            No flights yet. A lesson, a mission or a free flight will show up here.
+          </p>
         ) : (
           <table className="profile__table">
             <thead>
@@ -284,7 +337,16 @@ export function ProfileScreen() {
       </section>
 
       {confirming && (
-        <SignOutDialog name={p.name} email={p.email} onStay={() => setConfirming(false)} onSignOut={doSignOut} />
+        <SignOutDialog
+          name={p.name}
+          email={p.email}
+          unsynced={sync?.unsyncedFlights ?? 0}
+          offline={
+            (typeof navigator !== 'undefined' && navigator.onLine === false) || !!sync?.lastError
+          }
+          onStay={() => setConfirming(false)}
+          onSignOut={doSignOut}
+        />
       )}
     </div>
   );
