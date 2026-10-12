@@ -293,6 +293,40 @@ describe('upload after the network returns', () => {
   });
 });
 
+describe('Save flights now', () => {
+  it('uploads at once, signing in to the backend first when signed in offline', async () => {
+    await boot();
+    await svc.login({ email: EMAIL, activationKey: KEY });
+    await svc.signOut();
+    await flush();
+    online = false;
+    await svc.login({ email: EMAIL, activationKey: KEY });
+    svc.startSession({
+      flightType: 'FREE_FLIGHT',
+      droneId: 'DRONE-001',
+      inputMode: 'KEYBOARD',
+      startTime: new Date(Date.now() - 60_000).toISOString(),
+      clientSessionKey: 'k10',
+    });
+    svc.endSession('k10', {
+      endTime: new Date().toISOString(),
+      duration: 60,
+      flightTime: 50,
+      result: 'SUCCESS',
+      score: 0,
+      crashCount: 0,
+      attempts: 1,
+    });
+    expect(svc.telemetryStatus().unsyncedFlights).toBe(1);
+
+    online = true;
+    await svc.syncNow();
+    await new Promise((r) => setTimeout(r, 50));
+    expect(calls('endSession')).toHaveLength(1);
+    expect(svc.telemetryStatus().unsyncedFlights).toBe(0);
+  });
+});
+
 describe('the profile and sign-out', () => {
   it('answers the Profile page from this computer, offline too', async () => {
     await boot();

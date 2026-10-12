@@ -23,4 +23,9 @@ export const AnalyticsService = {
   status(): Promise<TelemetryStatus> {
     return profileBackend().telemetry.status();
   },
+
+  /** Upload what is queued now. */
+  syncNow(): Promise<void> {
+    return profileBackend().telemetry.syncNow();
+  },
 };

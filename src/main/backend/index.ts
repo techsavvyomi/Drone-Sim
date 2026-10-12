@@ -207,6 +207,10 @@ export async function registerBackend(): Promise<BackendService> {
     await ready;
     return service.telemetryStatus();
   });
+  ipcMain.handle(IPC.telemetrySyncNow, async () => {
+    await ready;
+    return service.syncNow();
+  });
 
   // One last attempt to deliver what is queued before the app goes. Anything
   // that does not make it stays on disk for the next launch.

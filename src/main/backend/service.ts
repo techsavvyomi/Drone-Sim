@@ -330,6 +330,16 @@ export class BackendService {
     return this.deps.device();
   }
 
+  /**
+   * "Save flights now": send what is queued without waiting out a backoff. A
+   * pilot signed in offline is signed in to the backend first (refreshProfile).
+   */
+  async syncNow(): Promise<void> {
+    if (!this.file.current || !this.deps.configured) return;
+    this.outbox.retryNow();
+    await this.refreshProfile();
+  }
+
   telemetryStatus(): TelemetryStatus {
     const userId = this.file.current;
     const unsynced = userId ? this.withLocal((l) => l.unsyncedCount(userId)) : 0;

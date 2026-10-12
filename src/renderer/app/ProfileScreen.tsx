@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import type { UserDashboard } from '@shared/backend/contract';
 import type { TelemetryStatus } from '@shared/backend/ipc';
 import { useAccountStore } from '../state/accountStore';
@@ -29,13 +29,21 @@ import {
 // Everything comes from one `getUserDashboard` call; until it arrives (or when
 // offline) the page shows the profile's own totals and says so.
 
+/** How long "Saving…" may spin before the dialog says it is slow. */
+export const SAVE_SLOW_MS = 60_000;
+
 /** "Sign out, Asha?" with the choice to forget this pilot on this computer.
- *  Focus starts on Stay signed in, and Esc stays. */
+ *  Focus starts on Stay signed in, and Esc stays.
+ *
+ *  Flights not yet on the backend: offline, it says so and still lets the
+ *  pilot sign out (they stay queued here). Online, "Save flights now" sends
+ *  them, with a spinner until the queue is empty and a tick once it is. */
 export function SignOutDialog({
   name,
   email,
   unsynced = 0,
   offline = false,
+  onSave,
   onStay,
   onSignOut,
 }: {
@@ -43,16 +51,83 @@ export function SignOutDialog({
   email: string;
   /** Flights the backend does not have yet. */
   unsynced?: number;
-  /** The backend cannot be reached right now. */
+  /** The computer has no network right now. */
   offline?: boolean;
+  /** "Save flights now": upload what is queued. */
+  onSave?: () => void;
   onStay: () => void;
   onSignOut: (forget: boolean) => void;
 }) {
   const [forget, setForget] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [slow, setSlow] = useState(false);
   const flights = `${unsynced} ${unsynced === 1 ? 'flight is' : 'flights are'}`;
   const them = unsynced === 1 ? 'it' : 'them';
   // Forgetting deletes this computer's copy, and with it flights nobody else has.
   const blocked = forget && unsynced > 0;
+  const saved = saving && unsynced === 0;
+
+  useEffect(() => {
+    if (!saving || saved) return;
+    setSlow(false);
+    const t = setTimeout(() => setSlow(true), SAVE_SLOW_MS);
+    return () => clearTimeout(t);
+  }, [saving, saved]);
+
+  const save = () => {
+    setSaving(true);
+    onSave?.();
+  };
+
+  let sync: ReactNode = null;
+  if (blocked) {
+    sync = (
+      <p className="profile-signout__warn" role="status">
+        {flights} not saved online yet. Connect to the internet to save {them} before you forget
+        this computer, or untick the box.
+      </p>
+    );
+  } else if (saved) {
+    sync = (
+      <p className="profile-signout__ok" role="status">
+        <Icon name="check" />
+        All flights saved online.
+      </p>
+    );
+  } else if (unsynced > 0 && offline) {
+    sync = (
+      <p className="profile-signout__warn" role="status">
+        {flights} not saved online yet. Connect to the internet to save {them}, or sign out anyway.
+      </p>
+    );
+  } else if (unsynced > 0 && saving) {
+    sync = (
+      <div className="profile-signout__saving" role="status">
+        <span className="profile-signout__spinner" aria-hidden="true" />
+        <span>
+          Saving {unsynced} {unsynced === 1 ? 'flight' : 'flights'} to your profile…
+          {slow && (
+            <small>
+              This is taking longer than usual. {unsynced === 1 ? 'It stays' : 'They stay'} on this
+              computer and {unsynced === 1 ? 'uploads' : 'upload'} later.
+            </small>
+          )}
+        </span>
+      </div>
+    );
+  } else if (unsynced > 0) {
+    sync = (
+      <div className="profile-signout__save">
+        <p className="profile-signout__warn" role="status">
+          {flights} not saved online yet.
+        </p>
+        <Button variant="secondary" onClick={save}>
+          Save flights now
+        </Button>
+      </div>
+    );
+  }
+
   return (
     <div data-register="classroom" className="profile-signout">
       <Modal
@@ -68,20 +143,7 @@ export function SignOutDialog({
           Your flights, stars and XP are saved to your profile. Sign back in any time with your
           email and activation key.
         </p>
-        {blocked ? (
-          <p className="profile-signout__warn" role="status">
-            {flights} not saved online yet. Connect to the internet to save {them} before you forget
-            this computer, or untick the box.
-          </p>
-        ) : (
-          offline &&
-          unsynced > 0 && (
-            <p className="profile-signout__warn" role="status">
-              {flights} not saved online yet. Connect to the internet to save {them}, or sign out
-              anyway.
-            </p>
-          )
-        )}
+        {sync}
         <div className="profile-signout__forget">
           <Checkbox
             checked={forget}
@@ -153,6 +215,20 @@ export function ProfileScreen() {
       window.removeEventListener('offline', off);
     };
   }, []);
+
+  // While the sign-out dialog is open its spinner should turn into a tick as
+  // soon as the upload lands, not up to five seconds later.
+  useEffect(() => {
+    if (!confirming) return;
+    const id = setInterval(
+      () =>
+        void AnalyticsService.status()
+          .then(setSync)
+          .catch(() => undefined),
+      1000,
+    );
+    return () => clearInterval(id);
+  }, [confirming]);
 
   const unsynced = sync?.unsyncedFlights ?? 0;
 
@@ -360,6 +436,7 @@ export function ProfileScreen() {
           email={p.email}
           unsynced={sync?.unsyncedFlights ?? 0}
           offline={!online}
+          onSave={() => void AnalyticsService.syncNow().catch(() => undefined)}
           onStay={() => setConfirming(false)}
           onSignOut={doSignOut}
         />

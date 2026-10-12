@@ -33,6 +33,7 @@ const api: IpcApi = {
     endSession: (key, end) => ipcRenderer.send(IPC.telemetryEnd, key, end),
     recordEvents: (key, events) => ipcRenderer.send(IPC.telemetryEvents, key, events),
     status: () => ipcRenderer.invoke(IPC.telemetryStatus),
+    syncNow: () => ipcRenderer.invoke(IPC.telemetrySyncNow),
   },
 };
 

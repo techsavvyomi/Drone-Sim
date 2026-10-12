@@ -40,6 +40,7 @@ export const IPC = {
   telemetryEnd: 'telemetry:end',
   telemetryEvents: 'telemetry:events',
   telemetryStatus: 'telemetry:status',
+  telemetrySyncNow: 'telemetry:sync-now',
   crashReport: 'crash:report',
   crashContext: 'crash:context',
 } as const;
@@ -88,5 +89,7 @@ export interface IpcApi {
     endSession(clientSessionKey: string, end: SessionEnd): void;
     recordEvents(clientSessionKey: string | null, events: EventInput[]): void;
     status(): Promise<TelemetryStatus>;
+    /** Send what is queued now (signing in to the backend first if needed). */
+    syncNow(): Promise<void>;
   };
 }

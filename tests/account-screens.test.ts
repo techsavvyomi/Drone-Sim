@@ -37,7 +37,7 @@ import { SignIn } from '../src/renderer/app/SignIn';
 import { registerDrone } from '../src/renderer/plugins/registry';
 import { plutoDrone } from '../src/renderer/plugins/drones/pluto';
 import { guruDrone } from '../src/renderer/plugins/drones/guru';
-import { SignOutDialog } from '../src/renderer/app/ProfileScreen';
+import { SAVE_SLOW_MS, SignOutDialog } from '../src/renderer/app/ProfileScreen';
 import { BootSplash } from '../src/renderer/app/BootSplash';
 import { useAccountStore } from '../src/renderer/state/accountStore';
 import { useSettingsStore } from '../src/renderer/state/settingsStore';
@@ -520,12 +520,43 @@ describe('offline warnings', () => {
     expect(mount(h(SignOutDialog, { ...props, unsynced: 1, offline: true })).textContent).toContain(
       '1 flight is not saved online yet. Connect to the internet to save it, or sign out anyway.',
     );
-    expect(mount(h(SignOutDialog, { ...props, unsynced: 1, offline: false })).textContent).not.toContain(
-      'not saved online',
-    );
     expect(mount(h(SignOutDialog, { ...props, unsynced: 0, offline: true })).textContent).not.toContain(
       'not saved online',
     );
+    expect(mount(h(SignOutDialog, { ...props, unsynced: 0, offline: false })).textContent).not.toContain(
+      'Save flights now',
+    );
+  });
+
+  it('online: Save flights now, a spinner while they upload, then a tick', () => {
+    const onSave = vi.fn();
+    const onSignOut = vi.fn();
+    const props = { name: 'Asha', email: 'asha@school.org', onSave, onStay: vi.fn(), onSignOut };
+    const el = mount(h(SignOutDialog, { ...props, unsynced: 2, offline: false }));
+    expect(el.textContent).toContain('2 flights are not saved online yet.');
+    act(() => buttonNamed(el, 'Save flights now').click());
+    expect(onSave).toHaveBeenCalledTimes(1);
+    expect($(el, '.profile-signout__spinner')).toBeTruthy();
+    expect(el.textContent).toContain('Saving 2 flights to your profile…');
+    // Sign out is never held back by the upload.
+    act(() => buttonNamed(el, 'Sign out').click());
+    expect(onSignOut).toHaveBeenCalledWith(false);
+    act(() => root!.render(h(SignOutDialog, { ...props, unsynced: 1, offline: false })));
+    expect(el.textContent).toContain('Saving 1 flight to your profile…');
+    act(() => root!.render(h(SignOutDialog, { ...props, unsynced: 0, offline: false })));
+    expect($(el, '.profile-signout__spinner')).toBeNull();
+    expect(el.textContent).toContain('All flights saved online.');
+  });
+
+  it('says so when saving is slow, and goes back to the offline line if the network drops', () => {
+    vi.useFakeTimers();
+    const props = { name: 'A', email: 'a@b.co', onSave: vi.fn(), onStay: vi.fn(), onSignOut: vi.fn() };
+    const el = mount(h(SignOutDialog, { ...props, unsynced: 1, offline: false }));
+    act(() => buttonNamed(el, 'Save flights now').click());
+    act(() => vi.advanceTimersByTime(SAVE_SLOW_MS));
+    expect(el.textContent).toContain('This is taking longer than usual. It stays on this computer and uploads later.');
+    act(() => root!.render(h(SignOutDialog, { ...props, unsynced: 1, offline: true })));
+    expect(el.textContent).toContain('Connect to the internet to save it, or sign out anyway.');
   });
 
   it('locks Sign out while Forget would delete flights not yet uploaded', () => {
