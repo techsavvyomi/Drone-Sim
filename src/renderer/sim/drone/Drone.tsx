@@ -43,6 +43,8 @@ import {
 import { useSimStore } from '../../state/simStore';
 import { useSettingsStore } from '../../state/settingsStore';
 import { useFlightStore, type AutoState } from '../../state/flightStore';
+import { useUiStore } from '../../state/uiStore';
+import { bounceVelocity, forgivingFlight } from './forgiving';
 import { usePhysicsStore } from '../../state/physicsStore';
 import { DroneModel } from './DroneModel';
 import { Propellers } from './Propellers';
@@ -58,6 +60,9 @@ const _euler = new THREE.Euler();
  *  the floor it is taking off from or landing on. */
 const TOUCH_ALT = 0.4;
 const _up = new THREE.Vector3();
+const _fwd = new THREE.Vector3();
+const _qUpright = new THREE.Quaternion();
+const _yAxis = new THREE.Vector3(0, 1, 0);
 const _rotor = new THREE.Vector3();
 const _drag = new THREE.Vector3();
 const _cp = new THREE.Vector3();
@@ -1106,8 +1111,30 @@ export function Drone({ spec, spawn, bounds, outdoor = false, groundY }: DronePr
     ) {
       flippedHold.current += SIM_DT;
       if (flippedHold.current >= CRASH_HOLD) {
-        flightNow.crash(impactSpeed.current, pickBrokenProps());
-        addShake(0.8);
+        if (forgivingFlight(mode, useUiStore.getState().cameraMode)) {
+          // Set it back on its feet where it lies: heading kept, lifted clear
+          // of the surface, everything it was doing forgotten. Still armed.
+          _fwd.set(0, 0, -1).applyQuaternion(_q);
+          const heading = Math.hypot(_fwd.x, _fwd.z) > 1e-3 ? Math.atan2(-_fwd.x, -_fwd.z) : 0;
+          _qUpright.setFromAxisAngle(_yAxis, heading);
+          rb.setRotation(_qUpright, true);
+          rb.setTranslation(
+            {
+              x: pos.x,
+              y: pos.y + Math.max(0.05, spec.armLength * (spec.sizeScale ?? 1)),
+              z: pos.z,
+            },
+            true,
+          );
+          rb.setLinvel({ x: 0, y: 0, z: 0 }, true);
+          rb.setAngvel({ x: 0, y: 0, z: 0 }, true);
+          controller.reset();
+          flippedHold.current = 0;
+          settleUntil.current = simTime.current + SPAWN_SETTLE;
+        } else {
+          flightNow.crash(impactSpeed.current, pickBrokenProps());
+          addShake(0.8);
+        }
       }
     } else {
       flippedHold.current = 0;
@@ -1399,7 +1426,7 @@ export function Drone({ spec, spawn, bounds, outdoor = false, groundY }: DronePr
       // Without CCD a fast drone steps straight through thin colliders (walls,
       // hangar sides) between physics ticks and ends up inside the geometry.
       ccd
-      onCollisionEnter={() => {
+      onCollisionEnter={(payload) => {
         const v = Math.max(impactSpeed.current, peakSpeed.current);
         const flight = useFlightStore.getState();
         if (flight.crashed) return;
@@ -1488,6 +1515,26 @@ export function Drone({ spec, spawn, bounds, outdoor = false, groundY }: DronePr
         // with the gear on the deck, so nothing below it is an obstacle.
         // A landing on a roof or a deck is not a collision.
         if (posY > TOUCH_ALT && !isTouchdown) flight.registerTouch();
+
+        // Acro + FPV: nothing writes the aircraft off. Every contact that would
+        // crash it, at any height (the obstacle line starts at 0.15 m, well
+        // under TOUCH_ALT), and every hit clear of the floor, comes back off
+        // the surface instead, on the velocity it arrived with.
+        if (
+          rb &&
+          (isImpactCrash || (posY > TOUCH_ALT && !isTouchdown)) &&
+          forgivingFlight(flight.mode, useUiStore.getState().cameraMode)
+        ) {
+          const normal = payload.manifold?.normal?.();
+          rb.setLinvel(bounceVelocity(pv, normal), true);
+          rb.setAngvel({ x: 0, y: rb.angvel().y * 0.3, z: 0 }, true);
+          wallBumpUntil.current = simTime.current + WALL_BUMP_HOLD;
+          peakSpeed.current = 0;
+          if (v >= MINOR_IMPACT) {
+            addShake(Math.min(0.5, (v - MINOR_IMPACT) / (MAJOR_IMPACT - MINOR_IMPACT)));
+          }
+          return;
+        }
 
         if (isImpactCrash && flight.auto !== 'takeoff' && flight.armed) {
           // `crash()` already clears `armed`.
