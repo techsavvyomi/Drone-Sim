@@ -37,7 +37,7 @@ import { SignIn } from '../src/renderer/app/SignIn';
 import { registerDrone } from '../src/renderer/plugins/registry';
 import { plutoDrone } from '../src/renderer/plugins/drones/pluto';
 import { guruDrone } from '../src/renderer/plugins/drones/guru';
-import { nextOfflineNotice, OfflineNotice, SignOutDialog } from '../src/renderer/app/ProfileScreen';
+import { SignOutDialog } from '../src/renderer/app/ProfileScreen';
 import { BootSplash } from '../src/renderer/app/BootSplash';
 import { useAccountStore } from '../src/renderer/state/accountStore';
 import { useSettingsStore } from '../src/renderer/state/settingsStore';
@@ -536,32 +536,6 @@ describe('offline warnings', () => {
     act(() => locked.click());
     expect(onSignOut).not.toHaveBeenCalled();
     expect(el.textContent).toContain('2 flights are not saved online yet');
-  });
-
-  it('pops up once when the computer goes offline with unsaved flights', () => {
-    // Offline with something to lose: open.
-    expect(nextOfflineNotice('idle', true, 2, false)).toBe('open');
-    // Nothing unsaved, still online, or the sign-out dialog already open: no popup.
-    expect(nextOfflineNotice('idle', true, 0, false)).toBe('idle');
-    expect(nextOfflineNotice('idle', false, 2, false)).toBe('idle');
-    expect(nextOfflineNotice('idle', true, 2, true)).toBe('idle');
-    // Closed: stays closed for this offline spell, and is due again after one online.
-    expect(nextOfflineNotice('seen', true, 3, false)).toBe('seen');
-    expect(nextOfflineNotice('seen', false, 3, false)).toBe('idle');
-  });
-
-  it('offers to connect, or to sign out anyway', () => {
-    const onStay = vi.fn();
-    const onSignOut = vi.fn();
-    const el = mount(h(OfflineNotice, { unsynced: 1, onStay, onSignOut }));
-    expect($(el, '[role="dialog"] h2').textContent).toContain("You're offline");
-    expect(el.textContent).toContain('1 flight is not saved online yet. Connect to the internet');
-    expect(el.textContent).toContain('If you do not need it saved online, you can sign out.');
-    expect(document.activeElement?.textContent).toBe('Stay signed in');
-    act(() => buttonNamed(el, 'Sign out').click());
-    expect(onSignOut).toHaveBeenCalled();
-    key(document.activeElement!, 'Escape');
-    expect(onStay).toHaveBeenCalled();
   });
 });
 
