@@ -12,6 +12,7 @@ import { readControllerThrottle } from '../../input/gamepad';
 import type { ContactState, DroneSpec, FlightMode, SupportInfo, Vec3 } from '@shared/types';
 import {
   ACRO_THRUST_BOOST,
+  acroThrustBoost,
   FlightController,
   THROTTLE_CENTER,
   type ControlOutput,
@@ -676,8 +677,11 @@ export function Drone({ spec, spawn, bounds, outdoor = false, groundY }: DronePr
     const prevFraction = lastOutput.current?.throttleFraction ?? 0;
     // Fraction of maximum thrust that corresponds to a hover, so the battery can
     // scale its drain against it (idle 0.3x, hover 1.0x, full throttle 1.7x).
-    // Acro's motors can make more than the rated thrust (`ACRO_THRUST_BOOST`).
-    const authority = mode === 'acro' ? ACRO_THRUST_BOOST : 1;
+    // Acro's motors can make more than the rated thrust (`acroThrustBoost`).
+    const authority =
+      mode === 'acro'
+        ? acroThrustBoost(controller.maxThrust, hoverThrust, !scripted && flyingOnRadio())
+        : 1;
     const hoverFraction = clamp(hoverThrust / (controller.maxThrust * authority), 0.05, 1);
     const batt = physics.batteryEnabled
       ? battery.update(prevFraction, hoverFraction, SIM_DT)

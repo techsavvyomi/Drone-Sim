@@ -254,6 +254,20 @@ function controllerThrottle(t: number): number {
  */
 export const ACRO_THRUST_BOOST = 1.5;
 
+/** Radio Acro at full stick, as a multiple of the aircraft's weight. */
+export const RADIO_ACRO_FULL_TW = 5;
+
+/**
+ * Acro's thrust as a multiple of the rated thrust: `ACRO_THRUST_BOOST`, raised
+ * on a radio until full stick makes `RADIO_ACRO_FULL_TW` times the weight. At
+ * 3:1 the InterLink's full stick climbed too slowly. Never lowered, so an
+ * airframe already past 5:1 keeps what it has.
+ */
+export function acroThrustBoost(ratedN: number, weightN: number, radio: boolean): number {
+  if (!radio) return ACRO_THRUST_BOOST;
+  return Math.max(ACRO_THRUST_BOOST, (RADIO_ACRO_FULL_TW * weightN) / Math.max(ratedN, 1e-6));
+}
+
 /**
  * Acro's controller collective. Acro has no climb loop behind the stick, so it
  * gets the sharper response: x * (1 + k(1 - |x|)^2) is (1 + k)x slope at centre
@@ -677,7 +691,9 @@ export class FlightController {
 
     // ---- Collective thrust ----
     // Per-motor ceiling this mode may use: the rated one, raised in Acro.
-    const motorCeil = state.maxPerMotor * (mode === 'acro' ? ACRO_THRUST_BOOST : 1);
+    const boost =
+      mode === 'acro' ? acroThrustBoost(this.maxThrust, state.mass * GRAVITY, radio) : 1;
+    const motorCeil = state.maxPerMotor * boost;
     const tMaxNow = motorCeil * 4;
     let thrust: number;
 
