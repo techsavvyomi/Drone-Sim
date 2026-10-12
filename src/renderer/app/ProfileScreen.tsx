@@ -96,6 +96,58 @@ export function SignOutDialog({
   );
 }
 
+/** Where the offline popup stands: not due, on screen, or closed for this offline spell. */
+export type OfflineNoticeState = 'idle' | 'open' | 'seen';
+
+/**
+ * The offline popup opens when the computer goes offline (or is offline) with
+ * flights the backend does not have yet, once per offline spell: closing it
+ * keeps it closed until the computer has been back online. Not over the
+ * sign-out dialog, which says the same thing itself.
+ */
+export function nextOfflineNotice(
+  state: OfflineNoticeState,
+  offline: boolean,
+  unsynced: number,
+  signOutOpen: boolean,
+): OfflineNoticeState {
+  if (!offline) return 'idle';
+  if (state === 'idle' && unsynced > 0 && !signOutOpen) return 'open';
+  return state;
+}
+
+/** "You're offline": keep the unsaved flights by connecting, or sign out anyway. */
+export function OfflineNotice({
+  unsynced,
+  onStay,
+  onSignOut,
+}: {
+  unsynced: number;
+  onStay: () => void;
+  onSignOut: () => void;
+}) {
+  const flights = `${unsynced} ${unsynced === 1 ? 'flight is' : 'flights are'}`;
+  const them = unsynced === 1 ? 'it' : 'them';
+  return (
+    <div data-register="classroom" className="profile-signout">
+      <Modal
+        title="You're offline"
+        tone="caution"
+        safe={{ label: 'Stay signed in', onClick: onStay }}
+        danger={{ label: 'Sign out', onClick: onSignOut }}
+      >
+        <p>
+          {flights} not saved online yet. Connect to the internet and PlutoSim saves {them} to your
+          profile by itself.
+        </p>
+        <p className="profile-signout__warn">
+          If you do not need {them} saved online, you can sign out.
+        </p>
+      </Modal>
+    </div>
+  );
+}
+
 /** Rows in the flight history table. */
 const HISTORY_ROWS = 10;
 
@@ -106,6 +158,11 @@ export function ProfileScreen() {
   const [error, setError] = useState<string | null>(null);
   const [sync, setSync] = useState<TelemetryStatus | null>(null);
   const [confirming, setConfirming] = useState(false);
+  // Wi-Fi off is `navigator.onLine === false`; a server error is not "offline" here.
+  const [online, setOnline] = useState(
+    () => typeof navigator === 'undefined' || navigator.onLine !== false,
+  );
+  const [notice, setNotice] = useState<OfflineNoticeState>('idle');
 
   const load = useCallback(async () => {
     // 50 is the backend's most: the longest free flight is found among them.
@@ -135,8 +192,25 @@ export function ProfileScreen() {
         .catch(() => undefined);
     poll();
     const id = setInterval(poll, 5000);
-    return () => clearInterval(id);
+    // Going offline is worth an answer now, not at the next poll.
+    const on = () => setOnline(true);
+    const off = () => {
+      setOnline(false);
+      poll();
+    };
+    window.addEventListener('online', on);
+    window.addEventListener('offline', off);
+    return () => {
+      clearInterval(id);
+      window.removeEventListener('online', on);
+      window.removeEventListener('offline', off);
+    };
   }, []);
+
+  const unsynced = sync?.unsyncedFlights ?? 0;
+  useEffect(() => {
+    setNotice((s) => nextOfflineNotice(s, !online, unsynced, confirming));
+  }, [online, unsynced, confirming]);
 
   if (!profile) return null;
   const p = dash?.profile ?? profile;
@@ -149,7 +223,7 @@ export function ProfileScreen() {
     : null;
   const sinceDay = p.registeredAt ? dayMonth(new Date(p.registeredAt)) : null;
   // Flights, not queue items: one flight is a start, its events and an end.
-  const pending = sync?.unsyncedFlights ?? 0;
+  const pending = unsynced;
 
   const doSignOut = (forget: boolean) => {
     setConfirming(false);
@@ -335,6 +409,17 @@ export function ProfileScreen() {
           </table>
         )}
       </section>
+
+      {notice === 'open' && (
+        <OfflineNotice
+          unsynced={unsynced}
+          onStay={() => setNotice('seen')}
+          onSignOut={() => {
+            setNotice('seen');
+            doSignOut(false);
+          }}
+        />
+      )}
 
       {confirming && (
         <SignOutDialog
