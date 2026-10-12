@@ -44,7 +44,8 @@ interface AccountState {
     signOutOtherDevices?: boolean,
   ) => Promise<AccountResult>;
   login: (email: string, key: string, signOutOtherDevices?: boolean) => Promise<AccountResult>;
-  signOut: () => Promise<void>;
+  /** `forget`: also remove this pilot's offline sign-in and flight log here. */
+  signOut: (forget?: boolean) => Promise<void>;
   refresh: () => Promise<void>;
 }
 
@@ -117,7 +118,7 @@ export const useAccountStore = create<AccountState>((set) => {
     activate: (name, email, key, signOutOtherDevices) =>
       UserService.activate(name, email, key, signOutOtherDevices),
     login: (email, key, signOutOtherDevices) => UserService.login(email, key, signOutOtherDevices),
-    signOut: () => UserService.signOut(),
+    signOut: (forget) => UserService.signOut(forget),
     refresh: async () => {
       await UserService.refreshProfile();
     },

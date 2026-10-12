@@ -68,7 +68,8 @@ export interface IpcApi {
     /** The device fields are added by the main process. */
     activate(req: Omit<ActivateUserRequest, keyof DeviceInfo>): Promise<AccountResult>;
     login(req: Omit<LoginUserRequest, keyof DeviceInfo>): Promise<AccountResult>;
-    signOut(): Promise<void>;
+    /** `forget`: also remove this pilot's offline sign-in and flight log from this computer. */
+    signOut(opts?: { forget?: boolean }): Promise<void>;
     refreshProfile(): Promise<ApiResponse<UserProfile>>;
     dashboard(req: Omit<GetUserDashboardRequest, 'userId'>): Promise<ApiResponse<UserDashboard>>;
     /** Subscribe to account changes. Returns an unsubscribe function. */

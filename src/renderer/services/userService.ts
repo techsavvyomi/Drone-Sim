@@ -44,8 +44,8 @@ export const UserService = {
     });
   },
 
-  signOut(): Promise<void> {
-    return profileBackend().account.signOut();
+  signOut(forget = false): Promise<void> {
+    return profileBackend().account.signOut({ forget });
   },
 
   refreshProfile(): Promise<ApiResponse<UserProfile>> {

@@ -81,6 +81,10 @@ export interface OutboxDeps {
   tokenFor: (userId: string) => string | undefined;
   onAuthInvalid?: (userId: string, message: string) => void;
   onSessionEnded?: (userId: string, result: EndSessionResult) => void;
+  /** The backend opened the session `key` as `sessionId`. */
+  onSessionStarted?: (key: string, sessionId: string) => void;
+  /** The backend refused session `key` for good; it will never reach the profile. */
+  onSessionDropped?: (key: string) => void;
   /** Injected for tests. */
   setTimer?: (fn: () => void, ms: number) => unknown;
   clearTimer?: (handle: unknown) => void;
@@ -328,6 +332,7 @@ export class Outbox {
       if (res.success) {
         if (item.kind === 'start') {
           this.state.sessionIds[item.key] = (res.data as { sessionId: string }).sessionId;
+          this.deps.onSessionStarted?.(item.key, this.state.sessionIds[item.key]);
         }
         if (item.kind === 'end') {
           this.deps.onSessionEnded?.(item.userId, res.data as EndSessionResult);
@@ -343,6 +348,7 @@ export class Outbox {
       if (res.code === 'SERVER_ERROR' && item.tries + 1 >= MAX_SERVER_ERROR_TRIES) {
         console.warn(`[telemetry] dropped ${item.kind} after repeated server errors: ${res.message}`);
         this.lastError = res.message;
+        this.dropped(item);
         this.remove(item);
         continue;
       }
@@ -374,6 +380,7 @@ export class Outbox {
       // get the same answer forever and block everything queued behind it.
       console.warn(`[telemetry] dropped ${item.kind} for ${item.userId}: ${res.code} ${res.message}`);
       this.lastError = res.message;
+      this.dropped(item);
       this.remove(item);
     }
     this.pruneSessionIds();
@@ -391,6 +398,10 @@ export class Outbox {
       case 'crashes':
         return this.deps.send('reportCrashes', { reports: item.payload }, token);
     }
+  }
+
+  private dropped(item: Item): void {
+    if ((item.kind === 'start' || item.kind === 'end') && item.key) this.deps.onSessionDropped?.(item.key);
   }
 
   private remove(item: Item): void {

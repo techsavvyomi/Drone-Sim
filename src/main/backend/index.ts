@@ -1,4 +1,5 @@
 import { app, BrowserWindow, ipcMain, net, safeStorage } from 'electron';
+import { LocalStore } from './localStore';
 import { randomUUID } from 'node:crypto';
 import { promises as fs } from 'node:fs';
 import os from 'node:os';
@@ -90,12 +91,26 @@ function deviceIdentity(file: string): () => Promise<DeviceInfo> {
   };
 }
 
+/**
+ * The local SQLite copy (offline sign-in, flight log). If it cannot be opened,
+ * the app runs as it did before it existed: everything through the backend.
+ */
+function openLocalStore(file: string): LocalStore | null {
+  try {
+    return LocalStore.open(file);
+  } catch (e) {
+    console.warn('[local] SQLite unavailable, running online-only:', e);
+    return null;
+  }
+}
+
 export async function registerBackend(): Promise<BackendService> {
   const dir = app.getPath('userData');
   const accountsFile = path.join(dir, 'account.json');
   const outboxFile = path.join(dir, 'telemetry-outbox.json');
   const deviceFile = path.join(dir, 'device.json');
   const url = backendUrl();
+  const local = openLocalStore(path.join(dir, 'plutosim.db'));
 
   const service = new BackendService({
     configured: !!url,
@@ -109,8 +124,23 @@ export async function registerBackend(): Promise<BackendService> {
         payload,
         token,
       ),
-    loadAccounts: () => readJson<AccountFile>(accountsFile),
-    saveAccounts: (file) => writeJson(accountsFile, file),
+    loadAccounts: async () => {
+      if (!local) return readJson<AccountFile>(accountsFile);
+      const saved = local.loadAccountFile();
+      if (saved) return saved;
+      // First run with SQLite: take over account.json once. The file is left
+      // where it is, so an older PlutoSim still finds it.
+      const old = await readJson<AccountFile>(accountsFile);
+      if (old?.accounts) {
+        local.saveAccountFile({ current: old.current ?? null, accounts: old.accounts });
+        for (const a of Object.values(old.accounts)) if (a?.profile) local.ensurePilot(a.profile);
+      }
+      return old;
+    },
+    saveAccounts: async (file) => {
+      if (local) local.saveAccountFile(file);
+      else await writeJson(accountsFile, file);
+    },
     loadOutbox: () => readJson<OutboxState>(outboxFile),
     saveOutbox: (state) => writeJson(outboxFile, state),
     codec: {
@@ -119,6 +149,8 @@ export async function registerBackend(): Promise<BackendService> {
       decrypt: (cipher) => safeStorage.decryptString(Buffer.from(cipher, 'base64')),
     },
     device: deviceIdentity(deviceFile),
+    local: local ?? undefined,
+    online: () => net.isOnline(),
     notify: (account) => {
       for (const win of BrowserWindow.getAllWindows()) {
         win.webContents.send(IPC.accountChanged, account);
@@ -143,9 +175,9 @@ export async function registerBackend(): Promise<BackendService> {
     await ready;
     return service.login(req);
   });
-  ipcMain.handle(IPC.accountSignOut, async () => {
+  ipcMain.handle(IPC.accountSignOut, async (_e, opts?: { forget?: boolean }) => {
     await ready;
-    return service.signOut();
+    return service.signOut({ forget: opts?.forget === true });
   });
   ipcMain.handle(IPC.accountRefresh, async () => {
     await ready;

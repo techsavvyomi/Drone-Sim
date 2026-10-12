@@ -33,7 +33,7 @@ export default defineConfig({
   build: {
     rollupOptions: {
       // Native/electron modules are provided at runtime, never bundled.
-      external: ['electron'],
+      external: ['electron', 'node:sqlite'],
     },
   },
 });

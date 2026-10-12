@@ -29,6 +29,8 @@ export interface TelemetryStatus {
   pending: number;
   lastError: string | null;
   authBlocked: string[];
+  /** The signed-in pilot's flights the backend does not have yet (offline, or still uploading). */
+  unsyncedFlights: number;
 }
 
 export type SessionStart = Omit<StartSessionRequest, 'userId'>;
