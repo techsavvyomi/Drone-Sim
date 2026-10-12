@@ -58,6 +58,20 @@ const PIVOT_CLEAR = 0.08;
 const PULL_IN_TIME = 0.12;
 const PULL_OUT_TIME = 0.6;
 
+/**
+ * Horizontal field of view of the onboard (FPV) camera, degrees. Real FPV
+ * lenses are 110-150 degrees; the chase camera's 60 vertical (~91 across)
+ * put the horizon on the bottom edge of the frame under the uptilt. Not wider:
+ * the Guru's front props sit ~38 degrees off-axis and would fill the sides.
+ */
+export const FPV_HFOV_DEG = 110;
+
+/** three.js's (vertical) `fov` that gives `FPV_HFOV_DEG` across at `aspect`. */
+export function fpvVerticalFov(aspect: number): number {
+  const half = Math.tan((FPV_HFOV_DEG * DEG2RAD) / 2) / Math.max(aspect, 0.1);
+  return (2 * Math.atan(half)) / DEG2RAD;
+}
+
 // Chase distance scales with the airframe so a 20 cm whoop and a 450-class quad
 // both fill roughly the same amount of frame.
 function chaseOffset(spec: DroneSpec): THREE.Vector3 {
@@ -84,6 +98,18 @@ export function CameraRig({ spec, env }: { spec: DroneSpec; env?: EnvironmentSpe
   const pull = useRef({ value: 0, vel: 0 });
   const acroHeading = useRef<number | null>(null);
   const seenReset = useRef(-1);
+
+  // FPV wears its own wide lens, and gives the previous one back on the way out
+  // (a layout effect, so it is back before the ground view reads it).
+  useLayoutEffect(() => {
+    const cam = camera as THREE.PerspectiveCamera;
+    if (mode !== 'fpv' || !cam.isPerspectiveCamera) return;
+    const before = cam.fov;
+    return () => {
+      cam.fov = before;
+      cam.updateProjectionMatrix();
+    };
+  }, [camera, mode]);
 
   useFrame((_state, delta) => {
     if (!dronePose.present || mode !== 'chase') {
@@ -330,6 +356,16 @@ export function CameraRig({ spec, env }: { spec: DroneSpec; env?: EnvironmentSpe
 
       _tilt.setFromAxisAngle(new THREE.Vector3(1, 0, 0), spec.cameraMount.tiltDeg * DEG2RAD);
       camera.quaternion.copy(dronePose.quaternion).multiply(_tilt);
+
+      // Re-derived every frame, so a resized window keeps 110 degrees across.
+      const cam = camera as THREE.PerspectiveCamera;
+      if (cam.isPerspectiveCamera) {
+        const fov = fpvVerticalFov(cam.aspect);
+        if (Math.abs(cam.fov - fov) > 0.01) {
+          cam.fov = fov;
+          cam.updateProjectionMatrix();
+        }
+      }
     }
   });
 
