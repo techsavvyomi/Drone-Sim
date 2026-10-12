@@ -3,6 +3,7 @@ import type { UserProfile } from '@shared/backend/contract';
 import type { AccountInfo, AccountResult } from '@shared/backend/ipc';
 import { UserService } from '../services/userService';
 import { usePilotStore } from './pilotStore';
+import { useUiStore } from './uiStore';
 
 // Who is flying.
 //
@@ -54,8 +55,14 @@ function statusOf(info: AccountInfo): AccountStatus {
   return info.profile ? 'signedIn' : 'signedOut';
 }
 
-export const useAccountStore = create<AccountState>((set) => {
+export const useAccountStore = create<AccountState>((set, get) => {
   const apply = (info: AccountInfo) => {
+    const before = get();
+    const wasOut =
+      before.status === 'signedOut' || (before.status === 'signedIn' && before.needsSignIn);
+    const nowIn = statusOf(info) === 'signedIn' && !info.needsSignIn;
+    // A sign-in opens on Home, not on whatever page the last pilot signed out from.
+    if (wasOut && nowIn) useUiStore.getState().setSection('home');
     set({
       status: statusOf(info),
       profile: info.profile,
@@ -86,7 +93,8 @@ export const useAccountStore = create<AccountState>((set) => {
           const started = Date.now();
           const ask = async (): Promise<void> => {
             const res = await UserService.refreshProfile().catch(() => null);
-            const lost = !res || (!res.success && (res.code === 'NETWORK' || res.code === 'SERVER_ERROR'));
+            const lost =
+              !res || (!res.success && (res.code === 'NETWORK' || res.code === 'SERVER_ERROR'));
             const online = typeof navigator === 'undefined' || navigator.onLine !== false;
             if (lost && online && Date.now() - started < VERIFY_LIMIT_MS) {
               await new Promise((r) => setTimeout(r, 1000));
@@ -106,7 +114,8 @@ export const useAccountStore = create<AccountState>((set) => {
       // soon as it is back, not at the next 30 s check.
       const onOnline = () => {
         const { status, needsSignIn } = useAccountStore.getState();
-        if (status === 'signedIn' && !needsSignIn) void UserService.refreshProfile().catch(() => undefined);
+        if (status === 'signedIn' && !needsSignIn)
+          void UserService.refreshProfile().catch(() => undefined);
       };
       window.addEventListener('online', onOnline);
       return () => {
