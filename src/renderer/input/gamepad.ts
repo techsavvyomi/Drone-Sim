@@ -195,22 +195,57 @@ let calibrating = false;
 let calRange: { lo: number; hi: number }[] = [];
 let calCenters: number[] = [];
 
+/**
+ * Calibration runs in two steps: the pilot centres every stick and confirms,
+ * then sweeps them to both ends. The centre used to be snapshotted the instant
+ * Calibrate was clicked — throttle parked at the bottom, a hand on the mouse —
+ * so the rest position was wherever the sticks happened to be, and a centred
+ * channel measured from a wrong middle could never read Done.
+ */
+export type CalibrationPhase = 'center' | 'sweep';
+let calPhase: CalibrationPhase = 'center';
+
+/** Recent frames during the centre step; the centre is their mean, not one noisy sample. */
+const CENTER_FRAMES = 15;
+let centerSamples: number[][] = [];
+
 export function isCalibrating(): boolean {
   return calibrating;
 }
 
-/** Snapshot the rest positions and start tracking extremes. */
+export function calibrationPhase(): CalibrationPhase | null {
+  return calibrating ? calPhase : null;
+}
+
+/** Start calibrating: wait for the pilot to centre the sticks. Nothing is measured yet. */
 export function beginCalibration(): void {
   pendingAction = null;
   pendingChannel = null;
-  calCenters = [...gamepadLive.axes];
-  calRange = gamepadLive.axes.map((v) => ({ lo: v, hi: v }));
+  calPhase = 'center';
+  centerSamples = [];
+  calCenters = [];
+  calRange = [];
   calibrating = true;
+  onCaptureChange?.();
+}
+
+/** Take the current stick positions as the centre and start the min/max sweep from it. */
+export function captureCenter(): void {
+  if (!calibrating || calPhase !== 'center') return;
+  const frames = centerSamples.length > 0 ? centerSamples : [gamepadLive.axes];
+  const n = Math.max(...frames.map((f) => f.length));
+  calCenters = Array.from({ length: n }, (_, i) => {
+    const seen = frames.map((f) => f[i]).filter((v) => Number.isFinite(v));
+    return seen.length > 0 ? seen.reduce((a, b) => a + b, 0) / seen.length : 0;
+  });
+  calRange = calCenters.map((v) => ({ lo: v, hi: v }));
+  calPhase = 'sweep';
   onCaptureChange?.();
 }
 
 export function cancelCalibration(): void {
   calibrating = false;
+  calPhase = 'center';
   onCaptureChange?.();
 }
 
@@ -266,8 +301,14 @@ function restPosition(idx: number, r: { lo: number; hi: number } | undefined): n
 export function finishCalibration(
   cfg: GamepadSettings,
 ): Partial<Record<GamepadChannel, AxisCalibration>> {
+  // Finishing before the centre was confirmed measured nothing.
+  if (calibrating && calPhase === 'center') {
+    cancelCalibration();
+    return {};
+  }
   const progress = calibrationProgress(cfg);
   calibrating = false;
+  calPhase = 'center';
   const out: Partial<Record<GamepadChannel, AxisCalibration>> = {};
   for (const name of Object.keys(cfg.axes) as GamepadChannel[]) {
     const idx = cfg.axes[name].axis;
@@ -454,6 +495,13 @@ function tick(): void {
   const pos = axes.map((v) => axisPos(v));
 
   // --- Capture modes take priority and never drive the aircraft ---
+  if (calibrating && calPhase === 'center') {
+    centerSamples.push(axes);
+    if (centerSamples.length > CENTER_FRAMES) centerSamples.shift();
+    prevButtons = buttons;
+    prevPos = pos;
+    return;
+  }
   if (calibrating) {
     for (let i = 0; i < axes.length; i++) {
       const r = (calRange[i] ??= { lo: axes[i], hi: axes[i] });

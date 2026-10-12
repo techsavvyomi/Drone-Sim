@@ -19,9 +19,11 @@ import {
   beginBindAction,
   beginCalibration,
   beginDetectAxis,
+  calibrationPhase,
   calibrationProgress,
   cancelCalibration,
   cancelCapture,
+  captureCenter,
   captureState,
   finishCalibration,
   gamepadLive,
@@ -72,6 +74,7 @@ export function GamepadSetup() {
     channel: GamepadChannel | null;
   }>({ action: null, channel: null });
   const [calibrating, setCalibrating] = useState(false);
+  const [calPhase, setCalPhase] = useState<'center' | 'sweep' | null>(null);
   /** Channels a save left uncalibrated, so a partial sweep is not silent. */
   const [saved, setSaved] = useState<string[] | null>(null);
 
@@ -106,6 +109,7 @@ export function GamepadSetup() {
       () => {
         setCapture(captureState());
         setCalibrating(isCalibrating());
+        setCalPhase(calibrationPhase());
       },
     );
     return () => {
@@ -136,7 +140,7 @@ export function GamepadSetup() {
       );
 
       const cfg = configRef.current;
-      const progress = isCalibrating() ? calibrationProgress(cfg) : null;
+      const progress = calibrationPhase() === 'sweep' ? calibrationProgress(cfg) : null;
       for (const ch of CHANNELS) {
         if (progress) {
           const sweep = sweeps.current[ch];
@@ -291,7 +295,7 @@ export function GamepadSetup() {
                   sweeps.current[ch] = el;
                 }}
               >
-                Sweep it
+                {calPhase === 'center' ? 'Centre it' : 'Sweep it'}
               </span>
             ) : (
               <span className="gp__assigned">
@@ -356,33 +360,54 @@ export function GamepadSetup() {
             Calibrate each controller once.
           </p>
           <p>
-            Push <b>every stick to both ends</b> of each axis: left <i>and</i> right, up <i>and</i>{' '}
-            down, then let them go. Each direction is measured separately, so a stick moved only one
-            way cannot be calibrated. The markers above read <b>Done</b> once a channel has seen
-            both. A radio&apos;s throttle is one travel instead: run it from the very bottom to the
-            very top. Sticks are ignored by the aircraft until you save.
+            Two steps. First <b>centre every stick</b>, throttle included, and press <b>OK</b>: that
+            is the centre value. Then push <b>every stick to both ends</b> of each axis: left{' '}
+            <i>and</i> right, up <i>and</i> down. Each direction is measured separately, so a stick
+            moved only one way cannot be calibrated. The markers above read <b>Done</b> once a
+            channel has seen both. A radio&apos;s throttle is one travel instead: run it from the
+            very bottom to the very top. Press <b>Finish</b> to save. Sticks are ignored by the
+            aircraft until then.
           </p>
         </InfoButton>
       </h3>
       {calibrating ? (
         <div className="gp__calibrate is-active">
+          <p className="gp__step" role="status">
+            {calPhase === 'center' ? (
+              <>
+                <b>Step 1 of 2 · Centre all sticks.</b> Put every stick in the middle, throttle
+                included, and hold them still. Then press OK.
+              </>
+            ) : (
+              <>
+                <b>Step 2 of 2 · Move all sticks to min and max.</b> Push each stick fully both ways
+                until every marker above reads Done, then press Finish.
+              </>
+            )}
+          </p>
           <div className="settings__actions">
-            <Button
-              variant="primary"
-              onClick={() => {
-                const measured = finishCalibration(gamepad);
-                const axes = { ...gamepad.axes };
-                for (const ch of CHANNELS) {
-                  if (measured[ch]) axes[ch] = { ...axes[ch], cal: measured[ch] };
-                }
-                setGamepad({ axes });
-                setSaved(
-                  CHANNELS.filter((ch) => !measured[ch]).map((ch) => GAMEPAD_CHANNEL_LABELS[ch]),
-                );
-              }}
-            >
-              Save calibration
-            </Button>
+            {calPhase === 'center' ? (
+              <Button variant="primary" onClick={() => captureCenter()}>
+                OK, sticks centred
+              </Button>
+            ) : (
+              <Button
+                variant="primary"
+                onClick={() => {
+                  const measured = finishCalibration(gamepad);
+                  const axes = { ...gamepad.axes };
+                  for (const ch of CHANNELS) {
+                    if (measured[ch]) axes[ch] = { ...axes[ch], cal: measured[ch] };
+                  }
+                  setGamepad({ axes });
+                  setSaved(
+                    CHANNELS.filter((ch) => !measured[ch]).map((ch) => GAMEPAD_CHANNEL_LABELS[ch]),
+                  );
+                }}
+              >
+                Finish
+              </Button>
+            )}
             <Button
               variant="ghost"
               onClick={() => {
