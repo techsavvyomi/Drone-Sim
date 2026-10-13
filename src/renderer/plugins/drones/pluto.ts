@@ -39,33 +39,31 @@ export const plutoDrone: DroneSpec = {
   /** Hard ceiling enforced by the flight controller (soft-limited from 2 m below). */
   maxAltitude: 20,
   // Nose camera, set so the front props are IN the shot, as on a real whoop's
-  // feed. Measured off the drawn airframe (x1.5, plus DroneModel's 2 cm paint
-  // clearance): the front props sweep x = +-0.039..0.099, z = -0.102..-0.044,
-  // at y = 0.048.
-  //
-  // The old (0, 0.026, -0.09) x 1.5 sat at the props' LEADING edge and 2 cm
-  // under them, so every blade was beside or behind the lens and FPV showed
-  // none. (0, 0.02, -0.07) drawn sits between the front hubs and just under
-  // the prop plane: each front prop and its arm land on the upper left and
-  // right edges of the frame, 3-6 cm away (inside FPV_NEAR's reach), and the
-  // centre stays clear. Checked by offscreen render of the .glb, not flown.
+  // feed. Between the front hubs and just under the prop plane, so each front
+  // prop and its arm land on the upper left and right edges of the frame.
   // 20 degrees of uptilt: a slow trainer flies nearly level, so the horizon
   // sits in the lower half of the 110-degree FPV frame in a hover.
   cameraMount: { position: [0, 0.0133, -0.047], tiltDeg: 20 },
-  // Real PlutoX CAD model, optimized for realtime (20 draw calls, 253k tris).
-  // Authored in metres and origin-centred, so no scaling is needed.
+  // PlutoX CAD with the camera module, optimized for realtime by
+  // scripts/prepare-drone-model.mjs (220 meshes, 285k tris; 3,677 raw).
+  // Authored in metres, so no scaling is needed: its props measure 39.6 mm,
+  // the same as the previous export's.
   model: plutoModelUrl,
   // A 160 mm airframe is a speck in the outdoor maps; drawn and collided at 1.5x so it stays readable.
   sizeScale: 1.5,
   modelScale: 1,
-  // The CAD model is authored facing +Z; the sim's convention is forward = -Z,
-  // so the visual needs a half turn to match the physics heading.
+  // The CAD model is authored facing +Z (the camera lens is at its +Z end);
+  // the sim's convention is forward = -Z, so the visual needs a half turn to
+  // match the physics heading.
   modelYawDeg: 180,
-  // Same rule as the other two: the lowest drawn geometry lands on the collider
-  // floor at -0.024 m. The model's own minimum is -0.03467, drawn at 1.5x, so
-  //   (-0.024 - (-0.03467 * 1.5)) / 1.5 = 0.01867
-  // The old flat 0.01 buried the prop guards 13 mm into the ground.
-  modelOffset: [0, 0.01867, 0],
+  // This export is NOT origin-centred: its prop centroid sits at authored
+  // (0.000575, -, -0.01441). X and Z move that centroid onto the body origin
+  // (after the half turn, the authored offset is the centroid itself).
+  //
+  // Y is the usual rule: the lowest drawn geometry lands on the collider floor
+  // at -0.024 m. The model's own minimum is -0.0253, drawn at 1.5x, so
+  //   (-0.024 - (-0.0253 * 1.5)) / 1.5 = 0.0093
+  modelOffset: [0.000575, 0.0093, -0.01441],
   // Rate-loop gains output angular acceleration (rad/s^2) per rad/s of error
   // (see FlightController's inertia-normalized torque). p ~ loop bandwidth.
   pidDefaults: {
