@@ -66,6 +66,13 @@ const PULL_OUT_TIME = 0.6;
  */
 export const FPV_HFOV_DEG = 110;
 
+/**
+ * Near plane of the onboard camera, metres. Close enough for the PlutoX's
+ * front props (nearest ~3 cm from its mount), and no closer: depth precision
+ * goes with far/near, and at 700 m far this still resolves ~0.1 m at 200 m.
+ */
+export const FPV_NEAR = 0.025;
+
 /** three.js's (vertical) `fov` that gives `FPV_HFOV_DEG` across at `aspect`. */
 export function fpvVerticalFov(aspect: number): number {
   const half = Math.tan((FPV_HFOV_DEG * DEG2RAD) / 2) / Math.max(aspect, 0.1);
@@ -101,12 +108,21 @@ export function CameraRig({ spec, env }: { spec: DroneSpec; env?: EnvironmentSpe
 
   // FPV wears its own wide lens, and gives the previous one back on the way out
   // (a layout effect, so it is back before the ground view reads it).
+  //
+  // The lens also focuses closer. The viewports' near plane (8-15 cm) is set
+  // for a camera standing off the airframe; on the nose it clipped everything
+  // within a hand's width, which on the PlutoX is every propeller — they sit
+  // 3-6 cm from the lens, and FPV showed none of them however the mount moved.
   useLayoutEffect(() => {
     const cam = camera as THREE.PerspectiveCamera;
     if (mode !== 'fpv' || !cam.isPerspectiveCamera) return;
     const before = cam.fov;
+    const nearBefore = cam.near;
+    cam.near = FPV_NEAR;
+    cam.updateProjectionMatrix();
     return () => {
       cam.fov = before;
+      cam.near = nearBefore;
       cam.updateProjectionMatrix();
     };
   }, [camera, mode]);
