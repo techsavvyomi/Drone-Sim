@@ -27,6 +27,7 @@ export const IPC = {
   settingsSave: 'settings:save',
   appInfo: 'app:info',
   openExternal: 'app:open-external',
+  appQuit: 'app:quit',
   accountGet: 'account:get',
   accountActivate: 'account:activate',
   accountLogin: 'account:login',
@@ -63,6 +64,8 @@ export interface IpcApi {
   appInfo(): Promise<AppInfo>;
   /** Open the support email. Anything else is refused by the main process. */
   openExternal(url: string): Promise<boolean>;
+  /** Quit the application. */
+  quit(): Promise<void>;
   /** User profiles. The auth token stays in the main process. */
   account: {
     get(): Promise<AccountInfo>;

@@ -38,5 +38,9 @@ export function registerIpcHandlers(): Promise<BackendService> {
     return true;
   });
 
+  ipcMain.handle(IPC.appQuit, (): void => {
+    app.quit();
+  });
+
   return registerBackend();
 }

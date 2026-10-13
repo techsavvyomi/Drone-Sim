@@ -10,6 +10,7 @@ const api: IpcApi = {
   saveSettings: (settings: AppSettings) => ipcRenderer.invoke(IPC.settingsSave, settings),
   appInfo: () => ipcRenderer.invoke(IPC.appInfo),
   openExternal: (url: string) => ipcRenderer.invoke(IPC.openExternal, url),
+  quit: () => ipcRenderer.invoke(IPC.appQuit),
   account: {
     get: () => ipcRenderer.invoke(IPC.accountGet),
     activate: (req) => ipcRenderer.invoke(IPC.accountActivate, req),
