@@ -59,18 +59,19 @@ export const guruDrone: DroneSpec = {
     maxClimbRate: 2.6,
     maxYawRate: 3.0,
   },
-  // Nose camera, MEASURED off the drawn airframe rather than mirrored from the
-  // PlutoX. Forward is -Z (the old +0.07 put it behind the CoG, i.e. inside the
-  // fuselage once sizeScale inflated the model around it).
+  // ON the model's own camera lens (user, 2026-10-13: "camera wahi lagao jahan
+  // model me laga hai"). The Guru CAD carries a real FPV camera on its nose:
+  // the "Glass - Heavy Color" lens part, drawn (x2.5, with DroneModel's 2 cm
+  // paint clearance) at x = -0.015..0.013, y = 0.050..0.074,
+  // z = -0.136..-0.107. (0, 0.0248, -0.0552) x 2.5 = (0, 0.062, -0.138) is the
+  // centre of its front face.
   //
-  // In drawn metres, this airframe's fuselage nose is at z = -0.145, its front
-  // props sweep z = -0.348..-0.062 at y = 0.108..0.145, and their inner edge
-  // comes in to x = 0.063. So (0, 0.09, -0.17) x 2.5 sits just ahead of the
-  // nose and just under the prop plane: the world is clear ahead and each front
-  // prop clips the frame edge at about 38 degrees off-axis, which is the sliver
-  // of blade a real FPV feed shows.
+  // The old (0, 0.036, -0.068) floated 3 cm ahead of and 3 cm above that lens.
+  // From the real one the front props sit higher and wider in the upper
+  // corners, which is the sliver of blade a real feed shows. Checked by
+  // offscreen render of the .glb, not flown.
   // 25 degrees of uptilt: faster than the Pluto, so it flies more nose-down.
-  cameraMount: { position: [0, 0.036, -0.068], tiltDeg: 25 },
+  cameraMount: { position: [0, 0.0248, -0.0552], tiltDeg: 25 },
   // Guru Kit CAD export, optimized for realtime (222 draw calls, 275k tris —
   // on a par with the PlutoX's 219 / 277k).
   // The four props are tagged PROP_* by scripts/prepare-drone-model.mjs so the
