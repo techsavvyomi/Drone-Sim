@@ -38,12 +38,17 @@ export const plutoDrone: DroneSpec = {
   maxSpeed: 8,
   /** Hard ceiling enforced by the flight controller (soft-limited from 2 m below). */
   maxAltitude: 20,
-  // Nose camera, set so the front props are IN the shot, as on a real whoop's
-  // feed. Between the front hubs and just under the prop plane, so each front
-  // prop and its arm land on the upper left and right edges of the frame.
+  // ON the model's own camera. The 2026-10-13 export ("Pluto X with Camera
+  // (Primus X2 v1)") carries the Pluto Cam Module under the frame, and its
+  // lens glass ("Glass - Window") is at authored x = -0.0023..0.0051,
+  // y = -0.0155..-0.0075, front face z = +0.0268. Through the yaw, offset and
+  // sizeScale below that face is drawn at (-0.0012, 0.0167, -0.0618), i.e.
+  // (-0.0008, 0.0111, -0.0412) x 1.5; the mount sits 1 mm ahead of it.
+  // From there the front props and their arms frame the upper corners and the
+  // centre stays clear. Checked by offscreen render of the .glb, not flown.
   // 20 degrees of uptilt: a slow trainer flies nearly level, so the horizon
   // sits in the lower half of the 110-degree FPV frame in a hover.
-  cameraMount: { position: [0, 0.0133, -0.047], tiltDeg: 20 },
+  cameraMount: { position: [-0.0008, 0.0111, -0.0418], tiltDeg: 20 },
   // PlutoX CAD with the camera module, optimized for realtime by
   // scripts/prepare-drone-model.mjs (220 meshes, 285k tris; 3,677 raw).
   // Authored in metres, so no scaling is needed: its props measure 39.6 mm,
