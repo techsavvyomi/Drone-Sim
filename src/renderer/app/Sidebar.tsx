@@ -1,4 +1,4 @@
-import type { MouseEvent } from 'react';
+import { useState, type MouseEvent } from 'react';
 import { useUiStore, type Section } from '../state/uiStore';
 import { useAccountStore } from '../state/accountStore';
 import { Keycap } from '../ds';
@@ -44,37 +44,76 @@ export function Sidebar() {
   // Profile is hidden when signed out; the divider then sits above Settings.
   const groupStart = items.find((i) => i.n >= SECOND_GROUP)?.id;
 
+  const [confirmQuit, setConfirmQuit] = useState(false);
+
   const onClick = (id: Section) => (e: MouseEvent<HTMLButtonElement>) =>
     // A click from Enter / Space / the pad's A has no pointer position.
     openSection(id, e.detail === 0);
 
+  const handleQuit = () => {
+    void window.api.quit();
+  };
+
   return (
-    <nav className="sidenav" aria-label="Main" data-nav-region="sidebar" data-register="classroom">
-      <ul className="sidenav__list">
-        {items.map((item, i) => {
-          const active = item.id === section;
-          return (
-            <li key={item.id} className={item.id === groupStart ? 'sidenav__group-start' : undefined}>
-              <button
-                type="button"
-                data-nav-item
-                className={active ? 'sidenav__item is-active' : 'sidenav__item'}
-                aria-current={active ? 'page' : undefined}
-                tabIndex={active || (!hasActive && i === 0) ? 0 : -1}
-                onClick={onClick(item.id)}
-              >
-                <Keycap>{item.n}</Keycap>
-                <span className="sidenav__label">{item.label}</span>
-                {active && (
-                  <span className="sidenav__dot" aria-hidden="true">
-                    ●
-                  </span>
-                )}
+    <>
+      <nav className="sidenav" aria-label="Main" data-nav-region="sidebar" data-register="classroom">
+        <ul className="sidenav__list">
+          {items.map((item, i) => {
+            const active = item.id === section;
+            return (
+              <li key={item.id} className={item.id === groupStart ? 'sidenav__group-start' : undefined}>
+                <button
+                  type="button"
+                  data-nav-item
+                  className={active ? 'sidenav__item is-active' : 'sidenav__item'}
+                  aria-current={active ? 'page' : undefined}
+                  tabIndex={active || (!hasActive && i === 0) ? 0 : -1}
+                  onClick={onClick(item.id)}
+                >
+                  <Keycap>{item.n}</Keycap>
+                  <span className="sidenav__label">{item.label}</span>
+                  {active && (
+                    <span className="sidenav__dot" aria-hidden="true">
+                      ●
+                    </span>
+                  )}
+                </button>
+              </li>
+            );
+          })}
+          <li>
+            <button
+              type="button"
+              className="sidenav__item sidenav__quit"
+              onClick={() => setConfirmQuit(true)}
+            >
+              <Keycap>9</Keycap>
+              <span className="sidenav__label">Quit</span>
+            </button>
+          </li>
+        </ul>
+      </nav>
+
+      {confirmQuit && (
+        <div className="quit-dialog__scrim" role="presentation">
+          <div
+            className="quit-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Quit confirmation"
+          >
+            <p className="quit-dialog__question">Are you sure you want to quit?</p>
+            <div className="quit-dialog__actions">
+              <button type="button" className="quit-dialog__btn quit-dialog__btn--yes" onClick={handleQuit}>
+                Yes
               </button>
-            </li>
-          );
-        })}
-      </ul>
-    </nav>
+              <button type="button" className="quit-dialog__btn quit-dialog__btn--no" onClick={() => setConfirmQuit(false)}>
+                No
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
