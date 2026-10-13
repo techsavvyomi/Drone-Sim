@@ -59,46 +59,41 @@ export const guruDrone: DroneSpec = {
     maxClimbRate: 2.6,
     maxYawRate: 3.0,
   },
-  // ON the model's own camera lens (user, 2026-10-13: "camera wahi lagao jahan
-  // model me laga hai"). The Guru CAD carries a real FPV camera on its nose:
-  // the "Glass - Heavy Color" lens part, drawn (x2.5, with DroneModel's 2 cm
-  // paint clearance) at x = -0.015..0.013, y = 0.050..0.074,
-  // z = -0.136..-0.107. (0, 0.0248, -0.0552) x 2.5 = (0, 0.062, -0.138) is the
-  // centre of its front face.
-  //
-  // The old (0, 0.036, -0.068) floated 3 cm ahead of and 3 cm above that lens.
-  // From the real one the front props sit higher and wider in the upper
-  // corners, which is the sliver of blade a real feed shows. Checked by
-  // offscreen render of the .glb, not flown.
+  // ON the model's own camera lens: the "Glass - Heavy Color" part on the nose.
   // 25 degrees of uptilt: faster than the Pluto, so it flies more nose-down.
   cameraMount: { position: [0, 0.0248, -0.0552], tiltDeg: 25 },
-  // Guru Kit CAD export, optimized for realtime (222 draw calls, 275k tris —
-  // on a par with the PlutoX's 219 / 277k).
+  // Guru Kit CAD export with the camera module, optimized for realtime
+  // (195 meshes, 276k tris — on a par with the PlutoX's).
+  //
+  // The export arrived Z-UP. "Pluto Guru.glb" is it with one parent node
+  // rotated -90 degrees about X, so it is Y-up like the other airframes;
+  // the geometry itself is untouched.
+  //
   // The four props are tagged PROP_* by scripts/prepare-drone-model.mjs so the
   // runtime can pivot them independently — see that script for why they have to
   // be named explicitly for this model.
   model: guruModelUrl,
   // The export is ~9% under real scale: its props measure 121.9 mm against the
   // real 135 mm, and its wheelbase 210 mm against the real 230 mm. Those two
-  // ratios agree to 1%, so a single uniform scale fixes both.
+  // ratios agree to 1%, so a single uniform scale fixes both. (Re-measured on
+  // the camera export: same props, same 210 mm, same scale.)
   // Drawn and collided at 2.5x so the trainer reads clearly at chase-camera distance.
   sizeScale: 2.5,
   modelScale: 1.1013,
   // The airframe is authored at an angle rather than axis-aligned; this brings
-  // the front prop pair's bisector onto -Z, the sim's forward.
-  modelYawDeg: 165.08,
-  // The export is not origin-centred — it sits ~126 mm off in X. This recentres
-  // it on the prop centroid and drops the visual so its lowest point rests on
-  // the collider floor (Drone.tsx uses a fixed 0.024 m half-height).
+  // the front prop pair's bisector (the side the camera lens faces) onto -Z,
+  // the sim's forward. Measured off the prop hubs: 15.08 degrees off +Z.
+  modelYawDeg: 164.92,
+  // X and Z recentre the prop centroid, authored (0.00145, -, 0.00015), on
+  // the body origin.
   //
-  // Y is MEASURED, not chosen, and the old -0.0398 was 36 mm too low: the
-  // export's lowest geometry sits at +0.01436 authored units (the model is
-  // entirely ABOVE its own origin), so
-  //   (-0.024 - 0.01436 * 1.1013 * 2.5) / 2.5 = -0.02541
-  // puts the landing legs on the collider's underside. At -0.0398 they sank
-  // through the deck in every arena, which is what made the trainer look like
-  // it was parked in the concrete rather than on it.
-  modelOffset: [-0.1263, -0.02541, -0.0454],
+  // Y is MEASURED, not chosen: the lowest geometry (the landing legs) sits
+  // at -0.0433 authored units, so
+  //   (-0.024 - (-0.0433) * 1.1013 * 2.5) / 2.5 = 0.03809
+  // puts the legs on the collider's underside (Drone.tsx uses a fixed
+  // 0.024 m half-height). Too low and they sink through the deck, which is
+  // what made the trainer look parked in the concrete rather than on it.
+  modelOffset: [0.0015, 0.03809, 0.00057],
   // The CAD export ships three white props and one black, which reads as an
   // asymmetry rather than an orientation cue. Both pairs are set explicitly so
   // the result is a clean black nose / white tail whatever the .glb bakes in.
