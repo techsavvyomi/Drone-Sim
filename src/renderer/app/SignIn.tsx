@@ -445,7 +445,7 @@ export function SignIn() {
         aria-label="Quit PlutoSim"
         onClick={() => setConfirmQuit(true)}
       >
-        Quit
+        <Keycap>Quit</Keycap>
       </button>
 
       {confirmQuit && (

@@ -101,20 +101,18 @@
   position: absolute;
   bottom: var(--space-6);
   right: var(--space-6);
-  padding: var(--space-2) var(--space-4);
-  background: var(--ink-800);
-  border: 1px solid var(--line);
-  border-radius: 0;
-  font: var(--type-body-sm);
-  color: var(--txt-mid);
+  padding: 0;
+  background: transparent;
+  border: none;
   cursor: pointer;
-  transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
+  display: inline-flex;
+  align-items: center;
 }
 
-:root[data-input='pointer'] .acct__quit-btn:hover {
-  background: var(--ink-700);
+:root[data-input='pointer'] .acct__quit-btn:hover .ds-key {
+  background: var(--ink-600, var(--line));
   color: var(--txt-hi);
-  border-color: var(--line);
+  border-color: var(--txt-mid);
 }
 
 .acct__left {
