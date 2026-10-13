@@ -38,14 +38,20 @@ export const plutoDrone: DroneSpec = {
   maxSpeed: 8,
   /** Hard ceiling enforced by the flight controller (soft-limited from 2 m below). */
   maxAltitude: 20,
-  // Nose camera, measured off the drawn airframe. Forward is -Z; the old +0.05
-  // pointed the mount backwards, and unscaled it sat inside the model.
-  // Drawn, the frame's nose is at z = -0.084, the prop plane at y = 0.029 and
-  // the front ducts run out from x = 0.055 — so (0, 0.026, -0.09) x 1.5 threads
-  // between the ducts at prop height with nothing but sky ahead.
+  // Nose camera, set so the front props are IN the shot, as on a real whoop's
+  // feed. Measured off the drawn airframe (x1.5, plus DroneModel's 2 cm paint
+  // clearance): the front props sweep x = +-0.039..0.099, z = -0.102..-0.044,
+  // at y = 0.048.
+  //
+  // The old (0, 0.026, -0.09) x 1.5 sat at the props' LEADING edge and 2 cm
+  // under them, so every blade was beside or behind the lens and FPV showed
+  // none. (0, 0.02, -0.07) drawn sits between the front hubs and just under
+  // the prop plane: each front prop and its arm land on the upper left and
+  // right edges of the frame, 3-6 cm away (inside FPV_NEAR's reach), and the
+  // centre stays clear. Checked by offscreen render of the .glb, not flown.
   // 20 degrees of uptilt: a slow trainer flies nearly level, so the horizon
   // sits in the lower half of the 110-degree FPV frame in a hover.
-  cameraMount: { position: [0, 0.0173, -0.06], tiltDeg: 20 },
+  cameraMount: { position: [0, 0.0133, -0.047], tiltDeg: 20 },
   // Real PlutoX CAD model, optimized for realtime (20 draw calls, 253k tris).
   // Authored in metres and origin-centred, so no scaling is needed.
   model: plutoModelUrl,
