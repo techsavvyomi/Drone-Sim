@@ -831,7 +831,13 @@ export interface DroneSpec {
    * and could not out-run it.
    */
   dragArea?: number;
-  cameraMount: { position: Vec3; tiltDeg: number };
+  /**
+   * Onboard (FPV) camera: position in the true-size body frame (inflated by
+   * `sizeScale` at render), uptilt, and optionally its own lens width across,
+   * degrees (default `FPV_HFOV_DEG`). Set per airframe so its front props
+   * land in the shot, as on a real feed.
+   */
+  cameraMount: { position: Vec3; tiltDeg: number; hfovDeg?: number };
   /** Optional .glb visual asset; falls back to the procedural mesh when absent. */
   model?: string;
   /** Uniform scale applied to the .glb (1 = the model is already in metres). */

@@ -73,9 +73,9 @@ export const FPV_HFOV_DEG = 110;
  */
 export const FPV_NEAR = 0.025;
 
-/** three.js's (vertical) `fov` that gives `FPV_HFOV_DEG` across at `aspect`. */
-export function fpvVerticalFov(aspect: number): number {
-  const half = Math.tan((FPV_HFOV_DEG * DEG2RAD) / 2) / Math.max(aspect, 0.1);
+/** three.js's (vertical) `fov` that gives `hfovDeg` across at `aspect`. */
+export function fpvVerticalFov(aspect: number, hfovDeg = FPV_HFOV_DEG): number {
+  const half = Math.tan((hfovDeg * DEG2RAD) / 2) / Math.max(aspect, 0.1);
   return (2 * Math.atan(half)) / DEG2RAD;
 }
 
@@ -373,10 +373,10 @@ export function CameraRig({ spec, env }: { spec: DroneSpec; env?: EnvironmentSpe
       _tilt.setFromAxisAngle(new THREE.Vector3(1, 0, 0), spec.cameraMount.tiltDeg * DEG2RAD);
       camera.quaternion.copy(dronePose.quaternion).multiply(_tilt);
 
-      // Re-derived every frame, so a resized window keeps 110 degrees across.
+      // Re-derived every frame, so a resized window keeps the lens's width across.
       const cam = camera as THREE.PerspectiveCamera;
       if (cam.isPerspectiveCamera) {
-        const fov = fpvVerticalFov(cam.aspect);
+        const fov = fpvVerticalFov(cam.aspect, spec.cameraMount.hfovDeg);
         if (Math.abs(cam.fov - fov) > 0.01) {
           cam.fov = fov;
           cam.updateProjectionMatrix();
