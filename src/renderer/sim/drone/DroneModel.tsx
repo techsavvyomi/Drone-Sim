@@ -45,8 +45,9 @@ interface PropRotor {
  * reflect the sky and show their form.
  *
  * Bright metals are left alone — that blanket value is doing no harm where the
- * part is light enough to reflect something, and the props and polished trim
- * are meant to look metallic. What a dark CAD part means is anodised aluminium
+ * part is light enough to reflect something, and the polished trim is meant to
+ * look metallic. The props are not: they are made plastic where they are
+ * re-parented to their spin pivots, below. What a dark CAD part means is anodised aluminium
  * or moulded plastic, and both of those want a diffuse response.
  *
  * The mirror image of invariant #24: there, metalness lifted a dark road to
@@ -310,6 +311,16 @@ function Gltf({
         mesh.material = clone;
         (Array.isArray(clone) ? clone : [clone]).forEach((m) => {
           m.transparent = true;
+          // Moulded plastic, not metal. The exporter's blanket metalness 1.0
+          // (see `demetallise`) survives on light parts, and a white metallic
+          // blade is a mirror: it showed the sky and ground instead of being
+          // white, grey with a horizon band across it — worst in FPV, where the
+          // front blades sit a few centimetres from the lens.
+          const std = m as THREE.MeshStandardMaterial;
+          if (std.metalness !== undefined) {
+            std.metalness = 0;
+            std.roughness = 0.5;
+          }
           blades.push(m);
         });
       });

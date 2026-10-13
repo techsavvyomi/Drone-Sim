@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import type { DroneSpec } from '@shared/types';
 import { useSimStore } from '../../state/simStore';
 import { useFlightStore } from '../../state/flightStore';
+import { useUiStore } from '../../state/uiStore';
 import { BLUR_REV_PER_SEC, blurMix, propHubs, TAU } from './propHubs';
 import { PROP_SPIN_Y } from '../control/mixer';
 
@@ -27,6 +28,11 @@ function BlurDiscs({ spec }: { spec: DroneSpec }) {
   useFrame(() => {
     const status = useFlightStore.getState().status();
     const live = status === 'armed' || status === 'flying';
+    // The nose camera sits just under the prop plane, so in FPV the front discs
+    // are a few centimetres from the lens and wash the top of the frame in
+    // translucent blue-grey. A real FPV camera's shutter does not record a blur
+    // disc at all — only the blades.
+    const fpv = useUiStore.getState().cameraMode === 'fpv';
     const synthetic = propHubs.synthetic;
     const propR = bladeRadius(spec);
 
@@ -83,7 +89,7 @@ function BlurDiscs({ spec }: { spec: DroneSpec }) {
         m.color.set('#b9c8db');
         m.depthTest = true;
       }
-      m.visible = m.opacity > 0.02;
+      m.visible = !fpv && m.opacity > 0.02;
     }
   });
 
