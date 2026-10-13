@@ -4,6 +4,7 @@ import { useSettingsStore } from '../state/settingsStore';
 import { listDrones } from '../plugins/registry';
 import { Button, Icon, Keycap, SegmentedControl, TextInput } from '../ds';
 import { HangarScene } from './HangarScene';
+import { QuitConfirmDialog } from './QuitConfirmDialog';
 import {
   BANNER_TITLE,
   ERROR_TEXT,
@@ -86,6 +87,7 @@ export function SignIn() {
   const [busy, setBusy] = useState(false);
   // The computer this profile is signed in on, while asking whether to sign it out there.
   const [elsewhere, setElsewhere] = useState<string | null>(null);
+  const [confirmQuit, setConfirmQuit] = useState(false);
 
   const refs = {
     name: useRef<HTMLInputElement>(null),
@@ -436,6 +438,19 @@ export function SignIn() {
           )}
         </form>
       </main>
+
+      <button
+        type="button"
+        className="acct__quit-btn"
+        aria-label="Quit PlutoSim"
+        onClick={() => setConfirmQuit(true)}
+      >
+        Quit
+      </button>
+
+      {confirmQuit && (
+        <QuitConfirmDialog onCancel={() => setConfirmQuit(false)} />
+      )}
     </div>
   );
 }

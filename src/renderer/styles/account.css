@@ -87,6 +87,7 @@
 /* ---- Activate / Sign in ------------------------------------------------- */
 
 .acct {
+  position: relative;
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(440px, 600px);
   gap: var(--space-8);
@@ -94,6 +95,26 @@
   padding: var(--space-8);
   overflow: auto;
   background: var(--ink-900);
+}
+
+.acct__quit-btn {
+  position: absolute;
+  top: var(--space-6);
+  right: var(--space-6);
+  padding: var(--space-2) var(--space-4);
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  font: var(--type-body-sm);
+  color: var(--txt-mid);
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
+}
+
+:root[data-input='pointer'] .acct__quit-btn:hover {
+  background: var(--ink-700);
+  color: var(--txt-hi);
+  border-color: var(--ink-600, var(--line));
 }
 
 .acct__left {

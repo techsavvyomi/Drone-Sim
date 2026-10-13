@@ -3,6 +3,7 @@ import { useUiStore, type Section } from '../state/uiStore';
 import { useAccountStore } from '../state/accountStore';
 import { Keycap } from '../ds';
 import { focusPrimary } from '../input/menuNav';
+import { QuitConfirmDialog } from './QuitConfirmDialog';
 
 /** The sidebar in order. The number is the 1–8 key that opens it. Items from
  *  SECOND_GROUP on sit under the divider. */
@@ -50,10 +51,6 @@ export function Sidebar() {
     // A click from Enter / Space / the pad's A has no pointer position.
     openSection(id, e.detail === 0);
 
-  const handleQuit = () => {
-    void window.api.quit();
-  };
-
   return (
     <>
       <nav className="sidenav" aria-label="Main" data-nav-region="sidebar" data-register="classroom">
@@ -95,24 +92,7 @@ export function Sidebar() {
       </nav>
 
       {confirmQuit && (
-        <div className="quit-dialog__scrim" role="presentation">
-          <div
-            className="quit-dialog"
-            role="dialog"
-            aria-modal="true"
-            aria-label="Quit confirmation"
-          >
-            <p className="quit-dialog__question">Are you sure you want to quit?</p>
-            <div className="quit-dialog__actions">
-              <button type="button" className="quit-dialog__btn quit-dialog__btn--yes" onClick={handleQuit}>
-                Yes
-              </button>
-              <button type="button" className="quit-dialog__btn quit-dialog__btn--no" onClick={() => setConfirmQuit(false)}>
-                No
-              </button>
-            </div>
-          </div>
-        </div>
+        <QuitConfirmDialog onCancel={() => setConfirmQuit(false)} />
       )}
     </>
   );
