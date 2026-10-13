@@ -99,12 +99,12 @@
 
 .acct__quit-btn {
   position: absolute;
-  top: var(--space-6);
+  bottom: var(--space-6);
   right: var(--space-6);
   padding: var(--space-2) var(--space-4);
-  background: transparent;
+  background: var(--ink-800);
   border: 1px solid var(--line);
-  border-radius: var(--radius-control);
+  border-radius: 0;
   font: var(--type-body-sm);
   color: var(--txt-mid);
   cursor: pointer;
@@ -114,7 +114,7 @@
 :root[data-input='pointer'] .acct__quit-btn:hover {
   background: var(--ink-700);
   color: var(--txt-hi);
-  border-color: var(--ink-600, var(--line));
+  border-color: var(--line);
 }
 
 .acct__left {
