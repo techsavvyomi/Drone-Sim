@@ -9,6 +9,7 @@ import { DroneMesh } from './DroneMesh';
 import { BLUR_REV_PER_SEC, blurMix, propHubs, solidRevs, TAU } from './propHubs';
 import { useSimStore } from '../../state/simStore';
 import { useFlightStore } from '../../state/flightStore';
+import { useUiStore } from '../../state/uiStore';
 import { damp } from '../mathx';
 import { PROP_SPIN_Y } from '../control/mixer';
 
@@ -194,6 +195,9 @@ export function mergeStaticParts(root: THREE.Object3D): void {
 
 const NO_PROPS: readonly number[] = [];
 
+/** Least blade opacity on the FPV view, where no blur disc stands in for them. */
+const FPV_BLADE_FLOOR = 0.4;
+
 function Gltf({
   spec,
   idleSpin = 0,
@@ -311,6 +315,11 @@ function Gltf({
         mesh.material = clone;
         (Array.isArray(clone) ? clone : [clone]).forEach((m) => {
           m.transparent = true;
+          // Both faces. The whole airframe was made single-sided above, which
+          // is right for closed parts and wrong for a blade or a flat blur disc:
+          // the FPV lens sits UNDER the prop plane, looking at the faces that
+          // were being culled, so the props vanished from the onboard view.
+          m.side = THREE.DoubleSide;
           // Moulded plastic, not metal. The exporter's blanket metalness 1.0
           // (see `demetallise`) survives on light parts, and a white metallic
           // blade is a mirror: it showed the sky and ground instead of being
@@ -460,6 +469,7 @@ function Gltf({
     const motors = useSimStore.getState().motors;
     const status = useFlightStore.getState().status();
     const live = !still && (status === 'armed' || status === 'flying');
+    const fpv = !still && idleSpin === 0 && useUiStore.getState().cameraMode === 'fpv';
 
     // A propeller that snapped off in a crash is hidden here; PropDebris draws
     // it as a loose physics object instead.
@@ -537,7 +547,13 @@ function Gltf({
       // resolving and becomes a translucent disc.
       r.pivot.rotation.y += dir * solidRevs(rpm.current[i]) * TAU * dt;
 
-      const fade = 1 - Math.min(0.9, Math.max(0, rpm.current[i] - 0.08) * 2.6);
+      // Not below FPV_BLADE_FLOOR on the onboard view: there the blur disc is
+      // hidden (it filled the frame from a few cm away), so faded to 0.1 the
+      // spinning props simply disappeared from the shot.
+      const fade = Math.max(
+        1 - Math.min(0.9, Math.max(0, rpm.current[i] - 0.08) * 2.6),
+        fpv ? FPV_BLADE_FLOOR : 0,
+      );
       r.blades.forEach((m) => {
         m.opacity = fade;
         m.depthWrite = fade > 0.6;
