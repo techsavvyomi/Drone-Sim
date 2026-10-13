@@ -29,16 +29,13 @@ describe('FPV lens', () => {
     },
   );
 
-  it('tilts more on the faster trainer', () => {
+  it('tilts more on the faster airframes', () => {
     expect(plutoDrone.cameraMount.tiltDeg).toBe(20);
     expect(guruDrone.cameraMount.tiltDeg).toBe(25);
+    expect(racingDrone.cameraMount.tiltDeg).toBe(25);
   });
 
-  // 2026-10-13: the racer's props sit beside its nose, so it flies a top-plate
-  // HD cam on a wider lens to get them into the shot (see racer.ts).
-  it('racer: near-level top cam on its own 130-degree lens', () => {
-    expect(racingDrone.cameraMount.tiltDeg).toBe(5);
-    expect(racingDrone.cameraMount.hfovDeg).toBe(130);
+  it('takes an airframe its own lens width', () => {
     const v = fpvVerticalFov(16 / 9, 130) * (Math.PI / 180);
     expect(2 * Math.atan(Math.tan(v / 2) * (16 / 9)) * (180 / Math.PI)).toBeCloseTo(130, 6);
   });
