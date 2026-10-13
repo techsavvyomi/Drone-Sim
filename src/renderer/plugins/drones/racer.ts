@@ -95,17 +95,25 @@ export const racingDrone: DroneSpec = {
    * 0.043 m^2 wall to the air. A ~0.05 m^2 silhouette at Cd ~0.4 is 0.02.
    */
   dragArea: 0.02,
-  // On the nose and tilted like a race build's cam — enough tilt that level
-  // flight is fast flight. Forward is -Z; the old +0.075 was behind the CoG,
-  // which unscaled put the lens inside the frame plate.
+  // A top-mounted HD cam, not the nose cam — chosen by the user (2026-10-13)
+  // so the props are in the FPV shot.
   //
-  // Drawn, the frame plate ends at z = -0.199 and the camera pod occupies
-  // z = -0.189..-0.141 at y = -0.001..0.056, so (0, 0.042, -0.21) x 1.8 puts
-  // the lens on the pod's own front face with nothing in the near plane.
-  // Unlike the Guru, this airframe shows no props: the art carries its rotors
-  // far out (prop diameter is 0.52 of the motor spacing against a real build's
-  // 0.82), so from the nose they sit past 48 degrees, outside the frame.
-  cameraMount: { position: [0, 0.0233, -0.1167], tiltDeg: 25 },
+  // The nose cam (0, 0.0233, -0.1167), 25 degrees, could not show them, from
+  // anywhere on the nose. The art carries its rotors far out (prop diameter
+  // 0.52 of the motor spacing against a real build's 0.82): drawn, the front
+  // discs sit BESIDE the pod (x = +-0.106..0.335, z = -0.286..-0.058) rather
+  // than ahead of it, 56-71 degrees off-axis, and only ~2.5 cm above the lens,
+  // so even a 140-degree lens saw them edge-on as hairlines.
+  //
+  // (0, 0.07, -0.07) x 1.8 is 6 cm above the prop plane, behind the nose, so
+  // the lens looks DOWN onto the discs: the front pair's blur lands in the
+  // lower corners with the horizon clear above. That needs a wider lens than
+  // the trainers' — 130 across, within the 120-150 real racing cams run — and
+  // a near-level 5 degrees, as an action cam on the top plate is set; at 25
+  // the props drop out of the bottom. The cost is the race-cam feel: flown
+  // fast and nose-down, this shows more ground. Checked by offscreen render
+  // of the .glb, not flown.
+  cameraMount: { position: [0, 0.07, -0.07], tiltDeg: 5, hfovDeg: 130 },
   model: racerModelUrl,
   // 0.127 m prop / 3.5955 authored units.
   // Drawn at 1.8x so the 311 mm frame reads at chase-camera distance in the

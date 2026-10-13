@@ -22,16 +22,24 @@ describe('FPV lens', () => {
   it.each([plutoDrone, guruDrone, racingDrone])(
     '$id: the horizon is in the lower half, well clear of the edge, in a hover at 16:9',
     (spec) => {
-      const half = fpvVerticalFov(16 / 9) / 2;
+      const half = fpvVerticalFov(16 / 9, spec.cameraMount.hfovDeg) / 2;
       const tilt = spec.cameraMount.tiltDeg;
       expect(tilt).toBeGreaterThan(0); // uptilt, as on a real FPV quad
       expect(half - tilt).toBeGreaterThanOrEqual(13);
     },
   );
 
-  it('tilts more on the faster airframes', () => {
+  it('tilts more on the faster trainer', () => {
     expect(plutoDrone.cameraMount.tiltDeg).toBe(20);
     expect(guruDrone.cameraMount.tiltDeg).toBe(25);
-    expect(racingDrone.cameraMount.tiltDeg).toBe(25);
+  });
+
+  // 2026-10-13: the racer's props sit beside its nose, so it flies a top-plate
+  // HD cam on a wider lens to get them into the shot (see racer.ts).
+  it('racer: near-level top cam on its own 130-degree lens', () => {
+    expect(racingDrone.cameraMount.tiltDeg).toBe(5);
+    expect(racingDrone.cameraMount.hfovDeg).toBe(130);
+    const v = fpvVerticalFov(16 / 9, 130) * (Math.PI / 180);
+    expect(2 * Math.atan(Math.tan(v / 2) * (16 / 9)) * (180 / Math.PI)).toBeCloseTo(130, 6);
   });
 });
