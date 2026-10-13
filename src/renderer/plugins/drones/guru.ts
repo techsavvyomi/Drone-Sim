@@ -59,9 +59,16 @@ export const guruDrone: DroneSpec = {
     maxClimbRate: 2.6,
     maxYawRate: 3.0,
   },
-  // ON the model's own camera lens: the "Glass - Heavy Color" part on the nose.
+  // ON the model's own camera lens. The 2026-10-13 export ("Guru Drone with
+  // Camera (Primus X2 v1)") carries the Guru Cam Module under the nose; its
+  // "Glass - Heavy Color" lens has its front face at (0.0132, -0.0194, 0.0466)
+  // in the Y-up model, drawn (x2.5, with DroneModel's 2 cm paint clearance)
+  // at (0.0020, 0.0618, -0.1319). (0.0008, 0.0247, -0.0532) x 2.5 sits 1 mm
+  // ahead of it. From there the front props sit in the upper corners, which
+  // is the sliver of blade a real feed shows. Checked by offscreen render of
+  // the .glb, not flown.
   // 25 degrees of uptilt: faster than the Pluto, so it flies more nose-down.
-  cameraMount: { position: [0, 0.0248, -0.0552], tiltDeg: 25 },
+  cameraMount: { position: [0.0008, 0.0247, -0.0532], tiltDeg: 25 },
   // Guru Kit CAD export with the camera module, optimized for realtime
   // (195 meshes, 276k tris — on a par with the PlutoX's).
   //
