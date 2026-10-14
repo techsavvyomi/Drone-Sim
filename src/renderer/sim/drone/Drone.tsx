@@ -29,6 +29,7 @@ import { clamp, DEG2RAD } from '../mathx';
 import {
   acroRateScaleFor,
   activeInputSource,
+  beginThrottleCatch,
   flyingOnRadio,
   isScripted,
   isThrottleCommanded,
@@ -36,8 +37,10 @@ import {
   stick,
   updateStick,
   resetStick,
+  setDirectHoverThrottle,
   setHoverThrottle,
   throttleAfterModeChange,
+  throttleCatchActive,
   throttleRestsAtCentre,
 } from '../../input/controls';
 import { useSimStore } from '../../state/simStore';
@@ -1166,7 +1169,8 @@ export function Drone({ spec, spawn, bounds, outdoor = false, groundY }: DronePr
     updateStick(delta);
     if (activeInputSource() === 'gamepad') {
       const throttle = readControllerThrottle();
-      if (throttle !== null) stick.throttle = throttle;
+      // A caught throttle is holding the mode's hold point — see `beginThrottleCatch`.
+      if (throttle !== null && !throttleCatchActive()) stick.throttle = throttle;
     }
   }, -100);
 
@@ -1342,6 +1346,10 @@ export function Drone({ spec, spawn, bounds, outdoor = false, groundY }: DronePr
         stick.throttle = throttleRestsAtCentre(flight.mode)
           ? THROTTLE_CENTER
           : clamp(hoverThrust / controller.maxThrust, 0, 1);
+        // A controller's stick is still where it sat for the takeoff — a radio's
+        // at the bottom — and the next frame writes it straight back over this:
+        // hold until the pilot brings it to the hold point.
+        if (!isScripted() && activeInputSource() === 'gamepad') beginThrottleCatch();
       }
       flight.setAuto('manual');
     } else if (flight.auto === 'land' && onGround) {
@@ -1412,7 +1420,9 @@ export function Drone({ spec, spawn, bounds, outdoor = false, groundY }: DronePr
   useEffect(() => {
     const full = spec.motors.reduce((sum, m) => sum + m.maxThrustN, 0) * ACRO_THRUST_BOOST;
     setHoverThrottle(hoverThrust / Math.max(full, 1e-6));
-  }, [spec, hoverThrust]);
+    // Stabilize's hover, for the throttle catch: the stick a takeoff hands back.
+    setDirectHoverThrottle(hoverThrust / Math.max(controller.maxThrust, 1e-6));
+  }, [spec, hoverThrust, controller]);
 
   return (
     <RigidBody

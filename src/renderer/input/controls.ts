@@ -140,6 +140,76 @@ export function flyingOnRadio(): boolean {
 }
 
 /**
+ * Throttle catch: the aircraft holds, and a controller's stick is ignored,
+ * until the pilot brings that stick to the hold point.
+ *
+ * A radio's throttle stick does not spring back: it sits wherever the pilot
+ * left it, which for a takeoff on Space is the bottom. The moment the
+ * auto-takeoff handed back, that stick became the command — in Alt Hold a
+ * full-rate descent, in Stabilize raw collective near zero — and the aircraft
+ * flew itself straight back onto the pad: to the pilot, an auto-land nobody
+ * asked for. Real flight controllers solve this the same way. The hold point is
+ * the mode's own: centre in Alt Hold, the airframe's hover throttle in
+ * Stabilize. Records which side of it the stick was on; 0 is no catch.
+ */
+let throttleCatch = 0;
+/** The throttle held while caught, and the mode it was taken for. */
+let catchTarget = THROTTLE_CENTER;
+let catchMode: FlightMode | null = null;
+
+/**
+ * Stabilize's hover throttle: weight over the controller's full thrust, the same
+ * stick the auto-takeoff hands back. Not `hoverThrottle`, which is a fraction of
+ * Acro's boosted thrust and would hold the aircraft short of a hover.
+ */
+let directHoverThrottle = 0.5;
+
+/** The drone sets it when it mounts. */
+export function setDirectHoverThrottle(fraction: number): void {
+  directHoverThrottle = clamp(fraction, 0.05, 1);
+}
+
+/** How close to the hold point the stick has to come to be caught. */
+const THROTTLE_CATCH_BAND = 0.05;
+
+/** The throttle that holds the aircraft where it is in `mode`, or null (Acro holds nothing). */
+function holdThrottle(mode: FlightMode): number | null {
+  if (ALT_MANAGED.includes(mode)) return THROTTLE_CENTER;
+  if (mode === 'stabilize') return directHoverThrottle;
+  return null;
+}
+
+/** Hold the throttle at the mode's hold point until the controller's stick reaches it. */
+export function beginThrottleCatch(): void {
+  const mode = useFlightStore.getState().mode;
+  const target = holdThrottle(mode);
+  if (target === null) {
+    throttleCatch = 0;
+    return;
+  }
+  catchTarget = target;
+  catchMode = mode;
+  const offset = gamepadStick.throttle - target;
+  throttleCatch = Math.abs(offset) <= THROTTLE_CATCH_BAND ? 0 : Math.sign(offset);
+}
+
+export function throttleCatchActive(): boolean {
+  return throttleCatch !== 0;
+}
+
+/**
+ * Whether a catch begun on `side` of `target` still holds for a stick at `raw`.
+ * It lets go inside the band, or once the stick has crossed the target — a
+ * quick push can jump the band between two frames, and that is still the pilot
+ * taking over.
+ */
+export function throttleCatchHolds(raw: number, side: number, target = THROTTLE_CENTER): boolean {
+  const offset = raw - target;
+  if (side === 0 || Math.abs(offset) <= THROTTLE_CATCH_BAND) return false;
+  return Math.sign(offset) === side;
+}
+
+/**
  * A radio arms only from the bottom of its throttle travel, in every mode —
  * as on the real aircraft. Not 0, and not 5%: an uncalibrated radio parked at
  * the bottom (InterLink among them) reads around -0.9, which is 5% here, and
@@ -317,6 +387,7 @@ export function updateStick(dt: number): void {
   const down = pressed.has(CODE.throttleDown);
 
   // Hand control to whichever device moved last.
+  const before = activeSource;
   if (consumeGamepadActivity()) activeSource = 'gamepad';
   else if (
     up ||
@@ -338,10 +409,22 @@ export function updateStick(dt: number): void {
     stick.roll = gamepadStick.roll * commandScale;
     stick.pitch = gamepadStick.pitch * commandScale;
     stick.yaw = gamepadStick.yaw * commandScale;
+    const flight = useFlightStore.getState();
+    // A controller taking over from the keyboard in the air: its throttle is
+    // wherever it was left, not at the hold point, so it is caught the same way.
+    if (before === 'keyboard' && flight.armed && !flight.onGround) beginThrottleCatch();
+    // A catch only means anything while the aircraft is armed in the mode it was
+    // taken for; disarming or changing mode ends it.
+    if (!flight.armed || flight.mode !== catchMode) throttleCatch = 0;
+    if (throttleCatchHolds(gamepadStick.throttle, throttleCatch, catchTarget)) {
+      stick.throttle = catchTarget;
+      throttleCommanded = false;
+      return;
+    }
+    throttleCatch = 0;
     stick.throttle = gamepadStick.throttle;
     // An Arm refused for a raised throttle: on a radio, the stick reaching the
     // bottom completes it; anywhere else it only clears the notice.
-    const flight = useFlightStore.getState();
     if (flight.armThrottleHigh && throttleSafeToArm()) {
       if (flyingOnRadio() && !flight.armed && flight.onGround) flight.toggleArm();
       else flight.setArmThrottleHigh(false);
@@ -404,6 +487,7 @@ export function resetStick(): void {
   rawYaw = 0;
   // A throttle that rests at centre starts there; a direct one starts at zero.
   stick.throttle = throttleRestsAtCentre(useFlightStore.getState().mode) ? THROTTLE_CENTER : 0;
+  throttleCatch = 0;
   pressed.clear();
 }
 
@@ -577,6 +661,10 @@ export function attachKeyboard(): () => void {
     }
     if (COMMAND_CODES.has(e.code)) {
       e.preventDefault();
+      // Arm and Take off pressed on the keyboard mean the pilot is on the
+      // keyboard. Without this, a radio left plugged in kept the throttle, and
+      // its stick at the bottom flew a keyboard takeoff straight back down.
+      if (e.code === CODE.arm || e.code === CODE.takeoffLand) activeSource = 'keyboard';
       runCommand(e.code);
     } else {
       pressed.add(e.code);
