@@ -42,6 +42,7 @@ import {
   throttleAfterModeChange,
   throttleCatchActive,
   throttleRestsAtCentre,
+  throttleSafeToArm,
 } from '../../input/controls';
 import { useSimStore } from '../../state/simStore';
 import { useSettingsStore } from '../../state/settingsStore';
@@ -625,13 +626,15 @@ export function Drone({ spec, spawn, bounds, outdoor = false, groundY }: DronePr
       controller.captureAltitude(pos.y, lin.y);
       controller.resetIntegrators();
       if (useFlightStore.getState().onGround) {
-        // The arm action already validated the controller's throttle. Do not
-        // require a second low-stick gesture after a valid arm command. A radio
-        // only arms from the bottom of the stick, so that holds in Acro too.
-        // A radio only ever arms from the bottom of the stick, so that holds in
-        // Acro too.
-        if (activeInputSource() === 'gamepad' && (mode !== 'acro' || flyingOnRadio()))
-          controller.unlockThrottle();
+        // Alt Hold and Stabilize arm on any stick now (only Acro refuses), so a
+        // controller armed with its stick raised must not fly off the pad: the
+        // motors wait until the stick has been down once, or a takeoff flies
+        // them. A stick already at rest is live at once. A radio in Acro only
+        // ever arms from the bottom. The keyboard keeps S-before-W everywhere.
+        const live =
+          activeInputSource() === 'gamepad' &&
+          (mode === 'acro' ? flyingOnRadio() : throttleSafeToArm());
+        if (live) controller.unlockThrottle();
         else controller.lockThrottle();
       }
     }

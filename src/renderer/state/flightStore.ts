@@ -133,14 +133,28 @@ export const useFlightStore = create<FlightState>((set, get) => ({
   disarm: () => set({ armed: false, auto: 'manual', armThrottleHigh: false }),
   // Acro has no automatic takeoff or landing: entering it hands a running one
   // back to the pilot, so no assisted thrust is ever flown in Acro.
+  // The throttle-high notice is Acro's alone (see `requestArm`), so leaving Acro
+  // takes a pending one down with it.
   setMode: (mode) =>
-    set((s) => (s.lowBattery ? s : { mode, auto: mode === 'acro' ? 'manual' : s.auto })),
+    set((s) =>
+      s.lowBattery
+        ? s
+        : {
+            mode,
+            auto: mode === 'acro' ? 'manual' : s.auto,
+            armThrottleHigh: mode === 'acro' && s.armThrottleHigh,
+          },
+    ),
   cycleMode: () =>
     set((s) => {
       // The critical-battery landing must not be cancellable.
       if (s.lowBattery) return s;
       const mode = CYCLE[(CYCLE.indexOf(s.mode) + 1) % CYCLE.length];
-      return { mode, auto: mode === 'acro' ? 'manual' : s.auto };
+      return {
+        mode,
+        auto: mode === 'acro' ? 'manual' : s.auto,
+        armThrottleHigh: mode === 'acro' && s.armThrottleHigh,
+      };
     }),
   setAuto: (auto) => set({ auto }),
   setAutoDisarmOnLand: (autoDisarmOnLand) => set({ autoDisarmOnLand }),

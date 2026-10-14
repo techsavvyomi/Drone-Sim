@@ -114,10 +114,10 @@ describe('radio Arm with the throttle up', () => {
     expect(useFlightStore.getState().armed).toBe(false);
   });
 
-  it('a gamepad with the throttle up is refused, notice up', () => {
+  it('in Acro a gamepad with the throttle up is refused, notice up', () => {
     const detach = attachKeyboard();
     useFlightStore.setState({
-      mode: 'stabilize',
+      mode: 'acro',
       armed: false,
       onGround: true,
       armThrottleHigh: false,
@@ -133,6 +133,34 @@ describe('radio Arm with the throttle up', () => {
     expect(useFlightStore.getState().armThrottleHigh).toBe(false);
     expect(useFlightStore.getState().armed).toBe(false);
     detach();
+  });
+
+  // The notice is Acro's alone: Alt Hold and Stabilize arm on any stick.
+  it.each(['stabilize', 'altitude-hold'] as const)(
+    'in %s the throttle up arms at once, with no notice',
+    (mode) => {
+      const detach = attachKeyboard();
+      for (const kind of ['rc', 'standard'] as const) {
+        useFlightStore.setState({ mode, armed: false, onGround: true, armThrottleHigh: false });
+        gamepadLive.kind = kind;
+        gamepadStick.throttle = 0.8;
+        updateStick(1 / 60);
+        pressArm();
+        expect(useFlightStore.getState().armed).toBe(true);
+        expect(useFlightStore.getState().armThrottleHigh).toBe(false);
+        useFlightStore.getState().disarm();
+      }
+      detach();
+    },
+  );
+
+  it('leaving Acro takes a pending notice down', () => {
+    useFlightStore.setState({ mode: 'acro', armed: false, onGround: true, armThrottleHigh: true });
+    useFlightStore.getState().cycleMode();
+    expect(useFlightStore.getState().armThrottleHigh).toBe(false);
+    useFlightStore.setState({ mode: 'acro', armThrottleHigh: true });
+    useFlightStore.getState().setMode('altitude-hold');
+    expect(useFlightStore.getState().armThrottleHigh).toBe(false);
   });
 
   it('in the air it arms at once on any throttle, with no notice', () => {

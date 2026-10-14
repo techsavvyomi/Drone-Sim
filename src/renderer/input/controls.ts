@@ -562,7 +562,11 @@ export function throttleSafeToArm(): boolean {
 function requestArm(): void {
   const flight = useFlightStore.getState();
   if (flight.armed) return;
-  if (!flight.onGround || throttleSafeToArm()) flight.toggleArm();
+  // Only Acro asks for the throttle down first. Alt Hold and Stabilize arm at
+  // once with no notice: a controller armed with its stick raised holds its
+  // motors until the stick has been down once (see the arm edge in
+  // `Drone.tsx`), so the refusal only ever got in the way.
+  if (flight.mode !== 'acro' || !flight.onGround || throttleSafeToArm()) flight.toggleArm();
   else flight.setArmThrottleHigh(true);
 }
 
