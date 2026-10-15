@@ -189,3 +189,24 @@ describe('radio Arm with the throttle up', () => {
     useFlightStore.getState().clearCrash();
   });
 });
+
+// The controller's own Take off button, with its motors idling on the pad.
+describe('controller Take off with the throttle at idle', () => {
+  it.each(['stabilize', 'altitude-hold'] as const)('is refused in %s, allowed off idle', (mode) => {
+    const detach = attachKeyboard();
+    for (const kind of ['rc', 'standard'] as const) {
+      useFlightStore.setState({ mode, armed: true, onGround: true, auto: 'manual' });
+      gamepadLive.kind = kind;
+      gamepadStick.throttle = 0.05;
+      updateStick(1 / 60);
+      padAction.run('takeoffLand');
+      expect(useFlightStore.getState().auto).toBe('manual');
+      gamepadStick.throttle = 0.5;
+      updateStick(1 / 60);
+      padAction.run('takeoffLand');
+      expect(useFlightStore.getState().auto).toBe('takeoff');
+    }
+    useFlightStore.setState({ armed: false, auto: 'manual' });
+    detach();
+  });
+});

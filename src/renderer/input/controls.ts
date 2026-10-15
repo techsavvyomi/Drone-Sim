@@ -570,6 +570,35 @@ function requestArm(): void {
   else flight.setArmThrottleHigh(true);
 }
 
+/**
+ * Armed on the pad with a controller's throttle at idle: the motors are already
+ * spinning because the pilot asked for them, so the throttle is in the pilot's
+ * hands. A Take off now would climb out on a stick that says idle. The pilot
+ * flies off with the stick, or raises it off idle before pressing Take off.
+ */
+function controllerIdlingOnPad(source: Source = activeSource): boolean {
+  const flight = useFlightStore.getState();
+  return (
+    flight.armed &&
+    flight.onGround &&
+    source === 'gamepad' &&
+    gamepadConnected() &&
+    // A radio parked at the bottom can read a little off zero; it counts as
+    // idle wherever it would count for arming.
+    gamepadStick.throttle <= (gamepadLive.kind === 'rc' ? RADIO_ARM_STICK : IDLE_STICK)
+  );
+}
+
+/**
+ * Take off or land, unless a controller is idling its motors on the pad. A
+ * controller's own button speaks for the controller, even before its stick has
+ * moved since a keyboard arm.
+ */
+function requestTakeoffLand(source: Source = activeSource): void {
+  if (controllerIdlingOnPad(source)) return;
+  useFlightStore.getState().requestTakeoffLand();
+}
+
 function runCommand(code: string): void {
   if (useFlightStore.getState().paused && !WHILE_PAUSED.has(code)) return;
   switch (code) {
@@ -584,7 +613,7 @@ function runCommand(code: string): void {
       break;
     }
     case CODE.takeoffLand:
-      useFlightStore.getState().requestTakeoffLand();
+      requestTakeoffLand();
       break;
     case CODE.camera:
       useUiStore.getState().cycleCameraMode();
@@ -640,7 +669,7 @@ function runGamepadAction(action: GamepadAction): void {
       flight.disarm();
       break;
     case 'takeoffLand':
-      flight.requestTakeoffLand();
+      requestTakeoffLand('gamepad');
       break;
     case 'modeCycle':
       flight.cycleMode();
@@ -665,6 +694,9 @@ export function attachKeyboard(): () => void {
     }
     if (COMMAND_CODES.has(e.code)) {
       e.preventDefault();
+      // Refused before the keyboard takes over below, which would hide the
+      // controller's idling stick from the check.
+      if (e.code === CODE.takeoffLand && controllerIdlingOnPad()) return;
       // Arm and Take off pressed on the keyboard mean the pilot is on the
       // keyboard. Without this, a radio left plugged in kept the throttle, and
       // its stick at the bottom flew a keyboard takeoff straight back down.

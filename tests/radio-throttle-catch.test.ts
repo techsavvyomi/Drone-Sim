@@ -202,3 +202,37 @@ describe('Stabilize on a controller after an auto-takeoff', () => {
     expect(throttleCatchActive()).toBe(false);
   });
 });
+
+// Armed on the pad with the controller's throttle at idle, the motors are
+// already spinning on the pilot's command: Take off must not climb out on a
+// stick that says idle. Off idle — the stick raised to mid — it still does.
+describe('Take off with a controller idling its motors on the pad', () => {
+  function pressSpace(): void {
+    const detach = attachKeyboard();
+    window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Space' }));
+    detach();
+  }
+
+  it.each(['altitude-hold', 'stabilize'] as const)('is refused in %s', (mode) => {
+    for (const kind of ['rc', 'standard'] as const) {
+      useFlightStore.setState({ mode, armed: true, onGround: true, auto: 'manual' });
+      gamepadLive.kind = kind;
+      gamepadStick.throttle = 0;
+      updateStick(DT);
+      pressSpace();
+      expect(useFlightStore.getState().auto).toBe('manual');
+      expect(activeInputSource()).toBe('gamepad');
+    }
+  });
+
+  it.each(['altitude-hold', 'stabilize'] as const)(
+    'still flies with the stick at mid in %s',
+    (mode) => {
+      useFlightStore.setState({ mode, armed: true, onGround: true, auto: 'manual' });
+      gamepadStick.throttle = 0.5;
+      updateStick(DT);
+      pressSpace();
+      expect(useFlightStore.getState().auto).toBe('takeoff');
+    },
+  );
+});
