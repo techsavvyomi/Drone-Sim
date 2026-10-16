@@ -93,6 +93,11 @@ function isProfileOf(p: unknown, userId: string | undefined): p is UserProfile {
   );
 }
 
+/** "Remember me on this computer" at sign-in. Unset counts as ticked. */
+export interface RememberOpt {
+  remember?: boolean;
+}
+
 const NOT_SIGNED_IN: ApiError = { success: false, code: 'AUTH_INVALID', message: 'Not signed in' };
 const OFFLINE: ApiError = {
   success: false,
@@ -177,16 +182,61 @@ export class BackendService {
     };
   }
 
-  async activate(req: Omit<ActivateUserRequest, keyof DeviceInfo>): Promise<AccountResult> {
+  // `remember` stays here: it decides whether this computer keeps the key for
+  // the email-only sign-in, and is never sent to the backend.
+  async activate({
+    remember = true,
+    ...req
+  }: Omit<ActivateUserRequest, keyof DeviceInfo> & RememberOpt): Promise<AccountResult> {
     if (this.offline()) return this.signInOffline(req.email, req.activationKey, OFFLINE);
     const device = await this.deps.device();
-    return this.signIn(this.sendSignIn('activateUser', { ...req, ...device }), req);
+    return this.signIn(this.sendSignIn('activateUser', { ...req, ...device }), req, remember);
   }
 
-  async login(req: Omit<LoginUserRequest, keyof DeviceInfo>): Promise<AccountResult> {
+  async login({
+    remember = true,
+    ...req
+  }: Omit<LoginUserRequest, keyof DeviceInfo> & RememberOpt): Promise<AccountResult> {
     if (this.offline()) return this.signInOffline(req.email, req.activationKey, OFFLINE);
     const device = await this.deps.device();
-    return this.signIn(this.sendSignIn('loginUser', { ...req, ...device }), req);
+    return this.signIn(this.sendSignIn('loginUser', { ...req, ...device }), req, remember);
+  }
+
+  /**
+   * Whether `email` can sign in here with no key: it signed in on this computer
+   * with "Remember me" ticked, and the OS can still decrypt what it kept.
+   */
+  hasSavedKey(email: string): boolean {
+    return this.savedKey(email) !== null;
+  }
+
+  /**
+   * Sign in with the key this computer kept for `email` (the user, 2026-10-16:
+   * the key is typed once per computer, then the email is enough). Online it
+   * is an ordinary login, so the one-computer-at-a-time check still runs; offline
+   * the stored hash checks it as before.
+   */
+  async loginSaved(req: { email: string; signOutOtherDevices?: boolean }): Promise<AccountResult> {
+    const key = this.savedKey(req.email);
+    if (!key) {
+      return {
+        success: false,
+        code: 'INVALID_CREDENTIALS',
+        message: 'No key is saved for this email on this computer. Type your key.',
+      };
+    }
+    return this.login({ ...req, activationKey: key, remember: true });
+  }
+
+  private savedKey(email: string): string | null {
+    if (!email || !this.deps.codec.available()) return null;
+    const pilot = this.withLocal((l) => l.pilotByEmail(email));
+    if (!pilot?.keyCipher) return null;
+    try {
+      return this.deps.codec.decrypt(pilot.keyCipher) || null;
+    } catch {
+      return null;
+    }
   }
 
   /**
@@ -367,6 +417,7 @@ export class BackendService {
   private async signIn(
     pending: Promise<ApiResponse<AuthResult>>,
     creds: { email: string; activationKey: string },
+    remember: boolean,
   ): Promise<AccountResult> {
     const res = await pending;
     // No internet after all: a pilot known here signs in from this computer.
@@ -381,7 +432,7 @@ export class BackendService {
     this.authReason = null;
     this.historySynced = false;
     await this.persistAccounts();
-    await this.rememberPilot(userId, profile, creds);
+    await this.rememberPilot(userId, profile, creds, remember);
     this.outbox.unblock(userId);
     this.deps.notify(this.account());
     void this.syncHistory();
@@ -400,11 +451,17 @@ export class BackendService {
     };
   }
 
-  /** Keep what an offline sign-in checks against: the key's hash, and the key OS-encrypted. */
+  /**
+   * Keep what an offline sign-in checks against: the key's hash, and (with
+   * `remember`) the key OS-encrypted, which the email-only sign-in and the
+   * reconnect after an offline sign-in both send. Unticked, a key kept by an
+   * earlier sign-in is dropped.
+   */
   private async rememberPilot(
     userId: string,
     profile: UserProfile,
     creds: { email: string; activationKey: string },
+    remember: boolean,
   ): Promise<void> {
     const local = this.deps.local;
     if (!local) return;
@@ -412,7 +469,7 @@ export class BackendService {
       const { salt, hash } = await hashKey(creds.activationKey);
       // Never stored in plain text: without the OS keychain the app asks again instead.
       let keyCipher: string | null = null;
-      if (this.deps.codec.available())
+      if (remember && this.deps.codec.available())
         keyCipher = this.deps.codec.encrypt(creds.activationKey.trim().toUpperCase());
       local.savePilot(
         {

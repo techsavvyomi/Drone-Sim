@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type ClipboardEvent, type FormEve
 import { useAccountStore } from '../state/accountStore';
 import { useSettingsStore } from '../state/settingsStore';
 import { listDrones } from '../plugins/registry';
-import { Button, Icon, Keycap, SegmentedControl, TextInput } from '../ds';
+import { Button, Checkbox, Icon, Keycap, SegmentedControl, TextInput } from '../ds';
 import { ConnectionChip } from './ConnectionChip';
 import { HangarScene } from './HangarScene';
 import { QuitConfirmDialog } from './QuitConfirmDialog';
@@ -32,6 +32,13 @@ import logoMark from '../../assets/brand/plutosim-mark.svg';
 // activationKey.ts. Every error names what to do next and sits where the fix
 // is: a wrong key under the key (focus goes back to it), a problem with the
 // account or the connection as a banner above the button.
+//
+// The key is typed once per computer. With "Remember me on this computer"
+// ticked (the default) the last pilot's card signs in with the email alone,
+// using the key the main process kept OS-encrypted (the user, 2026-10-16, after
+// a tester could not remember the key). Only that card: a pilot typing another
+// email still needs the key, so on a shared computer nobody can open a
+// classmate's profile by typing their email.
 //
 // A profile is signed in on one computer at a time. Signing in while another
 // computer still is brings up "Sign out of all devices"; confirming signs in
@@ -66,6 +73,8 @@ export function SignIn() {
   const signInReason = useAccountStore((s) => s.signInReason);
   const activate = useAccountStore((s) => s.activate);
   const login = useAccountStore((s) => s.login);
+  const loginSaved = useAccountStore((s) => s.loginSaved);
+  const hasSavedKey = useAccountStore((s) => s.hasSavedKey);
   const lastPilot = useSettingsStore((s) => s.settings.lastPilot);
   const drone = useMemo(() => {
     const all = listDrones();
@@ -89,6 +98,11 @@ export function SignIn() {
   // The computer this profile is signed in on, while asking whether to sign it out there.
   const [elsewhere, setElsewhere] = useState<string | null>(null);
   const [confirmQuit, setConfirmQuit] = useState(false);
+  const [remember, setRemember] = useState(true);
+  // This computer kept the welcomed pilot's key, and the pilot has not asked
+  // to type it instead.
+  const [savedKey, setSavedKey] = useState(false);
+  const [typeKey, setTypeKey] = useState(false);
 
   const refs = {
     name: useRef<HTMLInputElement>(null),
@@ -107,6 +121,31 @@ export function SignIn() {
 
   const welcome = mode === 'login' && remembered && !notYou ? remembered : null;
   const sendEmail = welcome ? welcome.email : email;
+  const keyless = !!welcome && savedKey && !typeKey;
+
+  const welcomeEmail = remembered?.email ?? null;
+  useEffect(() => {
+    if (!welcomeEmail) return;
+    let live = true;
+    void hasSavedKey(welcomeEmail).then(
+      (yes) => {
+        if (!live || !yes) return;
+        setSavedKey(true);
+        // Nothing to type: Enter signs in.
+        setTimeout(() => submitRef.current?.focus(), 0);
+      },
+      () => undefined,
+    );
+    return () => {
+      live = false;
+    };
+  }, [welcomeEmail, hasSavedKey]);
+
+  const typeKeyInstead = () => {
+    setTypeKey(true);
+    setErrors({});
+    setTimeout(() => refs.key.current?.focus(), 0);
+  };
 
   // Focus where the pilot starts typing: the key for a remembered pilot, the
   // first empty field otherwise. Not on a mode switch made from the switch
@@ -148,10 +187,11 @@ export function SignIn() {
     setBanner(null);
     try {
       const key = fullKey(keyBody);
-      const res =
-        mode === 'activate'
-          ? await activate(name, sendEmail, key, signOutOtherDevices)
-          : await login(sendEmail, key, signOutOtherDevices);
+      const res = keyless
+        ? await loginSaved(sendEmail, signOutOtherDevices)
+        : mode === 'activate'
+          ? await activate(name, sendEmail, key, signOutOtherDevices, remember)
+          : await login(sendEmail, key, signOutOtherDevices, remember);
       // On success the main process pushes the new account and this screen
       // unmounts; nothing more to do here.
       if (res.success) return;
@@ -161,6 +201,13 @@ export function SignIn() {
         return;
       }
       setElsewhere(null);
+      if (keyless && res.code === 'INVALID_CREDENTIALS') {
+        // The kept key no longer opens the profile: ask for the key itself.
+        setTypeKey(true);
+        setErrors({ key: 'The key saved on this computer did not work. Type your key.' });
+        setTimeout(() => refs.key.current?.focus(), 0);
+        return;
+      }
       const text =
         res.code === 'DEVICE_MISMATCH' ? res.message : (ERROR_TEXT[res.code] ?? res.message);
       const place = errorPlace(res.code);
@@ -194,6 +241,11 @@ export function SignIn() {
     if (busy) return;
     if (elsewhere) {
       void send(true);
+      return;
+    }
+    if (keyless) {
+      setErrors({});
+      void send(false);
       return;
     }
     const problems = checkForm({ mode, name, email: sendEmail, keyBody });
@@ -260,11 +312,11 @@ export function SignIn() {
       : [
           [
             'Email and key',
-            'Use the ones you activated with. Your flights, stars and XP load from your profile.',
+            'Use the ones you activated with. After that, a computer that remembers you needs only your email.',
           ],
           [
             'Shared computer',
-            'PlutoSim remembers the last pilot on this computer. If that isn’t you, press Not you? first.',
+            'PlutoSim remembers the last pilot on this computer. If that isn’t you, press Not you? first. Untick Remember me on a computer others use.',
           ],
         ];
 
@@ -374,24 +426,45 @@ export function SignIn() {
             </div>
           )}
 
-          <TextInput
-            ref={refs.key}
-            label="Activation key"
-            labelAside={`${keyBody.length} / ${KEY_LENGTH}`}
-            prefix={KEY_PREFIX}
-            placeholder="XXXX-XXXX"
-            mono
-            className="acct-key"
-            value={parseKeyInput(keyBody).display}
-            onChange={onKeyChange}
-            onPaste={onKeyPaste}
-            error={errors.key}
-            hint={keyHint}
-            suffix={keyMark}
-            autoComplete="off"
-            spellCheck={false}
-            autoCapitalize="characters"
-          />
+          {keyless ? (
+            <p className="acct-saved">
+              <Icon name="check" />
+              <span>
+                Your key is saved on this computer. Press Sign in.{' '}
+                <button type="button" className="acct-saved__other" onClick={typeKeyInstead}>
+                  Type my key instead
+                </button>
+              </span>
+            </p>
+          ) : (
+            <>
+              <TextInput
+                ref={refs.key}
+                label="Activation key"
+                labelAside={`${keyBody.length} / ${KEY_LENGTH}`}
+                prefix={KEY_PREFIX}
+                placeholder="XXXX-XXXX"
+                mono
+                className="acct-key"
+                value={parseKeyInput(keyBody).display}
+                onChange={onKeyChange}
+                onPaste={onKeyPaste}
+                error={errors.key}
+                hint={keyHint}
+                suffix={keyMark}
+                autoComplete="off"
+                spellCheck={false}
+                autoCapitalize="characters"
+              />
+              <Checkbox
+                checked={remember}
+                onChange={setRemember}
+                hint="Next time, sign in here with your email only. Untick on a shared computer."
+              >
+                Remember me on this computer
+              </Checkbox>
+            </>
+          )}
 
           <dl className="acct-help">
             {help.map(([term, text]) => (

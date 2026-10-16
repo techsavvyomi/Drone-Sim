@@ -192,6 +192,11 @@ describe('where an error is shown', () => {
 
 type Send = (...args: unknown[]) => Promise<AccountResult>;
 
+/** Flip the mode switch to Sign in. */
+function switchToSignIn(el: HTMLElement) {
+  act(() => $$(el, '[role="radio"]').find((r) => r.textContent?.includes('Sign in'))!.click());
+}
+
 describe('the Activate / Sign in screen', () => {
   let activate: ReturnType<typeof vi.fn<Send>>;
   let login: ReturnType<typeof vi.fn<Send>>;
@@ -279,7 +284,7 @@ describe('the Activate / Sign in screen', () => {
     const el = mount(h(SignIn));
     fillActivate(el);
     await submit(el);
-    expect(activate).toHaveBeenCalledWith('Asha Rao', 'asha@school.org', 'PLUTO-SIM-7KQ4-M2XP', false);
+    expect(activate).toHaveBeenCalledWith('Asha Rao', 'asha@school.org', 'PLUTO-SIM-7KQ4-M2XP', false, true);
     const k = byLabel(el, 'Activation key');
     expect(document.activeElement).toBe(k);
     expect(k.getAttribute('aria-invalid')).toBe('true');
@@ -313,7 +318,7 @@ describe('the Activate / Sign in screen', () => {
     expect(document.activeElement?.textContent).toContain('Sign out of all devices');
     activate.mockResolvedValueOnce({ success: false, code: 'SERVER_ERROR', message: 'x' });
     await submit(el);
-    expect(activate).toHaveBeenLastCalledWith('Asha Rao', 'asha@school.org', 'PLUTO-SIM-7KQ4-M2XP', true);
+    expect(activate).toHaveBeenLastCalledWith('Asha Rao', 'asha@school.org', 'PLUTO-SIM-7KQ4-M2XP', true, true);
   });
 
   it('← → on the mode switch flips to Sign in, which has no Name field', () => {
@@ -336,13 +341,95 @@ describe('the Activate / Sign in screen', () => {
     expect(document.activeElement).toBe(byLabel(el, 'Activation key'));
     type(byLabel(el, 'Activation key'), '7KQ4M2XP');
     await submit(el);
-    expect(login).toHaveBeenCalledWith('asha@school.org', 'PLUTO-SIM-7KQ4-M2XP', false);
+    expect(login).toHaveBeenCalledWith('asha@school.org', 'PLUTO-SIM-7KQ4-M2XP', false, true);
 
     vi.useFakeTimers();
     act(() => buttonNamed(el, 'Not you?').click());
     act(() => vi.runAllTimers());
     expect(document.activeElement).toBe(byLabel(el, 'Email'));
     expect(byLabel(el, 'Email').value).toBe('');
+  });
+
+  it('Remember me is ticked by default, and unticked it is sent as false', async () => {
+    login.mockResolvedValue({ success: false, code: 'INVALID_CREDENTIALS', message: 'x' });
+    const el = mount(h(SignIn));
+    switchToSignIn(el);
+    const tick = $(el, '[role="checkbox"]');
+    expect(tick.textContent).toContain('Remember me on this computer');
+    expect(tick.getAttribute('aria-checked')).toBe('true');
+    act(() => tick.click());
+    type(byLabel(el, 'Email'), 'asha@school.org');
+    type(byLabel(el, 'Activation key'), '7KQ4M2XP');
+    await submit(el);
+    expect(login).toHaveBeenCalledWith('asha@school.org', 'PLUTO-SIM-7KQ4-M2XP', false, false);
+  });
+
+  describe('a key saved on this computer (email-only sign-in)', () => {
+    let loginSaved: ReturnType<typeof vi.fn<Send>>;
+    beforeEach(() => {
+      loginSaved = vi.fn<Send>();
+      useAccountStore.setState({
+        loginSaved: loginSaved as never,
+        hasSavedKey: vi.fn(async (email: string) => email === 'asha@school.org'),
+      });
+      useSettingsStore.setState({
+        settings: { ...DEFAULT_SETTINGS, lastPilot: { name: 'Asha Rao', email: 'asha@school.org' } },
+      });
+    });
+
+    async function mountSaved() {
+      const el = mount(h(SignIn));
+      await act(async () => {});
+      return el;
+    }
+
+    it('the last pilot signs in with no key field at all', async () => {
+      loginSaved.mockResolvedValue({ success: true } as never);
+      const el = await mountSaved();
+      expect([...el.querySelectorAll('label')].map((l) => l.textContent)).not.toContain('Activation key');
+      expect(el.textContent).toContain('Your key is saved on this computer.');
+      await submit(el);
+      expect(loginSaved).toHaveBeenCalledWith('asha@school.org', false);
+      expect(login).not.toHaveBeenCalled();
+    });
+
+    it('a saved key that no longer works brings the key field back, with the focus', async () => {
+      loginSaved.mockResolvedValue({ success: false, code: 'INVALID_CREDENTIALS', message: 'x' });
+      vi.useFakeTimers({ toFake: ['setTimeout'] });
+      const el = await mountSaved();
+      await submit(el);
+      act(() => vi.runAllTimers());
+      const k = byLabel(el, 'Activation key');
+      expect(document.activeElement).toBe(k);
+      expect(el.textContent).toContain('The key saved on this computer did not work. Type your key.');
+    });
+
+    it('Type my key instead shows the key field', async () => {
+      const el = await mountSaved();
+      act(() => buttonNamed(el, 'Type my key instead').click());
+      expect(byLabel(el, 'Activation key')).toBeTruthy();
+    });
+
+    it('Not you? (another email) always needs the key', async () => {
+      const el = await mountSaved();
+      act(() => buttonNamed(el, 'Not you?').click());
+      expect(byLabel(el, 'Activation key')).toBeTruthy();
+      expect(byLabel(el, 'Email')).toBeTruthy();
+    });
+
+    it('signed in elsewhere: continuing still uses the saved key', async () => {
+      loginSaved.mockResolvedValueOnce({
+        success: false,
+        code: 'SIGNED_IN_ELSEWHERE',
+        message: 'x',
+        deviceName: 'Lab-PC-4 (Windows)',
+      });
+      const el = await mountSaved();
+      await submit(el);
+      loginSaved.mockResolvedValueOnce({ success: true } as never);
+      await submit(el);
+      expect(loginSaved).toHaveBeenLastCalledWith('asha@school.org', true);
+    });
   });
 
   it('a pilot whose sign-in expired is welcomed back too, with the reason', () => {

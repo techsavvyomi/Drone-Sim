@@ -43,8 +43,17 @@ interface AccountState {
     email: string,
     key: string,
     signOutOtherDevices?: boolean,
+    remember?: boolean,
   ) => Promise<AccountResult>;
-  login: (email: string, key: string, signOutOtherDevices?: boolean) => Promise<AccountResult>;
+  login: (
+    email: string,
+    key: string,
+    signOutOtherDevices?: boolean,
+    remember?: boolean,
+  ) => Promise<AccountResult>;
+  /** Email-only sign-in with the key this computer kept. */
+  loginSaved: (email: string, signOutOtherDevices?: boolean) => Promise<AccountResult>;
+  hasSavedKey: (email: string) => Promise<boolean>;
   /** `forget`: also remove this pilot's offline sign-in and flight log here. */
   signOut: (forget?: boolean) => Promise<void>;
   refresh: () => Promise<void>;
@@ -124,9 +133,12 @@ export const useAccountStore = create<AccountState>((set, get) => {
       };
     },
 
-    activate: (name, email, key, signOutOtherDevices) =>
-      UserService.activate(name, email, key, signOutOtherDevices),
-    login: (email, key, signOutOtherDevices) => UserService.login(email, key, signOutOtherDevices),
+    activate: (name, email, key, signOutOtherDevices, remember) =>
+      UserService.activate(name, email, key, signOutOtherDevices, remember),
+    login: (email, key, signOutOtherDevices, remember) =>
+      UserService.login(email, key, signOutOtherDevices, remember),
+    loginSaved: (email, signOutOtherDevices) => UserService.loginSaved(email, signOutOtherDevices),
+    hasSavedKey: (email) => UserService.hasSavedKey(email),
     signOut: (forget) => UserService.signOut(forget),
     refresh: async () => {
       await UserService.refreshProfile();

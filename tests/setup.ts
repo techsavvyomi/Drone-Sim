@@ -35,6 +35,8 @@ beforeEach(() => {
       get: vi.fn(async () => ({ configured: false, profile: null, needsSignIn: false, signInReason: null })),
       activate: vi.fn(),
       login: vi.fn(),
+      hasSavedKey: vi.fn(async () => false),
+      loginSaved: vi.fn(),
       signOut: vi.fn(async () => undefined),
       refreshProfile: vi.fn(),
       dashboard: vi.fn(),

@@ -262,6 +262,26 @@
   color: var(--fail);
 }
 
+/* "Your key is saved on this computer": the email-only sign-in. */
+.acct-saved {
+  display: flex;
+  gap: var(--space-2);
+  align-items: baseline;
+  margin: 0;
+  font: var(--type-body-sm);
+  color: var(--txt-mid);
+}
+
+.acct-saved__other {
+  padding: 0;
+  font: inherit;
+  color: var(--txt-hi);
+  text-decoration: underline;
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+
 .acct-hint {
   display: inline-flex;
   gap: var(--space-2);

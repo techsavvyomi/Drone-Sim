@@ -22,24 +22,45 @@ export const UserService = {
   },
 
   /** `signOutOtherDevices` after SIGNED_IN_ELSEWHERE, once the pilot has confirmed. */
+  /** `remember`: "Remember me on this computer", so the next sign-in here needs only the email. */
   activate(
     name: string,
     email: string,
     activationKey: string,
     signOutOtherDevices = false,
+    remember = true,
   ): Promise<AccountResult> {
     return profileBackend().account.activate({
       name: name.trim(),
       email: email.trim().toLowerCase(),
       activationKey: normaliseActivationKey(activationKey),
       signOutOtherDevices,
+      remember,
     });
   },
 
-  login(email: string, activationKey: string, signOutOtherDevices = false): Promise<AccountResult> {
+  login(
+    email: string,
+    activationKey: string,
+    signOutOtherDevices = false,
+    remember = true,
+  ): Promise<AccountResult> {
     return profileBackend().account.login({
       email: email.trim().toLowerCase(),
       activationKey: normaliseActivationKey(activationKey),
+      signOutOtherDevices,
+      remember,
+    });
+  },
+
+  hasSavedKey(email: string): Promise<boolean> {
+    return profileBackend().account.hasSavedKey(email.trim().toLowerCase());
+  },
+
+  /** Sign in with the key this computer kept: the email alone. */
+  loginSaved(email: string, signOutOtherDevices = false): Promise<AccountResult> {
+    return profileBackend().account.loginSaved({
+      email: email.trim().toLowerCase(),
       signOutOtherDevices,
     });
   },

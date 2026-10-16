@@ -14,7 +14,7 @@ import type {
 } from '@shared/backend/contract';
 import type { SessionEnd, SessionStart } from '@shared/backend/ipc';
 import { backendUrl } from './config';
-import { BackendService, type AccountFile } from './service';
+import { BackendService, type AccountFile, type RememberOpt } from './service';
 import { sendRequest } from './transport';
 import type { OutboxState } from './outbox';
 
@@ -167,14 +167,31 @@ export async function registerBackend(): Promise<BackendService> {
     await ready;
     return service.account();
   });
-  ipcMain.handle(IPC.accountActivate, async (_e, req: Omit<ActivateUserRequest, keyof DeviceInfo>) => {
-    await ready;
-    return service.activate(req);
-  });
-  ipcMain.handle(IPC.accountLogin, async (_e, req: Omit<LoginUserRequest, keyof DeviceInfo>) => {
+  ipcMain.handle(
+    IPC.accountActivate,
+    async (_e, req: Omit<ActivateUserRequest, keyof DeviceInfo> & RememberOpt) => {
+      await ready;
+      return service.activate(req);
+    },
+  );
+  ipcMain.handle(IPC.accountLogin, async (_e, req: Omit<LoginUserRequest, keyof DeviceInfo> & RememberOpt) => {
     await ready;
     return service.login(req);
   });
+  ipcMain.handle(IPC.accountHasSavedKey, async (_e, email: unknown) => {
+    await ready;
+    return typeof email === 'string' && service.hasSavedKey(email);
+  });
+  ipcMain.handle(
+    IPC.accountLoginSaved,
+    async (_e, req: { email?: unknown; signOutOtherDevices?: unknown }) => {
+      await ready;
+      return service.loginSaved({
+        email: typeof req?.email === 'string' ? req.email : '',
+        signOutOtherDevices: req?.signOutOtherDevices === true,
+      });
+    },
+  );
   ipcMain.handle(IPC.accountSignOut, async (_e, opts?: { forget?: boolean }) => {
     await ready;
     return service.signOut({ forget: opts?.forget === true });

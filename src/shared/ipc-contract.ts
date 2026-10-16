@@ -31,6 +31,8 @@ export const IPC = {
   accountGet: 'account:get',
   accountActivate: 'account:activate',
   accountLogin: 'account:login',
+  accountHasSavedKey: 'account:has-saved-key',
+  accountLoginSaved: 'account:login-saved',
   accountSignOut: 'account:sign-out',
   accountRefresh: 'account:refresh',
   accountDashboard: 'account:dashboard',
@@ -70,8 +72,15 @@ export interface IpcApi {
   account: {
     get(): Promise<AccountInfo>;
     /** The device fields are added by the main process. */
-    activate(req: Omit<ActivateUserRequest, keyof DeviceInfo>): Promise<AccountResult>;
-    login(req: Omit<LoginUserRequest, keyof DeviceInfo>): Promise<AccountResult>;
+    /** `remember`: keep the key on this computer for the email-only sign-in (default true). */
+    activate(
+      req: Omit<ActivateUserRequest, keyof DeviceInfo> & { remember?: boolean },
+    ): Promise<AccountResult>;
+    login(req: Omit<LoginUserRequest, keyof DeviceInfo> & { remember?: boolean }): Promise<AccountResult>;
+    /** Whether this computer kept a key for `email`, so it can sign in with the email alone. */
+    hasSavedKey(email: string): Promise<boolean>;
+    /** Sign in with the key this computer kept for `email`. */
+    loginSaved(req: { email: string; signOutOtherDevices?: boolean }): Promise<AccountResult>;
     /** `forget`: also remove this pilot's offline sign-in and flight log from this computer. */
     signOut(opts?: { forget?: boolean }): Promise<void>;
     refreshProfile(): Promise<ApiResponse<UserProfile>>;
