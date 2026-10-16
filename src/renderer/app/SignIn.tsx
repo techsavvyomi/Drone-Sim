@@ -441,11 +441,7 @@ export function SignIn() {
                 spellCheck={false}
                 autoCapitalize="characters"
               />
-              <Checkbox
-                checked={remember}
-                onChange={setRemember}
-                hint="Next time, just your email. Untick on a shared computer."
-              >
+              <Checkbox checked={remember} onChange={setRemember}>
                 Remember me on this computer
               </Checkbox>
             </>
