@@ -300,16 +300,10 @@ export function SignIn() {
     ? (signInReason ?? 'Your sign-in has expired. Enter your key to carry on.')
     : null;
 
-  const help: [string, string][] =
-    mode === 'activate'
-      ? [
-          ['Activation key', 'Links PlutoSim to your email. You enter it only once.'],
-          ['Name', 'Shown on your pilot profile.'],
-        ]
-      : [
-          ['Email and key', 'Use the ones you activated with.'],
-          ['Shared computer', 'Untick Remember me so the next pilot starts fresh.'],
-        ];
+  const help: [string, string][] = [
+    ['Email and key', 'Use the ones you activated with.'],
+    ['Shared computer', 'Untick Remember me so the next pilot starts fresh.'],
+  ];
 
   return (
     <div className="acct" data-register="classroom">
@@ -457,9 +451,10 @@ export function SignIn() {
             </>
           )}
 
-          {/* Welcome back needs no help box: the card already names the pilot and
-              carries Not you? for anyone else. */}
-          {!welcome && (
+          {/* Only a plain sign-in carries a help box. Activate's fields explain
+              themselves, and Welcome back already names the pilot and carries
+              Not you? for anyone else. */}
+          {mode === 'login' && !welcome && (
             <dl className="acct-help">
               {help.map(([term, text]) => (
                 <div key={term}>
