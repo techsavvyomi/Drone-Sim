@@ -111,7 +111,7 @@ describe('thresholds and drain', () => {
   it('TC-087 TC-088 TC-089 the three thresholds are ordered and correct', () => {
     expect(BATTERY_WARNING_V).toBe(3.5);
     expect(BATTERY_CRITICAL_V).toBe(3.3);
-    expect(BATTERY_CUTOFF_V).toBe(3.2);
+    expect(BATTERY_CUTOFF_V).toBe(3.0);
     expect(BATTERY_WARNING_V).toBeGreaterThan(BATTERY_CRITICAL_V);
     expect(BATTERY_CRITICAL_V).toBeGreaterThan(BATTERY_CUTOFF_V);
   });
@@ -177,5 +177,26 @@ describe('multi-cell packs reach the limits', () => {
 
     expect(s.cellVoltage).toBeCloseTo(4.2, 2);
     expect(s.restingVoltage).toBeCloseTo(16.8, 1);
+  });
+
+  it('the 4S FPV packs are 14.8 V nominal and bottom out at 12.0 V', () => {
+    for (const drone of [guruDrone, racingDrone]) {
+      expect(drone.battery.nominalV).toBe(14.8);
+      const b = new Battery(drone.battery);
+      let s = b.update(HOVER, HOVER, 0);
+      for (let t = 0; t < 30 * 60; t++) s = b.update(1, HOVER, 1);
+      expect(s.restingVoltage).toBeCloseTo(12.0, 2);
+      expect(s.voltage).toBeGreaterThanOrEqual(12.0 - 1e-9);
+    }
+  });
+
+  it('the 1S Pluto pack is 4.2 V full, 3.7 V nominal, 3.0 V minimum', () => {
+    expect(plutoDrone.battery.nominalV).toBe(3.7);
+    const b = new Battery(plutoDrone.battery);
+    expect(b.update(HOVER, HOVER, 0).restingVoltage).toBeCloseTo(4.2, 2);
+    let s = b.update(HOVER, HOVER, 0);
+    for (let t = 0; t < 30 * 60; t++) s = b.update(1, HOVER, 1);
+    expect(s.restingVoltage).toBeCloseTo(3.0, 2);
+    expect(s.voltage).toBeGreaterThanOrEqual(3.0 - 1e-9);
   });
 });

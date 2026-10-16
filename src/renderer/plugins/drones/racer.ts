@@ -60,7 +60,7 @@ export const racingDrone: DroneSpec = {
   battery: {
     cells: 4,
     capacityMah: 1800,
-    nominalV: 3.7,
+    nominalV: 14.8,
     internalResistance: 0.012,
   },
   // Descriptive: nothing reads this yet. Solved the same way as the other two —

@@ -1,7 +1,8 @@
 import type { BatterySpec } from '@shared/types';
 import { clamp } from '../mathx';
 
-// 1S LiPo model.
+// LiPo model, per cell: 4.2 V full, 3.7 V nominal, 3.0 V minimum — so the
+// 1S Pluto reads 4.2 / 3.7 / 3.0 V and the 4S FPV packs 16.8 / 14.8 / 12.0 V.
 //
 // Voltage is NOT a linear function of charge — a real LiPo sits near 3.7-3.85 V
 // for most of the flight and then falls off a cliff. That shape is what makes
@@ -20,12 +21,12 @@ const CURVE: [number, number][] = [
   [0.4, 3.7],
   [0.2, 3.5],
   [0.05, 3.3],
-  [0.0, 3.2],
+  [0.0, 3.0],
 ];
 
 export const BATTERY_WARNING_V = 3.5;
 export const BATTERY_CRITICAL_V = 3.3;
-export const BATTERY_CUTOFF_V = 3.2;
+export const BATTERY_CUTOFF_V = 3.0;
 
 /** Drain multipliers relative to hover, per the flight-condition table. */
 const IDLE_MULTIPLIER = 0.3;
@@ -130,7 +131,7 @@ export class Battery {
     // Sag relative to hover: zero at hover, ~0.13 V at full throttle, and a
     // small rise at idle when the pack is barely loaded.
     const sag = (multiplier - HOVER_MULTIPLIER) * SAG_PER_MULTIPLIER * this.cells;
-    const voltage = Math.max(restingVoltage - sag, this.cells * 2.9);
+    const voltage = Math.max(restingVoltage - sag, this.cells * BATTERY_CUTOFF_V);
 
     this.consumedMah += (current * 1000 * dt) / 3600;
 
