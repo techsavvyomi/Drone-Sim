@@ -340,7 +340,7 @@ export function SignIn() {
             {welcome
               ? `Welcome back, ${firstName(welcome.name)}`
               : mode === 'activate'
-                ? 'Activate PlutoSim'
+                ? 'Welcome to PlutoSim'
                 : 'Sign in'}
           </h1>
 
