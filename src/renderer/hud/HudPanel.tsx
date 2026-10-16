@@ -15,6 +15,7 @@ const PAD_ACTIONS = Object.keys(GAMEPAD_ACTION_LABELS) as GamepadAction[];
 // so the live HUD beside it is the preview. One row per widget with where it
 // sits and a ✓ ON / ○ OFF switch, Reset to default, and the key list that used
 // to be the H controls panel. The same switches live in Settings → Interface.
+// With a controller on, its buttons come first, above the switches.
 
 export function HudPanel() {
   const hud = useSettingsStore((s) => s.settings.hud);
@@ -39,6 +40,23 @@ export function HudPanel() {
         </button>
       </header>
       <div className="tdock__body">
+        {gamepad.enabled && (
+          <section className="tdock__sec hpanel__pad">
+            <h3 className="ck-label">Controller · Buttons</h3>
+            <ul className="hpanel__keys hpanel__keys--pad">
+              {PAD_ACTIONS.map((a) => (
+                <li key={a}>
+                  <Keycap>
+                    {gamepad.bindings[a] ? gamepadBindingLabel(gamepad.bindings[a]) : 'Not set'}
+                  </Keycap>
+                  <span>{GAMEPAD_ACTION_LABELS[a]}</span>
+                </li>
+              ))}
+            </ul>
+            <p className="tdock__note">Your bindings from Settings → Controls.</p>
+          </section>
+        )}
+
         <ul className="hpanel__list">
           {HUD_WIDGETS.map((w) => {
             const isOn = hud[w.key];
@@ -84,23 +102,6 @@ export function HudPanel() {
             </ul>
           </section>
         ))}
-
-        {gamepad.enabled && (
-          <section className="tdock__sec">
-            <h3 className="ck-label">Controller · Buttons</h3>
-            <ul className="hpanel__keys hpanel__keys--pad">
-              {PAD_ACTIONS.map((a) => (
-                <li key={a}>
-                  <Keycap>
-                    {gamepad.bindings[a] ? gamepadBindingLabel(gamepad.bindings[a]) : 'Not set'}
-                  </Keycap>
-                  <span>{GAMEPAD_ACTION_LABELS[a]}</span>
-                </li>
-              ))}
-            </ul>
-            <p className="tdock__note">Your bindings from Settings → Controls.</p>
-          </section>
-        )}
       </div>
     </aside>
   );

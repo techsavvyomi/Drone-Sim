@@ -520,6 +520,10 @@ describe('HUD panel', () => {
     expect(rows).toContain('Button 7Arm');
     expect(rows).toContain('Axis 5 highCycle flight mode');
     expect(rows).toContain('Not setReset flight');
+    // First in the panel, above the widget switches.
+    expect(el.querySelector('.tdock__body')?.firstElementChild?.textContent).toContain(
+      'Controller · Buttons',
+    );
     act(() => set({ ...gamepad, enabled: false }));
     expect(el.querySelector('.hpanel__keys--pad')).toBeNull();
     set(gamepad);

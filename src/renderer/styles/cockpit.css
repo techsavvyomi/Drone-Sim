@@ -1151,3 +1151,9 @@
     animation-duration: 2.4s;
   }
 }
+
+/* The controller's buttons open the HUD panel, above the widget switches. */
+.hpanel__pad {
+  margin-top: 0;
+  margin-bottom: var(--space-4);
+}
