@@ -1,4 +1,4 @@
-import type { FlightMode, HudWidgets } from '@shared/types';
+import type { FlightMode, GamepadAction, GamepadBinding, HudWidgets } from '@shared/types';
 import { HUD_WIDGETS } from '@shared/types';
 import { RAD2DEG } from '../sim/mathx';
 
@@ -196,10 +196,13 @@ export function batteryFacts(b: {
   empty: boolean;
   /** Flying: before the first estimate the note says so instead of nothing. */
   armed?: boolean;
+  /** The cap that resets the flight, for the empty note. Defaults to R. */
+  resetCap?: string;
 }): BatteryFacts {
   const pct = Math.max(0, Math.min(100, Math.round(b.soc * 100)));
   const volts = voltsText(b.voltage);
-  if (b.empty) return { pct, volts, tone: 'fail', note: 'Empty · press R', warn: true };
+  if (b.empty)
+    return { pct, volts, tone: 'fail', note: `Empty · press ${b.resetCap ?? 'R'}`, warn: true };
   if (b.critical)
     return {
       pct,
@@ -389,4 +392,41 @@ export function escapeStep(s: {
     return s.mission.phase === 'flying' ? 'pause' : 'exitMission';
   }
   return s.section === 'home' ? 'none' : 'back';
+}
+
+// ---- Command caps ------------------------------------------------------------
+// The cockpit's command chips (camera, arm, mode, take off, reset) show the
+// control that fires them. With a controller connected that is the button the
+// pilot bound in Settings, so the HUD follows a rebinding the moment it is
+// saved; without one it is the keyboard key.
+
+/** The keyboard key behind each command, as its keycap reads. */
+export const KEYBOARD_CAPS: Record<GamepadAction, string> = {
+  arm: 'Enter',
+  disarm: 'Enter',
+  takeoffLand: 'Space',
+  modeCycle: 'M',
+  cameraCycle: 'C',
+  reset: 'R',
+};
+
+/** A binding short enough for a keycap: "B3", "A5↑". */
+export function bindingCap(b: GamepadBinding): string {
+  return b.t === 'b' ? `B${b.i}` : `A${b.a}${b.p === 'hi' ? '↑' : '↓'}`;
+}
+
+/**
+ * The cap each command shows. A controller's unbound command has none: its
+ * chip would only name a button that does nothing.
+ */
+export function commandCaps(
+  pad: boolean,
+  bindings: Partial<Record<GamepadAction, GamepadBinding>>,
+): Record<GamepadAction, string | null> {
+  const out = {} as Record<GamepadAction, string | null>;
+  for (const action of Object.keys(KEYBOARD_CAPS) as GamepadAction[]) {
+    const b = bindings[action];
+    out[action] = pad ? (b ? bindingCap(b) : null) : KEYBOARD_CAPS[action];
+  }
+  return out;
 }
