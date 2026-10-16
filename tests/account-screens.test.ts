@@ -230,7 +230,7 @@ describe('the Activate / Sign in screen', () => {
     expect(el.textContent).toContain('0 / 8');
   });
 
-  it('counts to 8 and then says Enter activates', () => {
+  it('counts to 8 and then says Enter checks the key, without a green tick', () => {
     const el = mount(h(SignIn));
     const k = byLabel(el, 'Activation key');
     type(k, '7kq4m2');
@@ -238,7 +238,9 @@ describe('the Activate / Sign in screen', () => {
     expect(el.textContent).toContain('6 / 8');
     type(k, '7KQ4-M2XP');
     expect(el.textContent).toContain('8 / 8');
-    expect(el.textContent).toContain('Key complete. Press Enter to activate.');
+    expect(el.textContent).toContain('All 8 characters in. Press Enter to check the key and activate.');
+    // Only the length is known here, not whether the key is right.
+    expect(el.querySelector('.acct-hint--ok, .acct-keymark--ok')).toBeNull();
   });
 
   it('a pasted whole key replaces what was half typed', () => {

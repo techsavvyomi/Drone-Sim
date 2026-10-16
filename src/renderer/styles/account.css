@@ -251,10 +251,6 @@
   display: inline-flex;
 }
 
-.acct-keymark--ok {
-  color: var(--armed);
-}
-
 .acct-keymark--fail {
   color: var(--fail);
 }
@@ -263,10 +259,6 @@
   display: inline-flex;
   gap: var(--space-2);
   align-items: baseline;
-}
-
-.acct-hint--ok {
-  color: var(--armed);
 }
 
 .acct-hint--caution {

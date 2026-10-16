@@ -209,11 +209,13 @@ export function SignIn() {
 
   const verb = mode === 'activate' ? 'Activate' : 'Sign in';
   const complete = keyBody.length === KEY_LENGTH;
+  // A full key is only the right LENGTH: whether it matches the email is
+  // known on Sign in. A green tick here read as "key correct" (tester,
+  // TC-LOC-003), so the hint stays neutral and says what Enter will do.
   const keyHint =
     complete && !note ? (
-      <span className="acct-hint acct-hint--ok">
-        <Icon name="check" />
-        Key complete. Press Enter to {verb.toLowerCase()}.
+      <span className="acct-hint">
+        All {KEY_LENGTH} characters in. Press Enter to check the key and {verb.toLowerCase()}.
       </span>
     ) : note ? (
       <span className="acct-hint acct-hint--caution">
@@ -226,10 +228,6 @@ export function SignIn() {
   const keyMark = errors.key ? (
     <span className="acct-keymark acct-keymark--fail">
       <Icon name="cross" />
-    </span>
-  ) : complete && !note ? (
-    <span className="acct-keymark acct-keymark--ok">
-      <Icon name="check" />
     </span>
   ) : undefined;
 
