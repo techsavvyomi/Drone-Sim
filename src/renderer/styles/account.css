@@ -210,6 +210,13 @@
   border-radius: var(--radius-card);
 }
 
+/* Online / Offline, at the card's top right, above the title (in the flow, so
+   a long "Welcome back, …" can never run under it). */
+.acct-card > .net-chip {
+  align-self: flex-end;
+  margin-bottom: calc(-1 * var(--space-3));
+}
+
 .acct-card__title {
   margin: 0;
   font: var(--type-h4);

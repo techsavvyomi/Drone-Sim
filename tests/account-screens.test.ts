@@ -659,3 +659,17 @@ describe('settings', () => {
     expect(DEFAULT_SETTINGS.lastPilot).toBeNull();
   });
 });
+
+describe('online / offline chip', () => {
+  it('the sign-in card says Online, and Offline when the network goes', () => {
+    const onLine = vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(true);
+    const el = mount(h(SignIn));
+    expect($(el, '.net-chip')!.textContent).toBe('Online');
+    onLine.mockReturnValue(false);
+    act(() => {
+      window.dispatchEvent(new Event('offline'));
+    });
+    expect($(el, '.net-chip')!.textContent).toBe('Offline');
+    onLine.mockRestore();
+  });
+});

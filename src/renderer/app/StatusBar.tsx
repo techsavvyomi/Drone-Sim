@@ -6,6 +6,7 @@ import { getDrone, getEnvironment } from '../plugins/registry';
 import { ButtonLegend, Icon, type LegendItem } from '../ds';
 import { NAV } from './Sidebar';
 import { ceilingFor, formatMetres } from './loadout';
+import { ConnectionChip } from './ConnectionChip';
 
 const MENU_LEGEND: LegendItem[] = [
   { keys: ['↑↓←→'], pad: { label: 'L', shape: 'stick' }, action: 'Move' },
@@ -90,6 +91,7 @@ export function StatusBar() {
       </p>
       <div className="statusbar__right">
         {DEV_FPS && <DevFps />}
+        <ConnectionChip />
         <ButtonLegend items={MENU_LEGEND} device={wide ? 'both' : legendDevice} />
       </div>
     </footer>

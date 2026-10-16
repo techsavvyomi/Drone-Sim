@@ -3,6 +3,7 @@ import { useAccountStore } from '../state/accountStore';
 import { useSettingsStore } from '../state/settingsStore';
 import { listDrones } from '../plugins/registry';
 import { Button, Icon, Keycap, SegmentedControl, TextInput } from '../ds';
+import { ConnectionChip } from './ConnectionChip';
 import { HangarScene } from './HangarScene';
 import { QuitConfirmDialog } from './QuitConfirmDialog';
 import {
@@ -291,6 +292,7 @@ export function SignIn() {
 
       <main className="acct__right">
         <form className="acct-card" onSubmit={submit} noValidate>
+          <ConnectionChip />
           <h1 className="acct-card__title">
             {welcome
               ? `Welcome back, ${firstName(welcome.name)}`
