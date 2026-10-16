@@ -175,6 +175,7 @@ export function FlightHud() {
     critical: lowBattery,
     autoLanding: auto === 'land' && mode !== 'acro',
     empty: batteryLocked,
+    armed,
   });
   const motors = motorsFacts({ armed, crashed, auto });
   const ceilingNear = nearCeiling(s.altitude, ceiling);
@@ -313,6 +314,7 @@ export function FlightHud() {
           altitude={ceilingNear && hud.altitudeTape ? null : s.altitude}
           heading={heading}
           battery={battery.warn && hud.battery ? null : battery.pct}
+          batteryNote={battery.note}
         />
       ) : (
         <>
@@ -712,11 +714,15 @@ function QuietBar({
   altitude,
   heading,
   battery,
+  batteryNote,
 }: {
   armedWord: string;
   altitude: number | null;
   heading: number;
   battery: number | null;
+  /** "~6 min left": steady flight folds the battery panel away 3 s after
+   *  lift-off, before the first estimate at 20 s, so the bar carries it. */
+  batteryNote: string;
 }) {
   return (
     <div className="ck-quiet" role="status">
@@ -739,6 +745,7 @@ function QuietBar({
         <span>
           <span className="ck-label">Batt</span>
           <b>{battery}%</b>
+          {batteryNote && <span className="ck-label">{batteryNote}</span>}
         </span>
       )}
       <button type="button" onClick={() => useUiStore.getState().toggleHudPanel()}>

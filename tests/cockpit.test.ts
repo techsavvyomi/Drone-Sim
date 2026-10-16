@@ -153,6 +153,11 @@ describe('motors, mode, battery', () => {
     expect(batteryFacts({ ...base, soc: 0.05, critical: true }).note).toBe('Critical · landing');
     expect(batteryFacts({ ...base, soc: 0, empty: true }).note).toBe('Empty · press R');
     expect(batteryFacts({ ...base, soc: 0.9, minutesLeft: null }).note).toBe('');
+    // Flying before the first estimate: says so rather than showing nothing.
+    expect(batteryFacts({ ...base, soc: 0.99, minutesLeft: null, armed: true }).note).toBe(
+      'Estimating…',
+    );
+    expect(batteryFacts({ ...base, soc: 0.9, armed: true }).note).toBe('~6 min left');
   });
 
   it('near the ceiling is within 0.5 m of it', () => {

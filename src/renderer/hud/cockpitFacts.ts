@@ -194,6 +194,8 @@ export function batteryFacts(b: {
   critical: boolean;
   autoLanding?: boolean;
   empty: boolean;
+  /** Flying: before the first estimate the note says so instead of nothing. */
+  armed?: boolean;
 }): BatteryFacts {
   const pct = Math.max(0, Math.min(100, Math.round(b.soc * 100)));
   const volts = voltsText(b.voltage);
@@ -209,7 +211,16 @@ export function batteryFacts(b: {
   if (b.soc < LOW_SOC || b.warning)
     return { pct, volts, tone: 'caution', note: 'Land soon', warn: true };
   const m = b.minutesLeft;
-  const note = m === null ? '' : m < 1 ? '< 1 min left' : `~${Math.round(m)} min left`;
+  // The estimate needs 20 s of flight. Blank until then read as "no timer"
+  // (tester, TC-FF-010), so a flying drone says it is working on one.
+  const note =
+    m === null
+      ? b.armed
+        ? 'Estimating…'
+        : ''
+      : m < 1
+        ? '< 1 min left'
+        : `~${Math.round(m)} min left`;
   return { pct, volts, tone: 'neutral', note, warn: false };
 }
 
