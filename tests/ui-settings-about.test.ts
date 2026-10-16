@@ -294,9 +294,10 @@ describe('Gamepad setup on the design system (logic unchanged)', () => {
     expect(settings().gamepad.enabled).toBe(true);
   });
 
-  it('with no controller: "Searching", and Detect / Bind / Calibrate need one', () => {
+  it('with no controller: "Not connected", and Detect / Bind / Calibrate need one', () => {
     const el = mount(h(GamepadSetup));
-    expect(el.querySelector('.gp__device .ds-badge')!.textContent).toBe('Searching');
+    expect(el.querySelector('.gp__device .ds-badge')!.textContent).toBe('Not connected');
+    expect(el.querySelector('.gp__device-text b')!.textContent).toBe('No controller connected');
     for (const b of [...$$(el, 'button').filter((b) => ['Detect', 'Bind', 'Calibrate'].includes(b.textContent ?? ''))]) {
       expect((b as HTMLButtonElement).disabled).toBe(true);
     }

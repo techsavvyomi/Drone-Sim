@@ -211,11 +211,14 @@ export function GamepadSetup() {
       />
 
       <div className="gp__device">
+        {/* Not "Searching": with nothing plugged in it read as if one were on its
+            way (tester, TC-SET-005). A browser only sees a controller once a stick
+            or button moves, which the line under it says. */}
         <Badge tone={connected ? 'armed' : 'neutral'} icon={connected ? 'dot' : 'ring'}>
-          {connected ? 'Connected' : 'Searching'}
+          {connected ? 'Connected' : 'Not connected'}
         </Badge>
         <div className="gp__device-text">
-          <b>{connected ? deviceName || 'Gamepad' : 'Searching for a controller…'}</b>
+          <b>{connected ? deviceName || 'Gamepad' : 'No controller connected'}</b>
           <small>
             {connected
               ? `${GAMEPAD_KIND_LABELS[kind]} · ${counts.axes} axes · ${counts.buttons} buttons`
