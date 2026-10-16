@@ -276,7 +276,7 @@ export function SignIn() {
         {note}
       </span>
     ) : (
-      `The ${KEY_LENGTH} characters after ${KEY_PREFIX} on your key card. Dashes are added for you.`
+      `The ${KEY_LENGTH} characters after ${KEY_PREFIX} on your key card.`
     );
   const keyMark = errors.key ? (
     <span className="acct-keymark acct-keymark--fail">
@@ -303,21 +303,12 @@ export function SignIn() {
   const help: [string, string][] =
     mode === 'activate'
       ? [
-          [
-            'Activation key',
-            'Links PlutoSim to your email. You enter it once. After that you sign in with your email and key.',
-          ],
-          ['Name', 'Shown on your pilot profile. Use the name people know you by.'],
+          ['Activation key', 'Links PlutoSim to your email. You enter it only once.'],
+          ['Name', 'Shown on your pilot profile.'],
         ]
       : [
-          [
-            'Email and key',
-            'Use the ones you activated with. After that, a computer that remembers you needs only your email.',
-          ],
-          [
-            'Shared computer',
-            'PlutoSim remembers the last pilot on this computer. If that isn’t you, press Not you? first. Untick Remember me on a computer others use.',
-          ],
+          ['Email and key', 'Use the ones you activated with.'],
+          ['Shared computer', 'Untick Remember me so the next pilot starts fresh.'],
         ];
 
   return (
@@ -375,7 +366,7 @@ export function SignIn() {
               </span>
               <span className="acct-pilot__text">
                 <b>{welcome.name}</b>
-                <span>{welcome.email} · last pilot on this computer</span>
+                <span>{welcome.email}</span>
               </span>
               <Button
                 variant="secondary"
@@ -430,7 +421,7 @@ export function SignIn() {
             <p className="acct-saved">
               <Icon name="check" />
               <span>
-                Your key is saved on this computer. Press Sign in.{' '}
+                Key saved on this computer.{' '}
                 <button type="button" className="acct-saved__other" onClick={typeKeyInstead}>
                   Type my key instead
                 </button>
@@ -459,21 +450,25 @@ export function SignIn() {
               <Checkbox
                 checked={remember}
                 onChange={setRemember}
-                hint="Next time, sign in here with your email only. Untick on a shared computer."
+                hint="Next time, just your email. Untick on a shared computer."
               >
                 Remember me on this computer
               </Checkbox>
             </>
           )}
 
-          <dl className="acct-help">
-            {help.map(([term, text]) => (
-              <div key={term}>
-                <dt>{term}</dt>
-                <dd>{text}</dd>
-              </div>
-            ))}
-          </dl>
+          {/* Welcome back needs no help box: the card already names the pilot and
+              carries Not you? for anyone else. */}
+          {!welcome && (
+            <dl className="acct-help">
+              {help.map(([term, text]) => (
+                <div key={term}>
+                  <dt>{term}</dt>
+                  <dd>{text}</dd>
+                </div>
+              ))}
+            </dl>
+          )}
 
           {elsewhere && (
             <div className="acct-banner acct-banner--caution" role="alert">
@@ -521,9 +516,7 @@ export function SignIn() {
         <Keycap>Quit</Keycap>
       </button>
 
-      {confirmQuit && (
-        <QuitConfirmDialog onCancel={() => setConfirmQuit(false)} />
-      )}
+      {confirmQuit && <QuitConfirmDialog onCancel={() => setConfirmQuit(false)} />}
     </div>
   );
 }

@@ -337,7 +337,8 @@ describe('the Activate / Sign in screen', () => {
     login.mockResolvedValue({ success: false, code: 'INVALID_CREDENTIALS', message: 'x' });
     const el = mount(h(SignIn));
     expect($(el, 'h1').textContent).toBe('Welcome back, Asha');
-    expect(el.textContent).toContain('asha@school.org · last pilot on this computer');
+    expect(el.textContent).toContain('asha@school.org');
+    expect(el.querySelector('.acct-help')).toBeNull();
     expect(document.activeElement).toBe(byLabel(el, 'Activation key'));
     type(byLabel(el, 'Activation key'), '7KQ4M2XP');
     await submit(el);
@@ -387,7 +388,7 @@ describe('the Activate / Sign in screen', () => {
       loginSaved.mockResolvedValue({ success: true } as never);
       const el = await mountSaved();
       expect([...el.querySelectorAll('label')].map((l) => l.textContent)).not.toContain('Activation key');
-      expect(el.textContent).toContain('Your key is saved on this computer.');
+      expect(el.textContent).toContain('Key saved on this computer.');
       await submit(el);
       expect(loginSaved).toHaveBeenCalledWith('asha@school.org', false);
       expect(login).not.toHaveBeenCalled();
