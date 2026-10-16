@@ -526,6 +526,10 @@ describe('HUD panel', () => {
     );
     act(() => set({ ...gamepad, enabled: false }));
     expect(el.querySelector('.hpanel__keys--pad')).toBeNull();
+    // Without one the keyboard keys lead, still above the widget switches.
+    expect(el.querySelector('.tdock__body')?.firstElementChild?.textContent).toContain(
+      'Keys · Flight',
+    );
     set(gamepad);
   });
 });

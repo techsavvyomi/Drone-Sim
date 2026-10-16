@@ -1152,8 +1152,12 @@
   }
 }
 
-/* The controller's buttons open the HUD panel, above the widget switches. */
-.hpanel__pad {
+/* The controls open the HUD panel, above the widget switches. */
+.hpanel__pad,
+.hpanel__keysec:first-child {
   margin-top: 0;
+}
+
+.hpanel__keysec:last-of-type {
   margin-bottom: var(--space-4);
 }

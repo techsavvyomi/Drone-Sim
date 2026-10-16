@@ -15,7 +15,8 @@ const PAD_ACTIONS = Object.keys(GAMEPAD_ACTION_LABELS) as GamepadAction[];
 // so the live HUD beside it is the preview. One row per widget with where it
 // sits and a ✓ ON / ○ OFF switch, Reset to default, and the key list that used
 // to be the H controls panel. The same switches live in Settings → Interface.
-// With a controller on, its buttons come first, above the switches.
+// The controls come first: the controller's buttons (when one is on), then the
+// keyboard keys, then the widget switches.
 
 export function HudPanel() {
   const hud = useSettingsStore((s) => s.settings.hud);
@@ -57,6 +58,20 @@ export function HudPanel() {
           </section>
         )}
 
+        {KEY_GROUPS.map((g) => (
+          <section key={g.title} className="tdock__sec hpanel__keysec">
+            <h3 className="ck-label">Keys · {g.title}</h3>
+            <ul className="hpanel__keys">
+              {g.rows.map(([k, what]) => (
+                <li key={k}>
+                  <Keycap>{k}</Keycap>
+                  <span>{what}</span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        ))}
+
         <ul className="hpanel__list">
           {HUD_WIDGETS.map((w) => {
             const isOn = hud[w.key];
@@ -88,20 +103,6 @@ export function HudPanel() {
         <button type="button" className="tdock-wide" onClick={resetHud}>
           Reset to default
         </button>
-
-        {KEY_GROUPS.map((g) => (
-          <section key={g.title} className="tdock__sec">
-            <h3 className="ck-label">Keys · {g.title}</h3>
-            <ul className="hpanel__keys">
-              {g.rows.map(([k, what]) => (
-                <li key={k}>
-                  <Keycap>{k}</Keycap>
-                  <span>{what}</span>
-                </li>
-              ))}
-            </ul>
-          </section>
-        ))}
       </div>
     </aside>
   );
