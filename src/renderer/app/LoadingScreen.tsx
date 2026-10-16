@@ -195,6 +195,26 @@ export function LoadingScreen({ checkingSignIn = false }: { checkingSignIn?: boo
         </div>
         <Progress value={f.pct} max={100} label="Preparing PlutoSim" tone="neutral" />
 
+        {/* Above the rows: below them a short window pushed the tip, and its
+            Next tip button, off the screen (tester, TC-FL-001). */}
+        <div className="loading__tip">
+          <div className="loading__tip-head">
+            <span className="ds-label">Pilot tip</span>
+            <span className="loading__tip-count">
+              {tip + 1} of {TIPS.length}
+            </span>
+            <Button
+              variant="secondary"
+              iconAfter="chevron"
+              onClick={() => setTip((t) => (t + 1) % TIPS.length)}
+            >
+              Next tip
+            </Button>
+          </div>
+          <b>{TIPS[tip].title}</b>
+          <p>{TIPS[tip].text}</p>
+        </div>
+
         <ol className="loading__rows" aria-label="What is being prepared">
           {f.rows.map((r) => (
             <li key={r.key} className={`loading__row is-${r.state}`}>
@@ -221,24 +241,6 @@ export function LoadingScreen({ checkingSignIn = false }: { checkingSignIn?: boo
             </span>
           </div>
         )}
-
-        <div className="loading__tip">
-          <div className="loading__tip-head">
-            <span className="ds-label">Pilot tip</span>
-            <span className="loading__tip-count">
-              {tip + 1} of {TIPS.length}
-            </span>
-            <Button
-              variant="secondary"
-              iconAfter="chevron"
-              onClick={() => setTip((t) => (t + 1) % TIPS.length)}
-            >
-              Next tip
-            </Button>
-          </div>
-          <b>{TIPS[tip].title}</b>
-          <p>{TIPS[tip].text}</p>
-        </div>
       </main>
     </div>
   );

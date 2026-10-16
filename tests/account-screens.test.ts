@@ -629,6 +629,15 @@ describe('the loading screen', () => {
     act(() => vi.advanceTimersByTime(SLOW_AFTER_MS + 1000));
     expect($(el, '.loading__note').textContent).toContain('Slower than usual');
   });
+
+  it('the tip comes before the rows, so a short window cannot push it off', () => {
+    useResourceStore.setState({ entries });
+    const el = mount(h(LoadingScreen));
+    expect(buttonNamed(el, 'Next tip')).toBeTruthy();
+    const tipBox = $(el, '.loading__tip')!;
+    const rows = $(el, '.loading__rows')!;
+    expect(tipBox.compareDocumentPosition(rows) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
 });
 
 describe('the boot splash', () => {
