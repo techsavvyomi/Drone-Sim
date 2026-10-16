@@ -7,6 +7,8 @@ import {
   socForVoltage,
 } from '../src/renderer/sim/dynamics/battery';
 import { plutoDrone } from '../src/renderer/plugins/drones/pluto';
+import { guruDrone } from '../src/renderer/plugins/drones/guru';
+import { racingDrone } from '../src/renderer/plugins/drones/racer';
 
 // The 1S LiPo model: the discharge curve, sag under load, and the three
 // voltages the HUD and the forced landing are written against.
@@ -146,5 +148,34 @@ describe('thresholds and drain', () => {
     const s = b.update(HOVER, HOVER, 0);
 
     expect(s.soc).toBeCloseTo(1, 3);
+  });
+});
+
+// The forced landing compares the per-cell voltage with the 1S limits. Racer
+// and Guru are 4S: their whole pack read 12.8 V when empty, never under 3.3 V,
+// so they flew on at 0% with only "Land soon" (tester, TC-FF-010).
+describe('multi-cell packs reach the limits', () => {
+  for (const drone of [guruDrone, racingDrone]) {
+    it(`TC-FF-010 ${drone.name} (${drone.battery.cells}S) warns, goes critical and empties`, () => {
+      const b = new Battery(drone.battery);
+      const seen = { warning: false, critical: false, cutoff: false };
+
+      for (let t = 0; t < 20 * 60; t++) {
+        const s = b.update(HOVER, HOVER, 1);
+        expect(s.cellVoltage * drone.battery.cells).toBeCloseTo(s.restingVoltage, 6);
+        if (s.cellVoltage <= BATTERY_WARNING_V) seen.warning = true;
+        if (s.cellVoltage <= BATTERY_CRITICAL_V) seen.critical = true;
+        if (s.cellVoltage <= BATTERY_CUTOFF_V) seen.cutoff = true;
+      }
+
+      expect(seen).toEqual({ warning: true, critical: true, cutoff: true });
+    });
+  }
+
+  it('TC-FF-010 a full 4S pack is nowhere near the limits', () => {
+    const s = new Battery(guruDrone.battery).update(HOVER, HOVER, 0);
+
+    expect(s.cellVoltage).toBeCloseTo(4.2, 2);
+    expect(s.restingVoltage).toBeCloseTo(16.8, 1);
   });
 });

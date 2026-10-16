@@ -699,6 +699,7 @@ export function Drone({ spec, spawn, bounds, outdoor = false, groundY }: DronePr
       : {
           voltage: battery.fullVoltage,
           restingVoltage: battery.fullVoltage,
+          cellVoltage: 4.2,
           current: 0,
           soc: 1,
           drawnMah: 0,
@@ -715,7 +716,8 @@ export function Drone({ spec, spawn, bounds, outdoor = false, groundY }: DronePr
     // ---- Low-battery forced landing ----
     if (physics.batteryEnabled) {
       const flightNow = useFlightStore.getState();
-      const rested = batt.restingVoltage;
+      // Per cell: the limits are 1S volts, and Racer and Guru are 4S.
+      const rested = batt.cellVoltage;
 
       flightNow.setBatteryWarning(rested <= BATTERY_WARNING_V);
 

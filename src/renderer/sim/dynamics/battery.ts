@@ -75,6 +75,10 @@ export interface BatteryState {
   voltage: number;
   /** Reference voltage from the discharge curve (the hover reading). */
   restingVoltage: number;
+  /** `restingVoltage` for one cell: what the BATTERY_*_V limits are written
+   *  against. Comparing the whole pack missed every 4S drone, which read
+   *  12.8 V when empty and so never warned, landed or cut out. */
+  cellVoltage: number;
   current: number;
   drawnMah: number;
   /** Thrust multiplier from the sagging pack. */
@@ -110,7 +114,8 @@ export class Battery {
    */
   update(throttleFraction: number, hoverFraction: number, dt: number): BatteryState {
     const soc = clamp(1 - this.consumedMah / this.capacityMah, 0, 1);
-    const restingVoltage = this.cells * curveVoltage(soc);
+    const cellVoltage = curveVoltage(soc);
+    const restingVoltage = this.cells * cellVoltage;
 
     // Drain scales with how hard the motors are working relative to a hover:
     // idle 0.3x, hover 1.0x, full throttle ~1.7x.
@@ -134,6 +139,14 @@ export class Battery {
     const vRatio = clamp(voltage / this.fullVoltage, 0, 1);
     const thrustScale = clamp(vRatio * vRatio, 0.55, 1);
 
-    return { soc, voltage, restingVoltage, current, drawnMah: this.consumedMah, thrustScale };
+    return {
+      soc,
+      voltage,
+      restingVoltage,
+      cellVoltage,
+      current,
+      drawnMah: this.consumedMah,
+      thrustScale,
+    };
   }
 }
