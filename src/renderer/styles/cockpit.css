@@ -1151,15 +1151,3 @@
     animation-duration: 2.4s;
   }
 }
-
-/* Command caps beside a reading: the button that changes it. */
-.ck-motors .ds-key {
-  margin-left: auto;
-}
-
-.ck-sec__head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-2);
-}

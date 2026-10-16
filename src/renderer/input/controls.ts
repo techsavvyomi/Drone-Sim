@@ -651,11 +651,6 @@ export function resetFlight(): void {
   runCommand(CODE.reset);
 }
 
-/** Everything Space does, for the cockpit's Take off / Land chip. */
-export function takeoffLand(): void {
-  runCommand(CODE.takeoffLand);
-}
-
 function runGamepadAction(action: GamepadAction): void {
   // Scripted demo in progress: ignore controller buttons too.
   if (scripted) return;

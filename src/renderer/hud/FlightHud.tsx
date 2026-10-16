@@ -7,8 +7,7 @@ import { usePhysicsStore } from '../state/physicsStore';
 import { devFpsEnabled } from '../state/shellStore';
 import { getDrone, getEnvironment } from '../plugins/registry';
 import { ceilingFor } from '../app/loadout';
-import { resetFlight, takeoffLand } from '../input/controls';
-import { gamepadLive } from '../input/gamepad';
+import { resetFlight } from '../input/controls';
 import { chaseReport, PULL_IN_NOTICE } from '../scene/cameraReport';
 import { RAD2DEG } from '../sim/mathx';
 import { Icon, Keycap } from '../ds';
@@ -18,7 +17,6 @@ import {
   WAKE_CODES,
   batteryFacts,
   clock,
-  commandCaps,
   flightModeLine,
   headingDeg,
   headingText,
@@ -56,8 +54,6 @@ interface Sample {
   sticks: { roll: number; pitch: number; yaw: number; throttle: number };
   pulledIn: number;
   pullDistance: number;
-  /** A controller is connected (polled: the Gamepad API has no store). */
-  pad: boolean;
 }
 
 function read(): Sample {
@@ -75,7 +71,6 @@ function read(): Sample {
     sticks: s.sticks,
     pulledIn: chaseReport.pulledIn,
     pullDistance: chaseReport.distance,
-    pad: gamepadLive.index !== null,
   };
 }
 
@@ -133,8 +128,6 @@ export function FlightHud() {
   const hud = useSettingsStore((st) => st.settings.hud);
   const droneId = useSettingsStore((st) => st.settings.selectedDroneId);
   const envId = useSettingsStore((st) => st.settings.selectedEnvironmentId);
-  const gamepad = useSettingsStore((st) => st.settings.gamepad);
-  const caps = commandCaps(s.pad && gamepad.enabled, gamepad.bindings);
   const drone = getDrone(droneId);
   const env = getEnvironment(envId);
   const ceiling = ceilingFor(drone, env).metres;
@@ -183,7 +176,6 @@ export function FlightHud() {
     autoLanding: auto === 'land' && mode !== 'acro',
     empty: batteryLocked,
     armed,
-    resetCap: caps.reset ?? 'R',
   });
   const motors = motorsFacts({ armed, crashed, auto });
   const ceilingNear = nearCeiling(s.altitude, ceiling);
@@ -218,14 +210,7 @@ export function FlightHud() {
         <>
           {/* ---- Top row ---- */}
           <div className="ck-top-left">
-            {hud.cameraInfo && (
-              <CameraChip
-                mode={cameraMode}
-                cap={caps.cameraCycle}
-                open={camMenu}
-                setOpen={setCamMenu}
-              />
-            )}
+            {hud.cameraInfo && <CameraChip mode={cameraMode} open={camMenu} setOpen={setCamMenu} />}
             {cameraMode === 'chase' && s.pulledIn > PULL_IN_NOTICE && (
               <div className="ck-plate ck-pulled" role="status">
                 <Icon name="warning" />
@@ -271,19 +256,12 @@ export function FlightHud() {
           {!quiet && hud.status && (
             <section className="ck-sec">
               <span className="ck-label">Motors</span>
-              <MotorsBadge
-                tone={motors.tone}
-                word={motors.word}
-                cap={armed ? caps.disarm : caps.arm}
-              />
+              <MotorsBadge tone={motors.tone} word={motors.word} />
             </section>
           )}
           {!quiet && hud.flightMode && (
             <section className="ck-sec">
-              <div className="ck-sec__head">
-                <span className="ck-label">Flight mode</span>
-                {caps.modeCycle && <Keycap>{caps.modeCycle}</Keycap>}
-              </div>
+              <span className="ck-label">Flight mode</span>
               <b
                 className="ck-mode"
                 title={
@@ -346,8 +324,6 @@ export function FlightHud() {
               hudOpen={hudPanelOpen}
               fps={DEV_FPS ? s.fps : null}
               showKeys={hud.keyBar}
-              takeoffCap={caps.takeoffLand}
-              airborne={airborne}
             />
           )}
         </>
@@ -376,13 +352,10 @@ export function FlightHud() {
 
 function CameraChip({
   mode,
-  cap,
   open,
   setOpen,
 }: {
   mode: CameraMode;
-  /** The key or controller button that cycles the camera; none if unbound. */
-  cap: string | null;
   open: boolean;
   setOpen: (open: boolean) => void;
 }) {
@@ -441,7 +414,7 @@ function CameraChip({
         aria-expanded={open}
         onClick={() => setOpen(!open)}
       >
-        {cap && <Keycap>{cap}</Keycap>}
+        <Keycap>C</Keycap>
         <span className="ck-label">Cam</span>
         <b>{current.name}</b>
         <Icon name={open ? 'caret-up' : 'caret-down'} />
@@ -644,7 +617,7 @@ export function InstrumentPlate({ envId }: { envId: string }) {
   );
 }
 
-function MotorsBadge({ tone, word, cap }: { tone: Tone; word: string; cap: string | null }) {
+function MotorsBadge({ tone, word }: { tone: Tone; word: string }) {
   return (
     <span className="ck-motors" data-tone={tone}>
       {tone === 'fail' ? (
@@ -655,7 +628,6 @@ function MotorsBadge({ tone, word, cap }: { tone: Tone; word: string; cap: strin
         <Icon name="ring" />
       )}
       <span>{word}</span>
-      {cap && <Keycap>{cap}</Keycap>}
     </span>
   );
 }
@@ -699,28 +671,17 @@ function KeyBar({
   hudOpen,
   fps,
   showKeys,
-  takeoffCap,
-  airborne,
 }: {
   dockOpen: boolean;
   hudOpen: boolean;
   fps: number | null;
   showKeys: boolean;
-  /** The key or controller button for Take off / Land; none if unbound. */
-  takeoffCap: string | null;
-  airborne: boolean;
 }) {
   const ui = useUiStore.getState;
   return (
     <div className="ck-plate ck-keybar">
       {showKeys && (
         <>
-          {takeoffCap && (
-            <button type="button" onClick={takeoffLand}>
-              <Keycap>{takeoffCap}</Keycap>
-              <span className="ck-label">{airborne ? 'Land' : 'Take off'}</span>
-            </button>
-          )}
           <button
             type="button"
             className={dockOpen ? 'is-on' : ''}

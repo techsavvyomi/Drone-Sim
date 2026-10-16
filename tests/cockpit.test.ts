@@ -9,9 +9,7 @@ import {
   QUIET_AFTER,
   WAKE_CODES,
   batteryFacts,
-  bindingCap,
   clock,
-  commandCaps,
   compassPoint,
   crashLine,
   crashTip,
@@ -154,9 +152,6 @@ describe('motors, mode, battery', () => {
     expect(batteryFacts({ ...base, soc: 0.5, warning: true }).tone).toBe('caution');
     expect(batteryFacts({ ...base, soc: 0.05, critical: true }).note).toBe('Critical · landing');
     expect(batteryFacts({ ...base, soc: 0, empty: true }).note).toBe('Empty · press R');
-    expect(batteryFacts({ ...base, soc: 0, empty: true, resetCap: 'B5' }).note).toBe(
-      'Empty · press B5',
-    );
     expect(batteryFacts({ ...base, soc: 0.9, minutesLeft: null }).note).toBe('');
     // Flying before the first estimate: says so rather than showing nothing.
     expect(batteryFacts({ ...base, soc: 0.99, minutesLeft: null, armed: true }).note).toBe(
@@ -588,38 +583,5 @@ describe('cockpit', () => {
     expect(el.querySelector('.ck-ribbon')).toBeNull();
     expect(el.querySelector('.ck-keybar')).toBeNull();
     useUiStore.setState({ cameraMode: 'chase' });
-  });
-});
-
-describe('command caps', () => {
-  it('shortens a binding to fit a keycap', () => {
-    expect(bindingCap({ t: 'b', i: 3 })).toBe('B3');
-    expect(bindingCap({ t: 'a', a: 5, p: 'hi' })).toBe('A5↑');
-    expect(bindingCap({ t: 'a', a: 5, p: 'lo' })).toBe('A5↓');
-  });
-
-  it('shows keyboard keys with no controller', () => {
-    const caps = commandCaps(false, { arm: { t: 'b', i: 0 } });
-    expect(caps).toEqual({
-      arm: 'Enter',
-      disarm: 'Enter',
-      takeoffLand: 'Space',
-      modeCycle: 'M',
-      cameraCycle: 'C',
-      reset: 'R',
-    });
-  });
-
-  it('shows the bound buttons with a controller, and nothing for an unbound one', () => {
-    const caps = commandCaps(true, {
-      arm: { t: 'b', i: 0 },
-      cameraCycle: { t: 'b', i: 4 },
-      modeCycle: { t: 'a', a: 6, p: 'lo' },
-    });
-    expect(caps.arm).toBe('B0');
-    expect(caps.cameraCycle).toBe('B4');
-    expect(caps.modeCycle).toBe('A6↓');
-    expect(caps.takeoffLand).toBeNull();
-    expect(caps.reset).toBeNull();
   });
 });
