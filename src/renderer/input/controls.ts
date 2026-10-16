@@ -193,6 +193,30 @@ export function beginThrottleCatch(): void {
   throttleCatch = Math.abs(offset) <= THROTTLE_CATCH_BAND ? 0 : Math.sign(offset);
 }
 
+/**
+ * A controller taking an auto-takeoff back with its throttle on the way to the
+ * hold point but not yet there. A radio starts the climb low, so a pilot who
+ * nudges it up to follow the aircraft has moved it TOWARDS centre — and in Alt
+ * Hold anything under centre is a descent. Handed straight back, the aircraft
+ * stopped its climb and sank back onto the pad. Caught instead, it holds until
+ * the stick arrives. A stick moved AWAY from the hold point (pulled down, or a
+ * sprung stick pushed off centre) is a real command and is left alone.
+ */
+export function beginOverrideCatch(entry: number): void {
+  const mode = useFlightStore.getState().mode;
+  const target = holdThrottle(mode);
+  if (target === null) return;
+  const now = gamepadStick.throttle;
+  const offset = now - target;
+  if (Math.abs(offset) <= THROTTLE_CATCH_BAND) return;
+  // Moved towards the hold point: the opposite way to the side it is still on.
+  if (Math.sign(now - entry) !== -Math.sign(offset)) return;
+  catchTarget = target;
+  catchMode = mode;
+  throttleCatch = Math.sign(offset);
+  stick.throttle = target;
+}
+
 export function throttleCatchActive(): boolean {
   return throttleCatch !== 0;
 }

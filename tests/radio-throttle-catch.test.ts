@@ -12,6 +12,7 @@ vi.mock('../src/renderer/input/gamepad', async (importOriginal) => {
 import {
   activeInputSource,
   attachKeyboard,
+  beginOverrideCatch,
   beginThrottleCatch,
   flyingOnRadio,
   resetStick,
@@ -34,7 +35,10 @@ const DT = 1 / 60;
 
 beforeEach(() => {
   pad.activity = true;
-  useFlightStore.setState({ ...INITIAL_FLIGHT, armed: true, onGround: false, mode: 'altitude-hold' }, true);
+  useFlightStore.setState(
+    { ...INITIAL_FLIGHT, armed: true, onGround: false, mode: 'altitude-hold' },
+    true,
+  );
   gamepadLive.index = 0;
   gamepadLive.kind = 'rc';
   gamepadStick.throttle = 0;
@@ -235,4 +239,41 @@ describe('Take off with a controller idling its motors on the pad', () => {
       expect(useFlightStore.getState().auto).toBe('takeoff');
     },
   );
+});
+
+// Nudging a radio up during the climb took the takeoff back with the stick
+// still under centre, and Alt Hold read that as a descent: in training the
+// aircraft climbed out and then sank back onto the pad by itself.
+describe('taking an auto-takeoff back with the throttle', () => {
+  it('holds centre when the radio was nudged up but is still under it', () => {
+    gamepadStick.throttle = 0.35;
+    beginOverrideCatch(0.15);
+    expect(stick.throttle).toBe(THROTTLE_CENTER);
+    for (let i = 0; i < 120; i++) updateStick(DT);
+    expect(stick.throttle).toBe(THROTTLE_CENTER);
+    gamepadStick.throttle = 0.5;
+    updateStick(DT);
+    expect(throttleCatchActive()).toBe(false);
+  });
+
+  it('leaves a stick pulled down alone: that is a descent the pilot asked for', () => {
+    gamepadStick.throttle = 0.1;
+    beginOverrideCatch(0.3);
+    expect(throttleCatchActive()).toBe(false);
+  });
+
+  it('leaves a sprung stick pushed off centre alone', () => {
+    gamepadStick.throttle = 0.7;
+    beginOverrideCatch(0.5);
+    expect(throttleCatchActive()).toBe(false);
+    gamepadStick.throttle = 0.3;
+    beginOverrideCatch(0.5);
+    expect(throttleCatchActive()).toBe(false);
+  });
+
+  it('does nothing once the stick has reached centre', () => {
+    gamepadStick.throttle = 0.48;
+    beginOverrideCatch(0.2);
+    expect(throttleCatchActive()).toBe(false);
+  });
 });

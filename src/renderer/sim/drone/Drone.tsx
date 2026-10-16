@@ -42,6 +42,7 @@ import {
   throttleAfterModeChange,
   throttleCatchActive,
   throttleRestsAtCentre,
+  beginOverrideCatch,
   throttleSafeToArm,
 } from '../../input/controls';
 import { useSimStore } from '../../state/simStore';
@@ -1355,6 +1356,9 @@ export function Drone({ spec, spawn, bounds, outdoor = false, groundY }: DronePr
         // at the bottom — and the next frame writes it straight back over this:
         // hold until the pilot brings it to the hold point.
         if (!isScripted() && activeInputSource() === 'gamepad') beginThrottleCatch();
+      } else if (!isScripted() && activeInputSource() === 'gamepad') {
+        // A radio nudged up during the climb is still under the hold point.
+        beginOverrideCatch(autoEntryThrottle.current ?? stick.throttle);
       }
       flight.setAuto('manual');
     } else if (flight.auto === 'land' && onGround) {
