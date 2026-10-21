@@ -11,6 +11,7 @@ import { SceneReady, SceneVeil } from './SceneReady';
 import { reportRenderError } from '../analytics/crashReporting';
 import { getEnvironment } from '../plugins/registry';
 import { Helipad } from '../missions/LaunchPad';
+import { NewYorkRaceCourse } from './environment/NewYorkRaceCourse';
 
 /**
  * Catches errors thrown inside the 3D scene.
@@ -82,7 +83,9 @@ export function Viewport() {
           // without near-clipping small whoop airframes.
           camera={{ position: [8, 5, 9], fov: 60, near: 0.08, far: 700 }}
         >
-          <FlightScene />
+          {/* New York's race course is Free Flight only: here, not in the
+              environment, which the city's missions share. */}
+          <FlightScene>{env?.id === 'new-york' && <NewYorkRaceCourse />}</FlightScene>
           {/* Every free flight, on every map, launches from a helipad under
               the map's spawn. Here, not in FlightScene, which missions share
               and which already paint theirs. Smaller than the mission pad
