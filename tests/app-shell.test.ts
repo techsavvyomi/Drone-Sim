@@ -492,21 +492,9 @@ describe('StatusBar', () => {
     expect(el.textContent).not.toContain('FPS');
   });
 
-  it('wide: keycap and pad glyph; compact: the last-used device only', () => {
-    let el = mount(h(StatusBar));
-    expect($$(el, '.ds-legend kbd').map((k) => k.textContent)).toEqual([
-      '↑↓←→',
-      'L',
-      'Enter',
-      'A',
-      'Esc',
-      'B',
-    ]);
-    act(() => root!.unmount());
-    wide = false;
-    act(() => useShellStore.getState().setInput('gamepad'));
-    el = mount(h(StatusBar));
-    expect($$(el, '.ds-legend kbd').map((k) => k.textContent)).toEqual(['L', 'A', 'B']);
+  it('does not render bottom-right navigation legend', () => {
+    const el = mount(h(StatusBar));
+    expect(el.querySelector('.ds-legend')).toBeNull();
   });
 });
 

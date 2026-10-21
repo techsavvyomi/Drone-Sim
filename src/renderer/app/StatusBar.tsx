@@ -3,16 +3,10 @@ import { devFpsEnabled, useShellStore } from '../state/shellStore';
 import { useSettingsStore } from '../state/settingsStore';
 import { useUiStore } from '../state/uiStore';
 import { getDrone, getEnvironment } from '../plugins/registry';
-import { ButtonLegend, Icon, type LegendItem } from '../ds';
+import { Icon } from '../ds';
 import { NAV } from './Sidebar';
 import { ceilingFor, formatMetres } from './loadout';
 import { ConnectionChip } from './ConnectionChip';
-
-const MENU_LEGEND: LegendItem[] = [
-  { keys: ['↑↓←→'], pad: { label: 'L', shape: 'stick' }, action: 'Move' },
-  { keys: ['Enter'], pad: { label: 'A', shape: 'face' }, action: 'Select' },
-  { keys: ['Esc'], pad: { label: 'B', shape: 'face' }, action: 'Back' },
-];
 
 const WIDE = '(min-width: 1200px)';
 
@@ -65,9 +59,7 @@ export function StatusBar() {
   const section = useUiStore((s) => s.section);
   const context = useShellStore((s) => s.context);
   const contextTag = useShellStore((s) => s.contextTag);
-  const legendDevice = useShellStore((s) => s.legendDevice);
   const settings = useSettingsStore((s) => s.settings);
-  const wide = useWide();
   const page = NAV.find((n) => n.id === section)?.label ?? '';
   const ceiling = ceilingFor(
     getDrone(settings.selectedDroneId),
@@ -92,7 +84,6 @@ export function StatusBar() {
       <div className="statusbar__right">
         {DEV_FPS && <DevFps />}
         <ConnectionChip />
-        <ButtonLegend items={MENU_LEGEND} device={wide ? 'both' : legendDevice} />
       </div>
     </footer>
   );
