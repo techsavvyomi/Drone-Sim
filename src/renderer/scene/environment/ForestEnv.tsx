@@ -419,10 +419,8 @@ export function ForestEnv({ env }: { env: EnvironmentSpec }) {
         <ForestModel url={forestModelUrl} bounds={env.bounds} />
       </Suspense>
 
-      {/* PlutoSim Inflatable FPV Drone Racing Arch Gates */}
-      <InflatableGate position={[0, 0.08, -12]} rotation={[0, 0, 0]} />
-      <InflatableGate position={[0, -0.01, -22]} rotation={[0, 0, 0]} />
-      <InflatableGate position={[-10, 0.02, -10]} rotation={[0, Math.PI / 2, 0]} />
+      {/* PlutoSim Inflatable FPV Drone Racing Arch Gate */}
+      <InflatableGate position={[7.0, -0.03, -12.0]} rotation={[0, -0.45, 0]} />
     </group>
   );
 }
