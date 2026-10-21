@@ -4,6 +4,7 @@ import { CuboidCollider, RigidBody } from '@react-three/rapier';
 import * as THREE from 'three';
 import type { EnvironmentSpec } from '@shared/types';
 import forestModelUrl from '../../../assets/models/forest.opt.glb?url';
+import { InflatableGate } from './InflatableGate';
 
 // Forest scene. Draco-compressed like the classroom; the decoder path is set
 // globally at startup (see main.tsx) so nothing needs passing here.
@@ -417,6 +418,11 @@ export function ForestEnv({ env }: { env: EnvironmentSpec }) {
       <Suspense fallback={<ForestSpawnSupport />}>
         <ForestModel url={forestModelUrl} bounds={env.bounds} />
       </Suspense>
+
+      {/* PlutoSim Inflatable FPV Drone Racing Arch Gates */}
+      <InflatableGate position={[0, 0.08, -12]} rotation={[0, 0, 0]} />
+      <InflatableGate position={[0, -0.01, -22]} rotation={[0, 0, 0]} />
+      <InflatableGate position={[-10, 0.02, -10]} rotation={[0, Math.PI / 2, 0]} />
     </group>
   );
 }
