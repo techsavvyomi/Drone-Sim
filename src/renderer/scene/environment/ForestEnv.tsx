@@ -1,6 +1,7 @@
-import { Suspense, useMemo } from 'react';
+import { Suspense, useMemo, useState } from 'react';
 import { useGLTF } from '@react-three/drei';
-import { CuboidCollider, RigidBody } from '@react-three/rapier';
+import { useFrame } from '@react-three/fiber';
+import { CuboidCollider, RigidBody, useRapier } from '@react-three/rapier';
 import * as THREE from 'three';
 import type { EnvironmentSpec } from '@shared/types';
 import forestModelUrl from '../../../assets/models/forest.opt.glb?url';
@@ -388,6 +389,50 @@ function ForestModel({ url, bounds }: { url: string; bounds: EnvironmentSpec['bo
   );
 }
 
+// PlutoSim air gates spread out down the road to the right of the helipad,
+// about 30-40 m apart along it: two at z -13 (facing +x) as it runs downhill,
+// two past the bend where it turns north and drifts north-west, then two more
+// where it swings west at z -94 and bends back south-west, each turned to face
+// along it.
+// Every spot is open road with no canopy on the forest plan. `groundY` is the
+// plan's height there, which is only good to half a metre on a sloping road, so
+// each gate finds the real ground itself.
+const RACE_GATES: { x: number; z: number; groundY: number; yaw: number }[] = [
+  { x: 40, z: -13, groundY: 0, yaw: Math.PI / 2 },
+  { x: 78, z: -13, groundY: -4.75, yaw: Math.PI / 2 },
+  { x: 82, z: -44, groundY: -10.25, yaw: 0.38 },
+  { x: 64, z: -80, groundY: -17.5, yaw: 0.29 },
+  { x: 44, z: -94, groundY: -22, yaw: Math.PI / 2 },
+  { x: 22, z: -80, groundY: -25.5, yaw: -0.59 },
+];
+
+/**
+ * Stands a gate on the terrain. Waits for the terrain's colliders (they arrive
+ * with the model), then casts once straight down through the middle of the
+ * gate's opening from just above the planned height — the opening is empty, so
+ * the first solid hit is the ground. The ray only reaches a few metres either
+ * side of the plan, so the catch floor far below can never be mistaken for it.
+ */
+function GroundedGate({ x, z, groundY, yaw }: (typeof RACE_GATES)[number]) {
+  const { world, rapier } = useRapier();
+  const [y, setY] = useState<number | null>(null);
+
+  useFrame(() => {
+    if (y !== null) return;
+    const from = groundY + 2;
+    const ray = new rapier.Ray({ x, y: from, z }, { x: 0, y: -1, z: 0 });
+    const hit = world.castRay(
+      ray,
+      6,
+      true,
+      rapier.QueryFilterFlags.EXCLUDE_DYNAMIC | rapier.QueryFilterFlags.EXCLUDE_SENSORS,
+    );
+    if (hit) setY(from - hit.timeOfImpact);
+  });
+
+  return y === null ? null : <InflatableGate position={[x, y, z]} rotation={[0, yaw, 0]} />;
+}
+
 /** Loading support is removed when the real, uneven terrain becomes solid. */
 function ForestSpawnSupport() {
   return (
@@ -419,8 +464,9 @@ export function ForestEnv({ env }: { env: EnvironmentSpec }) {
         <ForestModel url={forestModelUrl} bounds={env.bounds} />
       </Suspense>
 
-      {/* PlutoSim Inflatable FPV Drone Racing Arch Gate */}
-      <InflatableGate position={[7.0, -0.03, -12.0]} rotation={[0, -0.45, 0]} />
+      {RACE_GATES.map((g, i) => (
+        <GroundedGate key={i} {...g} />
+      ))}
     </group>
   );
 }
