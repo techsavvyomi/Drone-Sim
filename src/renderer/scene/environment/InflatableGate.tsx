@@ -1,17 +1,418 @@
-import { useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { CuboidCollider, RigidBody } from '@react-three/rapier';
 import * as THREE from 'three';
+import { dronePose } from '../../sim/drone/pose';
 
-// Continuous Inflatable FPV Drone Racing Arch Gate with custom "PlutoSim" branding.
-// Accurately styled after official FPV racing inflatable gates (e.g. FPV SkyDive).
-// Features:
-// - A single seamless, continuous 3D inflatable tubular arch with smooth curved bevels.
-// - Authentic high-resolution vinyl texture with dark vinyl sheen, corner shattered
-//   geometric polygon shards, red base chevron markers, and bold "PLUTO SIM" branding.
-// - No distracting subtitles (pure racing logo as requested).
-// - Luminous neon-green checkpoint laser curtain with scanlines and center trajectory guide.
-// - Rapier physics colliders on the tube structure with an open fly-through center.
+// PlutoSim inflatable FPV racing arch, built after the classic "SkyDive" style
+// air gate: one inflated tube — a rounded square in section, so its front is
+// flat enough to carry the lettering — bent into a chamfered arch on straight
+// legs that swell a little at the ground, shattered-glass print over the shoulders and legs,
+// red chevrons at each foot, the branding across the top and a green curtain
+// filling the hole.
+//
+// The tube is swept along a planar centreline, so it never twists: around the
+// tube, angle 0 points away from the opening, a quarter turn faces the front
+// (+z) and three quarters the back. Its texture is laid out the same way — u
+// runs along the tube from the left foot to the right, v runs once around it.
+// The skin pinches in a little at each bend, where a real one is stitched.
+//
+// Geometry, textures and materials are built once and shared by every gate.
+//
+// Fly through the opening and the curtain fades away; it comes back when the
+// drone is reset (R), so the gate can be flown again.
+
+/** Centreline, left foot to right foot, in metres. */
+const CENTRE: [number, number][] = [
+  [-2.3, -0.1], // foot, just into the ground
+  [-2.3, 2.4], // top of leg
+  [-1.7, 3.05], // start of crossbar
+  [1.7, 3.05],
+  [2.3, 2.4],
+  [2.3, -0.1],
+];
+const BEND_RADIUS = 0.22; // short, tight chamfers, as on the reference
+const TUBE_R = 0.38;
+const FOOT_R = 0.45; // legs swell to this at the ground
+const SQUARENESS = 3.2; // superellipse power: 2 is a circle, higher is boxier
+const SEAM_PINCH = 0.05;
+
+const TUBE_SEGMENTS = 220;
+const RADIAL_SEGMENTS = 40;
+
+const TEX_W = 4096;
+const TEX_H = 1024;
+
+function seeded(seed: number) {
+  return () => {
+    seed = (seed * 9301 + 49297) % 233280;
+    return seed / 233280;
+  };
+}
+
+/** The centreline with each corner rounded off, plus where each bend sits along it (0..1). */
+function centreline() {
+  const path = new THREE.CurvePath<THREE.Vector3>();
+  const v = CENTRE.map(([x, y]) => new THREE.Vector3(x, y, 0));
+  let from = v[0];
+  for (let i = 1; i < v.length - 1; i++) {
+    const r = Math.min(BEND_RADIUS, v[i].distanceTo(v[i - 1]) / 2, v[i].distanceTo(v[i + 1]) / 2);
+    const a = v[i].clone().add(v[i - 1].clone().sub(v[i]).setLength(r));
+    const b = v[i].clone().add(v[i + 1].clone().sub(v[i]).setLength(r));
+    path.add(new THREE.LineCurve3(from, a));
+    path.add(new THREE.QuadraticBezierCurve3(a, v[i], b));
+    from = b;
+  }
+  path.add(new THREE.LineCurve3(from, v[v.length - 1]));
+
+  const lengths = path.getCurveLengths();
+  const total = path.getLength();
+  // Bends are the odd curves; take the middle of each.
+  const bends: number[] = [];
+  for (let i = 1; i < path.curves.length; i += 2) {
+    bends.push((lengths[i - 1] + lengths[i]) / 2 / total);
+  }
+  const leg = path.curves[0] as THREE.LineCurve3;
+  return { path, total, bends, leg };
+}
+
+const CL = centreline();
+
+/** Tube radius at a point along the centreline. */
+function radiusAt(u: number, y: number) {
+  const swell = Math.pow(THREE.MathUtils.clamp(1 - y / 1.2, 0, 1), 1.8);
+  let r = TUBE_R + (FOOT_R - TUBE_R) * swell;
+  for (const b of CL.bends) {
+    const d = ((u - b) * CL.total) / 0.14;
+    r *= 1 - SEAM_PINCH * Math.exp(-d * d);
+  }
+  return r;
+}
+
+function tubeGeometry(): THREE.BufferGeometry {
+  const positions: number[] = [];
+  const uvs: number[] = [];
+  const indices: number[] = [];
+  const z = new THREE.Vector3(0, 0, 1);
+
+  for (let i = 0; i <= TUBE_SEGMENTS; i++) {
+    const u = i / TUBE_SEGMENTS;
+    const p = CL.path.getPointAt(u);
+    const t = CL.path.getTangentAt(u);
+    const n = new THREE.Vector3(-t.y, t.x, 0).normalize(); // away from the opening
+    const r = radiusAt(u, p.y);
+    for (let j = 0; j <= RADIAL_SEGMENTS; j++) {
+      const v = j / RADIAL_SEGMENTS;
+      const phi = v * Math.PI * 2;
+      const c = Math.cos(phi);
+      const sn = Math.sin(phi);
+      const e = 2 / SQUARENESS;
+      const dir = n
+        .clone()
+        .multiplyScalar(Math.sign(c) * Math.pow(Math.abs(c), e))
+        .addScaledVector(z, Math.sign(sn) * Math.pow(Math.abs(sn), e));
+      positions.push(p.x + dir.x * r, p.y + dir.y * r, dir.z * r);
+      uvs.push(u, v);
+    }
+  }
+  const row = RADIAL_SEGMENTS + 1;
+  for (let i = 0; i < TUBE_SEGMENTS; i++) {
+    for (let j = 0; j < RADIAL_SEGMENTS; j++) {
+      const a = i * row + j;
+      const b = (i + 1) * row + j;
+      indices.push(a, a + 1, b, b, a + 1, b + 1);
+    }
+  }
+  const geom = new THREE.BufferGeometry();
+  geom.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geom.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+  geom.setIndex(indices);
+  geom.computeVertexNormals(); // picks up the swell and the seam pinches
+  return geom;
+}
+
+/** Texture (u, v) to canvas pixels. Canvas y runs opposite to v. */
+const tx = (u: number, v: number) => [u * TEX_W, (1 - v) * TEX_H] as const;
+
+/** u at a given height up the left leg (the right leg is 1 - u). */
+function legU(y: number) {
+  const { v1, v2 } = CL.leg;
+  return ((y - v1.y) / (v2.y - v1.y)) * (CL.leg.getLength() / CL.total);
+}
+
+const VINYL_BLACK = '#0d0e10';
+const LEG_GREY_TOP = '#4a4e55';
+const LEG_GREY_FOOT = '#62666d';
+const SHATTER_Y = 1.75; // where the black breaks up, metres up the leg
+
+/** Pixels per metre along the tube, and around it (the section is a squircle, a bit over a circle). */
+const ALONG_PX = () => TEX_W / CL.total;
+const AROUND_PX = TEX_H / (2 * Math.PI * TUBE_R * 1.07);
+
+/** A sharp shard: a long tip one way, a short broken base the other. */
+function shard(
+  ctx: CanvasRenderingContext2D,
+  cx: number,
+  cy: number,
+  len: number,
+  width: number,
+  angle: number,
+  skew: number,
+) {
+  const c = Math.cos(angle);
+  const sn = Math.sin(angle);
+  const pt = (along: number, across: number) =>
+    [cx + c * along - sn * across, cy + sn * along + c * across] as const;
+  ctx.beginPath();
+  ctx.moveTo(...pt(len, 0));
+  ctx.lineTo(...pt(-len * 0.35, width * (0.6 + skew * 0.4)));
+  ctx.lineTo(...pt(-len * 0.2 * skew, 0));
+  ctx.lineTo(...pt(-len * 0.4, -width * (0.6 + (1 - skew) * 0.4)));
+  ctx.closePath();
+  ctx.fill();
+}
+
+/**
+ * The left leg's shatter print, drawn in canvas space with the leg running up
+ * +x. Black from the shoulders down to a torn edge at SHATTER_Y, where it breaks
+ * into shards that thin out and shrink as they fall over the grey below; the
+ * black itself carries a few dark-grey cracks. Called again mirrored for the
+ * right leg, so both sides match.
+ */
+function drawShatter(ctx: CanvasRenderingContext2D) {
+  const rand = seeded(4211);
+  const along = ALONG_PX();
+  const edgeX = legU(SHATTER_Y) * TEX_W;
+  const blackEnd = 0.5 * TEX_W; // the crossbar is solid black anyway
+
+  // Solid black above the torn edge.
+  ctx.fillStyle = VINYL_BLACK;
+  ctx.fillRect(edgeX, 0, blackEnd - edgeX, TEX_H);
+
+  // The torn edge: black teeth hanging down over the grey, all the way round.
+  let y = -20;
+  while (y < TEX_H + 20) {
+    const w = (0.05 + rand() * 0.14) * AROUND_PX;
+    const len = (0.1 + Math.pow(rand(), 1.5) * 0.6) * along;
+    ctx.beginPath();
+    ctx.moveTo(edgeX + 2, y);
+    ctx.lineTo(edgeX - len, y + w * (0.3 + rand() * 0.4));
+    ctx.lineTo(edgeX + 2, y + w);
+    ctx.closePath();
+    ctx.fill();
+    y += w * (0.55 + rand() * 0.3);
+  }
+
+  // Broken-off shards falling away below the edge: big and dense near it,
+  // smaller and sparser further down.
+  for (let i = 0; i < 170; i++) {
+    const t = Math.pow(rand(), 1.7); // 0 at the edge, 1 far below it
+    const drop = (0.05 + t * 0.95) * along;
+    const size = (0.26 - t * 0.17) * (0.6 + rand() * 0.8);
+    const v = rand();
+    ctx.fillStyle = rand() < 0.85 ? VINYL_BLACK : '#22252a';
+    for (const wrap of [-TEX_H, 0, TEX_H]) {
+      shard(
+        ctx,
+        edgeX - drop,
+        v * TEX_H + wrap,
+        size * along,
+        size * 0.45 * AROUND_PX,
+        Math.PI + (rand() - 0.5) * 2.2, // mostly pointing down the leg
+        rand(),
+      );
+    }
+  }
+
+  // Cracks in the black: dark-grey slivers up the leg and over the shoulder.
+  const shoulderEnd = (CL.bends[1] + 0.02) * TEX_W;
+  for (let i = 0; i < 90; i++) {
+    const x = edgeX + 0.15 * along + rand() * (shoulderEnd - edgeX - 0.15 * along);
+    const v = rand();
+    const size = 0.05 + rand() * 0.12;
+    ctx.fillStyle = ['#262a30', '#30343b', '#3b4048'][Math.floor(rand() * 3)];
+    for (const wrap of [-TEX_H, 0, TEX_H]) {
+      shard(ctx, x, v * TEX_H + wrap, size * along, size * 0.4 * AROUND_PX, rand() * Math.PI * 2, rand());
+    }
+  }
+}
+
+/** Red chevrons pointing up each leg, front and back. */
+function drawChevrons(ctx: CanvasRenderingContext2D) {
+  const pxPerM = TEX_W / CL.total;
+  const base = legU(0.02);
+  const tall = 0.4 * pxPerM;
+  const half = 0.06 * TEX_H; // across the tube
+  for (const left of [true, false]) {
+    for (const v of [0.25, 0.75]) {
+      const [bx, cy] = tx(left ? base : 1 - base, v);
+      const tip = bx + (left ? tall : -tall);
+      ctx.fillStyle = '#e8261c';
+      ctx.beginPath();
+      ctx.moveTo(bx, cy - half);
+      ctx.lineTo(tip, cy);
+      ctx.lineTo(bx, cy + half);
+      ctx.closePath();
+      ctx.fill();
+      // A darker facet so it reads as a folded chevron, not a flat sticker.
+      ctx.fillStyle = '#a3140e';
+      ctx.beginPath();
+      ctx.moveTo(tip, cy);
+      ctx.lineTo(bx, cy + half);
+      ctx.lineTo(bx + (tip - bx) * 0.2, cy + half);
+      ctx.closePath();
+      ctx.fill();
+    }
+  }
+}
+
+const brandFont = (sizePx: number) =>
+  `italic 900 ${Math.round(sizePx)}px "Arial Black", "Helvetica Neue", Impact, sans-serif`;
+const BRAND_MAX_W = 2.6; // metres along the crossbar and a little of each shoulder
+const BRAND_H = 0.32; // metres around the tube
+
+/** "PLUTO" in racing red, "SIM" in white, centred on (0, 0). */
+function drawBrand(ctx: CanvasRenderingContext2D) {
+  const alongPxPerM = TEX_W / CL.total;
+  const aroundPxPerM = TEX_H / (2 * Math.PI * TUBE_R);
+  const red = 'PLUTO';
+  const white = 'SIM';
+  ctx.save();
+  ctx.textBaseline = 'middle';
+
+  // u and v pixels are not the same size: set the type by its height around the
+  // tube, then scale it along the tube to true proportions, or less if it is too wide.
+  const size = BRAND_H * aroundPxPerM * 1.35;
+  ctx.font = brandFont(size);
+  const gap = size * 0.1;
+  const redW = ctx.measureText(red).width;
+  const whiteW = ctx.measureText(white).width;
+  const total = redW + gap + whiteW;
+  const aspect = alongPxPerM / aroundPxPerM;
+  ctx.scale(Math.min(aspect, (BRAND_MAX_W * alongPxPerM) / total), 1);
+  let x = -total / 2;
+
+  ctx.lineJoin = 'round';
+  ctx.lineWidth = size * 0.07;
+  ctx.strokeStyle = 'rgba(0,0,0,0.85)';
+  ctx.strokeText(red, x, 0);
+  ctx.fillStyle = '#ef2a1f';
+  ctx.fillText(red, x, 0);
+  x += redW + gap;
+  ctx.strokeText(white, x, 0);
+  ctx.fillStyle = '#f7f8fa';
+  ctx.fillText(white, x, 0);
+  ctx.restore();
+}
+
+function paintTube(canvas: HTMLCanvasElement) {
+  const ctx = canvas.getContext('2d')!;
+
+  // Grey lower legs, darkening a little towards the shatter line.
+  const grad = ctx.createLinearGradient(0, 0, TEX_W, 0);
+  const foot = legU(0);
+  const edge = legU(SHATTER_Y);
+  grad.addColorStop(foot, LEG_GREY_FOOT);
+  grad.addColorStop(edge, LEG_GREY_TOP);
+  grad.addColorStop(1 - edge, LEG_GREY_TOP);
+  grad.addColorStop(1 - foot, LEG_GREY_FOOT);
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, TEX_W, TEX_H);
+
+  drawShatter(ctx);
+  ctx.save();
+  ctx.translate(TEX_W, 0);
+  ctx.scale(-1, 1);
+  drawShatter(ctx);
+  ctx.restore();
+
+  drawChevrons(ctx);
+
+  // Front face: going up v walks from the top of the tube down its face, so the
+  // canvas is flipped vertically there. Back face: seen from behind, flip across.
+  const [fx, fy] = tx(0.5, 0.25);
+  ctx.save();
+  ctx.translate(fx, fy);
+  ctx.scale(1, -1);
+  drawBrand(ctx);
+  ctx.restore();
+  const [bx, by] = tx(0.5, 0.75);
+  ctx.save();
+  ctx.translate(bx, by);
+  ctx.scale(-1, 1);
+  drawBrand(ctx);
+  ctx.restore();
+}
+
+/** The opening: the centreline pulled in to inside the tube wall. */
+function curtainGeometry(): THREE.BufferGeometry {
+  const pts: THREE.Vector2[] = [];
+  for (let i = 0; i <= 80; i++) {
+    const u = i / 80;
+    const p = CL.path.getPointAt(u);
+    const t = CL.path.getTangentAt(u);
+    const r = radiusAt(u, p.y) * 0.6;
+    pts.push(new THREE.Vector2(p.x + t.y * r, Math.max(0.01, p.y - t.x * r)));
+  }
+  return new THREE.ShapeGeometry(new THREE.Shape(pts));
+}
+
+type GateAssets = {
+  tube: THREE.BufferGeometry;
+  tubeMat: THREE.MeshStandardMaterial;
+  curtain: THREE.BufferGeometry;
+  curtainMat: THREE.MeshBasicMaterial;
+};
+let assets: GateAssets | null = null;
+
+function gateAssets(): GateAssets {
+  if (assets) return assets;
+  const canvas = document.createElement('canvas');
+  canvas.width = TEX_W;
+  canvas.height = TEX_H;
+  paintTube(canvas);
+  const map = new THREE.CanvasTexture(canvas);
+  map.colorSpace = THREE.SRGBColorSpace;
+  map.wrapT = THREE.RepeatWrapping;
+  map.anisotropy = 8;
+
+  assets = {
+    tube: tubeGeometry(),
+    tubeMat: new THREE.MeshStandardMaterial({ map, roughness: 0.42, metalness: 0.05 }),
+    curtain: curtainGeometry(),
+    curtainMat: new THREE.MeshBasicMaterial({
+      color: '#48c816', // one flat green, no texture
+      transparent: true,
+      opacity: 0.5,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+    }),
+  };
+  return assets;
+}
+
+/** Collision boxes along each straight run of the centreline. */
+const SEGMENTS = (() => {
+  const runs: { pos: [number, number, number]; half: number; r: number; angle: number }[] = [];
+  for (let i = 0; i < CENTRE.length - 1; i++) {
+    const [ax, ay] = CENTRE[i];
+    const [bx, by] = CENTRE[i + 1];
+    const legRun = i === 0 || i === CENTRE.length - 2;
+    runs.push({
+      pos: [(ax + bx) / 2, (ay + by) / 2, 0],
+      half: Math.hypot(bx - ax, by - ay) / 2,
+      r: legRun ? (TUBE_R + FOOT_R) / 2 : TUBE_R,
+      angle: Math.atan2(by - ay, bx - ax),
+    });
+  }
+  return runs;
+})();
+
+/** The clear opening, in gate space: inside the legs and under the crossbar. */
+const OPENING_HALF_W = Math.abs(CENTRE[1][0]) - TUBE_R;
+const OPENING_TOP = CENTRE[2][1] - TUBE_R;
+const CURTAIN_OPACITY = 0.68;
+const FADE_SECONDS = 0.35;
 
 interface InflatableGateProps {
   position?: [number, number, number];
@@ -20,433 +421,67 @@ interface InflatableGateProps {
   showCurtain?: boolean;
 }
 
-const ARCH_COL_X = 2.2; // Half-width from center to pillar axis
-const ARCH_TOP_Y = 3.25; // Centerline height of top horizontal section
-const ARCH_TUBE_RADIUS = 0.28; // Radius of inflatable tube
-
-/**
- * Creates the continuous CatmullRom spline path for the arch centerline.
- */
-function createArchCurve(): THREE.CatmullRomCurve3 {
-  const points = [
-    new THREE.Vector3(-ARCH_COL_X, 0, 0),
-    new THREE.Vector3(-ARCH_COL_X, 1.0, 0),
-    new THREE.Vector3(-ARCH_COL_X, 1.95, 0),
-    new THREE.Vector3(-ARCH_COL_X + 0.35, 2.65, 0),
-    new THREE.Vector3(-ARCH_COL_X + 0.95, 3.05, 0),
-    new THREE.Vector3(-0.6, ARCH_TOP_Y, 0),
-    new THREE.Vector3(0, ARCH_TOP_Y, 0),
-    new THREE.Vector3(0.6, ARCH_TOP_Y, 0),
-    new THREE.Vector3(ARCH_COL_X - 0.95, 3.05, 0),
-    new THREE.Vector3(ARCH_COL_X - 0.35, 2.65, 0),
-    new THREE.Vector3(ARCH_COL_X, 1.95, 0),
-    new THREE.Vector3(ARCH_COL_X, 1.0, 0),
-    new THREE.Vector3(ARCH_COL_X, 0, 0),
-  ];
-  return new THREE.CatmullRomCurve3(points, false, 'centripetal', 0.1);
-}
-
-/**
- * Constructs a seamless, non-twisting 3D tube geometry along the planar arch curve.
- */
-function createSeamlessTubeGeometry(
-  curve: THREE.CatmullRomCurve3,
-  radius: number,
-  tubularSegments = 84,
-  radialSegments = 24,
-): THREE.BufferGeometry {
-  const positions: number[] = [];
-  const normals: number[] = [];
-  const uvs: number[] = [];
-  const indices: number[] = [];
-
-  for (let i = 0; i <= tubularSegments; i++) {
-    const u = i / tubularSegments;
-    const p = curve.getPointAt(u);
-    const t = curve.getTangentAt(u).normalize();
-
-    // Constant in-plane normal and out-of-plane binormal for zero twisting
-    const n = new THREE.Vector3(-t.y, t.x, 0).normalize();
-    const b = new THREE.Vector3(0, 0, 1);
-
-    for (let j = 0; j <= radialSegments; j++) {
-      const v = j / radialSegments;
-      const phi = v * Math.PI * 2;
-      const dir = new THREE.Vector3()
-        .addScaledVector(n, Math.cos(phi))
-        .addScaledVector(b, Math.sin(phi))
-        .normalize();
-
-      const vertex = new THREE.Vector3().copy(p).addScaledVector(dir, radius);
-      positions.push(vertex.x, vertex.y, vertex.z);
-      normals.push(dir.x, dir.y, dir.z);
-      uvs.push(u, v);
-    }
-  }
-
-  for (let i = 0; i < tubularSegments; i++) {
-    for (let j = 0; j < radialSegments; j++) {
-      const a = i * (radialSegments + 1) + j;
-      const b = (i + 1) * (radialSegments + 1) + j;
-      const c = (i + 1) * (radialSegments + 1) + (j + 1);
-      const d = i * (radialSegments + 1) + (j + 1);
-      indices.push(a, b, d);
-      indices.push(b, c, d);
-    }
-  }
-
-  const geom = new THREE.BufferGeometry();
-  geom.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-  geom.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
-  geom.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
-  geom.setIndex(indices);
-  return geom;
-}
-
-/**
- * Generates high-res 2048x1024 texture for the entire continuous arch tube.
- * - U axis (X 0..2048) runs along the tube: Left Leg -> Left Elbow -> Top Bar -> Right Elbow -> Right Leg.
- * - V axis (Y 0..1024) runs around the tube: Front face is Y=256 (v=0.25), Back face is Y=768 (v=0.75).
- */
-function createArchTexture(): THREE.CanvasTexture {
-  const canvas = document.createElement('canvas');
-  canvas.width = 2048;
-  canvas.height = 1024;
-  const ctx = canvas.getContext('2d')!;
-
-  // 1. Dark inflatable vinyl base
-  ctx.fillStyle = '#111316';
-  ctx.fillRect(0, 0, 2048, 1024);
-
-  // Subtle inflatable seam line gradients
-  const seamGrad = ctx.createLinearGradient(0, 0, 0, 1024);
-  seamGrad.addColorStop(0, '#1a1d22');
-  seamGrad.addColorStop(0.2, '#141619');
-  seamGrad.addColorStop(0.25, '#1e2227'); // Front ridge
-  seamGrad.addColorStop(0.3, '#141619');
-  seamGrad.addColorStop(0.5, '#0e1012'); // Inner ridge
-  seamGrad.addColorStop(0.7, '#141619');
-  seamGrad.addColorStop(0.75, '#1e2227'); // Back ridge
-  seamGrad.addColorStop(0.8, '#141619');
-  seamGrad.addColorStop(1, '#1a1d22');
-  ctx.fillStyle = seamGrad;
-  ctx.fillRect(0, 0, 2048, 1024);
-
-  // 2. Shattered geometric polygon shards on the corner elbows
-  // Left elbow (u: 0.22..0.38 -> X: 450..780)
-  // Right elbow (u: 0.62..0.78 -> X: 1268..1600)
-  const drawShardsCluster = (centerX: number, centerY: number, width: number, height: number) => {
-    let seed = centerX * 13 + centerY * 7;
-    const rand = () => {
-      seed = (seed * 9301 + 49297) % 233280;
-      return seed / 233280;
-    };
-
-    const shardColors = [
-      '#1b1f24',
-      '#242930',
-      '#323a45',
-      '#495362',
-      '#667487',
-      '#9eabbc',
-      '#e1e7ee',
-      '#ff3b1e', // Red accent
-    ];
-
-    for (let i = 0; i < 48; i++) {
-      const px = centerX + (rand() - 0.5) * width;
-      const py = centerY + (rand() - 0.5) * height;
-      const r = 18 + rand() * 42;
-      const color = shardColors[Math.floor(rand() * shardColors.length)];
-
-      ctx.fillStyle = color;
-      ctx.beginPath();
-      const sides = 3 + (rand() > 0.7 ? 1 : 0);
-      for (let s = 0; s < sides; s++) {
-        const angle = (s / sides) * Math.PI * 2 + rand() * 0.9;
-        const d = r * (0.6 + rand() * 0.8);
-        const sx = px + Math.cos(angle) * d;
-        const sy = py + Math.sin(angle) * d;
-        if (s === 0) ctx.moveTo(sx, sy);
-        else ctx.lineTo(sx, sy);
-      }
-      ctx.closePath();
-      ctx.fill();
-    }
-  };
-
-  // Draw shards on both elbows on front and back
-  drawShardsCluster(610, 256, 320, 200); // Left elbow front
-  drawShardsCluster(1438, 256, 320, 200); // Right elbow front
-  drawShardsCluster(610, 768, 320, 200); // Left elbow back
-  drawShardsCluster(1438, 768, 320, 200); // Right elbow back
-
-  // 3. Red upward-pointing triangular chevrons at the base of each pillar
-  const drawBaseChevron = (cx: number, cy: number) => {
-    ctx.fillStyle = '#ff3b1e';
-    ctx.beginPath();
-    ctx.moveTo(cx - 32, cy + 42);
-    ctx.lineTo(cx, cy - 42);
-    ctx.lineTo(cx + 32, cy + 42);
-    ctx.closePath();
-    ctx.fill();
-
-    // Subtle dark border
-    ctx.strokeStyle = 'rgba(0, 0, 0, 0.4)';
-    ctx.lineWidth = 3;
-    ctx.stroke();
-  };
-
-  // Front base chevrons
-  drawBaseChevron(80, 256);
-  drawBaseChevron(1968, 256);
-  // Back base chevrons
-  drawBaseChevron(80, 768);
-  drawBaseChevron(1968, 768);
-
-  // 4. Official "PLUTO SIM" Branding on Top Crossbar
-  // Positioned cleanly at X=1024, Y=256 (front) and Y=768 (back)
-  // No extra clutter/subtitles per user instructions
-  const drawBranding = (cx: number, cy: number, mirror = false) => {
-    ctx.save();
-    ctx.translate(cx, cy);
-    if (mirror) {
-      ctx.scale(-1, 1);
-    }
-
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.font = '900 132px "Geist", "Impact", "Arial Black", sans-serif';
-
-    const plutoText = 'PLUTO ';
-    const simText = 'SIM';
-    const plutoW = ctx.measureText(plutoText).width;
-    const simW = ctx.measureText(simText).width;
-    const totalW = plutoW + simW;
-    const startX = -totalW / 2;
-
-    // Heavy drop shadow for contrast against vinyl
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.9)';
-    ctx.textAlign = 'left';
-    ctx.fillText(plutoText, startX + 5, 5);
-    ctx.fillText(simText, startX + plutoW + 5, 5);
-
-    // PLUTO in bold racing red-orange
-    ctx.fillStyle = '#ff381e';
-    ctx.fillText(plutoText, startX, 0);
-
-    // SIM in bold pure white
-    ctx.fillStyle = '#ffffff';
-    ctx.fillText(simText, startX + plutoW, 0);
-
-    ctx.restore();
-  };
-
-  // Front branding
-  drawBranding(1024, 256, false);
-  // Back branding (mirrored so it reads left-to-right when viewed from reverse direction)
-  drawBranding(1024, 768, true);
-
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.anisotropy = 8;
-  texture.colorSpace = THREE.SRGBColorSpace;
-  return texture;
-}
-
-/** Generates green translucent laser checkpoint curtain texture. */
-function createCurtainTexture(): THREE.CanvasTexture {
-  const canvas = document.createElement('canvas');
-  canvas.width = 512;
-  canvas.height = 512;
-  const ctx = canvas.getContext('2d')!;
-
-  ctx.clearRect(0, 0, 512, 512);
-
-  // Soft luminous green gradient fill
-  const radGrad = ctx.createRadialGradient(256, 256, 40, 256, 256, 256);
-  radGrad.addColorStop(0, 'rgba(40, 250, 110, 0.45)');
-  radGrad.addColorStop(0.7, 'rgba(25, 220, 90, 0.28)');
-  radGrad.addColorStop(1, 'rgba(15, 180, 70, 0.12)');
-  ctx.fillStyle = radGrad;
-  ctx.fillRect(0, 0, 512, 512);
-
-  // Fine horizontal scanlines
-  ctx.strokeStyle = 'rgba(90, 255, 150, 0.38)';
-  ctx.lineWidth = 1.5;
-  for (let y = 14; y < 512; y += 14) {
-    ctx.beginPath();
-    ctx.moveTo(10, y);
-    ctx.lineTo(502, y);
-    ctx.stroke();
-  }
-
-  // Center flight trajectory guide arc (amber curved arc from reference screenshot)
-  ctx.strokeStyle = '#ff9900';
-  ctx.lineWidth = 5;
-  ctx.beginPath();
-  ctx.arc(256, 230, 80, Math.PI * 0.2, Math.PI * 0.8, false);
-  ctx.stroke();
-
-  // Subtle outer glow around the trajectory arc
-  ctx.strokeStyle = 'rgba(255, 170, 0, 0.4)';
-  ctx.lineWidth = 10;
-  ctx.beginPath();
-  ctx.arc(256, 230, 80, Math.PI * 0.2, Math.PI * 0.8, false);
-  ctx.stroke();
-
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.colorSpace = THREE.SRGBColorSpace;
-  return texture;
-}
-
-/**
- * Creates custom arch curtain geometry that fits inside the arch opening.
- */
-function createCurtainGeometry(curve: THREE.CatmullRomCurve3, radius: number): THREE.BufferGeometry {
-  const innerPoints: THREE.Vector3[] = [];
-  const steps = 44;
-  for (let i = 0; i <= steps; i++) {
-    const u = i / steps;
-    const p = curve.getPointAt(u);
-    const t = curve.getTangentAt(u).normalize();
-    const inward = new THREE.Vector3(t.y, -t.x, 0).normalize();
-    const innerP = new THREE.Vector3().copy(p).addScaledVector(inward, radius);
-    innerPoints.push(innerP);
-  }
-
-  const shape = new THREE.Shape();
-  shape.moveTo(innerPoints[0].x, 0.02);
-  for (let i = 0; i < innerPoints.length; i++) {
-    shape.lineTo(innerPoints[i].x, Math.max(0.02, innerPoints[i].y));
-  }
-  shape.lineTo(innerPoints[0].x, 0.02);
-  shape.closePath();
-
-  const geom = new THREE.ShapeGeometry(shape);
-
-  // Set normalized UVs
-  geom.computeBoundingBox();
-  const min = geom.boundingBox?.min || new THREE.Vector3(-1.9, 0, 0);
-  const max = geom.boundingBox?.max || new THREE.Vector3(1.9, 3.0, 0);
-  const pos = geom.attributes.position;
-  const uvs = new Float32Array(pos.count * 2);
-
-  for (let i = 0; i < pos.count; i++) {
-    const x = pos.getX(i);
-    const y = pos.getY(i);
-    uvs[i * 2] = (x - min.x) / (max.x - min.x);
-    uvs[i * 2 + 1] = (y - min.y) / (max.y - min.y);
-  }
-  geom.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
-  return geom;
-}
-
-/**
- * PlutoSim Continuous Inflatable FPV Drone Racing Arch Gate.
- */
 export function InflatableGate({
   position = [0, 0, 0],
   rotation = [0, 0, 0],
   scale = 1,
   showCurtain = true,
 }: InflatableGateProps) {
-  const curve = useMemo(() => createArchCurve(), []);
-  const tubeGeom = useMemo(
-    () => createSeamlessTubeGeometry(curve, ARCH_TUBE_RADIUS),
-    [curve],
-  );
-  const curtainGeom = useMemo(
-    () => createCurtainGeometry(curve, ARCH_TUBE_RADIUS),
-    [curve],
-  );
+  const { tube, tubeMat, curtain, curtainMat } = gateAssets();
+  // Each gate fades its own curtain, so it gets its own copy of the material.
+  const ownCurtainMat = useMemo(() => curtainMat.clone(), [curtainMat]);
+  useEffect(() => () => ownCurtainMat.dispose(), [ownCurtainMat]);
 
-  const archTex = useMemo(() => createArchTexture(), []);
-  const curtainTex = useMemo(() => createCurtainTexture(), []);
-
-  // Inflatable vinyl material with realistic sheen
-  const archMat = useMemo(
-    () =>
-      new THREE.MeshStandardMaterial({
-        map: archTex,
-        roughness: 0.36,
-        metalness: 0.06,
-      }),
-    [archTex],
-  );
-
-  const curtainMat = useMemo(
-    () =>
-      new THREE.MeshBasicMaterial({
-        map: curtainTex,
-        transparent: true,
-        opacity: 0.42,
-        side: THREE.DoubleSide,
-        depthWrite: false,
-      }),
-    [curtainTex],
-  );
-
-  // Subtle breathing pulse on the laser curtain
+  const groupRef = useRef<THREE.Group>(null);
   const curtainRef = useRef<THREE.Mesh>(null);
-  useFrame(({ clock }) => {
-    if (curtainRef.current) {
-      const t = clock.getElapsedTime();
-      const pulse = 0.36 + Math.sin(t * 3.2) * 0.08;
-      (curtainRef.current.material as THREE.MeshBasicMaterial).opacity = pulse;
+  const gate = useRef({
+    passed: false,
+    fade: 1, // 1 shown, 0 gone
+    side: 0, // which side of the gate plane the drone was on last frame
+    resetVersion: dronePose.resetVersion,
+    local: new THREE.Vector3(),
+  });
+
+  useFrame(({ clock }, delta) => {
+    const g = gate.current;
+    if (dronePose.resetVersion !== g.resetVersion) {
+      g.resetVersion = dronePose.resetVersion;
+      g.passed = false;
+      g.fade = 1;
+      g.side = 0;
     }
+
+    // Passed = crossed the gate plane (local z = 0) inside the opening.
+    if (!g.passed && dronePose.present && groupRef.current) {
+      const p = groupRef.current.worldToLocal(g.local.copy(dronePose.position));
+      const side = Math.sign(p.z);
+      const inOpening = Math.abs(p.x) < OPENING_HALF_W && p.y > 0 && p.y < OPENING_TOP;
+      if (g.side !== 0 && side !== 0 && side !== g.side && inOpening) g.passed = true;
+      if (side !== 0) g.side = side;
+    }
+
+    if (g.passed && g.fade > 0) g.fade = Math.max(0, g.fade - delta / FADE_SECONDS);
+    const pulse = CURTAIN_OPACITY + Math.sin(clock.getElapsedTime() * 2.4) * 0.05;
+    ownCurtainMat.opacity = pulse * g.fade;
+    if (curtainRef.current) curtainRef.current.visible = g.fade > 0;
   });
 
   return (
-    <group position={position} rotation={rotation} scale={scale}>
-      {/* ----------------- Continuous Seamless Arch Mesh ----------------- */}
-      <mesh geometry={tubeGeom} material={archMat} castShadow receiveShadow />
-
-      {/* Closed Bottom End Caps */}
-      <mesh position={[-ARCH_COL_X, 0.01, 0]} rotation={[Math.PI / 2, 0, 0]}>
-        <circleGeometry args={[ARCH_TUBE_RADIUS, 24]} />
-        <meshStandardMaterial color="#111316" roughness={0.8} />
-      </mesh>
-      <mesh position={[ARCH_COL_X, 0.01, 0]} rotation={[Math.PI / 2, 0, 0]}>
-        <circleGeometry args={[ARCH_TUBE_RADIUS, 24]} />
-        <meshStandardMaterial color="#111316" roughness={0.8} />
-      </mesh>
-
-      {/* Weighted Black Stabilizer Foot Pads */}
-      <mesh position={[-ARCH_COL_X, 0.03, 0]} receiveShadow>
-        <cylinderGeometry args={[0.52, 0.58, 0.06, 24]} />
-        <meshStandardMaterial color="#0c0e10" roughness={0.92} />
-      </mesh>
-      <mesh position={[ARCH_COL_X, 0.03, 0]} receiveShadow>
-        <cylinderGeometry args={[0.52, 0.58, 0.06, 24]} />
-        <meshStandardMaterial color="#0c0e10" roughness={0.92} />
-      </mesh>
-
-      {/* Luminous Green Checkpoint Laser Curtain */}
+    <group ref={groupRef} position={position} rotation={rotation} scale={scale}>
+      <mesh geometry={tube} material={tubeMat} castShadow receiveShadow />
       {showCurtain && (
-        <mesh ref={curtainRef} geometry={curtainGeom} material={curtainMat} />
+        <mesh ref={curtainRef} geometry={curtain} material={ownCurtainMat} renderOrder={1} />
       )}
 
-      {/* ----------------- Physical Colliders (RigidBody) ----------------- */}
       <RigidBody type="fixed" colliders={false}>
-        {/* Left Column Collider */}
-        <CuboidCollider
-          args={[ARCH_TUBE_RADIUS, 1.0, ARCH_TUBE_RADIUS]}
-          position={[-ARCH_COL_X, 1.0, 0]}
-        />
-        {/* Right Column Collider */}
-        <CuboidCollider
-          args={[ARCH_TUBE_RADIUS, 1.0, ARCH_TUBE_RADIUS]}
-          position={[ARCH_COL_X, 1.0, 0]}
-        />
-        {/* Top Crossbar Collider */}
-        <CuboidCollider
-          args={[ARCH_COL_X * 0.9, ARCH_TUBE_RADIUS, ARCH_TUBE_RADIUS]}
-          position={[0, ARCH_TOP_Y, 0]}
-        />
-        {/* Left Base Foot Pad Collider */}
-        <CuboidCollider args={[0.52, 0.03, 0.52]} position={[-ARCH_COL_X, 0.03, 0]} />
-        {/* Right Base Foot Pad Collider */}
-        <CuboidCollider args={[0.52, 0.03, 0.52]} position={[ARCH_COL_X, 0.03, 0]} />
+        {SEGMENTS.map((s, i) => (
+          <CuboidCollider
+            key={i}
+            args={[s.half, s.r, s.r]}
+            position={s.pos}
+            rotation={[0, 0, s.angle]}
+          />
+        ))}
       </RigidBody>
     </group>
   );
