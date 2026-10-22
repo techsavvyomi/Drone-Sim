@@ -3,6 +3,7 @@ import { useFrame } from '@react-three/fiber';
 import { CuboidCollider, RigidBody } from '@react-three/rapier';
 import * as THREE from 'three';
 import { dronePose } from '../../sim/drone/pose';
+import { playCollect } from '../../audio/sfx';
 
 // PlutoSim inflatable race ring, the round partner of `InflatableGate`: the same
 // vinyl tube — black over the top breaking up into shards over grey below, red
@@ -18,7 +19,8 @@ import { dronePose } from '../../sim/drone/pose';
 // starting at +x and going over the top, v once round the tube starting at the
 // outside, so v = 0.25 is the front face (+z) and 0.75 the back.
 //
-// Fly through and the curtain fades; it comes back on reset (R).
+// Fly through and the checkpoint chime plays and the curtain fades; it comes
+// back on reset (R).
 
 const RING_R = 2.1; // centreline radius
 const TUBE_R = 0.38; // as the gate
@@ -293,7 +295,10 @@ export function InflatableRing({
       const p = ringRef.current.worldToLocal(g.local.copy(dronePose.position));
       const side = Math.sign(p.z);
       const inOpening = Math.hypot(p.x, p.y) < OPENING_R;
-      if (g.side !== 0 && side !== 0 && side !== g.side && inOpening) g.passed = true;
+      if (g.side !== 0 && side !== 0 && side !== g.side && inOpening) {
+        g.passed = true;
+        playCollect();
+      }
       if (side !== 0) g.side = side;
     }
 

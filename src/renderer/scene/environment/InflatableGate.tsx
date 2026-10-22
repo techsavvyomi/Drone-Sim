@@ -3,6 +3,7 @@ import { useFrame } from '@react-three/fiber';
 import { CuboidCollider, RigidBody } from '@react-three/rapier';
 import * as THREE from 'three';
 import { dronePose } from '../../sim/drone/pose';
+import { playCollect } from '../../audio/sfx';
 
 // PlutoSim inflatable FPV racing arch, built after the classic "SkyDive" style
 // air gate: one inflated tube — a rounded square in section, so its front is
@@ -19,8 +20,8 @@ import { dronePose } from '../../sim/drone/pose';
 //
 // Geometry, textures and materials are built once and shared by every gate.
 //
-// Fly through the opening and the curtain fades away; it comes back when the
-// drone is reset (R), so the gate can be flown again.
+// Fly through the opening and the checkpoint chime plays and the curtain fades
+// away; it comes back when the drone is reset (R), so the gate can be flown again.
 
 /** Centreline, left foot to right foot, in metres. */
 const CENTRE: [number, number][] = [
@@ -456,7 +457,10 @@ export function InflatableGate({
       const p = groupRef.current.worldToLocal(g.local.copy(dronePose.position));
       const side = Math.sign(p.z);
       const inOpening = Math.abs(p.x) < OPENING_HALF_W && p.y > 0 && p.y < OPENING_TOP;
-      if (g.side !== 0 && side !== 0 && side !== g.side && inOpening) g.passed = true;
+      if (g.side !== 0 && side !== 0 && side !== g.side && inOpening) {
+        g.passed = true;
+        playCollect();
+      }
       if (side !== 0) g.side = side;
     }
 
