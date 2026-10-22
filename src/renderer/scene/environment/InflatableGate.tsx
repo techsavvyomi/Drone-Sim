@@ -382,7 +382,7 @@ function gateAssets(): GateAssets {
     tubeMat: new THREE.MeshStandardMaterial({ map, roughness: 0.42, metalness: 0.05 }),
     curtain: curtainGeometry(),
     curtainMat: new THREE.MeshBasicMaterial({
-      color: '#48c816', // one flat green, no texture
+      color: '#8fe36b', // one flat light green, no texture
       transparent: true,
       opacity: 0.5,
       side: THREE.DoubleSide,
@@ -412,7 +412,7 @@ const SEGMENTS = (() => {
 /** The clear opening, in gate space: inside the legs and under the crossbar. */
 const OPENING_HALF_W = Math.abs(CENTRE[1][0]) - TUBE_R;
 const OPENING_TOP = CENTRE[2][1] - TUBE_R;
-const CURTAIN_OPACITY = 0.68;
+const CURTAIN_OPACITY = 0.55;
 const FADE_SECONDS = 0.35;
 
 interface InflatableGateProps {

@@ -34,7 +34,7 @@ const GREY_BOTTOM = '#62666d';
 /** Black covers the ring from this far below the sides, as a fraction of a turn. */
 const BLACK_OVERLAP = 0.06;
 
-const CURTAIN_OPACITY = 0.68;
+const CURTAIN_OPACITY = 0.55;
 const FADE_SECONDS = 0.35;
 const OPENING_R = RING_R - TUBE_R;
 
@@ -224,7 +224,7 @@ function ringAssets(): RingAssets {
     tubeMat: new THREE.MeshStandardMaterial({ map, roughness: 0.42, metalness: 0.05 }),
     curtain: new THREE.CircleGeometry(RING_R - TUBE_R * 0.6, 64),
     curtainMat: new THREE.MeshBasicMaterial({
-      color: '#48c816', // the gate's green
+      color: '#8fe36b', // the gate's light green
       transparent: true,
       opacity: 0.5,
       side: THREE.DoubleSide,
