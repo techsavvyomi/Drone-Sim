@@ -1,11 +1,7 @@
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import { devFpsEnabled, useShellStore } from '../state/shellStore';
-import { useSettingsStore } from '../state/settingsStore';
 import { useUiStore } from '../state/uiStore';
-import { getDrone, getEnvironment } from '../plugins/registry';
-import { Icon } from '../ds';
 import { NAV } from './Sidebar';
-import { ceilingFor, formatMetres } from './loadout';
 import { ConnectionChip } from './ConnectionChip';
 
 const WIDE = '(min-width: 1200px)';
@@ -51,20 +47,17 @@ function DevFps() {
 }
 
 /**
- * Bottom strip of the shell. Left: where you are, plus anything the next flight
- * should know (the arena capping the ceiling). Right: the input legend — both
- * devices at the wide layout, only the last-used one below 1200 px.
+ * Bottom strip of the shell. Left: where you are. Right: the input legend —
+ * both devices at the wide layout, only the last-used one below 1200 px.
+ *
+ * No warnings here: the "<arena> caps the ceiling at 8 m" note came out on the
+ * user's word (2026-10-24) — the top bar's Ceiling already says it.
  */
 export function StatusBar() {
   const section = useUiStore((s) => s.section);
   const context = useShellStore((s) => s.context);
   const contextTag = useShellStore((s) => s.contextTag);
-  const settings = useSettingsStore((s) => s.settings);
   const page = NAV.find((n) => n.id === section)?.label ?? '';
-  const ceiling = ceilingFor(
-    getDrone(settings.selectedDroneId),
-    getEnvironment(settings.selectedEnvironmentId),
-  );
 
   return (
     <footer className="statusbar" data-register="classroom">
@@ -74,12 +67,6 @@ export function StatusBar() {
           {contextTag && ` · ${contextTag}`}
         </b>
         {context && <span>{context}</span>}
-        {ceiling.cappedBy && (
-          <span className="statusbar__note">
-            <Icon name="warning" />
-            {ceiling.cappedBy} caps the ceiling at {formatMetres(ceiling.metres)}
-          </span>
-        )}
       </p>
       <div className="statusbar__right">
         {DEV_FPS && <DevFps />}

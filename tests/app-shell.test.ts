@@ -495,12 +495,12 @@ describe('TopBar', () => {
 });
 
 describe('StatusBar', () => {
-  it('names the page and warns that the arena caps the ceiling', () => {
+  it('names the page, with no ceiling warning even where the arena caps it', () => {
     useUiStore.setState({ section: 'hangar' });
     const el = mount(h(StatusBar));
     expect($(el, '.statusbar__where b').textContent).toBe('Hangar');
-    expect($(el, '.statusbar__note').textContent).toBe('Classroom caps the ceiling at 3 m');
-    expect($(el, '.statusbar__note [data-icon="warning"]')).not.toBeNull();
+    expect(el.textContent).not.toContain('caps the ceiling');
+    expect(el.querySelector('[data-icon="warning"]')).toBeNull();
   });
 
   it('has no FPS read-out without the dev flag', () => {
