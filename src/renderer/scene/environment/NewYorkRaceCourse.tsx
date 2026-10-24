@@ -1,6 +1,4 @@
-import { useState, type ReactElement } from 'react';
-import { useFrame } from '@react-three/fiber';
-import { useRapier } from '@react-three/rapier';
+import { Grounded } from './Grounded';
 import { InflatableGate } from './InflatableGate';
 import { InflatableRing } from './InflatableRing';
 
@@ -46,49 +44,16 @@ const RINGS: { x: number; z: number; yaw: number }[] = [
 const RAY_FROM = 2;
 const RAY_LENGTH = 4;
 
-/**
- * Stands a piece on the real road. Waits for the city's colliders (they load
- * with the model), then casts once straight down from just above the plan's
- * road height. Nothing of the piece itself exists yet, so the first hit is the
- * ground.
- */
-function Grounded({
-  x,
-  z,
-  children,
-}: {
-  x: number;
-  z: number;
-  children: (y: number) => ReactElement;
-}) {
-  const { world, rapier } = useRapier();
-  const [y, setY] = useState<number | null>(null);
-
-  useFrame(() => {
-    if (y !== null) return;
-    const ray = new rapier.Ray({ x, y: RAY_FROM, z }, { x: 0, y: -1, z: 0 });
-    const hit = world.castRay(
-      ray,
-      RAY_LENGTH,
-      true,
-      rapier.QueryFilterFlags.EXCLUDE_DYNAMIC | rapier.QueryFilterFlags.EXCLUDE_SENSORS,
-    );
-    if (hit) setY(RAY_FROM - hit.timeOfImpact);
-  });
-
-  return y === null ? null : children(y);
-}
-
 export function NewYorkRaceCourse() {
   return (
     <group name="new-york-race-course">
       {GATES.map((g, i) => (
-        <Grounded key={`g${i}`} x={g.x} z={g.z}>
+        <Grounded key={`g${i}`} x={g.x} z={g.z} from={RAY_FROM} length={RAY_LENGTH}>
           {(y) => <InflatableGate position={[g.x, y, g.z]} rotation={[0, g.yaw, 0]} />}
         </Grounded>
       ))}
       {RINGS.map((r, i) => (
-        <Grounded key={`r${i}`} x={r.x} z={r.z}>
+        <Grounded key={`r${i}`} x={r.x} z={r.z} from={RAY_FROM} length={RAY_LENGTH}>
           {(y) => (
             <InflatableRing
               position={[r.x, y, r.z]}
