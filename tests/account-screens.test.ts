@@ -27,9 +27,11 @@ import {
   whenText,
 } from '../src/renderer/app/profileFacts';
 import {
+  CONTROLS,
   LoadingScreen,
   SLOW_AFTER_MS,
   TIPS,
+  TIP_MS,
   loadingFigures,
   timeLeftText,
 } from '../src/renderer/app/LoadingScreen';
@@ -718,6 +720,29 @@ describe('the loading screen', () => {
     expect($(el, '.loading__note')).toBeNull();
     act(() => vi.advanceTimersByTime(SLOW_AFTER_MS + 1000));
     expect($(el, '.loading__note').textContent).toContain('Slower than usual');
+  });
+
+  it('the box steps through the four stick moves, by itself and with its arrows', () => {
+    vi.useFakeTimers();
+    useResourceStore.setState({ entries });
+    const el = mount(h(LoadingScreen));
+    const showing = () => $(el, '.loading__shot.is-on')!.getAttribute('src');
+    const title = () => $(el, '.loading__slide-title')!.textContent;
+    expect(CONTROLS.map((c) => c.title)).toEqual(['Throttle', 'Yaw', 'Pitch', 'Roll']);
+    expect($$(el, '.loading__shot')).toHaveLength(CONTROLS.length);
+    expect(showing()).toBe(CONTROLS[0].picture);
+    expect($(el, '.loading__slide-count')!.textContent).toBe(`1 / ${CONTROLS.length}`);
+    act(() => vi.advanceTimersByTime(TIP_MS));
+    expect(title()).toBe('Yaw');
+    expect(showing()).toBe(CONTROLS[1].picture);
+    act(() => ($(el, '[aria-label="Next control"]') as HTMLButtonElement).click());
+    expect(title()).toBe('Pitch');
+    act(() => ($(el, '[aria-label="Previous control"]') as HTMLButtonElement).click());
+    act(() => ($(el, '[aria-label="Previous control"]') as HTMLButtonElement).click());
+    act(() => ($(el, '[aria-label="Previous control"]') as HTMLButtonElement).click());
+    expect(title()).toBe('Roll');
+    // The tip card keeps its own place.
+    expect(el.textContent).toContain(TIPS[1].text);
   });
 
   it('the tip comes before the rows, so a short window cannot push it off', () => {

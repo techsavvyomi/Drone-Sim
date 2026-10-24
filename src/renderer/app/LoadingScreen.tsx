@@ -7,6 +7,10 @@ import {
 } from '../assets/resourceTracker';
 import { Button, Icon, Progress } from '../ds';
 import logoMark from '../../assets/brand/plutosim-mark.svg';
+import throttlePic from '../../assets/loading/control-1-throttle.webp';
+import yawPic from '../../assets/loading/control-2-yaw.webp';
+import pitchPic from '../../assets/loading/control-3-pitch.webp';
+import rollPic from '../../assets/loading/control-4-roll.webp';
 
 // "Preparing PlutoSim": the models and warm-up work the app does before its
 // first menu, each on its own row as it arrives.
@@ -26,12 +30,6 @@ export const SLOW_AFTER_MS = 30_000;
 const MB = 1048576;
 
 /** True once every preloaded model has loaded (or failed), or time ran out. */
-/** How long the first-launch screen stays up at the least. On a fast computer
- *  everything is loaded before the boot splash has gone, and the screen was up
- *  for half a second: too short to read, let alone press Next tip (the user,
- *  2026-10-01). */
-export const LOADING_MIN_MS = 4000;
-
 export function useResourcesReady(): boolean {
   const settled = useResourceStore((s) => allSettled(s.entries));
   const [timedOut, setTimedOut] = useState(false);
@@ -136,6 +134,48 @@ export const TIPS: { title: string; text: string }[] = [
   },
 ];
 
+/**
+ * The box beside the card: one slide per stick move, Mode 2 as the HUD's
+ * gimbals (left stick throttle and yaw, right stick pitch and roll). Square
+ * pictures of our Pluto X over a helipad at sunset, with the controller inset,
+ * made in ChatGPT (2026-10-24). No words are drawn into them; the title and
+ * text are laid over, as in the manager's mockup.
+ */
+export const CONTROLS: { title: string; text: string; picture: string }[] = [
+  {
+    title: 'Throttle',
+    text: 'Move the left stick up to increase throttle and go up. Move it down to reduce throttle and go down.',
+    picture: throttlePic,
+  },
+  {
+    title: 'Yaw',
+    text: 'Move the left stick left or right to turn the drone on the spot.',
+    picture: yawPic,
+  },
+  {
+    title: 'Pitch',
+    text: 'Move the right stick up to fly forward. Move it down to fly back.',
+    picture: pitchPic,
+  },
+  {
+    title: 'Roll',
+    text: 'Move the right stick left or right to slide the drone sideways.',
+    picture: rollPic,
+  },
+];
+
+/** How long a tip, and a control slide, stay up before the next comes in by itself. */
+export const TIP_MS = 3500;
+
+/**
+ * How long the first-launch screen stays up at the least: every control slide
+ * once. On a fast computer everything is loaded before the boot splash has
+ * gone; at half a second the screen was too short to read (the user,
+ * 2026-10-01), and at 4 s it left after the first picture (the user,
+ * 2026-10-24). Shown on the first launch only.
+ */
+export const LOADING_MIN_MS = CONTROLS.length * TIP_MS;
+
 const GLYPH: Record<RowState, { icon: 'check' | 'dot' | 'ring' | 'cross'; word: string }> = {
   done: { icon: 'check', word: 'Done' },
   loading: { icon: 'dot', word: 'Loading' },
@@ -150,6 +190,8 @@ export function LoadingScreen({ checkingSignIn = false }: { checkingSignIn?: boo
   const started = useRef(Date.now());
   const [now, setNow] = useState(() => Date.now());
   const [tip, setTip] = useState(0);
+  const [slide, setSlide] = useState(0);
+  const step = (by: number) => setSlide((n) => (n + by + CONTROLS.length) % CONTROLS.length);
 
   // A second's tick for the time left and the slow note; the store only moves
   // while bytes arrive.
@@ -157,6 +199,18 @@ export function LoadingScreen({ checkingSignIn = false }: { checkingSignIn?: boo
     const id = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(id);
   }, []);
+
+  // The tips move on by themselves. Keyed on `tip`, so Next tip restarts the wait.
+  useEffect(() => {
+    const id = setTimeout(() => setTip((t) => (t + 1) % TIPS.length), TIP_MS);
+    return () => clearTimeout(id);
+  }, [tip]);
+
+  // So do the control slides; the arrows restart the wait the same way.
+  useEffect(() => {
+    const id = setTimeout(() => setSlide((n) => (n + 1) % CONTROLS.length), TIP_MS);
+    return () => clearTimeout(id);
+  }, [slide]);
 
   const elapsed = now - started.current;
   const left = timeLeftText(f.pct / 100, elapsed);
@@ -172,9 +226,52 @@ export function LoadingScreen({ checkingSignIn = false }: { checkingSignIn?: boo
             <em>Flight Simulator by Drona Aviation</em>
           </span>
         </div>
-        <div className="loading__visual" aria-hidden="true">
-          <img src={logoMark} alt="" />
-        </div>
+        <section
+          className="loading__visual"
+          aria-roledescription="carousel"
+          aria-label="Flight controls"
+        >
+          {CONTROLS.map((c, i) => (
+            <img
+              key={c.title}
+              className={`loading__shot ${i === slide ? 'is-on' : ''}`}
+              src={c.picture}
+              alt=""
+            />
+          ))}
+
+          <div className="loading__slide">
+            <div className="loading__slide-top">
+              <span className="loading__slide-count">
+                {slide + 1} / {CONTROLS.length}
+              </span>
+              <span className="loading__slide-bars" aria-hidden="true">
+                {CONTROLS.map((c, i) => (
+                  <i key={c.title} className={i === slide ? 'is-on' : ''} />
+                ))}
+              </span>
+            </div>
+            <h2 className="loading__slide-title">{CONTROLS[slide].title}</h2>
+            <p className="loading__slide-text">{CONTROLS[slide].text}</p>
+          </div>
+
+          <button
+            type="button"
+            className="loading__nav loading__nav--prev"
+            aria-label="Previous control"
+            onClick={() => step(-1)}
+          >
+            <Icon name="chevron" />
+          </button>
+          <button
+            type="button"
+            className="loading__nav loading__nav--next"
+            aria-label="Next control"
+            onClick={() => step(1)}
+          >
+            <Icon name="chevron" />
+          </button>
+        </section>
       </div>
 
       <main className="loading__card" role="status" aria-live="polite">
