@@ -261,12 +261,15 @@ interface InflatableRingProps {
   rotation?: [number, number, number];
   /** Height of the ring's centre above the ground, metres. */
   height?: number;
+  /** Size of the ring against its full 2.1 m radius; `height` is not scaled. */
+  scale?: number;
 }
 
 export function InflatableRing({
   position = [0, 0, 0],
   rotation = [0, 0, 0],
   height = 6,
+  scale = 1,
 }: InflatableRingProps) {
   const { tube, tubeMat, curtain, curtainMat } = ringAssets();
   const ownCurtainMat = useMemo(() => curtainMat.clone(), [curtainMat]);
@@ -311,7 +314,7 @@ export function InflatableRing({
 
   return (
     <group position={position} rotation={rotation}>
-      <group ref={ringRef} position={[0, height, 0]}>
+      <group ref={ringRef} position={[0, height, 0]} scale={scale}>
         <mesh geometry={tube} material={tubeMat} castShadow receiveShadow />
         <mesh ref={curtainRef} geometry={curtain} material={ownCurtainMat} renderOrder={1} />
       </group>
@@ -320,8 +323,12 @@ export function InflatableRing({
         {SEGMENTS.map((s, i) => (
           <CuboidCollider
             key={i}
-            args={[SEGMENT_HALF, TUBE_R + COLLIDER_MARGIN, TUBE_R + COLLIDER_MARGIN]}
-            position={[s.pos[0], s.pos[1] + height, s.pos[2]]}
+            args={[
+              SEGMENT_HALF * scale,
+              TUBE_R * scale + COLLIDER_MARGIN,
+              TUBE_R * scale + COLLIDER_MARGIN,
+            ]}
+            position={[s.pos[0] * scale, s.pos[1] * scale + height, s.pos[2] * scale]}
             rotation={[0, 0, s.angle]}
           />
         ))}
