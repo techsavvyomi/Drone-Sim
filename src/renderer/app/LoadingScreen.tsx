@@ -7,7 +7,6 @@ import {
 } from '../assets/resourceTracker';
 import { Button, Icon, Progress } from '../ds';
 import logoMark from '../../assets/brand/plutosim-mark.svg';
-import { LoadingFlight } from './LoadingFlight';
 
 // "Preparing PlutoSim": the models and warm-up work the app does before its
 // first menu, each on its own row as it arrives.
@@ -162,9 +161,6 @@ export function LoadingScreen({ checkingSignIn = false }: { checkingSignIn?: boo
   const elapsed = now - started.current;
   const left = timeLeftText(f.pct / 100, elapsed);
   const slow = elapsed >= SLOW_AFTER_MS && f.pct < 100;
-  // What the picture's caption names: the row in flight, else the next one due.
-  const current =
-    f.rows.find((r) => r.state === 'loading') ?? f.rows.find((r) => r.state === 'waiting');
 
   return (
     <div className="loading" data-register="classroom">
@@ -176,8 +172,8 @@ export function LoadingScreen({ checkingSignIn = false }: { checkingSignIn?: boo
             <em>Flight Simulator by Drona Aviation</em>
           </span>
         </div>
-        <div className="loading__visual">
-          <LoadingFlight pct={f.pct} now={current ? `Loading ${current.label}` : 'Warming up'} />
+        <div className="loading__visual" aria-hidden="true">
+          <img src={logoMark} alt="" />
         </div>
       </div>
 
