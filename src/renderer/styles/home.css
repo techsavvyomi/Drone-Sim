@@ -160,12 +160,6 @@
   font: var(--type-title);
 }
 
-.home__lede {
-  margin: 0;
-  font: var(--type-body-sm);
-  color: var(--txt-mid);
-}
-
 .home__list {
   display: flex;
   flex: 1;
@@ -397,10 +391,6 @@
     width: 340px;
   }
 
-  .home__lede {
-    display: none;
-  }
-
   .home__badge {
     padding-left: var(--space-4);
     padding-right: var(--space-4);
@@ -413,10 +403,6 @@
   .home {
     padding-top: var(--space-6);
     padding-bottom: var(--space-6);
-  }
-
-  .home__lede {
-    display: none;
   }
 
   .home__list {

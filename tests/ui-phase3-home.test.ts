@@ -159,6 +159,5 @@ describe('the Continue row fits the column', () => {
     const css = stylesheet('home.css');
     const short = declsFor(css, '.home__mode', '(max-height: 820px)');
     expect(short.padding).toBe('var(--space-2) var(--space-5)');
-    expect(declsFor(css, '.home__lede', '(max-height: 820px)').display).toBe('none');
   });
 });

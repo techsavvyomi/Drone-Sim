@@ -223,9 +223,6 @@ export function Home() {
         <h2 id="home-heading" className="home__heading">
           {plan.heading}
         </h2>
-        <p className="home__lede">
-          Flight controller ported from the Pluto firmware. Physics runs at 250 Hz.
-        </p>
         <ul ref={listRef} className="home__list" aria-label="Modes">
           {plan.rows.map((row) => (
             <li key={row.id}>
