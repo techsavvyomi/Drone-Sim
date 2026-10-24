@@ -4,6 +4,7 @@ import { CuboidCollider, RigidBody } from '@react-three/rapier';
 import * as THREE from 'three';
 import { dronePose } from '../../sim/drone/pose';
 import { playCollect } from '../../audio/sfx';
+import { SOFT_OBSTACLE } from '../../sim/drone/forgiving';
 
 // PlutoSim inflatable race ring, the round partner of `InflatableGate`: the same
 // vinyl tube — black over the top breaking up into shards over grey below, red
@@ -315,7 +316,7 @@ export function InflatableRing({
         <mesh ref={curtainRef} geometry={curtain} material={ownCurtainMat} renderOrder={1} />
       </group>
 
-      <RigidBody type="fixed" colliders={false}>
+      <RigidBody type="fixed" colliders={false} userData={SOFT_OBSTACLE}>
         {SEGMENTS.map((s, i) => (
           <CuboidCollider
             key={i}

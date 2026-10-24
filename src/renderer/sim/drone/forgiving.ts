@@ -10,6 +10,36 @@ export function forgivingFlight(mode: FlightMode, camera: string): boolean {
   return mode === 'acro' && camera === 'fpv';
 }
 
+/**
+ * Marks a rigid body as a soft obstacle: the inflatable race gates and rings.
+ * Put it on the body's `userData`. A brush or a bump against one does not write
+ * the aircraft off, in any mode — the drone bounces off the vinyl the way it
+ * does in Acro + FPV (user, 2026-10-24: "thoda sa bhi touch hota crashed ho
+ * jata hai"). Flown into it fast, it still crashes: see `SOFT_CRASH_SPEED`.
+ */
+export const SOFT_OBSTACLE = { soft: true } as const;
+
+/**
+ * Impact speed from which a soft obstacle crashes the drone after all, m/s.
+ *
+ * Every hit used to bounce, and the user found that wrong too ("kaafi speed se
+ * hota tabhi bhi crashed nahi hota"). 5 is by judgement: well over the 2.2 m/s
+ * that crashes on a building, under the Pluto's 8 m/s top speed — so a pilot
+ * clipping a gate while lining up keeps the aircraft, and one who flies into it
+ * at speed does not.
+ */
+export const SOFT_CRASH_SPEED = 5;
+
+/** Whether a body's `userData` marks it as a soft obstacle. */
+export function isSoftObstacle(userData: unknown): boolean {
+  return (userData as { soft?: unknown } | undefined)?.soft === true;
+}
+
+/** Whether a hit on this body at this speed bounces instead of crashing. */
+export function softBounce(userData: unknown, speed: number): boolean {
+  return isSoftObstacle(userData) && speed < SOFT_CRASH_SPEED;
+}
+
 /** Share of the approach speed a forgiving bounce sends back off a surface. */
 const BOUNCE_RESTITUTION = 0.6;
 /** A forgiving bounce always leaves the surface at least this fast, m/s. */

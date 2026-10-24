@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { bounceVelocity, forgivingFlight } from '../src/renderer/sim/drone/forgiving';
+import {
+  bounceVelocity,
+  forgivingFlight,
+  isSoftObstacle,
+  SOFT_CRASH_SPEED,
+  SOFT_OBSTACLE,
+  softBounce,
+} from '../src/renderer/sim/drone/forgiving';
 
 // Acro + FPV (2026-10-09): no crash. A hit bounces the drone back off the
 // surface; lying flipped rights it on the spot (Drone.tsx).
@@ -13,6 +20,27 @@ describe('forgivingFlight', () => {
     expect(forgivingFlight('acro', 'chase')).toBe(false);
     expect(forgivingFlight('stabilize', 'fpv')).toBe(false);
     expect(forgivingFlight('altitude-hold', 'fpv')).toBe(false);
+  });
+});
+
+describe('isSoftObstacle', () => {
+  it('is the race gates and rings, marked on their body', () => {
+    expect(isSoftObstacle(SOFT_OBSTACLE)).toBe(true);
+    expect(isSoftObstacle(undefined)).toBe(false);
+    expect(isSoftObstacle({})).toBe(false);
+    expect(isSoftObstacle({ soft: 'yes' })).toBe(false);
+  });
+});
+
+describe('softBounce', () => {
+  it('bounces a slow hit on a gate and crashes a fast one', () => {
+    expect(softBounce(SOFT_OBSTACLE, 3)).toBe(true);
+    expect(softBounce(SOFT_OBSTACLE, SOFT_CRASH_SPEED)).toBe(false);
+    expect(softBounce(SOFT_OBSTACLE, 12)).toBe(false);
+  });
+
+  it('never bounces off anything that is not soft', () => {
+    expect(softBounce(undefined, 1)).toBe(false);
   });
 });
 

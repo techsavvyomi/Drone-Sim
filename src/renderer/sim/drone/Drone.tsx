@@ -49,7 +49,7 @@ import { useSimStore } from '../../state/simStore';
 import { useSettingsStore } from '../../state/settingsStore';
 import { useFlightStore, type AutoState } from '../../state/flightStore';
 import { useUiStore } from '../../state/uiStore';
-import { bounceVelocity, forgivingFlight } from './forgiving';
+import { bounceVelocity, forgivingFlight, softBounce } from './forgiving';
 import { usePhysicsStore } from '../../state/physicsStore';
 import { DroneModel } from './DroneModel';
 import { Propellers } from './Propellers';
@@ -1538,11 +1538,14 @@ export function Drone({ spec, spawn, bounds, outdoor = false, groundY }: DronePr
         // Acro + FPV: nothing writes the aircraft off. Every contact that would
         // crash it, at any height (the obstacle line starts at 0.15 m, well
         // under TOUCH_ALT), and every hit clear of the floor, comes back off
-        // the surface instead, on the velocity it arrived with.
+        // the surface instead, on the velocity it arrived with. A race gate or
+        // ring is soft in every mode: below SOFT_CRASH_SPEED it gets the same
+        // bounce, and above it crashes like any other obstacle.
         if (
           rb &&
           (isImpactCrash || (posY > TOUCH_ALT && !isTouchdown)) &&
-          forgivingFlight(flight.mode, useUiStore.getState().cameraMode)
+          (forgivingFlight(flight.mode, useUiStore.getState().cameraMode) ||
+            softBounce(payload.other.rigidBody?.userData, v))
         ) {
           const normal = payload.manifold?.normal?.();
           rb.setLinvel(bounceVelocity(pv, normal), true);

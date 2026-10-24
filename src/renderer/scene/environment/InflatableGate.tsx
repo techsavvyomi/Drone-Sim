@@ -4,6 +4,7 @@ import { CuboidCollider, RigidBody } from '@react-three/rapier';
 import * as THREE from 'three';
 import { dronePose } from '../../sim/drone/pose';
 import { playCollect } from '../../audio/sfx';
+import { SOFT_OBSTACLE } from '../../sim/drone/forgiving';
 
 // PlutoSim inflatable FPV racing arch, built after the classic "SkyDive" style
 // air gate: one inflated tube — a rounded square in section, so its front is
@@ -477,7 +478,7 @@ export function InflatableGate({
         <mesh ref={curtainRef} geometry={curtain} material={ownCurtainMat} renderOrder={1} />
       )}
 
-      <RigidBody type="fixed" colliders={false}>
+      <RigidBody type="fixed" colliders={false} userData={SOFT_OBSTACLE}>
         {SEGMENTS.map((s, i) => (
           <CuboidCollider
             key={i}
