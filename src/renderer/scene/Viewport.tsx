@@ -12,6 +12,7 @@ import { reportRenderError } from '../analytics/crashReporting';
 import { getEnvironment } from '../plugins/registry';
 import { Helipad } from '../missions/LaunchPad';
 import { NewYorkRaceCourse } from './environment/NewYorkRaceCourse';
+import { ConstructionRaceCourse } from './environment/ConstructionRaceCourse';
 import { SupermarketRaceCourse } from './environment/SupermarketRaceCourse';
 
 /**
@@ -89,6 +90,7 @@ export function Viewport() {
           <FlightScene>
             {env?.id === 'new-york' && <NewYorkRaceCourse />}
             {env?.id === 'supermarket' && <SupermarketRaceCourse />}
+            {env?.id === 'construction-site' && <ConstructionRaceCourse />}
           </FlightScene>
           {/* Every free flight, on every map, launches from a helipad under
               the map's spawn. Here, not in FlightScene, which missions share
