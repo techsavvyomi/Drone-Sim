@@ -283,7 +283,7 @@ export function App() {
         flyPaused ? 'fly-paused' : ''
       }`}
     >
-      <TopBar />
+      <TopBar parked={flightLike && !flyPaused} />
       {/* The sidebar and status bar frame every menu page, Home included. A
           flight view is full-bleed: its way out is the pause menu (Esc), which
           in Free Flight also brings the parked top bar down. */}

@@ -476,6 +476,22 @@ describe('TopBar', () => {
     act(() => guru.click());
     expect(useSettingsStore.getState().settings.selectedDroneId).toBe('pluto-guru');
   });
+
+  it('parked over a flight, it is inert and lets go of the focus', () => {
+    // Picked on the pause menu, the Arena chip kept focus into the flight, and
+    // ArrowDown — pitch back — opened the list of maps over the view.
+    host = document.createElement('div');
+    document.body.appendChild(host);
+    root = createRoot(host);
+    act(() => root!.render(h(TopBar, { parked: false })));
+    const arena = $$(host, '.loadout-chip__button')[1];
+    arena.focus();
+    expect(document.activeElement).toBe(arena);
+
+    act(() => root!.render(h(TopBar, { parked: true })));
+    expect($(host, '.topbar').hasAttribute('inert')).toBe(true);
+    expect(document.activeElement).not.toBe(arena);
+  });
 });
 
 describe('StatusBar', () => {

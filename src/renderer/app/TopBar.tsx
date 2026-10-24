@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import { useSettingsStore } from '../state/settingsStore';
 import { useUiStore } from '../state/uiStore';
 import { useFlightStore } from '../state/flightStore';
@@ -15,14 +16,28 @@ import logoMark from '../../assets/brand/plutosim-mark.svg';
  *
  * The ceiling is a read-out, not a menu: the flight controller holds the
  * drone's own limit and an indoor arena's roof caps it (see loadout.ts).
+ *
+ * `parked`: a flight is running and the bar is slid up out of sight. It is made
+ * inert then, and gives up any focus it holds. Picking an arena on the pause
+ * menu restarts the flight with focus still on the Arena chip, and the chip
+ * opens its list on ArrowDown — which in flight is pitch back. Mid-flight, the
+ * whole list of maps dropped over the view, and Space (take off / land) could
+ * then pick one (user, 2026-10-24).
  */
-export function TopBar() {
+export function TopBar({ parked = false }: { parked?: boolean }) {
   const settings = useSettingsStore((s) => s.settings);
   const set = useSettingsStore((s) => s.set);
   const setSection = useUiStore((s) => s.setSection);
   const drone = getDrone(settings.selectedDroneId);
   const env = getEnvironment(settings.selectedEnvironmentId);
   const ceiling = ceilingFor(drone, env);
+  const headerRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    if (!parked) return;
+    const focused = document.activeElement;
+    if (focused instanceof HTMLElement && headerRef.current?.contains(focused)) focused.blur();
+  }, [parked]);
 
   // The top bar is up in Free Flight only on the pause menu. Picking a new drone
   // or arena there is the answer to it: the card goes and the flight starts
@@ -51,7 +66,13 @@ export function TopBar() {
   }));
 
   return (
-    <header className="topbar" data-nav-region="topbar" data-register="classroom">
+    <header
+      ref={headerRef}
+      className="topbar"
+      data-nav-region="topbar"
+      data-register="classroom"
+      inert={parked}
+    >
       {/* A pointer shortcut home. Out of the Tab order: the brief's order
           starts at the loadout chips, and Home is sidebar item 1 / key 1. */}
       <button
