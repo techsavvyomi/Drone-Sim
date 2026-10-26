@@ -60,6 +60,12 @@ const SCHEMA = {
     'Created Date',
     'Activated Date',
     'Notes',
+    // The license this key buys (License.js). Blank License Type is LIFETIME:
+    // every key issued before licenses existed. Expiry Date is written at the
+    // first activation and moved forward to renew.
+    'License Type',
+    'Duration',
+    'Expiry Date',
   ],
   // One row per sign-in. Only a SHA-256 of the token is stored, so the sheet
   // cannot be used to impersonate anyone. At most one row per user is ACTIVE: a
@@ -146,6 +152,7 @@ const DATETIME_COLUMNS = [
   'Last Active',
   'Created Date',
   'Activated Date',
+  'Expiry Date',
   'Last Used',
   'Start Time',
   'End Time',

@@ -37,17 +37,22 @@ The whole backend is one generated file, **`backend/dist/DroneSimulatorAPI.gs`**
 3. **Project Settings → Show "appsscript.json" manifest file in editor**, then replace
    `appsscript.json` with `backend/apps-script/appsscript.json`. It sets the V8 runtime,
    the time zone, and web app access (**Execute as: Me**, **Who has access: Anyone**).
-4. Select **`setupDatabase`** in the function dropdown and press **Run**. Approve the
+4. **Project Settings → Script Properties → Add script property**: `LICENSE_PRIVATE_KEY`,
+   value = the license signing key (a PEM, pasted on one line with its line breaks as `\n`).
+   It is kept outside this repository; the app ships with the matching public key in
+   `src/main/backend/license.ts`. Without it every license goes out unsigned and the app
+   locks on "Check your license".
+5. Select **`setupDatabase`** in the function dropdown and press **Run**. Approve the
    permissions prompt. This creates every sheet, header, catalog row and setting, and is
    safe to run again at any time.
-5. Run **`generateTenActivationKeys`**. Ten new keys appear in the `ActivationKeys` sheet
+6. Run **`generateTenActivationKeys`**. Ten new keys appear in the `ActivationKeys` sheet
    (and in the execution log).
-6. Redeploy **without changing the URL**: **Deploy → Manage deployments → ✏️ Edit →
+7. Redeploy **without changing the URL**: **Deploy → Manage deployments → ✏️ Edit →
    Version: New version → Deploy**. (Deploy → *New deployment* creates a new URL, which
    then has to go in `src/main/backend/config.ts`.)
-7. Check it: open the web app URL in a browser. It should return
+8. Check it: open the web app URL in a browser. It should return
    `{"success":true,"data":{"service":"plutosim-api","apiVersion":1}}`.
-8. Optional: run **`installAnalyticsTrigger`** so the report sheets refresh hourly, and
+9. Optional: run **`installAnalyticsTrigger`** so the report sheets refresh hourly, and
    **`refreshAnalytics`** to build them now.
 
 The script's owner needs edit access to the spreadsheet. The spreadsheet ID is
@@ -55,14 +60,20 @@ The script's owner needs edit access to the spreadsheet. The spreadsheet ID is
 set a `SPREADSHEET_ID` Script Property instead of editing the code.
 
 **After changing any file in `backend/apps-script/`:** run `npm run build:apps-script`,
-paste the new bundle, and redeploy a new version (step 6). `npm test` fails while the
+paste the new bundle, and redeploy a new version (step 7).
+
+**Deploy the backend before releasing an app that checks licenses.** An app with
+licenses talking to a backend without them never receives one, and locks every pilot
+on "Check your license". `npm test` fails while the
 bundle is stale.
 
 ### Admin tasks
 
 | Task | How |
 | --- | --- |
-| Issue keys | Run `generateTenActivationKeys`, or use the **PlutoSim → Generate activation keys…** menu (shown when the script is bound to the sheet). |
+| Issue keys | Use the **PlutoSim → Generate activation keys…** menu (shown when the script is bound to the sheet): it asks how many, the license (`1d`, `7d`, `14d`, `30d` trial; `6m`, `1y` annual; `lifetime`) and a note. `generateTenActivationKeys` from the editor issues lifetime keys. |
+| Renew a key | **PlutoSim → Renew a key…** adds one more of the key's Duration, from its expiry (or from today if it has run out). Or type a later `Expiry Date` in `ActivationKeys`. The pilot's app picks it up at its next profile check (within a minute while online, or **Check again** on the lock screen). |
+| End a license early | Type an earlier `Expiry Date`. Online apps close within a minute; an offline one at its next connection. |
 | Disable a key | Set its `Status` to `DISABLED` in `ActivationKeys`. |
 | Fix users typed into the sheet by hand | Run `repairUsers`. It links their keys, fills blank columns and moves the ID counter past them. |
 | Deactivate a user | Set their `Status` to `INACTIVE` in `Users`. |
@@ -111,6 +122,10 @@ and flight times are **seconds**; timestamps are real date-times.
 
 **ActivationKeys**: `AVAILABLE` → `ACTIVATED` (with `Assigned Email`, `User ID`,
 `Activated Date`) or `DISABLED`. An activated key is bound to its email permanently.
+`License Type` (`TRIAL` / `ANNUAL` / `LIFETIME`; blank is `LIFETIME`, so every key issued
+before licenses stays lifetime), `Duration` (`7 days`, `6 months`, `1 year`) and
+`Expiry Date` (written at the first activation from the server's clock: activation +
+Duration, a year to the calendar day for `1 year`).
 
 **FlightSessions**: the raw activity log. `Flight Type` (`TRAINING` / `MISSION` /
 `FREE_FLIGHT`), mission or training module, drone, `Start Time` / `End Time`,
@@ -167,10 +182,10 @@ Every response is HTTP 200 with an envelope:
 
 | Action | Auth | Payload | Returns |
 | --- | --- | --- | --- |
-| `activateUser` | — | `name`, `email`, `activationKey`, `deviceId`, `deviceName`, `signOutOtherDevices?` | `userId`, `authToken`, `profile`, `existingUser?` |
-| `loginUser` | — | `email`, `activationKey`, `deviceId`, `deviceName`, `signOutOtherDevices?` | `userId`, `authToken`, `profile` |
+| `activateUser` | — | `name`, `email`, `activationKey`, `deviceId`, `deviceName`, `signOutOtherDevices?` | `userId`, `authToken`, `profile`, `existingUser?`, `license` |
+| `loginUser` | — | `email`, `activationKey`, `deviceId`, `deviceName`, `signOutOtherDevices?` | `userId`, `authToken`, `profile`, `license` |
 | `signOut` | token | — | `signedOut` (the token is revoked) |
-| `getUserProfile` | token | `userId` | profile + stats |
+| `getUserProfile` | token | `userId` | profile + stats, `license` |
 | `getUserDashboard` | token | `userId`, `recentLimit?`, `days?` | profile, recent sessions, daily series, mission / training / drone breakdowns |
 | `startSession` | token | `userId`, `flightType`, `droneId`, `missionId?`, `trainingId?`, `inputMode`, `startTime`, `clientSessionKey` | `sessionId` |
 | `endSession` | token | `sessionId`, `endTime`, `duration`, `flightTime`, `result`, `score`, `stars?`, `crashCount`, `attempts`, `distance?`, `maxAltitude?`, `batteryUsed?`, … | `pointsEarned`, updated `profile` |
@@ -180,7 +195,7 @@ Every response is HTTP 200 with an envelope:
 
 Error codes: `VALIDATION`, `KEY_NOT_FOUND`, `KEY_ALREADY_USED`, `KEY_DISABLED`,
 `EMAIL_ALREADY_REGISTERED`, `INVALID_CREDENTIALS`, `SIGNED_IN_ELSEWHERE` (with
-`deviceName`), `USER_INACTIVE`, `AUTH_INVALID`, `NOT_FOUND`, `FORBIDDEN`,
+`deviceName`), `USER_INACTIVE`, `LICENSE_EXPIRED` (with `expiresAt`), `AUTH_INVALID`, `NOT_FOUND`, `FORBIDDEN`,
 `UNKNOWN_ACTION`, `SERVER_ERROR`.
 
 ### Security rules the server enforces
@@ -207,6 +222,11 @@ Error codes: `VALIDATION`, `KEY_NOT_FOUND`, `KEY_ALREADY_USED`, `KEY_DISABLED`,
   a computer the profile is no longer bound to is refused (`AUTH_INVALID`, saying where
   the profile went). The app checks every 30 seconds while open, so a computer signed
   out this way finds out within a minute; a flight in progress finishes first.
+- **Licenses.** An expired key signs nobody in (`LICENSE_EXPIRED`); the profile check
+  still answers, with the expired license, so an open app closes itself. `license` is
+  `{ payload, signature }`: the payload is JSON (`userId`, `email`, `deviceId`, `type`,
+  `duration`, `activatedAt`, `expiresAt`, `status`, `issuedAt` = the server's clock)
+  signed RSA-SHA256 with `LICENSE_PRIVATE_KEY`. See §5 for what the app does with it.
 - **Brute force.** 10 failed activations or logins per email lock that email for 15 minutes.
 - **Formula injection.** Text that would be read as a formula (`=`, `+`, `-`, `@`) is
   stored as plain text.
@@ -265,6 +285,17 @@ reports do not cover (pivot tables, exports, a later move to BigQuery).
   keychain (`safeStorage`), in `account.json`. The renderer never sees it.
 - **Account switching.** Queued data is sent with the token of the user who flew it,
   even after they sign out.
+- **Licenses, offline.** The signed license is checked with the public key in
+  `src/main/backend/license.ts` (signature, pilot, and this computer's device id) and kept
+  in SQLite (`licenses`). Each launch and every minute the app works out offline whether
+  it runs, using as "now" the latest of the system clock, the last time it saw (sealed
+  with an HMAC whose secret is OS-encrypted) and the license's server time, so setting
+  the date back never adds days. A clock more than an hour behind that locks the app
+  ("System Date and Time Incorrect") until it is corrected. Warnings come at 30, 7, 3
+  and 1 days and on the day, each once and never over a flight. Expired, a wrong clock,
+  or no license checked on this computer yet close the whole app (a flight in progress
+  finishes first); **Check again** fetches the license online, **Sign out** switches
+  profile. Lifetime licenses never expire and ignore the clock.
 
 ---
 

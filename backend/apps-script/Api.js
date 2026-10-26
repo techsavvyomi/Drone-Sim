@@ -328,6 +328,7 @@ function activateUser_(payload) {
         const existing = users.find((r) => cell_(r['User ID']) === cell_(keyRow['User ID']));
         if (!existing) fail_('SERVER_ERROR', 'Activated key has no user. Contact the admin.');
         if (existing.Status !== 'ACTIVE') fail_('USER_INACTIVE', 'This account has been deactivated');
+        assertLicenseActive_(keyRow, now);
         const binding = bindDevice_(existing, device, now, signOutOthers_(payload));
         users.update(existing, Object.assign({ 'Last Active': now }, binding));
         return {
@@ -335,10 +336,12 @@ function activateUser_(payload) {
           authToken: issueToken_(existing['User ID'], device.id, now),
           profile: profileOf_(existing),
           existingUser: true,
+          license: signedLicense_(existing, keyRow, now),
         };
       }
 
       if (keyRow.Status !== 'AVAILABLE') fail_('KEY_DISABLED', 'That activation key cannot be used');
+      const expiry = expiryOnActivation_(keyRow, now);
 
       if (users.find((r) => cell_(r.Email).toLowerCase() === email)) {
         fail_(
@@ -374,17 +377,24 @@ function activateUser_(payload) {
         'Device Bound At': now,
       };
       users.append(user);
-      keys.update(keyRow, {
-        Status: 'ACTIVATED',
-        'Assigned Email': email,
-        'User ID': userId,
-        'Activated Date': now,
-      });
+      keys.update(
+        keyRow,
+        Object.assign(
+          {
+            Status: 'ACTIVATED',
+            'Assigned Email': email,
+            'User ID': userId,
+            'Activated Date': now,
+          },
+          expiry,
+        ),
+      );
 
       return {
         userId: userId,
         authToken: issueToken_(userId, device.id, now),
         profile: profileOf_(user),
+        license: signedLicense_(user, keyRow, now),
       };
     }),
   );
@@ -411,6 +421,7 @@ function loginUser_(payload) {
       if (!matches) fail_('INVALID_CREDENTIALS', 'Email and activation key do not match');
       if (keyRow.Status === 'DISABLED') fail_('KEY_DISABLED', 'That activation key has been disabled');
       if (user.Status !== 'ACTIVE') fail_('USER_INACTIVE', 'This account has been deactivated');
+      assertLicenseActive_(keyRow, now);
 
       const binding = bindDevice_(user, device, now, signOutOthers_(payload));
       table_(SHEET.USERS).update(user, Object.assign({ 'Last Active': now }, binding));
@@ -418,6 +429,7 @@ function loginUser_(payload) {
         userId: user['User ID'],
         authToken: issueToken_(user['User ID'], device.id, now),
         profile: profileOf_(user),
+        license: signedLicense_(user, keyRow, now),
       };
     }),
   );
@@ -441,9 +453,16 @@ function signOut_(payload, auth) {
   });
 }
 
+/**
+ * The app asks every 30 s while open, so this is also how a renewed (or
+ * shortened) license reaches it, and its `issuedAt` keeps the app's clock check
+ * honest. An expired license still comes back: the app closes itself.
+ */
 function getUserProfile_(payload, auth) {
   assertSelf_(payload, auth.user);
-  return profileOf_(auth.user);
+  return Object.assign(profileOf_(auth.user), {
+    license: signedLicense_(auth.user, keyRowOf_(auth.user), new Date()),
+  });
 }
 
 // ---------------------------------------------------------------------------

@@ -10,6 +10,7 @@ function onOpen() {
     .createMenu('PlutoSim')
     .addItem('Set up / repair database', 'setupDatabase')
     .addItem('Generate activation keys…', 'promptGenerateKeys')
+    .addItem('Renew a key…', 'promptRenewKey')
     .addSeparator()
     .addItem('Refresh analytics reports', 'refreshAnalytics')
     .addItem('Refresh reports every hour', 'installAnalyticsTrigger')
@@ -22,6 +23,9 @@ function setupDatabase() {
   resetTableCache_();
   seedSettings_();
   seedCatalog_();
+  if (!licensePrivateKey_()) {
+    return 'Database ready, but LICENSE_PRIVATE_KEY is not set: the app will not accept licenses until it is.';
+  }
   return 'Database ready';
 }
 
@@ -126,10 +130,13 @@ function newActivationKey_() {
 
 /**
  * Append `count` new AVAILABLE keys and return them. `notes` is stored beside
- * each (for example the school or batch the keys are for).
+ * each (for example the school or batch the keys are for). `plan` is the
+ * license they buy, a LICENSE_PLANS_ name: 1d, 7d, 14d, 30d, 6m, 1y or lifetime
+ * (the default).
  */
-function generateActivationKeys(count, notes) {
+function generateActivationKeys(count, notes, plan) {
   const n = Math.max(1, Math.min(500, Math.floor(Number(count) || 10)));
+  const license = licensePlan_(plan);
   return withLock_(() => {
     const table = table_(SHEET.KEYS);
     const taken = {};
@@ -148,6 +155,8 @@ function generateActivationKeys(count, notes) {
         Status: 'AVAILABLE',
         'Created Date': now,
         Notes: notes ? String(notes) : '',
+        'License Type': license.type,
+        Duration: license.duration,
       })),
     );
     return keys;
@@ -165,9 +174,23 @@ function promptGenerateKeys() {
   const ui = SpreadsheetApp.getUi();
   const res = ui.prompt('Generate activation keys', 'How many keys? (1-500)', ui.ButtonSet.OK_CANCEL);
   if (res.getSelectedButton() !== ui.Button.OK) return;
+  const plan = ui.prompt(
+    'License',
+    'Trial: 1d, 7d, 14d or 30d. Annual: 6m or 1y. Or lifetime.',
+    ui.ButtonSet.OK_CANCEL,
+  );
+  if (plan.getSelectedButton() !== ui.Button.OK) return;
+  let license;
+  try {
+    license = licensePlan_(plan.getResponseText());
+  } catch (e) {
+    ui.alert(String(e.message));
+    return;
+  }
   const note = ui.prompt('Notes (optional)', 'Batch or recipient, stored beside each key', ui.ButtonSet.OK);
-  const keys = generateActivationKeys(res.getResponseText(), note.getResponseText());
-  ui.alert(keys.length + ' keys added to the ActivationKeys sheet.');
+  const keys = generateActivationKeys(res.getResponseText(), note.getResponseText(), plan.getResponseText());
+  const what = license.type === 'LIFETIME' ? 'lifetime' : license.type.toLowerCase() + ', ' + license.duration;
+  ui.alert(keys.length + ' keys (' + what + ') added to the ActivationKeys sheet.');
 }
 
 // ---------------------------------------------------------------------------

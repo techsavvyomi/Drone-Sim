@@ -1,4 +1,4 @@
-import { createHash, randomUUID } from 'node:crypto';
+import { createHash, createSign, generateKeyPairSync, randomUUID } from 'node:crypto';
 import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -204,15 +204,37 @@ export interface Backend {
 
 const SOURCE_DIR = fileURLToPath(new URL('../../backend/apps-script', import.meta.url));
 
+/**
+ * A license signing pair for tests, standing in for the real one (whose private
+ * half lives only in the deployed script's properties). The backend signs with
+ * the private half, as the LICENSE_PRIVATE_KEY Script Property, pasted on one
+ * line the way the property editor takes it.
+ */
+export const TEST_LICENSE_KEYS = generateKeyPairSync('rsa', {
+  modulusLength: 2048,
+  publicKeyEncoding: { type: 'spki', format: 'pem' },
+  privateKeyEncoding: { type: 'pkcs8', format: 'pem' },
+});
+
+export interface BackendOptions {
+  /** Script Properties. Defaults to the test license key. */
+  properties?: Record<string, string>;
+}
+
 /** A fresh backend over an empty spreadsheet. */
-export function loadBackend(): Backend {
+export function loadBackend(opts: BackendOptions = {}): Backend {
   const ss = new FakeSpreadsheet();
   const cache = new Map<string, string>();
+  const properties = opts.properties ?? {
+    LICENSE_PRIVATE_KEY: TEST_LICENSE_KEYS.privateKey.trim().replace(/\n/g, '\\n'),
+  };
 
   const context = {
     console: { log() {}, warn() {}, error() {} },
     SpreadsheetApp: { getActiveSpreadsheet: () => ss, openById: () => ss },
-    PropertiesService: { getScriptProperties: () => ({ getProperty: () => null }) },
+    PropertiesService: {
+      getScriptProperties: () => ({ getProperty: (k: string) => properties[k] ?? null }),
+    },
     Session: { getScriptTimeZone: () => 'UTC' },
     LockService: { getScriptLock: () => ({ waitLock() {}, releaseLock() {} }) },
     CacheService: {
@@ -228,6 +250,10 @@ export function loadBackend(): Backend {
       Charset: { UTF_8: 'utf8' },
       computeDigest: (_alg: string, text: string) =>
         Array.from(new Int8Array(createHash('sha256').update(text, 'utf8').digest())),
+      // Like Apps Script: signed bytes out, and a PEM with real line breaks in.
+      computeRsaSha256Signature: (value: string, pem: string) =>
+        Array.from(new Int8Array(createSign('RSA-SHA256').update(value, 'utf8').sign(pem))),
+      base64Encode: (bytes: number[]) => Buffer.from(Uint8Array.from(bytes, (b) => b & 0xff)).toString('base64'),
       formatDate: (date: Date, _tz: string, fmt: string) => {
         if (fmt !== 'yyyy-MM-dd') throw new Error(`fake formatDate does not support ${fmt}`);
         return date.toISOString().slice(0, 10);
@@ -258,6 +284,7 @@ export function loadBackend(): Backend {
     'refreshAnalytics',
     'resetTableCache_',
     'repairUsers',
+    'renewActivationKey',
   ];
   const source =
     files.map((f) => readFileSync(path.join(SOURCE_DIR, f), 'utf8')).join('\n;\n') +
