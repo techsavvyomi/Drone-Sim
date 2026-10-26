@@ -1,6 +1,7 @@
 import { DatabaseSync } from 'node:sqlite';
 import type {
   EndSessionRequest,
+  SignedLicense,
   FlightType,
   MissionBreakdown,
   SessionResult,
@@ -30,6 +31,9 @@ import type { AccountFile } from './service';
 //            and the last profile and dashboard the backend sent
 //   flights  every flight: flown here, or copied from the backend's history
 //   revokes  tokens of signed-out users the backend has not been told about yet
+//   licenses each pilot's license as the backend signed it, and the expiry
+//            warning already shown for it. The clock check's last-seen time
+//            and its sealing secret are in meta (see license.ts)
 
 const SCHEMA_VERSION = 1;
 
@@ -65,6 +69,13 @@ export interface PilotCredentials {
   keySalt: string;
   keyHash: string;
   keyCipher: string | null;
+}
+
+export interface StoredLicense {
+  license: SignedLicense;
+  /** The expiry the shown warning was for; a renewed license starts the warnings again. */
+  notifiedFor: string | null;
+  notifiedDay: number | null;
 }
 
 export interface StoredRevoke {
@@ -187,6 +198,13 @@ export class LocalStore {
         user_id TEXT NOT NULL,
         encrypted INTEGER NOT NULL
       );
+      CREATE TABLE IF NOT EXISTS licenses (
+        user_id TEXT PRIMARY KEY,
+        payload TEXT NOT NULL,
+        signature TEXT NOT NULL,
+        notified_for TEXT,
+        notified_day INTEGER
+      );
     `);
     this.setMeta('schema_version', String(SCHEMA_VERSION));
   }
@@ -250,6 +268,57 @@ export class LocalStore {
       this.setMeta('current_user', file.current);
       this.setMeta('accounts_saved', '1');
     });
+  }
+
+  // ---- Licenses ------------------------------------------------------------
+
+  /** The pilot's signed license, and which expiry warning (for which expiry) was shown. */
+  license(userId: string): StoredLicense | null {
+    const row = this.db
+      .prepare('SELECT payload, signature, notified_for, notified_day FROM licenses WHERE user_id = ?')
+      .get(userId) as
+      | { payload: string; signature: string; notified_for: string | null; notified_day: number | null }
+      | undefined;
+    if (!row) return null;
+    return {
+      license: { payload: row.payload, signature: row.signature },
+      notifiedFor: row.notified_for,
+      notifiedDay: row.notified_day,
+    };
+  }
+
+  /** Keep the latest license; the warning already shown stays with it. */
+  saveLicense(userId: string, license: SignedLicense): void {
+    this.db
+      .prepare(
+        `INSERT INTO licenses (user_id, payload, signature) VALUES (?, ?, ?)
+         ON CONFLICT (user_id) DO UPDATE SET payload = excluded.payload, signature = excluded.signature`,
+      )
+      .run(userId, license.payload, license.signature);
+  }
+
+  setLicenseNotified(userId: string, expiresAt: string, day: number): void {
+    this.db
+      .prepare('UPDATE licenses SET notified_for = ?, notified_day = ? WHERE user_id = ?')
+      .run(expiresAt, day, userId);
+  }
+
+  /** The sealed last-seen time (license.ts sealTime), for every pilot on this computer. */
+  clockRecord(): string | null {
+    return this.meta('clock_last_seen');
+  }
+
+  saveClockRecord(record: string): void {
+    this.setMeta('clock_last_seen', record);
+  }
+
+  /** The seal's secret, OS-encrypted when the OS can. */
+  clockSecret(): string | null {
+    return this.meta('clock_secret');
+  }
+
+  saveClockSecret(secret: string): void {
+    this.setMeta('clock_secret', secret);
   }
 
   // ---- Pilots: offline sign-in ----------------------------------------------
@@ -327,6 +396,7 @@ export class LocalStore {
     this.tx(() => {
       this.db.prepare('DELETE FROM flights WHERE user_id = ?').run(userId);
       this.db.prepare('DELETE FROM pilots WHERE user_id = ?').run(userId);
+      this.db.prepare('DELETE FROM licenses WHERE user_id = ?').run(userId);
     });
   }
 

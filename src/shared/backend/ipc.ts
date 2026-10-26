@@ -6,6 +6,7 @@ import type {
   StartSessionRequest,
   UserProfile,
 } from './contract';
+import type { LicenseStatus } from './license';
 
 // Shapes that cross the Electron IPC boundary for profiles and telemetry.
 // The auth token never does: the main process attaches it.
@@ -19,6 +20,12 @@ export interface AccountInfo {
   needsSignIn: boolean;
   /** Why, when the backend said: e.g. the profile is now signed in on another computer. */
   signInReason: string | null;
+  /**
+   * The signed-in pilot's license, worked out on this computer. Null when
+   * nobody is signed in or the build has no license gate. Anything but
+   * `active` closes the app (outside a flight in progress).
+   */
+  license?: LicenseStatus | null;
 }
 
 export type AccountResult =

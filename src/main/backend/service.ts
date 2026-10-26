@@ -11,14 +11,18 @@ import {
   type GameplayEventInput,
   type GetUserDashboardRequest,
   type LoginUserRequest,
+  type SignedLicense,
   type StartSessionRequest,
   type UserDashboard,
   type UserProfile,
 } from '@shared/backend/contract';
 import type { AccountInfo, AccountResult, TelemetryStatus } from '@shared/backend/ipc';
+import { evaluateLicense, type LicenseStatus, type NoticeDay } from '@shared/backend/license';
+import { randomBytes } from 'node:crypto';
 import { Outbox, type EndSnapshot, type OutboxState } from './outbox';
 import { hashKey, verifyKey } from './keyHash';
-import type { LocalStore } from './localStore';
+import { openSealedTime, sealTime, verifyLicense } from './license';
+import type { LocalStore, StoredLicense } from './localStore';
 
 // The main-process side of profiles and telemetry.
 //
@@ -34,6 +38,11 @@ import type { LocalStore } from './localStore';
 // hash, every flight is logged locally first, and the Profile page is answered
 // from this computer. When the internet is back the app signs in to the backend
 // with the stored (OS-encrypted) key and the queued flights upload.
+//
+// With `license` it also keeps each pilot's license (TRIAL / ANNUAL / LIFETIME)
+// as the backend signed it, and works out offline whether it is running, about
+// to run out, expired, or not to be trusted because the clock went back
+// (src/shared/backend/license.ts). App closes itself on anything but running.
 
 interface StoredAccount {
   token: string;
@@ -73,6 +82,11 @@ export interface BackendServiceDeps {
   local?: LocalStore;
   /** Whether the computer has a network at all. Unknown counts as online. */
   online?: () => boolean;
+  /**
+   * Licenses: the public key the backend's signatures are checked with, and
+   * the clock (tests set it). Without it there is no license gate.
+   */
+  license?: { publicKey: string; now?: () => number };
 }
 
 /**
@@ -125,6 +139,14 @@ export class BackendService {
   private historySynced = false;
   private reconnecting: Promise<ApiResponse<UserProfile>> | null = null;
   private revoking = false;
+  /** This computer's id: a license signed for another computer is not trusted here. */
+  private deviceId: string | null = null;
+  /** Licenses as kept; the copy that counts when SQLite is unavailable. */
+  private licenses: Record<string, StoredLicense> = {};
+  private clockKey: string | null = null;
+  private lastSeenMem: number | null = null;
+  /** The last license status pushed to the renderer. */
+  private licensePushed = '';
   readonly outbox: Outbox;
 
   constructor(private deps: BackendServiceDeps) {
@@ -165,6 +187,10 @@ export class BackendService {
     await this.outbox.init();
     // Flights a previous run left open end as ABORTED here too, as the outbox ends them.
     this.withLocal((l) => l.abortOpen());
+    if (this.deps.license) {
+      this.deviceId = (await this.deps.device().catch(() => null))?.deviceId ?? null;
+      this.tickLicense();
+    }
   }
 
   account(): AccountInfo {
@@ -179,6 +205,7 @@ export class BackendService {
       profile: profile ?? current?.profile ?? null,
       needsSignIn: this.authInvalid,
       signInReason: this.authInvalid ? this.authReason : null,
+      license: this.licenseStatus(),
     };
   }
 
@@ -298,8 +325,12 @@ export class BackendService {
     if (res.success && !isProfileOf(res.data, userId))
       return notAProfile('getUserProfile', res.data);
     if (res.success) {
+      // The license rides along with the profile check; it is kept on its own.
+      const { license, ...profile } = res.data;
+      res = { success: true, data: profile };
+      this.acceptLicense(userId, license);
       // An end applied while this was on its way already brought a newer profile.
-      if (this.endsApplied === applied) this.file.accounts[userId].profile = res.data;
+      if (this.endsApplied === applied) this.file.accounts[userId].profile = profile;
       await this.persistAccounts();
       this.deps.notify(this.account());
       // The backend answered, so the network is back: queued flights go now.
@@ -334,6 +365,73 @@ export class BackendService {
       this.deps.notify(this.account());
     }
     return res;
+  }
+
+  // ---- License -------------------------------------------------------------
+
+  /** The signed-in pilot's license as it stands now, offline. Null with no license gate or nobody signed in. */
+  licenseStatus(): LicenseStatus | null {
+    const userId = this.file.current;
+    if (!this.deps.license || !userId) return null;
+    const stored = this.storedLicense(userId);
+    const payload = this.trusted(userId, stored?.license);
+    const notified =
+      stored && payload && stored.notifiedFor === payload.expiresAt
+        ? (stored.notifiedDay as NoticeDay | null)
+        : null;
+    return evaluateLicense({
+      license: payload,
+      now: this.now(),
+      lastSeen: this.readLastSeen(),
+      notified,
+    });
+  }
+
+  /**
+   * Every `everyMs` while the app is open: note the time, and push the license
+   * status when it changes, so a warning comes up on the day it is due and an
+   * expiry closes the app without a restart.
+   */
+  watchLicense(everyMs: number): () => void {
+    const timer = setInterval(() => this.tickLicense(), everyMs);
+    return () => clearInterval(timer);
+  }
+
+  /** The pilot closed the expiry warning for `day`: it does not come back for this expiry. */
+  ackLicenseNotice(day: number): void {
+    const userId = this.file.current;
+    const expiresAt = this.licenseStatus()?.expiresAt;
+    if (!userId || !expiresAt) return;
+    const stored = this.storedLicense(userId);
+    if (stored) this.licenses[userId] = { ...stored, notifiedFor: expiresAt, notifiedDay: day };
+    this.withLocal((l) => l.setLicenseNotified(userId, expiresAt, day));
+    this.tickLicense();
+  }
+
+  /**
+   * "Check again" on the lock screen: online, fetch the license afresh (a
+   * renewal, or the server's clock); either way look at the clock again.
+   */
+  async checkLicense(): Promise<AccountInfo> {
+    if (this.file.current && this.deps.configured && !this.offline()) await this.refreshProfile();
+    this.tickLicense();
+    return this.account();
+  }
+
+  /** Note the time unless the clock has gone back, and push the status if it changed. */
+  tickLicense(): void {
+    if (!this.deps.license) return;
+    const status = this.licenseStatus();
+    if (status?.state !== 'clock') {
+      const now = this.now();
+      const last = this.readLastSeen();
+      if (last === null || now > last) this.writeLastSeen(now);
+    }
+    const pushed = JSON.stringify(status);
+    if (pushed !== this.licensePushed) {
+      this.licensePushed = pushed;
+      this.deps.notify(this.account());
+    }
   }
 
   // ---- Telemetry: all fire-and-forget into the outbox ---------------------
@@ -425,8 +523,9 @@ export class BackendService {
       return this.signInOffline(creds.email, creds.activationKey, res);
     if (!res.success) return res;
     if (!isProfileOf(res.data?.profile, res.data?.userId)) return notAProfile('sign-in', res.data);
-    const { userId, authToken, profile, existingUser } = res.data;
+    const { userId, authToken, profile, existingUser, license } = res.data;
     this.storeToken(userId, authToken, profile);
+    this.acceptLicense(userId, license);
     this.file.current = userId;
     this.authInvalid = false;
     this.authReason = null;
@@ -576,6 +675,7 @@ export class BackendService {
     }
     if (!isProfileOf(res.data?.profile, userId)) return notAProfile('loginUser', res.data);
     this.storeToken(userId, res.data.authToken, res.data.profile);
+    this.acceptLicense(userId, res.data.license);
     await this.persistAccounts();
     this.outbox.unblock(userId);
     this.outbox.retryNow();
@@ -630,6 +730,92 @@ export class BackendService {
     } finally {
       this.revoking = false;
     }
+  }
+
+  private now(): number {
+    return this.deps.license?.now?.() ?? Date.now();
+  }
+
+  private storedLicense(userId: string): StoredLicense | null {
+    return this.withLocal((l) => l.license(userId)) ?? this.licenses[userId] ?? null;
+  }
+
+  /** The license's contents if its signature is good and it is this pilot's, on this computer. */
+  private trusted(userId: string, signed: SignedLicense | null | undefined) {
+    const lic = this.deps.license;
+    const payload = lic ? verifyLicense(signed, lic.publicKey) : null;
+    if (!payload || payload.userId !== userId) return null;
+    if (this.deviceId && payload.deviceId !== this.deviceId) return null;
+    return payload;
+  }
+
+  /** Which check a refused license failed, for the log: a deploy without the key, the wrong key, or another pilot or computer. */
+  private whyUntrusted(userId: string, signed: SignedLicense): string {
+    if (!signed.signature) return 'unsigned: LICENSE_PRIVATE_KEY is not set on the backend';
+    const payload = verifyLicense(signed, this.deps.license!.publicKey);
+    if (!payload) return 'bad signature: the backend key does not match this app';
+    if (payload.userId !== userId) return `for ${payload.userId}, not ${userId}`;
+    return `for computer ${payload.deviceId || '(none)'}, not ${this.deviceId}`;
+  }
+
+  /** A license from the backend: kept when it checks out. An unsigned or foreign one is ignored. */
+  private acceptLicense(userId: string, signed: SignedLicense | null | undefined): void {
+    if (!this.deps.license || !signed) return;
+    const payload = this.trusted(userId, signed);
+    if (!payload) {
+      console.warn(
+        `[license] the backend sent a license that does not check out (${this.whyUntrusted(userId, signed)}); kept the old one`,
+      );
+      return;
+    }
+    const kept = this.storedLicense(userId);
+    this.licenses[userId] = {
+      license: signed,
+      notifiedFor: kept?.notifiedFor ?? null,
+      notifiedDay: kept?.notifiedDay ?? null,
+    };
+    this.withLocal((l) => l.saveLicense(userId, signed));
+    // The server's clock, just read: a clock that ran ahead and was put right
+    // stops counting as moved back.
+    this.writeLastSeen(Date.parse(payload.issuedAt));
+    this.tickLicense();
+  }
+
+  /** The seal's secret: made once, kept OS-encrypted when the OS can. */
+  private clockSecret(): string | null {
+    if (this.clockKey) return this.clockKey;
+    if (!this.deps.local) return null;
+    const { codec } = this.deps;
+    const kept = this.withLocal((l) => l.clockSecret());
+    try {
+      if (kept?.startsWith('enc:')) this.clockKey = codec.decrypt(kept.slice(4));
+      else if (kept?.startsWith('plain:')) this.clockKey = kept.slice(6);
+    } catch {
+      this.clockKey = null;
+    }
+    if (!this.clockKey) {
+      // None yet, or the OS can no longer read it: a new one. The old last-seen
+      // time is lost with it and the license's server time stands in.
+      const fresh = randomBytes(32).toString('base64');
+      const stored = codec.available() ? `enc:${codec.encrypt(fresh)}` : `plain:${fresh}`;
+      this.withLocal((l) => l.saveClockSecret(stored));
+      this.clockKey = fresh;
+    }
+    return this.clockKey;
+  }
+
+  private readLastSeen(): number | null {
+    const secret = this.clockSecret();
+    const record = secret ? this.withLocal((l) => l.clockRecord()) : null;
+    const sealed = secret ? openSealedTime(secret, record ?? null) : null;
+    return sealed ?? this.lastSeenMem;
+  }
+
+  private writeLastSeen(t: number): void {
+    if (!Number.isFinite(t)) return;
+    this.lastSeenMem = t;
+    const secret = this.clockSecret();
+    if (secret) this.withLocal((l) => l.saveClockRecord(sealTime(secret, t)));
   }
 
   private offline(): boolean {

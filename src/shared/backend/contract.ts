@@ -90,6 +90,8 @@ export type ApiErrorCode =
    */
   | 'DEVICE_MISMATCH'
   | 'USER_INACTIVE'
+  /** The key's license has run out. Renewing it on the server lets it in again. */
+  | 'LICENSE_EXPIRED'
   /** Missing, unknown or revoked auth token. The client must sign in again. */
   | 'AUTH_INVALID'
   | 'NOT_FOUND'
@@ -105,6 +107,8 @@ export interface ApiError {
   message: string;
   /** SIGNED_IN_ELSEWHERE: the computer the profile is signed in on. */
   deviceName?: string;
+  /** LICENSE_EXPIRED: when it ran out (ISO). */
+  expiresAt?: string;
 }
 
 export interface ApiSuccess<T> {
@@ -153,6 +157,44 @@ export interface UserProfile {
   /** The computer this profile last signed in on, or null before the first sign-in. */
   device: { name: string; boundAt: string } | null;
   stats: UserStats;
+  /** getUserProfile only: the key's license, freshly signed. Never stored with the profile. */
+  license?: SignedLicense | null;
+}
+
+// ---------------------------------------------------------------------------
+// License
+// ---------------------------------------------------------------------------
+
+export type LicenseType = 'TRIAL' | 'ANNUAL' | 'LIFETIME';
+
+/**
+ * What a key buys, as the backend signed it. TRIAL and ANNUAL run out at
+ * `expiresAt`; LIFETIME (every key issued before licenses existed) never does.
+ */
+export interface LicensePayload {
+  v: 1;
+  userId: string;
+  email: string;
+  /** The computer the profile was bound to when it was signed. */
+  deviceId: string;
+  type: LicenseType;
+  /** "7 days", "6 months", "1 year"; empty for LIFETIME. */
+  duration: string;
+  activatedAt: string;
+  expiresAt: string | null;
+  status: 'ACTIVE' | 'EXPIRED';
+  /** The server's clock when it was signed: the app trusts it over its own. */
+  issuedAt: string;
+}
+
+/**
+ * `payload` is the LicensePayload's JSON exactly as signed, `signature` its
+ * RSA-SHA256 signature (base64) with the backend's private key. The app checks
+ * it with the public key it ships with.
+ */
+export interface SignedLicense {
+  payload: string;
+  signature: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -201,6 +243,8 @@ export interface AuthResult {
   profile: UserProfile;
   /** True when activation found the key already bound to this same email. */
   existingUser?: boolean;
+  /** The key's license. Absent from a backend older than licenses. */
+  license?: SignedLicense | null;
 }
 
 export interface GetUserProfileRequest {
