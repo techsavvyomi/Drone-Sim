@@ -36,6 +36,8 @@ export const IPC = {
   accountSignOut: 'account:sign-out',
   accountRefresh: 'account:refresh',
   accountDashboard: 'account:dashboard',
+  accountLicenseAck: 'account:license-ack',
+  accountLicenseCheck: 'account:license-check',
   /** main -> renderer: the signed-in account or its profile changed. */
   accountChanged: 'account:changed',
   telemetryStart: 'telemetry:start',
@@ -85,6 +87,10 @@ export interface IpcApi {
     signOut(opts?: { forget?: boolean }): Promise<void>;
     refreshProfile(): Promise<ApiResponse<UserProfile>>;
     dashboard(req: Omit<GetUserDashboardRequest, 'userId'>): Promise<ApiResponse<UserDashboard>>;
+    /** The expiry warning for `day` days was closed: it does not come back for this expiry. */
+    ackLicenseNotice(day: number): Promise<void>;
+    /** Check the license again: online, fetch it afresh; and look at the clock again. */
+    checkLicense(): Promise<AccountInfo>;
     /** Subscribe to account changes. Returns an unsubscribe function. */
     onChanged(listener: (account: AccountInfo) => void): () => void;
   };

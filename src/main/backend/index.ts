@@ -15,6 +15,7 @@ import type {
 import type { SessionEnd, SessionStart } from '@shared/backend/ipc';
 import { backendUrl } from './config';
 import { BackendService, type AccountFile, type RememberOpt } from './service';
+import { LICENSE_PUBLIC_KEY } from './license';
 import { sendRequest } from './transport';
 import type { OutboxState } from './outbox';
 
@@ -54,6 +55,11 @@ const SIGN_IN_CHECK_MS = 30_000;
 // seven while the script itself had finished; a short timeout and the service's
 // one retry get the answer instead of waiting on a dead connection.
 const PROFILE_CHECK_TIMEOUT_MS = 10_000;
+
+// How often the open app notes the time for the clock check and looks at the
+// license again: a warning comes up on its day, and an expiry closes the app,
+// within a minute and without a restart.
+const LICENSE_TICK_MS = 60_000;
 
 function timeoutFor(action: string): number | undefined {
   if (SIGN_IN_ACTIONS.has(action)) return SIGN_IN_TIMEOUT_MS;
@@ -151,6 +157,7 @@ export async function registerBackend(): Promise<BackendService> {
     device: deviceIdentity(deviceFile),
     local: local ?? undefined,
     online: () => net.isOnline(),
+    license: { publicKey: LICENSE_PUBLIC_KEY },
     notify: (account) => {
       for (const win of BrowserWindow.getAllWindows()) {
         win.webContents.send(IPC.accountChanged, account);
@@ -162,6 +169,7 @@ export async function registerBackend(): Promise<BackendService> {
   // `ready` instead of finding no handler.
   const ready = service.init();
   void ready.then(() => service.watchSignIn(SIGN_IN_CHECK_MS));
+  void ready.then(() => service.watchLicense(LICENSE_TICK_MS));
 
   ipcMain.handle(IPC.accountGet, async () => {
     await ready;
@@ -204,6 +212,14 @@ export async function registerBackend(): Promise<BackendService> {
     await ready;
     return service.dashboard(req ?? {});
   });
+  ipcMain.handle(IPC.accountLicenseAck, async (_e, day: unknown) => {
+    await ready;
+    if (typeof day === 'number' && Number.isFinite(day)) service.ackLicenseNotice(day);
+  });
+  ipcMain.handle(IPC.accountLicenseCheck, async () => {
+    await ready;
+    return service.checkLicense();
+  });
 
   // Telemetry is one-way `send`, not `invoke`: the simulator never waits on it,
   // and messages on one channel pipe arrive in the order they were sent, so a
@@ -233,6 +249,8 @@ export async function registerBackend(): Promise<BackendService> {
   // that does not make it stays on disk for the next launch.
   app.on('before-quit', () => {
     void service.outbox.flush();
+    // The last time seen, for the next launch's clock check.
+    service.tickLicense();
   });
 
   return service;

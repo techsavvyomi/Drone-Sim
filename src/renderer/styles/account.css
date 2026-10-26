@@ -1116,3 +1116,14 @@
 .profile-signout .ds-btn--danger .ds-icon {
   display: none;
 }
+
+/* The license lock (LicenseScreens.tsx): the whole app closes behind its card. */
+.license-lock {
+  position: fixed;
+  inset: 0;
+  background: var(--ink-950);
+}
+
+.license-lock__hint {
+  margin-top: var(--space-3);
+}

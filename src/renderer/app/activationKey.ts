@@ -117,6 +117,8 @@ export const ERROR_TEXT: Partial<Record<ApiErrorCode, string>> = {
     'This email and key do not match. Check both against the ones you activated with, then press Sign in again.',
   EMAIL_ALREADY_REGISTERED: 'This email already has a profile. Switch to Sign in above.',
   USER_INACTIVE: 'This profile has been switched off. Ask the PlutoSim team to turn it back on.',
+  LICENSE_EXPIRED:
+    'Your license has expired. Please renew it with the PlutoSim team, then press Sign in again.',
   NETWORK:
     'PlutoSim needs to reach its server once. Connect to Wi-Fi or a hotspot, then press Try again. Everything you typed stays filled in.',
   SERVER_ERROR: 'PlutoSim had a problem on its side. Wait a minute, then press Try again.',
@@ -128,6 +130,7 @@ export const BANNER_TITLE: Partial<Record<ApiErrorCode, string>> = {
   NETWORK: 'No internet connection',
   SERVER_ERROR: 'PlutoSim could not answer',
   USER_INACTIVE: 'This profile is switched off',
+  LICENSE_EXPIRED: 'License Expired',
   DEVICE_MISMATCH: 'This profile is locked to another computer',
   NOT_CONFIGURED: 'Profiles are off',
 };

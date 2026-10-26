@@ -77,6 +77,14 @@ export const UserService = {
     return profileBackend().account.dashboard(opts);
   },
 
+  ackLicenseNotice(day: number): Promise<void> {
+    return profileBackend().account.ackLicenseNotice(day);
+  },
+
+  checkLicense(): Promise<AccountInfo> {
+    return profileBackend().account.checkLicense();
+  },
+
   onAccountChanged(listener: (account: AccountInfo) => void): () => void {
     return profileBackend().account.onChanged(listener);
   },

@@ -16,6 +16,7 @@ import { ProfileScreen } from './ProfileScreen';
 import { SignIn } from './SignIn';
 import { LoadingScreen, LOADING_MIN_MS, useResourcesReady } from './LoadingScreen';
 import { QualityNotice } from './QualityNotice';
+import { LicenseLock, LicenseNotice } from './LicenseScreens';
 import { BootSplash, SPLASH_MIN_MS } from './BootSplash';
 import { allLoaded, useResourceStore } from '../assets/resourceTracker';
 import { Viewport } from '../scene/Viewport';
@@ -99,6 +100,7 @@ export function App() {
   const accountStatus = useAccountStore((s) => s.status);
   const needsSignIn = useAccountStore((s) => s.needsSignIn);
   const verifying = useAccountStore((s) => s.verifying);
+  const licenseState = useAccountStore((s) => s.license?.state ?? null);
   const resourcesReady = useResourcesReady();
   const prepared = useSettingsStore((s) => s.settings.resourcesPrepared);
   const loadedClean = useResourceStore((s) => allLoaded(s.entries));
@@ -273,6 +275,20 @@ export function App() {
     return <LoadingScreen checkingSignIn />;
   }
 
+  // The license closes the whole app when it has expired, the clock has been
+  // set back, or none has been checked here yet; like a sign-out, a flight in
+  // progress finishes first. A license never checked waits for the launch's
+  // own check before saying so.
+  if (
+    accountStatus === 'signedIn' &&
+    licenseState !== null &&
+    licenseState !== 'active' &&
+    !midFlight &&
+    !(licenseState === 'unchecked' && verifying)
+  ) {
+    return <LicenseLock />;
+  }
+
   return (
     <div
       className={`app ${section === 'home' ? 'is-home' : ''} ${
@@ -298,6 +314,8 @@ export function App() {
       {section === 'fly' && panelOpen && <TelemetryPanel />}
       {!flightLike && <StatusBar />}
       <QualityNotice />
+      {/* The expiry warning waits for a menu page: it never covers a flight. */}
+      {!flightLike && <LicenseNotice />}
     </div>
   );
 }

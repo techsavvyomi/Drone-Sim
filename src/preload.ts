@@ -20,6 +20,8 @@ const api: IpcApi = {
     signOut: (opts) => ipcRenderer.invoke(IPC.accountSignOut, opts),
     refreshProfile: () => ipcRenderer.invoke(IPC.accountRefresh),
     dashboard: (req) => ipcRenderer.invoke(IPC.accountDashboard, req),
+    ackLicenseNotice: (day) => ipcRenderer.invoke(IPC.accountLicenseAck, day),
+    checkLicense: () => ipcRenderer.invoke(IPC.accountLicenseCheck),
     onChanged: (listener) => {
       const handler = (_e: unknown, account: AccountInfo) => listener(account);
       ipcRenderer.on(IPC.accountChanged, handler);

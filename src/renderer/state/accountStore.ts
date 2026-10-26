@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import type { UserProfile } from '@shared/backend/contract';
 import type { AccountInfo, AccountResult } from '@shared/backend/ipc';
+import type { LicenseStatus } from '@shared/backend/license';
 import { UserService } from '../services/userService';
 import { usePilotStore } from './pilotStore';
 import { useUiStore } from './uiStore';
@@ -37,6 +38,8 @@ interface AccountState {
    * by another computer goes straight to the sign-in form, never the menu.
    */
   verifying: boolean;
+  /** The signed-in pilot's license, worked out offline in the main process. */
+  license: LicenseStatus | null;
   init: () => () => void;
   activate: (
     name: string,
@@ -57,6 +60,8 @@ interface AccountState {
   /** `forget`: also remove this pilot's offline sign-in and flight log here. */
   signOut: (forget?: boolean) => Promise<void>;
   refresh: () => Promise<void>;
+  ackLicenseNotice: (day: number) => Promise<void>;
+  checkLicense: () => Promise<void>;
 }
 
 function statusOf(info: AccountInfo): AccountStatus {
@@ -77,6 +82,7 @@ export const useAccountStore = create<AccountState>((set, get) => {
       profile: info.profile,
       needsSignIn: info.needsSignIn,
       signInReason: info.signInReason ?? null,
+      license: info.license ?? null,
     });
     // The pilot badge and nav card show who is signed in.
     usePilotStore.getState().setCallsign(info.profile?.name ?? DEFAULT_CALLSIGN);
@@ -88,6 +94,7 @@ export const useAccountStore = create<AccountState>((set, get) => {
     needsSignIn: false,
     signInReason: null,
     verifying: false,
+    license: null,
 
     init: () => {
       const off = UserService.onAccountChanged(apply);
@@ -142,6 +149,10 @@ export const useAccountStore = create<AccountState>((set, get) => {
     signOut: (forget) => UserService.signOut(forget),
     refresh: async () => {
       await UserService.refreshProfile();
+    },
+    ackLicenseNotice: (day) => UserService.ackLicenseNotice(day),
+    checkLicense: async () => {
+      apply(await UserService.checkLicense());
     },
   };
 });

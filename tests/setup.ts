@@ -40,6 +40,8 @@ beforeEach(() => {
       signOut: vi.fn(async () => undefined),
       refreshProfile: vi.fn(),
       dashboard: vi.fn(),
+      ackLicenseNotice: vi.fn(async () => undefined),
+      checkLicense: vi.fn(),
       onChanged: vi.fn(() => () => undefined),
     },
     crash: {
