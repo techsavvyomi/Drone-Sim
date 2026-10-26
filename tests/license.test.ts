@@ -196,6 +196,19 @@ describe('license in the app', () => {
     expect(again.account().license?.state).toBe('expired');
   });
 
+  it('runs a 1-hour trial, warns that it expires today, and closes after the hour', async () => {
+    const { svc } = await activated('1h');
+    const now = svc.account().license!;
+    expect(now.state).toBe('active');
+    expect(now.notice === 0 || now.notice === 1).toBe(true);
+    clock += 59 * 60 * 1000;
+    svc.tickLicense();
+    expect(svc.account().license?.state).toBe('active');
+    clock += 2 * 60 * 1000;
+    svc.tickLicense();
+    expect(svc.account().license?.state).toBe('expired');
+  });
+
   it('locks when the clock goes back, and opens again when it is put right', async () => {
     const { svc } = await activated('30d');
     clock += 2 * DAY;

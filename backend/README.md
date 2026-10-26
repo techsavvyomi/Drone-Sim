@@ -71,7 +71,7 @@ bundle is stale.
 
 | Task | How |
 | --- | --- |
-| Issue keys | Use the **PlutoSim → Generate activation keys…** menu (shown when the script is bound to the sheet): it asks how many, the license (`1d`, `7d`, `14d`, `30d` trial; `6m`, `1y` annual; `lifetime`) and a note. `generateTenActivationKeys` from the editor issues lifetime keys. |
+| Issue keys | Use the **PlutoSim → Generate activation keys…** menu (shown when the script is bound to the sheet): it asks how many, the license (`1h`, `1d`, `7d`, `14d`, `30d` trial; `6m`, `1y` annual; `lifetime`) and a note. `generateTenActivationKeys` from the editor issues lifetime keys. |
 | Renew a key | **PlutoSim → Renew a key…** adds one more of the key's Duration, from its expiry (or from today if it has run out). Or type a later `Expiry Date` in `ActivationKeys`. The pilot's app picks it up at its next profile check (within a minute while online, or **Check again** on the lock screen). |
 | End a license early | Type an earlier `Expiry Date`. Online apps close within a minute; an offline one at its next connection. |
 | Disable a key | Set its `Status` to `DISABLED` in `ActivationKeys`. |

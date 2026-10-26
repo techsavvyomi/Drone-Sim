@@ -81,6 +81,15 @@ describe('license on activation', () => {
     expect(six.type).toBe('ANNUAL');
   });
 
+  it('gives a one-hour trial exactly 60 minutes, and renews by an hour', () => {
+    const [key] = be.fn.generateActivationKeys(1, '', '1h');
+    expect(keyRow(key)).toMatchObject({ 'License Type': 'TRIAL', Duration: '1 hour' });
+    const lic = verified(activate(key).data.license);
+    const first = Date.parse(lic.expiresAt);
+    expect(first - Date.parse(lic.activatedAt)).toBe(60 * 60 * 1000);
+    expect((be.fn.renewActivationKey(key) as Date).getTime()).toBe(first + 60 * 60 * 1000);
+  });
+
   it('gives a one-day trial exactly 24 hours', () => {
     const [key] = be.fn.generateActivationKeys(1, '', '1d');
     expect(keyRow(key)).toMatchObject({ 'License Type': 'TRIAL', Duration: '1 day' });

@@ -13,10 +13,16 @@
 // date edited on the computer breaks the signature.
 
 const LICENSE_TYPES_ = ['TRIAL', 'ANNUAL', 'LIFETIME'];
-const DURATION_RE_ = /^(\d{1,3})\s*(day|days|month|months|year|years)$/i;
+const DURATION_RE_ = /^(\d{1,3})\s*(hour|hours|day|days|month|months|year|years)$/i;
+/** Hours and days are fixed lengths; months and years follow the calendar. */
+const FIXED_MS_ = { hour: 60 * 60 * 1000, day: 24 * 60 * 60 * 1000 };
 
-/** What the key-generation prompt offers: trial 1/7/14/30 days, annual 6 months or a year, lifetime. */
+/**
+ * What the key-generation prompt offers: trial 1/7/14/30 days, annual 6 months
+ * or a year, lifetime, and a 1-hour trial for checking the whole flow quickly.
+ */
 const LICENSE_PLANS_ = {
+  '1h': { type: 'TRIAL', duration: '1 hour' },
   '1d': { type: 'TRIAL', duration: '1 day' },
   '7d': { type: 'TRIAL', duration: '7 days' },
   '14d': { type: 'TRIAL', duration: '14 days' },
@@ -52,8 +58,8 @@ function parseDuration_(text) {
  */
 function addDuration_(start, d) {
   const out = new Date(start.getTime());
-  if (d.unit === 'day') {
-    out.setTime(out.getTime() + d.n * 24 * 60 * 60 * 1000);
+  if (FIXED_MS_[d.unit]) {
+    out.setTime(out.getTime() + d.n * FIXED_MS_[d.unit]);
     return out;
   }
   const months = d.unit === 'year' ? d.n * 12 : d.n;

@@ -131,7 +131,7 @@ function newActivationKey_() {
 /**
  * Append `count` new AVAILABLE keys and return them. `notes` is stored beside
  * each (for example the school or batch the keys are for). `plan` is the
- * license they buy, a LICENSE_PLANS_ name: 1d, 7d, 14d, 30d, 6m, 1y or lifetime
+ * license they buy, a LICENSE_PLANS_ name: 1h, 1d, 7d, 14d, 30d, 6m, 1y or lifetime
  * (the default).
  */
 function generateActivationKeys(count, notes, plan) {
@@ -176,7 +176,7 @@ function promptGenerateKeys() {
   if (res.getSelectedButton() !== ui.Button.OK) return;
   const plan = ui.prompt(
     'License',
-    'Trial: 1d, 7d, 14d or 30d. Annual: 6m or 1y. Or lifetime.',
+    'Trial: 1h, 1d, 7d, 14d or 30d. Annual: 6m or 1y. Or lifetime.',
     ui.ButtonSet.OK_CANCEL,
   );
   if (plan.getSelectedButton() !== ui.Button.OK) return;
