@@ -17,6 +17,8 @@ RequestExecutionLevel user
 !define PUBLISHER "Drona Aviation"
 !define EXE "PlutoSim.exe"
 !define UNINSTALL_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\PlutoSim"
+; The login item the app writes (app.setLoginItemSettings, name "PlutoSim").
+!define RUN_KEY "Software\Microsoft\Windows\CurrentVersion\Run"
 
 Name "${PRODUCT}"
 OutFile "${OUTFILE}"
@@ -53,13 +55,25 @@ VIAddVersionKey "LegalCopyright" "© ${PUBLISHER}"
 
 !insertmacro MUI_LANGUAGE "English"
 
+; PlutoSim keeps running in the background with no window, so the installer
+; cannot ask the pilot to close it: it asks the running copy to quit (a second
+; copy started with --quit-for-update tells it to), then makes sure. Installing
+; over a running copy would fail half way through.
+!macro StopRunningApp
+  IfFileExists "$INSTDIR\${EXE}" 0 +2
+    ExecWait '"$INSTDIR\${EXE}" --quit-for-update'
+  Sleep 2000
+  nsExec::Exec 'taskkill /F /T /IM "${EXE}"'
+  Pop $0
+  Sleep 500
+!macroend
+
 Function .onInit
-  ; Installing over a running copy would fail half way through.
-  FindWindow $0 "" "${PRODUCT}"
-  StrCmp $0 0 notRunning
-    MessageBox MB_OK|MB_ICONEXCLAMATION "${PRODUCT} is running. Close it, then run the installer again."
-    Abort
-  notRunning:
+  !insertmacro StopRunningApp
+FunctionEnd
+
+Function un.onInit
+  !insertmacro StopRunningApp
 FunctionEnd
 
 Section "Install"
@@ -97,5 +111,7 @@ Section "Uninstall"
   RMDir /r "$INSTDIR"
   DeleteRegKey HKCU "${UNINSTALL_KEY}"
   DeleteRegKey HKCU "Software\${PRODUCT}"
+  ; No longer starts at login.
+  DeleteRegValue HKCU "${RUN_KEY}" "${PRODUCT}"
 SectionEnd
 

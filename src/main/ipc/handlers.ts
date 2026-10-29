@@ -11,7 +11,7 @@ declare const __BUILD_TIME__: string;
 
 // Registers all main-process IPC handlers. Every channel here has a matching
 // entry in the IPC contract and a typed wrapper in the preload.
-export function registerIpcHandlers(): Promise<BackendService> {
+export function registerIpcHandlers(opts: { showWindow: () => void }): Promise<BackendService> {
   ipcMain.handle(IPC.settingsLoad, (): Promise<AppSettings> => loadSettings());
 
   ipcMain.handle(IPC.settingsSave, (_event, settings: AppSettings): Promise<void> =>
@@ -38,9 +38,10 @@ export function registerIpcHandlers(): Promise<BackendService> {
     return true;
   });
 
+  // Closes the window; the process stays in the background (main.ts before-quit).
   ipcMain.handle(IPC.appQuit, (): void => {
     app.quit();
   });
 
-  return registerBackend();
+  return registerBackend(opts);
 }

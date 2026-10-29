@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, net, safeStorage } from 'electron';
+import { app, BrowserWindow, ipcMain, net, Notification, safeStorage } from 'electron';
 import { LocalStore } from './localStore';
 import { randomUUID } from 'node:crypto';
 import { promises as fs } from 'node:fs';
@@ -12,10 +12,12 @@ import type {
   GetUserDashboardRequest,
   LoginUserRequest,
 } from '@shared/backend/contract';
-import type { SessionEnd, SessionStart } from '@shared/backend/ipc';
+import type { AccountInfo, SessionEnd, SessionStart } from '@shared/backend/ipc';
+import type { LicenseState } from '@shared/backend/license';
 import { backendUrl } from './config';
 import { BackendService, type AccountFile, type RememberOpt } from './service';
 import { LICENSE_PUBLIC_KEY } from './license';
+import { osShadow } from './shadow';
 import { sendRequest } from './transport';
 import type { OutboxState } from './outbox';
 
@@ -110,13 +112,41 @@ function openLocalStore(file: string): LocalStore | null {
   }
 }
 
-export async function registerBackend(): Promise<BackendService> {
+/** What the OS notification says when the license locks with no window on screen. */
+const LOCKED_NOTICE: Partial<Record<LicenseState, string>> = {
+  expired: 'Your PlutoSim license has expired. Please renew your license.',
+  verify: 'Connect to the internet so PlutoSim can verify your license.',
+  clock: "Your computer's date or time appears to have changed. Please correct it to keep using PlutoSim.",
+};
+
+/**
+ * Running in the background, the lock screen is not on screen to be seen: a
+ * license that locks then says so in an OS notification, once per lock, and
+ * clicking it opens the window on the lock screen.
+ */
+function lockNotifier(showWindow: () => void): (account: AccountInfo) => void {
+  let last: LicenseState | null = null;
+  return (account) => {
+    const state = account.license?.state ?? null;
+    if (state === last) return;
+    last = state;
+    const body = state ? LOCKED_NOTICE[state] : undefined;
+    const onScreen = BrowserWindow.getAllWindows().some((w) => w.isVisible() && !w.isMinimized());
+    if (!body || onScreen || !Notification.isSupported()) return;
+    const note = new Notification({ title: 'PlutoSim', body });
+    note.on('click', showWindow);
+    note.show();
+  };
+}
+
+export async function registerBackend(opts: { showWindow: () => void }): Promise<BackendService> {
   const dir = app.getPath('userData');
   const accountsFile = path.join(dir, 'account.json');
   const outboxFile = path.join(dir, 'telemetry-outbox.json');
   const deviceFile = path.join(dir, 'device.json');
   const url = backendUrl();
   const local = openLocalStore(path.join(dir, 'plutosim.db'));
+  const notifyLocked = lockNotifier(opts.showWindow);
 
   const service = new BackendService({
     configured: !!url,
@@ -158,7 +188,10 @@ export async function registerBackend(): Promise<BackendService> {
     local: local ?? undefined,
     online: () => net.isOnline(),
     license: { publicKey: LICENSE_PUBLIC_KEY },
+    // Outside the user-data folder, so a copy of that folder put back does not bring it along.
+    shadow: osShadow(path.join(os.homedir(), '.local', 'state', 'plutosim')),
     notify: (account) => {
+      notifyLocked(account);
       for (const win of BrowserWindow.getAllWindows()) {
         win.webContents.send(IPC.accountChanged, account);
       }
@@ -245,8 +278,9 @@ export async function registerBackend(): Promise<BackendService> {
     return service.syncNow();
   });
 
-  // One last attempt to deliver what is queued before the app goes. Anything
-  // that does not make it stays on disk for the next launch.
+  // One last attempt to deliver what is queued before the app goes (or, kept
+  // running in the background, only its window does). Anything that does not
+  // make it stays on disk for the next launch.
   app.on('before-quit', () => {
     void service.outbox.flush();
     // The last time seen, for the next launch's clock check.

@@ -1,4 +1,4 @@
-import { app, BrowserWindow } from 'electron';
+import { app, BrowserWindow, powerMonitor } from 'electron';
 import path from 'node:path';
 import { registerIpcHandlers } from './main/ipc/handlers';
 import { installCrashReporting } from './main/crash';
@@ -6,10 +6,37 @@ import { enforceLockdown } from './main/security';
 import { keepExistingUserData } from './main/userDataPath';
 import { preferHighPerformanceGpu } from './main/gpu';
 import { DEV_FPS_FLAG, shellZoom } from './shared/shellZoom';
+import type { BackendService } from './main/backend/service';
+
+// PlutoSim keeps running in the background (user, 2026-10-29): it starts at
+// login with no window, and closing the window, Cmd+Q, the Dock's Quit and the
+// app's own Quit only close the window. The process, and with it the license
+// and sign-in checks, goes on, so a license that ran out is found the moment
+// the computer is online. It ends only when the OS ends it: Force Quit / Task
+// Manager, shut down, restart or log out, or the installer (QUIT_FOR_UPDATE).
+
+/** The installer and uninstaller start a second copy with this to end the running one. */
+const QUIT_FOR_UPDATE = '--quit-for-update';
+/** Given by the Windows login item: start with no window. */
+const BACKGROUND = '--background';
+
+let quitting = false;
+/** Really end the process: only for the OS shutting down and the installer. */
+function quitForReal(): void {
+  quitting = true;
+  app.quit();
+}
 
 // Before any path is read: an install from before the PlutoSim rename keeps its
 // settings, sign-in and queued uploads.
 keepExistingUserData();
+
+// One copy at a time (the lock lives in the user-data folder, so after the line
+// above): a second launch opens the running copy's window. Asked to quit with
+// nothing running, it just goes. Installed builds only: `npm start` must still
+// open beside an installed PlutoSim running in the background.
+if (app.isPackaged && (!app.requestSingleInstanceLock() || process.argv.includes(QUIT_FOR_UPDATE)))
+  app.exit(0);
 
 // A packaged build refuses debugger switches and never opens DevTools.
 const lockdown = enforceLockdown();
@@ -29,6 +56,34 @@ declare const MAIN_WINDOW_VITE_NAME: string;
 // Quit early on Windows Squirrel install/uninstall events.
 if (process.platform === 'win32' && process.argv.includes('--squirrel-firstrun')) {
   // no-op placeholder; MakerSquirrel handles shortcut creation
+}
+
+let mainWindow: BrowserWindow | null = null;
+let backendService: BackendService | null = null;
+/**
+ * The window has been told to close. On macOS a fullscreen window first leaves
+ * its Space, which takes seconds and shows it again on the way: none of that
+ * is use.
+ */
+let windowClosing = false;
+
+/** Window time counts towards usage only while the window is on screen. */
+function reportWindowShown(): void {
+  const win = mainWindow;
+  backendService?.setWindowShown(
+    !!win && !windowClosing && !win.isDestroyed() && win.isVisible() && !win.isMinimized(),
+  );
+}
+
+/** Bring the window back, or open it again if it was closed. */
+function showWindow(): void {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    createWindow();
+    return;
+  }
+  if (mainWindow.isMinimized()) mainWindow.restore();
+  mainWindow.show();
+  mainWindow.focus();
 }
 
 function createWindow(): void {
@@ -57,6 +112,23 @@ function createWindow(): void {
       devTools: lockdown.devTools,
     },
   });
+
+  mainWindow = win;
+  windowClosing = false;
+  win.on('close', () => {
+    windowClosing = true;
+    reportWindowShown();
+  });
+  win.on('show', reportWindowShown);
+  win.on('hide', reportWindowShown);
+  win.on('minimize', reportWindowShown);
+  win.on('restore', reportWindowShown);
+  win.on('closed', () => {
+    if (mainWindow === win) mainWindow = null;
+    reportWindowShown();
+  });
+  // Windows signing out or shutting down: let the process go with it.
+  win.on('session-end', quitForReal);
 
   // No File · Edit · View · Window bar under the title on Windows and Linux,
   // not even on Alt. macOS keeps its menu, which lives in the system bar.
@@ -100,16 +172,48 @@ function createWindow(): void {
   }
 }
 
+app.on('second-instance', (_event, argv) => {
+  if (argv.includes(QUIT_FOR_UPDATE)) quitForReal();
+  else if (app.isReady()) showWindow();
+});
+
 app.whenReady().then(() => {
-  const backend = registerIpcHandlers();
-  createWindow();
-  void backend.then((service) => crashReporting.attach(service));
-
-  app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow();
+  const backend = registerIpcHandlers({ showWindow });
+  // Started by the login item: no window until the pilot opens PlutoSim.
+  const atLogin =
+    process.argv.includes(BACKGROUND) ||
+    (process.platform === 'darwin' && app.getLoginItemSettings().wasOpenedAtLogin);
+  if (!atLogin) createWindow();
+  void backend.then((service) => {
+    crashReporting.attach(service);
+    backendService = service;
+    reportWindowShown();
   });
+
+  // Start at login, in the background. Only the installed app: a dev build
+  // would register the bare Electron binary.
+  if (app.isPackaged)
+    app.setLoginItemSettings({ openAtLogin: true, args: [BACKGROUND], name: 'PlutoSim' });
+
+  // macOS shutting down, restarting or logging out (Linux too).
+  powerMonitor.on('shutdown', quitForReal);
+  // A termination signal is the OS or an admin ending the process, not the pilot.
+  process.on('SIGTERM', quitForReal);
+  // Back from sleep: look at the license and the sign-in again straight away.
+  powerMonitor.on('resume', () => void backendService?.checkLicense());
+
+  // Dock icon, Finder or Launchpad with no window open.
+  app.on('activate', showWindow);
 });
 
-app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') app.quit();
+// Cmd+Q, the Dock's Quit and the app's own Quit close the window and leave the
+// process running; only quitForReal ends it.
+app.on('before-quit', (event) => {
+  if (quitting) return;
+  event.preventDefault();
+  for (const win of BrowserWindow.getAllWindows()) win.close();
 });
+
+// Every window closed is not a quit: the process stays (listening is what stops
+// Electron's default of quitting here).
+app.on('window-all-closed', () => {});
