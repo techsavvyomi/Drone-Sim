@@ -26,6 +26,7 @@ import { useSettingsStore } from '../state/settingsStore';
 import { useTrainingStore } from '../state/trainingStore';
 import { useMissionStore } from '../state/missionStore';
 import { attachGamepad } from '../input/gamepad';
+import { resetFlight } from '../input/controls';
 import { useAccountStore } from '../state/accountStore';
 import { attachTelemetry } from '../analytics/telemetry';
 import { attachCrashReporting } from '../analytics/crashReporting';
@@ -243,6 +244,21 @@ export function App() {
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
+  // An expired license does not wait for the flight to end (user, 2026-10-29):
+  // the flight is left as its own Exit would leave it, so telemetry closes and
+  // saves the session, and the lock below comes up at once.
+  const expired = accountStatus === 'signedIn' && licenseState === 'expired';
+  useEffect(() => {
+    if (!expired) return;
+    if (inMission) useMissionStore.getState().exit();
+    if (inLesson) useTrainingStore.getState().exitLesson();
+    if (section === 'fly') {
+      resetFlight();
+      useUiStore.getState().closePanels();
+      useUiStore.getState().setSection('home');
+    }
+  }, [expired, inMission, inLesson, section]);
+
   if (splashHeld || !hydrated || accountStatus === 'loading') {
     return <BootSplash />;
   }
@@ -276,14 +292,15 @@ export function App() {
   }
 
   // The license closes the whole app when it has expired, the clock has been
-  // set back, or none has been checked here yet; like a sign-out, a flight in
-  // progress finishes first. A license never checked waits for the launch's
+  // set back, the offline time is used up, or none has been checked here yet.
+  // Like a sign-out, a flight in progress finishes first, except on an expiry
+  // (the effect above ends it). A license never checked waits for the launch's
   // own check before saying so.
   if (
     accountStatus === 'signedIn' &&
     licenseState !== null &&
     licenseState !== 'active' &&
-    !midFlight &&
+    (expired || !midFlight) &&
     !(licenseState === 'unchecked' && verifying)
   ) {
     return <LicenseLock />;

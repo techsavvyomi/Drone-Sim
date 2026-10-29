@@ -6,10 +6,12 @@ import { useAccountStore } from '../state/accountStore';
 // What the license puts in front of the pilot (manager's brief, 2026-10-26).
 //
 // LicenseLock closes the whole app while the license is expired, the clock has
-// been set back, or no license has been checked on this computer yet. It has no
-// way past it but putting things right: renew the key (the same key, moved
-// forward on the server) and press Check again, correct the date and time, or
-// sign out to use another profile. A flight in progress finishes first (App).
+// been set back, the offline budget is used up, or no license has been checked
+// on this computer yet. It has no way past it but putting things right: renew
+// the key (the same key, moved forward on the server) and press Check again,
+// correct the date and time, connect to the internet, or sign out to use
+// another profile. An expiry ends a flight in progress at once; otherwise the
+// flight finishes first (App).
 //
 // LicenseNotice is the expiry warning at 30, 7, 3 and 1 days and on the day,
 // each shown once, off a flight. Both work offline: the main process works the
@@ -25,6 +27,11 @@ const LOCK_TEXT = {
     title: 'System Date and Time Incorrect',
     text: "Your system date or time appears to have changed. Please check and correct your computer's date and time before continuing.",
     hint: 'Once it is right, press Check again.',
+  },
+  verify: {
+    title: 'Connect to the Internet',
+    text: 'PlutoSim has been used offline for as long as your license allows. Please connect to the internet so your license can be verified.',
+    hint: 'Once you are online, press Check again.',
   },
   unchecked: {
     title: 'Check Your License',

@@ -3,6 +3,7 @@ import { BackendService } from '../src/main/backend/service';
 import { LocalStore } from '../src/main/backend/localStore';
 import {
   CLOCK_TOLERANCE_MS,
+  calendarDaysBetween,
   evaluateLicense,
   noticeFor,
   noticeText,
@@ -87,11 +88,11 @@ describe('evaluateLicense', () => {
   it('cannot be revived by setting the clock back once it is past expiry', () => {
     const lastSeen = now + 21 * DAY;
     expect(evaluateLicense({ license: lic(), now: lastSeen, lastSeen, notified: null }).state).toBe('expired');
-    // Back by less than the tolerance: still expired. By more: the clock lock.
+    // Back by any amount: still expired, and only that is said (user, 2026-10-29).
     expect(
       evaluateLicense({ license: lic(), now: lastSeen - 30 * 60 * 1000, lastSeen, notified: null }).state,
     ).toBe('expired');
-    expect(evaluateLicense({ license: lic(), now, lastSeen, notified: null }).state).toBe('clock');
+    expect(evaluateLicense({ license: lic(), now, lastSeen, notified: null }).state).toBe('expired');
   });
 
   it('trusts the server time in the license when the last-seen record is gone', () => {
@@ -122,6 +123,10 @@ describe('license in the app', () => {
   let local: LocalStore;
   let online: boolean;
   let clock: number;
+  let mono: number;
+  /** The shadow copy kept outside the database (shadow.ts); null = none. */
+  let shadowRaw: string | null;
+  let withShadow: boolean;
 
   function boot(device = DEVICE_A, send?: unknown) {
     const svc = new BackendService({
@@ -139,6 +144,8 @@ describe('license in the app', () => {
       local,
       online: () => online,
       license: { publicKey: TEST_LICENSE_KEYS.publicKey, now: () => clock },
+      monotonic: () => mono,
+      shadow: withShadow ? { read: () => shadowRaw, write: (v) => (shadowRaw = v) } : undefined,
     });
     return svc.init().then(() => svc);
   }
@@ -165,6 +172,9 @@ describe('license in the app', () => {
     local = LocalStore.open(':memory:');
     online = true;
     clock = Date.now();
+    mono = 0;
+    shadowRaw = null;
+    withShadow = true;
   });
 
   afterEach(() => local.close());
@@ -179,7 +189,11 @@ describe('license in the app', () => {
 
   it('runs a 7-day trial offline after a restart, warns once, and closes at expiry', async () => {
     const { svc } = await activated('7d');
-    expect(svc.account().license).toMatchObject({ state: 'active', type: 'TRIAL', daysLeft: 7, notice: 7 });
+    const expiresAt = Date.parse(svc.account().license!.expiresAt!);
+    const daysLeft = () => calendarDaysBetween(clock, expiresAt);
+    // Day 1 is today, so six more calendar days are left.
+    expect(daysLeft()).toBeGreaterThanOrEqual(5);
+    expect(svc.account().license).toMatchObject({ state: 'active', type: 'TRIAL', daysLeft: daysLeft(), notice: 7 });
     svc.ackLicenseNotice(7);
     expect(svc.account().license?.notice).toBeNull();
 
@@ -189,7 +203,7 @@ describe('license in the app', () => {
 
     clock += 4 * DAY;
     again.tickLicense();
-    expect(again.account().license).toMatchObject({ daysLeft: 3, notice: 3 });
+    expect(again.account().license).toMatchObject({ daysLeft: daysLeft(), notice: 3 });
 
     clock += 4 * DAY;
     again.tickLicense();
@@ -223,6 +237,8 @@ describe('license in the app', () => {
   });
 
   it('keeps the last time seen sealed: editing it in the database does not help', async () => {
+    // The database alone; with the copy outside it, see the next test.
+    withShadow = false;
     const { svc } = await activated('30d');
     clock += 10 * DAY;
     svc.tickLicense();
@@ -233,7 +249,19 @@ describe('license in the app', () => {
     const again = await boot();
     // The edited record fails its seal; the server time in the license stands in.
     expect(again.account().license?.state).toBe('active');
-    expect(again.account().license?.daysLeft).toBe(29);
+    const expiresAt = Date.parse(again.account().license!.expiresAt!);
+    expect(again.account().license?.daysLeft).toBe(calendarDaysBetween(clock, expiresAt));
+  });
+
+  it('with the copy outside the database, an edited last-seen time still catches the clock set back', async () => {
+    const { svc } = await activated('30d');
+    clock += 10 * DAY;
+    svc.tickLicense();
+    const record = JSON.parse(local.clockRecord()!);
+    local.saveClockRecord(JSON.stringify({ ...record, t: record.t - 9 * DAY }));
+    online = false;
+    clock -= 9 * DAY;
+    expect((await boot()).account().license?.state).toBe('clock');
   });
 
   it('a clock that ran ahead and was put right opens again with the server time', async () => {
@@ -301,5 +329,223 @@ describe('license in the app', () => {
     setKeyCell(key, 'Expiry Date', new Date(Date.now() - DAY));
     const res = await svc.login({ email: EMAIL, activationKey: key });
     expect(res).toMatchObject({ success: false, code: 'LICENSE_EXPIRED' });
+  });
+
+  describe('offline budget', () => {
+    const MIN = 60 * 1000;
+    const HOUR = 60 * MIN;
+
+    /** A 7-day key with 1 offline hour a day: a budget of at most 7 hours. */
+    async function smallBudget() {
+      const [key] = be.fn.generateActivationKeys(1, '', '7d');
+      setKeyCell(key, 'Hours Per Day', 1);
+      const svc = await boot();
+      expect((await svc.activate({ name: 'Asha', email: EMAIL, activationKey: key })).success).toBe(true);
+      const left = svc.account().license!.offlineLeftMs!;
+      expect(left).toBeGreaterThan(5 * HOUR);
+      expect(left).toBeLessThanOrEqual(7 * HOUR);
+      return { svc, key, left };
+    }
+
+    /** Minutes of the window being open, a license tick each minute; the clock as given. */
+    function useFor(svc: BackendService, minutes: number, clockMoves = true) {
+      for (let i = 0; i < minutes; i++) {
+        mono += MIN;
+        if (clockMoves) clock += MIN;
+        svc.tickLicense();
+      }
+    }
+
+    it('asks to connect once the offline window time is used up, even with the date held still', async () => {
+      const { svc, left } = await smallBudget();
+      online = false;
+      svc.setWindowShown(true);
+      useFor(svc, Math.floor(left / MIN) - 1, false);
+      expect(svc.account().license?.state).toBe('active');
+      useFor(svc, 2, false);
+      expect(svc.account().license).toMatchObject({ state: 'verify', offlineLeftMs: 0 });
+      // Online again: a fresh license, a fresh budget.
+      online = true;
+      const info = await svc.checkLicense();
+      expect(info.license?.state).toBe('active');
+      expect(info.license?.offlineLeftMs).toBeGreaterThan(5 * HOUR);
+    });
+
+    it('counts only while the window is shown, and survives a restart', async () => {
+      const { svc, left } = await smallBudget();
+      online = false;
+      useFor(svc, 600);
+      expect(svc.account().license?.offlineLeftMs).toBe(left);
+      svc.setWindowShown(true);
+      useFor(svc, 60);
+      svc.setWindowShown(false);
+      useFor(svc, 600);
+      const again = await boot();
+      expect(again.account().license?.offlineLeftMs).toBe(left - HOUR);
+    });
+
+    it('a computer asleep with the window open counts at most two minutes', async () => {
+      const { svc, left } = await smallBudget();
+      svc.setWindowShown(true);
+      mono += 8 * HOUR;
+      svc.tickLicense();
+      expect(svc.account().license?.offlineLeftMs).toBe(left - 2 * MIN);
+    });
+
+    it('a count edited or deleted in the database is a spent budget', async () => {
+      withShadow = false;
+      const { svc } = await smallBudget();
+      const userId = svc.account().profile!.userId;
+      const record = JSON.parse(local.usageRecord(userId)!);
+      local.saveUsageRecord(userId, JSON.stringify({ ...record, usedMs: -10 * HOUR }));
+      expect(svc.account().license?.state).toBe('verify');
+      local.saveUsageRecord(userId, '');
+      expect(svc.account().license?.state).toBe('verify');
+    });
+
+    it('with the copy outside the database, an edited count gives back nothing', async () => {
+      const { svc, left } = await smallBudget();
+      svc.setWindowShown(true);
+      useFor(svc, 30);
+      const userId = svc.account().profile!.userId;
+      const record = JSON.parse(local.usageRecord(userId)!);
+      local.saveUsageRecord(userId, JSON.stringify({ ...record, usedMs: 0 }));
+      expect(svc.account().license?.offlineLeftMs).toBe(left - 30 * MIN);
+    });
+
+    it('says expired, not "connect", once the license has run out', async () => {
+      const { svc } = await smallBudget();
+      online = false;
+      svc.setWindowShown(true);
+      useFor(svc, 8 * DAY / MIN / 8, false);
+      clock += 8 * DAY;
+      svc.tickLicense();
+      expect(svc.account().license?.state).toBe('expired');
+    });
+
+    it('a lifetime key has no offline limit', async () => {
+      const { svc } = await activated('lifetime');
+      online = false;
+      svc.setWindowShown(true);
+      useFor(svc, 30 * 60);
+      expect(svc.account().license).toMatchObject({ state: 'active', offlineLeftMs: null });
+    });
+
+    it('reports offline window time to the Usage sheet when online again', async () => {
+      const { svc, key } = await smallBudget();
+      online = false;
+      svc.setWindowShown(true);
+      useFor(svc, 45);
+      svc.setWindowShown(false);
+      online = true;
+      await svc.refreshProfile();
+      const rows = be.ss.sheet('Usage').objects();
+      expect(rows).toHaveLength(1);
+      expect(rows[0]).toMatchObject({ Minutes: 45, Offline: 'YES', 'Activation Key': key });
+      const keyRow = be.ss.sheet('ActivationKeys').objects().find((r) => r['Activation Key'] === key)!;
+      expect(keyRow['Used Hours']).toBe(0.75);
+      // The test's clock ran 45 minutes ahead of the backend's real one.
+      expect(keyRow['Clock Skew (min)']).toBe(45);
+      // Nothing new and not long after: no second report.
+      await svc.refreshProfile();
+      expect(be.ss.sheet('Usage').objects()).toHaveLength(1);
+    });
+  });
+
+  describe('a database put back from a backup', () => {
+    const MIN = 60 * 1000;
+
+    async function spentOffline() {
+      const [key] = be.fn.generateActivationKeys(1, '', '7d');
+      setKeyCell(key, 'Hours Per Day', 1);
+      const svc = await boot();
+      await svc.activate({ name: 'Asha', email: EMAIL, activationKey: key });
+      const userId = svc.account().profile!.userId;
+      const backup = {
+        license: local.license(userId)!.license,
+        usage: local.usageRecord(userId)!,
+        clock: local.clockRecord()!,
+        total: local.totalRecord(userId),
+      };
+      online = false;
+      svc.setWindowShown(true);
+      while (svc.account().license?.state === 'active') {
+        mono += MIN;
+        svc.tickLicense();
+      }
+      expect(svc.account().license?.state).toBe('verify');
+      return { key, userId, backup };
+    }
+
+    function putBack(userId: string, b: Awaited<ReturnType<typeof spentOffline>>['backup']) {
+      local.saveLicense(userId, b.license);
+      local.saveUsageRecord(userId, b.usage);
+      local.saveClockRecord(b.clock);
+      if (b.total) local.saveTotalRecord(userId, b.total);
+    }
+
+    it('brings back no offline time: the copy outside the database still counts', async () => {
+      const { userId, backup } = await spentOffline();
+      putBack(userId, backup);
+      const again = await boot();
+      expect(again.account().license?.state).toBe('verify');
+    });
+
+    it('without that copy, the old count would have come back (what it guards against)', async () => {
+      withShadow = false;
+      const { userId, backup } = await spentOffline();
+      putBack(userId, backup);
+      const again = await boot();
+      expect(again.account().license?.state).toBe('active');
+    });
+
+    it('a license older than one already seen needs a check-in', async () => {
+      const { svc } = await activated('7d');
+      const userId = svc.account().profile!.userId;
+      const old = { license: local.license(userId)!.license, usage: local.usageRecord(userId)! };
+      clock += 60 * MIN;
+      await new Promise((r) => setTimeout(r, 5));
+      await svc.refreshProfile();
+      expect(local.license(userId)!.license.payload).not.toBe(old.license.payload);
+      online = false;
+      local.saveLicense(userId, old.license);
+      local.saveUsageRecord(userId, old.usage);
+      expect((await boot()).account().license?.state).toBe('verify');
+    });
+
+    it('deleting the copy outside the database needs a check-in, which clears it', async () => {
+      const { svc } = await activated('7d');
+      expect(shadowRaw).not.toBeNull();
+      shadowRaw = null;
+      online = false;
+      const again = await boot();
+      expect(again.account().license?.state).toBe('verify');
+      online = true;
+      expect((await again.checkLicense()).license?.state).toBe('active');
+      void svc;
+    });
+
+    it('the backend keeps the highest running total and counts a put-back database', async () => {
+      const { svc, key } = await activated('7d');
+      const userId = svc.account().profile!.userId;
+      const emptyTotal = local.totalRecord(userId);
+      svc.setWindowShown(true);
+      for (let i = 0; i < 30; i++) {
+        mono += MIN;
+        svc.tickLicense();
+      }
+      await svc.refreshProfile();
+      const row = () => be.ss.sheet('ActivationKeys').objects().find((r) => r['Activation Key'] === key)!;
+      expect(row()['Usage Counter (min)']).toBe(30);
+
+      // An old database, and no copy outside it (an install from before it existed).
+      withShadow = false;
+      if (emptyTotal) local.saveTotalRecord(userId, emptyTotal);
+      else local.saveTotalRecord(userId, '');
+      const again = await boot();
+      await again.refreshProfile();
+      expect(row()).toMatchObject({ 'Restore Count': 1, 'Usage Counter (min)': 30 });
+      expect(local.restorePending(userId)).toBe(false);
+    });
   });
 });

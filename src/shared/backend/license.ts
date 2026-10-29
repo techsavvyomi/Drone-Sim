@@ -8,6 +8,11 @@ import type { LicensePayload, LicenseType } from './contract';
 // never taken at its word alone: "now" is the latest of the system clock, the
 // last time this app saw it, and the server's clock when it signed the license,
 // so setting the date back can never give a license more days.
+//
+// A clock held still (set each time just past the last time seen) never goes
+// back, so it is the license's offline budget that stops it: the window time
+// counted since the license was signed, on the app's own timer, may not pass
+// `offlineBudgetMs`. Online, every profile check brings a fresh budget.
 
 /** How far the clock may sit behind the last time seen before it counts as moved back. */
 export const CLOCK_TOLERANCE_MS = 60 * 60 * 1000;
@@ -23,6 +28,8 @@ export type LicenseState =
   | 'expired'
   /** The clock is behind the last time seen: the app closes until it is put right. */
   | 'clock'
+  /** The offline budget is used up: the app closes until it checks in online. */
+  | 'verify'
   /** No license this computer can trust yet: checked online once to open. */
   | 'unchecked';
 
@@ -34,6 +41,8 @@ export interface LicenseStatus {
   daysLeft: number | null;
   /** The warning still to show: the closest threshold reached and not seen yet. */
   notice: NoticeDay | null;
+  /** Window time left before it must check in; null when the license has no limit. */
+  offlineLeftMs: number | null;
 }
 
 export interface LicenseInputs {
@@ -44,6 +53,11 @@ export interface LicenseInputs {
   lastSeen: number | null;
   /** The threshold already shown for this expiry, if any. */
   notified: NoticeDay | null;
+  /**
+   * Window time counted since this license was signed. Null or absent when the
+   * count kept for it is missing or does not check out: the budget counts as spent.
+   */
+  usedMs?: number | null;
 }
 
 const UNCHECKED: LicenseStatus = {
@@ -52,6 +66,7 @@ const UNCHECKED: LicenseStatus = {
   expiresAt: null,
   daysLeft: null,
   notice: null,
+  offlineLeftMs: null,
 };
 
 const time = (iso: string | null | undefined) => {
@@ -79,24 +94,35 @@ export function trustedFloor(license: LicensePayload | null, lastSeen: number | 
   return Math.max(lastSeen ?? 0, time(license?.issuedAt));
 }
 
-export function evaluateLicense({ license, now, lastSeen, notified }: LicenseInputs): LicenseStatus {
+/** Window time left of the license's offline budget; null when it has none. */
+export function offlineLeft(license: LicensePayload, usedMs: number | null | undefined): number | null {
+  const budget = license.offlineBudgetMs;
+  if (typeof budget !== 'number' || !Number.isFinite(budget)) return null;
+  if (typeof usedMs !== 'number' || !Number.isFinite(usedMs)) return 0;
+  return Math.max(0, budget - usedMs);
+}
+
+export function evaluateLicense({ license, now, lastSeen, notified, usedMs }: LicenseInputs): LicenseStatus {
   if (!license) return UNCHECKED;
   const base = { type: license.type, expiresAt: license.expiresAt };
   // A lifetime license has no date to protect, so the clock does not matter to it.
   if (license.type === 'LIFETIME' || !license.expiresAt) {
-    return { ...base, state: 'active', daysLeft: null, notice: null };
+    return { ...base, state: 'active', daysLeft: null, notice: null, offlineLeftMs: null };
   }
   const floor = trustedFloor(license, lastSeen);
   const expires = time(license.expiresAt);
   const effective = Math.max(now, floor);
   const daysLeft = Math.max(0, calendarDaysBetween(effective, expires));
-  if (now < floor - CLOCK_TOLERANCE_MS) return { ...base, state: 'clock', daysLeft, notice: null };
+  const offlineLeftMs = offlineLeft(license, usedMs);
+  // Expired wins over a wrong clock: with both, the pilot is told only that.
   if (license.status === 'EXPIRED' || effective >= expires) {
-    return { ...base, state: 'expired', daysLeft: 0, notice: null };
+    return { ...base, state: 'expired', daysLeft: 0, notice: null, offlineLeftMs };
   }
+  if (now < floor - CLOCK_TOLERANCE_MS) return { ...base, state: 'clock', daysLeft, notice: null, offlineLeftMs };
+  if (offlineLeftMs === 0) return { ...base, state: 'verify', daysLeft, notice: null, offlineLeftMs };
   const due = noticeFor(daysLeft);
   const notice = due !== null && (notified === null || due < notified) ? due : null;
-  return { ...base, state: 'active', daysLeft, notice };
+  return { ...base, state: 'active', daysLeft, notice, offlineLeftMs };
 }
 
 /** The pop-up's words for a warning (the brief's examples). */

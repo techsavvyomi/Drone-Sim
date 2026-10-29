@@ -185,6 +185,19 @@ export interface LicensePayload {
   status: 'ACTIVE' | 'EXPIRED';
   /** The server's clock when it was signed: the app trusts it over its own. */
   issuedAt: string;
+  /** Offline hours per day of the license left; null for LIFETIME. Absent from an older backend. */
+  hoursPerDay?: number | null;
+  /**
+   * How long the app may be open offline, from `issuedAt`, before it must check
+   * in again: hoursPerDay × the days left, never more than the time left. Null
+   * (lifetime) or absent (an older backend) means no limit.
+   */
+  offlineBudgetMs?: number | null;
+  /**
+   * The highest running total of window minutes this key's app has reported.
+   * An app whose own total is below it had its local data put back.
+   */
+  usageFloorMin?: number;
 }
 
 /**
@@ -200,6 +213,35 @@ export interface SignedLicense {
 // ---------------------------------------------------------------------------
 // Actions
 // ---------------------------------------------------------------------------
+
+/**
+ * One stretch of the app's window being open, measured on the app's own timer
+ * (`minutes`); `startedAt`/`endedAt` are the computer's clock. Sent again while
+ * it grows: the backend updates the row with the same `id`.
+ */
+export interface UsageStretch {
+  id: string;
+  startedAt: string;
+  endedAt: string;
+  minutes: number;
+  /** Begun with no internet. */
+  offline: boolean;
+}
+
+/** Window time, and this computer's clock for the backend to compare with its own. */
+export interface ReportUsageRequest {
+  userId: string;
+  clientTime: string;
+  usage: UsageStretch[];
+  /** The app's running total of window minutes, all licenses. */
+  totalMinutes?: number;
+  /** The app found its total below the license's `usageFloorMin`. */
+  restored?: boolean;
+}
+
+export interface ReportUsageResult {
+  received: number;
+}
 
 /**
  * The computer a sign-in comes from. A profile is signed in on one computer at a
@@ -478,6 +520,7 @@ export interface ApiActions {
   signOut: { request: SignOutRequest; response: SignOutResult };
   /** Works signed out too: a crash on the sign-in screen still matters. */
   reportCrashes: { request: ReportCrashesRequest; response: ReportCrashesResult };
+  reportUsage: { request: ReportUsageRequest; response: ReportUsageResult };
 }
 
 export type ApiAction = keyof ApiActions;

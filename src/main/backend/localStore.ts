@@ -2,6 +2,7 @@ import { DatabaseSync } from 'node:sqlite';
 import type {
   EndSessionRequest,
   SignedLicense,
+  UsageStretch,
   FlightType,
   MissionBreakdown,
   SessionResult,
@@ -33,7 +34,11 @@ import type { AccountFile } from './service';
 //   revokes  tokens of signed-out users the backend has not been told about yet
 //   licenses each pilot's license as the backend signed it, and the expiry
 //            warning already shown for it. The clock check's last-seen time
-//            and its sealing secret are in meta (see license.ts)
+//            and its sealing secret are in meta (see license.ts), and so is
+//            each pilot's sealed offline-budget count (license_used:<userId>),
+//            running total (usage_total:<userId>) and whether a restored backup
+//            is still to be reported (restore_pending:<userId>)
+//   usage    stretches of the window being open, until the backend has them
 
 const SCHEMA_VERSION = 1;
 
@@ -205,6 +210,16 @@ export class LocalStore {
         notified_for TEXT,
         notified_day INTEGER
       );
+      CREATE TABLE IF NOT EXISTS usage (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        started_at TEXT NOT NULL,
+        ended_at TEXT NOT NULL,
+        minutes REAL NOT NULL,
+        offline INTEGER NOT NULL,
+        sent_minutes REAL
+      );
+      CREATE INDEX IF NOT EXISTS usage_user ON usage (user_id);
     `);
     this.setMeta('schema_version', String(SCHEMA_VERSION));
   }
@@ -312,6 +327,84 @@ export class LocalStore {
     this.setMeta('clock_last_seen', record);
   }
 
+  /** The pilot's sealed offline-budget count (license.ts sealUsage). */
+  usageRecord(userId: string): string | null {
+    return this.meta(`license_used:${userId}`);
+  }
+
+  saveUsageRecord(userId: string, record: string): void {
+    this.setMeta(`license_used:${userId}`, record);
+  }
+
+  /** The pilot's sealed running total of window time, all licenses. */
+  totalRecord(userId: string): string | null {
+    return this.meta(`usage_total:${userId}`);
+  }
+
+  saveTotalRecord(userId: string, record: string): void {
+    this.setMeta(`usage_total:${userId}`, record);
+  }
+
+  /** A restored backup was found and the backend has not been told yet. */
+  restorePending(userId: string): boolean {
+    return this.meta(`restore_pending:${userId}`) === '1';
+  }
+
+  setRestorePending(userId: string, pending: boolean): void {
+    this.setMeta(`restore_pending:${userId}`, pending ? '1' : null);
+  }
+
+  /** Whether the shadow copy (shadow.ts) has ever been written: then it must be there. */
+  shadowWritten(): boolean {
+    return this.meta('shadow_written') === '1';
+  }
+
+  markShadowWritten(): void {
+    this.setMeta('shadow_written', '1');
+  }
+
+  // ---- Usage: window time for the backend's Usage sheet --------------------
+
+  saveUsage(userId: string, u: UsageStretch): void {
+    this.db
+      .prepare(
+        `INSERT INTO usage (id, user_id, started_at, ended_at, minutes, offline) VALUES (?, ?, ?, ?, ?, ?)
+         ON CONFLICT (id) DO UPDATE SET ended_at = excluded.ended_at, minutes = excluded.minutes`,
+      )
+      .run(u.id, userId, u.startedAt, u.endedAt, u.minutes, u.offline ? 1 : 0);
+  }
+
+  /** Stretches the backend has not seen, or has seen shorter, oldest first. */
+  unsentUsage(userId: string, limit = 200): UsageStretch[] {
+    const rows = this.db
+      .prepare(
+        `SELECT id, started_at, ended_at, minutes, offline FROM usage
+         WHERE user_id = ? AND (sent_minutes IS NULL OR minutes > sent_minutes)
+         ORDER BY started_at LIMIT ?`,
+      )
+      .all(userId, limit) as {
+      id: string;
+      started_at: string;
+      ended_at: string;
+      minutes: number;
+      offline: number;
+    }[];
+    return rows.map((r) => ({
+      id: r.id,
+      startedAt: r.started_at,
+      endedAt: r.ended_at,
+      minutes: r.minutes,
+      offline: !!r.offline,
+    }));
+  }
+
+  markUsageSent(sent: UsageStretch[]): void {
+    this.tx(() => {
+      const mark = this.db.prepare('UPDATE usage SET sent_minutes = ? WHERE id = ?');
+      for (const u of sent) mark.run(u.minutes, u.id);
+    });
+  }
+
   /** The seal's secret, OS-encrypted when the OS can. */
   clockSecret(): string | null {
     return this.meta('clock_secret');
@@ -397,6 +490,10 @@ export class LocalStore {
       this.db.prepare('DELETE FROM flights WHERE user_id = ?').run(userId);
       this.db.prepare('DELETE FROM pilots WHERE user_id = ?').run(userId);
       this.db.prepare('DELETE FROM licenses WHERE user_id = ?').run(userId);
+      this.db.prepare('DELETE FROM usage WHERE user_id = ?').run(userId);
+      this.setMeta(`license_used:${userId}`, null);
+      this.setMeta(`usage_total:${userId}`, null);
+      this.setMeta(`restore_pending:${userId}`, null);
     });
   }
 

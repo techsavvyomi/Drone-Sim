@@ -17,6 +17,7 @@ const status = (over: Partial<LicenseStatus>): LicenseStatus => ({
   expiresAt: '2026-11-02T10:00:00.000Z',
   daysLeft: 7,
   notice: null,
+  offlineLeftMs: null,
   ...over,
 });
 
@@ -53,6 +54,13 @@ describe('LicenseLock', () => {
     render(h(LicenseLock));
     expect(host.textContent).toContain('System Date and Time Incorrect');
     expect(host.textContent).toContain('Please check and correct your computer');
+  });
+
+  it('asks to connect to the internet when the offline time is used up', () => {
+    useAccountStore.setState({ license: status({ state: 'verify', offlineLeftMs: 0 }) });
+    render(h(LicenseLock));
+    expect(host.textContent).toContain('Connect to the Internet');
+    expect(host.textContent).toContain('connect to the internet so your license can be verified');
   });
 
   it('Check again asks the main process to check the license', async () => {

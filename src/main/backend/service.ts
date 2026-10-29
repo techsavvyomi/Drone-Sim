@@ -13,15 +13,26 @@ import {
   type LoginUserRequest,
   type SignedLicense,
   type StartSessionRequest,
+  type UsageStretch,
   type UserDashboard,
   type UserProfile,
 } from '@shared/backend/contract';
 import type { AccountInfo, AccountResult, TelemetryStatus } from '@shared/backend/ipc';
 import { evaluateLicense, type LicenseStatus, type NoticeDay } from '@shared/backend/license';
-import { randomBytes } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 import { Outbox, type EndSnapshot, type OutboxState } from './outbox';
 import { hashKey, verifyKey } from './keyHash';
-import { openSealedTime, sealTime, verifyLicense } from './license';
+import {
+  openSealedShadow,
+  openSealedTime,
+  openSealedUsage,
+  sealShadow,
+  sealTime,
+  sealUsage,
+  verifyLicense,
+  type ShadowState,
+} from './license';
+import type { ShadowStore } from './shadow';
 import type { LocalStore, StoredLicense } from './localStore';
 
 // The main-process side of profiles and telemetry.
@@ -43,6 +54,14 @@ import type { LocalStore, StoredLicense } from './localStore';
 // as the backend signed it, and works out offline whether it is running, about
 // to run out, expired, or not to be trusted because the clock went back
 // (src/shared/backend/license.ts). App closes itself on anything but running.
+//
+// While the window is shown it also counts the time on the app's own timer
+// (never the computer's clock): against the license's offline budget, and as
+// usage stretches kept in SQLite and reported to the backend when online.
+// A sealed copy of that count and of the last time seen is also kept outside
+// the database (`shadow`), so putting an old copy of the database back brings
+// back no offline time; and a running total goes to the backend, which hands
+// back the highest it has seen, so a put-back copy is found online too.
 
 interface StoredAccount {
   token: string;
@@ -87,7 +106,19 @@ export interface BackendServiceDeps {
    * the clock (tests set it). Without it there is no license gate.
    */
   license?: { publicKey: string; now?: () => number };
+  /** A timer that the computer's date cannot move (ms). Tests set it. */
+  monotonic?: () => number;
+  /** Where the copy kept outside the database lives (shadow.ts). */
+  shadow?: ShadowStore;
 }
+
+/** The most one count may add: a computer asleep with the window open is not using it. */
+const MAX_USAGE_STEP_MS = 2 * 60 * 1000;
+/** Usage goes to the backend at most this often while online, and as a heartbeat at least this often. */
+const USAGE_REPORT_MS = 5 * 60 * 1000;
+const USAGE_HEARTBEAT_MS = 15 * 60 * 1000;
+/** A running total this far below the backend's counts as a put-back database. */
+const RESTORE_SLACK_MS = 5 * 60 * 1000;
 
 /**
  * Whether a backend answer carries a whole profile for `userId`. One without
@@ -147,6 +178,19 @@ export class BackendService {
   private lastSeenMem: number | null = null;
   /** The last license status pushed to the renderer. */
   private licensePushed = '';
+  /** Whether the game window is on screen: only then does time count. */
+  private windowShown = false;
+  private lastMono: number | null = null;
+  /** The stretch of window time being counted now. */
+  private stretch: (UsageStretch & { userId: string }) | null = null;
+  private usageMem: Record<string, { issuedAt: string; usedMs: number }> = {};
+  private lastUsageReport: number | null = null;
+  private reportingUsage = false;
+  /** The shadow copy as read once and kept since; null before the first read. */
+  private shadowState: ShadowState | null = null;
+  /** The database says a shadow copy was written, and none that checks out was found. */
+  private shadowLost = false;
+  private shadowDirty = false;
   readonly outbox: Outbox;
 
   constructor(private deps: BackendServiceDeps) {
@@ -272,6 +316,8 @@ export class BackendService {
    */
   async signOut(opts: { forget?: boolean } = {}): Promise<void> {
     const userId = this.file.current;
+    this.countUsage();
+    this.stretch = null;
     if (opts.forget && userId) {
       this.withLocal((l) => {
         if (l.unsyncedCount(userId) === 0) l.forgetPilot(userId);
@@ -336,6 +382,7 @@ export class BackendService {
       // The backend answered, so the network is back: queued flights go now.
       this.outbox.retryNow();
       if (!this.historySynced) void this.syncHistory();
+      void this.reportUsage();
     }
     return res;
   }
@@ -379,12 +426,26 @@ export class BackendService {
       stored && payload && stored.notifiedFor === payload.expiresAt
         ? (stored.notifiedDay as NoticeDay | null)
         : null;
+    const used = payload ? this.readUsage(userId) : null;
     return evaluateLicense({
       license: payload,
       now: this.now(),
       lastSeen: this.readLastSeen(),
       notified,
+      usedMs: used && payload && used.issuedAt === payload.issuedAt ? used.usedMs : null,
     });
+  }
+
+  /**
+   * The game window came on screen or went away (hidden, minimised, closed).
+   * Time counts only while it is shown; going away ends the stretch.
+   */
+  setWindowShown(shown: boolean): void {
+    this.countUsage();
+    if (shown === this.windowShown) return;
+    this.windowShown = shown;
+    if (!shown) this.stretch = null;
+    this.tickLicense();
   }
 
   /**
@@ -420,6 +481,7 @@ export class BackendService {
 
   /** Note the time unless the clock has gone back, and push the status if it changed. */
   tickLicense(): void {
+    this.countUsage();
     if (!this.deps.license) return;
     const status = this.licenseStatus();
     if (status?.state !== 'clock') {
@@ -427,6 +489,7 @@ export class BackendService {
       const last = this.readLastSeen();
       if (last === null || now > last) this.writeLastSeen(now);
     }
+    this.flushShadow();
     const pushed = JSON.stringify(status);
     if (pushed !== this.licensePushed) {
       this.licensePushed = pushed;
@@ -775,10 +838,205 @@ export class BackendService {
       notifiedDay: kept?.notifiedDay ?? null,
     };
     this.withLocal((l) => l.saveLicense(userId, signed));
+    // A freshly signed license brings a fresh offline budget: its count starts at 0.
+    // Checked in online, a lost shadow copy no longer matters.
+    this.shadowLost = false;
+    if (this.readUsage(userId)?.issuedAt !== payload.issuedAt)
+      this.writeUsage(userId, { issuedAt: payload.issuedAt, usedMs: 0 });
+    // Below the backend's highest running total: this database was put back.
+    const floor = (payload.usageFloorMin ?? 0) * 60_000;
+    const total = this.readTotal(userId);
+    if (floor > 0 && total < floor - RESTORE_SLACK_MS) {
+      console.warn(
+        `[license] usage total ${Math.round(total / 60_000)} min is below the backend's ${payload.usageFloorMin}: local data was put back`,
+      );
+      this.withLocal((l) => l.setRestorePending(userId, true));
+    }
+    if (total < floor) this.writeTotal(userId, floor);
     // The server's clock, just read: a clock that ran ahead and was put right
     // stops counting as moved back.
     this.writeLastSeen(Date.parse(payload.issuedAt));
     this.tickLicense();
+  }
+
+  private mono(): number {
+    return this.deps.monotonic?.() ?? performance.now();
+  }
+
+  /**
+   * Add the window time since the last count: to the offline budget's count of
+   * the license in force, and to the current usage stretch. Called every
+   * license tick and whenever the window comes or goes.
+   */
+  private countUsage(): void {
+    const mono = this.mono();
+    const step =
+      this.lastMono === null ? 0 : Math.min(Math.max(0, mono - this.lastMono), MAX_USAGE_STEP_MS);
+    this.lastMono = mono;
+    const userId = this.file.current;
+    if (!this.windowShown || !userId) {
+      this.stretch = null;
+      return;
+    }
+    const payload = this.deps.license
+      ? this.trusted(userId, this.storedLicense(userId)?.license)
+      : null;
+    const used = payload ? this.readUsage(userId) : null;
+    // Only a count that is this license's own grows; a missing one stays spent.
+    if (step > 0 && payload && used?.issuedAt === payload.issuedAt)
+      this.writeUsage(userId, { issuedAt: used.issuedAt, usedMs: used.usedMs + step });
+    if (step > 0) this.writeTotal(userId, this.readTotal(userId) + step);
+
+    const at = new Date(this.now()).toISOString();
+    if (!this.stretch || this.stretch.userId !== userId) {
+      this.stretch = {
+        id: randomUUID(),
+        userId,
+        startedAt: at,
+        endedAt: at,
+        minutes: 0,
+        offline: this.offline(),
+      };
+    }
+    this.stretch.minutes = Math.round((this.stretch.minutes + step / 60_000) * 1000) / 1000;
+    this.stretch.endedAt = at;
+    const { userId: owner, ...stretch } = this.stretch;
+    this.withLocal((l) => l.saveUsage(owner, stretch));
+  }
+
+  /**
+   * Send the window time the backend has not seen, with this computer's clock
+   * for its rollback check. At most every few minutes; and with nothing new, a
+   * heartbeat now and then so the sheet shows the app online.
+   */
+  private async reportUsage(): Promise<void> {
+    const userId = this.file.current;
+    const token = userId ? this.tokenFor(userId) : undefined;
+    if (!userId || !token || this.reportingUsage || !this.deps.local || this.offline()) return;
+    const mono = this.mono();
+    const since = this.lastUsageReport === null ? Infinity : mono - this.lastUsageReport;
+    const usage = this.withLocal((l) => l.unsentUsage(userId)) ?? [];
+    if (since < USAGE_REPORT_MS || (usage.length === 0 && since < USAGE_HEARTBEAT_MS)) return;
+    this.reportingUsage = true;
+    // A failed try waits its turn too: a backend older than usage reports
+    // refuses every one, and would otherwise be asked on every profile check.
+    this.lastUsageReport = mono;
+    const restored = !!this.withLocal((l) => l.restorePending(userId));
+    try {
+      const res = await this.deps.send(
+        'reportUsage',
+        {
+          userId,
+          clientTime: new Date(this.now()).toISOString(),
+          usage,
+          totalMinutes: Math.round((this.readTotal(userId) / 60_000) * 100) / 100,
+          restored,
+        },
+        token,
+      );
+      if (res.success) {
+        this.withLocal((l) => l.markUsageSent(usage));
+        if (restored) this.withLocal((l) => l.setRestorePending(userId, false));
+      }
+    } finally {
+      this.reportingUsage = false;
+    }
+  }
+
+  /**
+   * The offline budget's count: the database's, unless the shadow copy has seen
+   * a newer license (the database was put back: its license is stale, so its
+   * budget counts as spent) or a higher count for the same one. A lost shadow
+   * copy is a spent budget too.
+   */
+  private readUsage(userId: string): { issuedAt: string; usedMs: number } | null {
+    const secret = this.clockSecret();
+    const record = secret ? this.withLocal((l) => l.usageRecord(userId)) : null;
+    const sealed = secret ? openSealedUsage(secret, userId, record ?? null) : null;
+    const own = this.deps.local ? sealed : (this.usageMem[userId] ?? null);
+    const shadow = this.shadow();
+    if (!shadow) return own;
+    if (this.shadowLost) return null;
+    const kept = shadow.users[userId];
+    if (!kept) return own;
+    if (!own || Date.parse(kept.issuedAt) > Date.parse(own.issuedAt))
+      return { issuedAt: kept.issuedAt, usedMs: kept.usedMs };
+    if (kept.issuedAt === own.issuedAt)
+      return { issuedAt: own.issuedAt, usedMs: Math.max(own.usedMs, kept.usedMs) };
+    return own;
+  }
+
+  private writeUsage(userId: string, c: { issuedAt: string; usedMs: number }): void {
+    this.usageMem[userId] = c;
+    const secret = this.clockSecret();
+    if (secret) this.withLocal((l) => l.saveUsageRecord(userId, sealUsage(secret, userId, c)));
+    const shadow = this.shadow();
+    if (shadow) {
+      const kept = shadow.users[userId];
+      shadow.users[userId] = { totalMs: kept?.totalMs ?? 0, ...c };
+      this.shadowDirty = true;
+    }
+  }
+
+  /** The running total of window time, all licenses: the higher of the database's and the shadow's. */
+  private readTotal(userId: string): number {
+    const secret = this.clockSecret();
+    const record = secret ? this.withLocal((l) => l.totalRecord(userId)) : null;
+    const own = secret ? (openSealedUsage(secret, userId, record ?? null)?.usedMs ?? 0) : 0;
+    return Math.max(own, this.shadow()?.users[userId]?.totalMs ?? 0);
+  }
+
+  private writeTotal(userId: string, totalMs: number): void {
+    const secret = this.clockSecret();
+    if (secret)
+      this.withLocal((l) =>
+        l.saveTotalRecord(
+          userId,
+          sealUsage(secret, userId, { issuedAt: 'total', usedMs: totalMs }),
+        ),
+      );
+    const shadow = this.shadow();
+    if (shadow) {
+      const kept = shadow.users[userId];
+      shadow.users[userId] = { issuedAt: kept?.issuedAt ?? '', usedMs: kept?.usedMs ?? 0, totalMs };
+      this.shadowDirty = true;
+    }
+  }
+
+  /** The shadow copy, read once. Null without a shadow store or a seal secret. */
+  private shadow(): ShadowState | null {
+    const store = this.deps.shadow;
+    if (this.shadowState || !store) return this.shadowState;
+    const secret = this.clockSecret();
+    if (!secret) return null;
+    let raw: string | null;
+    try {
+      raw = store.read();
+    } catch {
+      raw = null;
+    }
+    const opened = openSealedShadow(secret, raw);
+    // Written before but gone or edited now: deleted to go with a put-back database.
+    if (!opened && this.withLocal((l) => l.shadowWritten())) {
+      console.warn('[license] the license state kept outside the database is missing or edited');
+      this.shadowLost = true;
+    }
+    this.shadowState = opened ?? { lastSeen: null, users: {} };
+    return this.shadowState;
+  }
+
+  /** Write the shadow copy if it changed. A failure is logged; the next tick tries again. */
+  private flushShadow(): void {
+    const store = this.deps.shadow;
+    const secret = this.clockSecret();
+    if (!store || !secret || !this.shadowDirty || !this.shadowState) return;
+    try {
+      store.write(sealShadow(secret, this.shadowState));
+      this.shadowDirty = false;
+      this.withLocal((l) => l.markShadowWritten());
+    } catch (e) {
+      console.warn('[license] could not keep the license state outside the database:', e);
+    }
   }
 
   /** The seal's secret: made once, kept OS-encrypted when the OS can. */
@@ -804,11 +1062,14 @@ export class BackendService {
     return this.clockKey;
   }
 
+  /** The last time seen: the later of the database's and the shadow copy's. */
   private readLastSeen(): number | null {
     const secret = this.clockSecret();
     const record = secret ? this.withLocal((l) => l.clockRecord()) : null;
     const sealed = secret ? openSealedTime(secret, record ?? null) : null;
-    return sealed ?? this.lastSeenMem;
+    const own = sealed ?? this.lastSeenMem;
+    const kept = this.shadow()?.lastSeen ?? null;
+    return own === null ? kept : kept === null ? own : Math.max(own, kept);
   }
 
   private writeLastSeen(t: number): void {
@@ -816,6 +1077,11 @@ export class BackendService {
     this.lastSeenMem = t;
     const secret = this.clockSecret();
     if (secret) this.withLocal((l) => l.saveClockRecord(sealTime(secret, t)));
+    const shadow = this.shadow();
+    if (shadow) {
+      shadow.lastSeen = t;
+      this.shadowDirty = true;
+    }
   }
 
   private offline(): boolean {

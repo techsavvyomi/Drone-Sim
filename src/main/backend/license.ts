@@ -71,3 +71,66 @@ export function openSealedTime(secret: string, record: string | null): number | 
     return null;
   }
 }
+
+/** Window time counted against one license (the one signed at `issuedAt`). */
+export interface UsageCount {
+  issuedAt: string;
+  usedMs: number;
+}
+
+const usageMac = (secret: string, userId: string, c: UsageCount) =>
+  createHmac('sha256', secret).update(`usage|${userId}|${c.issuedAt}|${c.usedMs}`).digest();
+
+/**
+ * The offline budget's count, sealed like the last time seen: lowering it in
+ * the database breaks the seal, and a broken or missing count is a spent budget.
+ */
+export function sealUsage(secret: string, userId: string, c: UsageCount): string {
+  return JSON.stringify({ ...c, mac: usageMac(secret, userId, c).toString('base64') });
+}
+
+export function openSealedUsage(secret: string, userId: string, record: string | null): UsageCount | null {
+  if (!record) return null;
+  try {
+    const { issuedAt, usedMs, mac } = JSON.parse(record) as UsageCount & { mac: string };
+    if (typeof issuedAt !== 'string' || typeof usedMs !== 'number' || typeof mac !== 'string') return null;
+    const expected = usageMac(secret, userId, { issuedAt, usedMs });
+    const actual = Buffer.from(mac, 'base64');
+    return expected.length === actual.length && timingSafeEqual(expected, actual) ? { issuedAt, usedMs } : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The shadow copy's contents (shadow.ts): the newest license time, its usage
+ * count and the running total per pilot, and the last time seen.
+ */
+export interface ShadowState {
+  lastSeen: number | null;
+  users: Record<string, { issuedAt: string; usedMs: number; totalMs: number }>;
+}
+
+const shadowMac = (secret: string, body: string) =>
+  createHmac('sha256', secret).update(`shadow|${body}`).digest();
+
+export function sealShadow(secret: string, state: ShadowState): string {
+  const body = JSON.stringify(state);
+  return JSON.stringify({ body, mac: shadowMac(secret, body).toString('base64') });
+}
+
+/** The shadow's contents when its seal holds; null when missing, unreadable or edited. */
+export function openSealedShadow(secret: string, record: string | null): ShadowState | null {
+  if (!record) return null;
+  try {
+    const { body, mac } = JSON.parse(record) as { body: string; mac: string };
+    if (typeof body !== 'string' || typeof mac !== 'string') return null;
+    const expected = shadowMac(secret, body);
+    const actual = Buffer.from(mac, 'base64');
+    if (expected.length !== actual.length || !timingSafeEqual(expected, actual)) return null;
+    const state = JSON.parse(body) as ShadowState;
+    return state && typeof state.users === 'object' && state.users ? state : null;
+  } catch {
+    return null;
+  }
+}
