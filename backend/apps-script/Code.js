@@ -22,6 +22,7 @@ const AUTHENTICATED_ACTIONS_ = {
   endSession: endSession_,
   recordEvent: recordEvent_,
   recordEvents: recordEvents_,
+  reportUsage: reportUsage_,
   signOut: signOut_,
 };
 

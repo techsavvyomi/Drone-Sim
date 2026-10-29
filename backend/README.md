@@ -74,6 +74,8 @@ bundle is stale.
 | Issue keys | Use the **PlutoSim → Generate activation keys…** menu (shown when the script is bound to the sheet): it asks how many, the license (`1h`, `1d`, `7d`, `14d`, `30d` trial; `6m`, `1y` annual; `lifetime`) and a note. `generateTenActivationKeys` from the editor issues lifetime keys. |
 | Renew a key | **PlutoSim → Renew a key…** adds one more of the key's Duration, from its expiry (or from today if it has run out). Or type a later `Expiry Date` in `ActivationKeys`. The pilot's app picks it up at its next profile check (within a minute while online, or **Check again** on the lock screen). |
 | End a license early | Type an earlier `Expiry Date`. Online apps close within a minute; an offline one at its next connection. |
+| Offline hours | `Hours Per Day` on the key (new keys get the `OFFLINE_HOURS_PER_DAY` setting, 8). An app may stay open offline for that × the days left (at most `OFFLINE_MAX_DAYS`, 90, so a 1-year key checks in every 3 months), then asks to be connected. Change it per key; it applies from the app's next check. |
+| See usage | The `Usage` sheet: one row per stretch the app's window was open, offline ones marked. On the key: `Used Hours`, `Last Online`, `Clock Skew (min)` (the app's clock against the server's at its last report) and `Rollback Count` (times it was found an hour or more behind). |
 | Disable a key | Set its `Status` to `DISABLED` in `ActivationKeys`. |
 | Fix users typed into the sheet by hand | Run `repairUsers`. It links their keys, fills blank columns and moves the ID counter past them. |
 | Deactivate a user | Set their `Status` to `INACTIVE` in `Users`. |
@@ -124,8 +126,10 @@ and flight times are **seconds**; timestamps are real date-times.
 `Activated Date`) or `DISABLED`. An activated key is bound to its email permanently.
 `License Type` (`TRIAL` / `ANNUAL` / `LIFETIME`; blank is `LIFETIME`, so every key issued
 before licenses stays lifetime), `Duration` (`7 days`, `6 months`, `1 year`) and
-`Expiry Date` (written at the first activation from the server's clock: activation +
-Duration, a year to the calendar day for `1 year`).
+`Expiry Date` (written at the first activation from the server's clock: the activation
+day, India time, is day 1 and the last day runs to 23:59:59 IST, so a `7 days` key
+activated on 30 Oct ends 5 Nov 23:59:59 IST; `1 hour` is exact). `Hours Per Day` and the
+usage columns are described under Admin tasks.
 
 **FlightSessions**: the raw activity log. `Flight Type` (`TRAINING` / `MISSION` /
 `FREE_FLIGHT`), mission or training module, drone, `Start Time` / `End Time`,
@@ -191,6 +195,7 @@ Every response is HTTP 200 with an envelope:
 | `endSession` | token | `sessionId`, `endTime`, `duration`, `flightTime`, `result`, `score`, `stars?`, `crashCount`, `attempts`, `distance?`, `maxAltitude?`, `batteryUsed?`, … | `pointsEarned`, updated `profile` |
 | `recordEvent` | token | `sessionId?`, `eventType`, `eventData?`, `timestamp` | `eventIds` |
 | `recordEvents` | token | `sessionId?`, `events[]` (≤ 100) | `eventIds` |
+| `reportUsage` | token | `userId`, `clientTime`, `usage[]` (≤ 200): `id`, `startedAt`, `endedAt`, `minutes`, `offline` | `received` |
 | `reportCrashes` | token optional | `reports[]` (≤ 20): `kind`, `message`, `stack?`, `fatal`, `occurredAt`, app / OS / device details, `context?` | `reportIds` |
 
 Error codes: `VALIDATION`, `KEY_NOT_FOUND`, `KEY_ALREADY_USED`, `KEY_DISABLED`,

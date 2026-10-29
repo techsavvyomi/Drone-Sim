@@ -157,6 +157,8 @@ function generateActivationKeys(count, notes, plan) {
         Notes: notes ? String(notes) : '',
         'License Type': license.type,
         Duration: license.duration,
+        // Written out so it can be changed per key; blank would mean the setting.
+        'Hours Per Day': license.type === 'LIFETIME' ? '' : hoursPerDay_({ 'Hours Per Day': '' }),
       })),
     );
     return keys;

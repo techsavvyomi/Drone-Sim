@@ -21,6 +21,7 @@ const SHEET = {
   TRAINING: 'TrainingModules',
   SETTINGS: 'Settings',
   CRASHES: 'CrashReports',
+  USAGE: 'Usage',
 };
 
 const SCHEMA = {
@@ -66,6 +67,18 @@ const SCHEMA = {
     'License Type',
     'Duration',
     'Expiry Date',
+    // Offline use (License.js): the app may run offline for Hours Per Day × the
+    // days left (blank: the OFFLINE_HOURS_PER_DAY setting) before it must check
+    // in. The rest is written by the app's usage reports.
+    'Hours Per Day',
+    'Used Hours',
+    'Last Online',
+    'Clock Skew (min)',
+    'Rollback Count',
+    // The app's running total of window minutes, as high as it has ever been
+    // reported; an app found below it had its local data put back (Restore Count).
+    'Usage Counter (min)',
+    'Restore Count',
   ],
   // One row per sign-in. Only a SHA-256 of the token is stored, so the sheet
   // cannot be used to impersonate anyone. At most one row per user is ACTIVE: a
@@ -143,6 +156,20 @@ const SCHEMA = {
     'Context',
     'Stack',
   ],
+  // Time the app's window was open, one row per stretch, reported by the app
+  // (offline stretches when it is next online). Minutes are measured on the
+  // app's own timer, not the computer's clock; Started/Ended At are that clock.
+  [SHEET.USAGE]: [
+    'Usage ID',
+    'User ID',
+    'Email',
+    'Activation Key',
+    'Started At',
+    'Ended At',
+    'Minutes',
+    'Offline',
+    'Received At',
+  ],
 };
 
 /** Columns written as timestamps, formatted as date-times in the sheet. */
@@ -159,6 +186,9 @@ const DATETIME_COLUMNS = [
   'Timestamp',
   'Received At',
   'Occurred At',
+  'Last Online',
+  'Started At',
+  'Ended At',
 ];
 
 /**
@@ -179,5 +209,7 @@ const DEFAULT_SETTINGS = [
   ['REPEAT_COMPLETION_PERCENT', 25, 'Percent of the award paid for re-completing the same mission/module.'],
   ['FREE_FLIGHT_POINTS_PER_MINUTE', 2, 'Points per full airborne minute of free flight.'],
   ['FREE_FLIGHT_POINTS_CAP', 30, 'Most points one free-flight session can earn.'],
+  ['OFFLINE_HOURS_PER_DAY', 8, 'Hours a day the app may run offline, for keys with no Hours Per Day.'],
+  ['OFFLINE_MAX_DAYS', 90, 'Most days of offline use one check-in gives (6-month and 1-year keys).'],
   ['MAX_LOGIN_FAILURES', 10, 'Failed activations/logins per email before a 15 minute lockout.'],
 ];
