@@ -143,13 +143,6 @@ export interface MissionRow {
   status: RowStatus;
 }
 
-/** Accounts that can fly any mission from the start (user, 2026-10-30). */
-const ALL_MISSIONS_OPEN_FOR = ['atharva@dronaaviation.com'];
-
-export function allMissionsOpen(email: string | null | undefined): boolean {
-  return !!email && ALL_MISSIONS_OPEN_FOR.includes(email.trim().toLowerCase());
-}
-
 /** One row per mission. The game's unlock rule: the first, or the one after a
  *  completed mission. `allOpen` lifts it; `next` is still the first unfinished. */
 export function missionRows(

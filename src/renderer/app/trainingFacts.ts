@@ -39,7 +39,7 @@ export function blockOf(n: number): BlockDef {
 
 // ---- Module rows -------------------------------------------------------------
 
-export type RowStatus = 'done' | 'next' | 'locked';
+export type RowStatus = 'done' | 'next' | 'open' | 'locked';
 
 export interface ModuleRow {
   n: number;
@@ -53,15 +53,18 @@ export interface ModuleRow {
 }
 
 /** One row per module. Unlocking is the game's own rule: the first module, or
- *  the one after a completed module. Linear, so at most one row is "next". */
+ *  the one after a completed module; `allOpen` lifts it. At most one row is "next". */
 export function moduleRows(
   lessons: readonly Lesson[],
   progress: Record<string, LessonProgress | undefined>,
+  allOpen = false,
 ): ModuleRow[] {
+  const nextAt = lessons.findIndex((l) => !progress[l.id]?.completed);
   return lessons.map((lesson, i) => {
     const p = progress[lesson.id];
-    const unlocked = i === 0 || !!progress[lessons[i - 1].id]?.completed;
-    const status: RowStatus = p?.completed ? 'done' : unlocked ? 'next' : 'locked';
+    const unlocked = allOpen || i === 0 || !!progress[lessons[i - 1].id]?.completed;
+    const open = i === nextAt ? 'next' : 'open';
+    const status: RowStatus = p?.completed ? 'done' : unlocked ? open : 'locked';
     return {
       n: i + 1,
       id: lesson.id,
@@ -78,7 +81,7 @@ export function moduleRows(
 /** The status cell's words. */
 export function rowStatusText(row: ModuleRow): string {
   if (row.status === 'done') return 'Completed';
-  if (row.status === 'next') return 'Start';
+  if (row.status !== 'locked') return 'Start';
   return `After Module ${row.n - 1}`;
 }
 

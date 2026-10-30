@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useAccountStore } from '../state/accountStore';
+import { everythingOpen } from './openAccess';
 import { useSettingsStore } from '../state/settingsStore';
 import { useShellStore } from '../state/shellStore';
 import { useTrainingStore } from '../state/trainingStore';
@@ -25,7 +27,7 @@ function RowStatus({ row }: { row: ModuleRow }) {
       </span>
     );
   }
-  if (row.status === 'next') {
+  if (row.status !== 'locked') {
     return (
       <span className="tlist__status is-next">
         {rowStatusText(row)}
@@ -52,7 +54,8 @@ export function LessonSelect() {
   const start = useTrainingStore((s) => s.start);
   const setContext = useShellStore((s) => s.setContext);
 
-  const rows = useMemo(() => moduleRows(LESSONS, progress), [progress]);
+  const allOpen = everythingOpen(useAccountStore((s) => s.profile?.email));
+  const rows = useMemo(() => moduleRows(LESSONS, progress, allOpen), [progress, allOpen]);
   const blocks = useMemo(() => blockSummaries(rows), [rows]);
   const summary = listSummary(rows);
   const [blockAt, setBlockAt] = useState(() => openingBlock(rows));

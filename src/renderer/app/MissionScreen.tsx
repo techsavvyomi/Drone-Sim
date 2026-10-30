@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSettingsStore } from '../state/settingsStore';
 import { useAccountStore } from '../state/accountStore';
+import { everythingOpen } from './openAccess';
 import { useMissionStore } from '../state/missionStore';
 import { useShellStore } from '../state/shellStore';
 import { MissionViewport } from '../missions/MissionViewport';
@@ -12,7 +13,6 @@ import {
   clock,
   missionBlockSummaries,
   missionListSummary,
-  allMissionsOpen,
   missionRows,
   openingMissionBlock,
   rowMeta,
@@ -55,7 +55,7 @@ function MissionList() {
   const start = useMissionStore((s) => s.start);
   const setContext = useShellStore((s) => s.setContext);
 
-  const allOpen = allMissionsOpen(useAccountStore((s) => s.profile?.email));
+  const allOpen = everythingOpen(useAccountStore((s) => s.profile?.email));
   const rows = useMemo(() => missionRows(MISSIONS, progress, allOpen), [progress, allOpen]);
   const blocks = useMemo(() => missionBlockSummaries(rows), [rows]);
   const summary = missionListSummary(rows);

@@ -92,6 +92,13 @@ describe('module list facts', () => {
     expect(blockOf(13).name).toBe('Navigation');
   });
 
+  it('an open account can take any module; Module 1 stays the one suggestion', () => {
+    const rows = moduleRows(LESSONS, {}, true);
+    expect(rows.map((r) => r.status)).toEqual(['next', ...Array(LESSONS.length - 1).fill('open')]);
+    expect(rowStatusText(rows[3])).toBe('Start');
+    expect(blockSummaries(rows).every((b) => !b.locked)).toBe(true);
+  });
+
   it('first run: Module 1 is next, every other row is locked and names what unlocks it', () => {
     const rows = moduleRows(LESSONS, {});
     expect(rows[0].status).toBe('next');

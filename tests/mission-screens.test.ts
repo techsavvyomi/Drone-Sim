@@ -23,7 +23,6 @@ import {
   missionGapLine,
   missionListSummary,
   missionResultTiers,
-  allMissionsOpen,
   missionRows,
   missionTiers,
   objectiveLabel,
@@ -35,6 +34,7 @@ import {
   timeLeft,
   type AttemptFacts,
 } from '../src/renderer/app/missionFacts';
+import { everythingOpen } from '../src/renderer/app/openAccess';
 import { useSettingsStore } from '../src/renderer/state/settingsStore';
 import { useShellStore } from '../src/renderer/state/shellStore';
 import { useMissionStore } from '../src/renderer/state/missionStore';
@@ -173,9 +173,9 @@ describe('mission list facts', () => {
   });
 
   it('one named account can fly any mission; everyone else unlocks in order', () => {
-    expect(allMissionsOpen('Atharva@DronaAviation.com ')).toBe(true);
-    expect(allMissionsOpen('someone@dronaaviation.com')).toBe(false);
-    expect(allMissionsOpen(undefined)).toBe(false);
+    expect(everythingOpen('Atharva@DronaAviation.com ')).toBe(true);
+    expect(everythingOpen('someone@dronaaviation.com')).toBe(false);
+    expect(everythingOpen(undefined)).toBe(false);
     const rows = missionRows(MISSIONS, {}, true);
     expect(rows.map((r) => r.status)).toEqual(['next', ...Array(9).fill('open')]);
     expect(rowStatusText(rows[5])).toBe('Start');

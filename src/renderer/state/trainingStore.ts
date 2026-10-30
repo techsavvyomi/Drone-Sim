@@ -1,5 +1,7 @@
 import { create } from 'zustand';
 import type { TrainingProgress } from '@shared/types';
+import { everythingOpen } from '../app/openAccess';
+import { useAccountStore } from './accountStore';
 import { useSettingsStore } from './settingsStore';
 import { usePilotStore } from './pilotStore';
 import { LESSONS } from '../training/lessons';
@@ -229,6 +231,7 @@ export const useTrainingStore = create<TrainingState>((set) => ({
 
 /** True if a lesson can be opened: the first lesson, or the prior one is done. */
 export function isLessonUnlocked(lessonId: string): boolean {
+  if (everythingOpen(useAccountStore.getState().profile?.email)) return true;
   const i = LESSONS.findIndex((l) => l.id === lessonId);
   if (i <= 0) return true;
   const prev = LESSONS[i - 1];
