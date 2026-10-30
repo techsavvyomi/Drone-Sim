@@ -19,6 +19,7 @@ import {
 import type { MissionResult, MissionZone } from '../src/renderer/missions/types';
 import {
   activeZone,
+  isMissionUnlocked,
   legOf,
   objectiveFor,
   runContextOf,
@@ -88,6 +89,21 @@ describe('the shape of the mission', () => {
     expect(toMissionSpec(M).medalThresholds).toEqual(M.medals);
   });
 
+  it('TC-245 is locked until Forest Fire is done', () => {
+    useSettingsStore.setState({ settings: structuredClone(DEFAULT_SETTINGS) });
+    expect(isMissionUnlocked(MISSIONS, M.id)).toBe(false);
+    useSettingsStore.setState((s) => ({
+      settings: {
+        ...s.settings,
+        missions: {
+          missions: {
+            'forest-fire': { completed: true, stars: 1, bestPoints: 6, bestTimeSec: 100 },
+          },
+        },
+      },
+    }));
+    expect(isMissionUnlocked(MISSIONS, M.id)).toBe(true);
+  });
 });
 
 describe('the hub and the three destinations', () => {

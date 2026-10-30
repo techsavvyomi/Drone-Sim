@@ -133,7 +133,7 @@ export function briefHeader(
 
 // ---- The list ----------------------------------------------------------------
 
-export type RowStatus = 'done' | 'next' | 'open';
+export type RowStatus = 'done' | 'next' | 'open' | 'locked';
 
 export interface MissionRow {
   n: number;
@@ -143,26 +143,40 @@ export interface MissionRow {
   status: RowStatus;
 }
 
-/** One row per mission. Every mission can be flown from the start (user,
- *  2026-10-30); `next` only marks the first unfinished one as the suggestion. */
-export function missionRows(missions: readonly Mission[], progress: Progress): MissionRow[] {
+/** Accounts that can fly any mission from the start (user, 2026-10-30). */
+const ALL_MISSIONS_OPEN_FOR = ['atharva@dronaaviation.com'];
+
+export function allMissionsOpen(email: string | null | undefined): boolean {
+  return !!email && ALL_MISSIONS_OPEN_FOR.includes(email.trim().toLowerCase());
+}
+
+/** One row per mission. The game's unlock rule: the first, or the one after a
+ *  completed mission. `allOpen` lifts it; `next` is still the first unfinished. */
+export function missionRows(
+  missions: readonly Mission[],
+  progress: Progress,
+  allOpen = false,
+): MissionRow[] {
   const nextAt = missions.findIndex((m) => !progress[m.id]?.completed);
   return missions.map((mission, i) => {
     const p = progress[mission.id];
+    const unlocked = allOpen || i === 0 || !!progress[missions[i - 1].id]?.completed;
+    const open = i === nextAt ? 'next' : 'open';
     return {
       n: i + 1,
       mission,
       stars: p?.stars ?? 0,
       // 0: completed on another computer, on a backend that does not send the time.
       bestTimeSec: p?.completed && p.bestTimeSec ? p.bestTimeSec : null,
-      status: p?.completed ? 'done' : i === nextAt ? 'next' : 'open',
+      status: p?.completed ? 'done' : unlocked ? open : 'locked',
     };
   });
 }
 
 export function rowStatusText(row: MissionRow): string {
   if (row.status === 'done') return 'Completed';
-  return 'Start';
+  if (row.status !== 'locked') return 'Start';
+  return `After Mission ${row.n - 1}`;
 }
 
 export interface MissionBlockSummary extends MissionBlockDef {
@@ -170,7 +184,8 @@ export interface MissionBlockSummary extends MissionBlockDef {
   done: number;
   total: number;
   stars: number;
-  /** "2 of 4 done · ★ 5 of 12". */
+  locked: boolean;
+  /** "● 2 of 4 done · ★ 5 of 12" or "○ Locked · finish City & Forest". */
   line: string;
 }
 
@@ -179,13 +194,17 @@ export function missionBlockSummaries(rows: readonly MissionRow[]): MissionBlock
     const mine = rows.filter((r) => r.n >= b.from && r.n <= b.to);
     const done = mine.filter((r) => r.status === 'done').length;
     const stars = mine.reduce((sum, r) => sum + r.stars, 0);
+    const locked = mine.length === 0 || mine[0].status === 'locked';
     return {
       ...b,
       index,
       done,
       total: mine.length,
       stars,
-      line: `${done} of ${mine.length} done · ★ ${stars} of ${mine.length * 3}`,
+      locked,
+      line: locked
+        ? `Locked · finish ${MISSION_BLOCKS[index - 1]?.name ?? 'the block before'}`
+        : `${done} of ${mine.length} done · ★ ${stars} of ${mine.length * 3}`,
     };
   });
 }

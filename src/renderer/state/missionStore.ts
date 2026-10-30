@@ -9,6 +9,8 @@ import type {
 } from '../missions/types';
 import { deliveryCount, maxPointsOf, pickupZoneOf, rankFor } from '../missions/types';
 import { zoneFor, type SearchZone } from '../missions/searchZone';
+import { allMissionsOpen } from '../app/missionFacts';
+import { useAccountStore } from './accountStore';
 import { useSettingsStore } from './settingsStore';
 
 // ----------------------------------------------------------------------------
@@ -698,6 +700,15 @@ function record(missionId: string, r: MissionResult, stars: number): void {
     },
   };
   settings.set('missions', next);
+}
+
+/** True if a mission can be opened: the first one, or the previous is done. */
+export function isMissionUnlocked(missions: readonly Mission[], id: string): boolean {
+  if (allMissionsOpen(useAccountStore.getState().profile?.email)) return true;
+  const i = missions.findIndex((m) => m.id === id);
+  if (i <= 0) return true;
+  const previous = missions[i - 1];
+  return !!useSettingsStore.getState().settings.missions.missions[previous.id]?.completed;
 }
 
 /** Whether a route checkpoint is on the leg the pilot is currently flying.

@@ -23,6 +23,7 @@ import {
   missionGapLine,
   missionListSummary,
   missionResultTiers,
+  allMissionsOpen,
   missionRows,
   missionTiers,
   objectiveLabel,
@@ -171,10 +172,27 @@ describe('mission list facts', () => {
     expect(byId('supermarket-delivery')).toBe('5 boxes');
   });
 
+  it('one named account can fly any mission; everyone else unlocks in order', () => {
+    expect(allMissionsOpen('Atharva@DronaAviation.com ')).toBe(true);
+    expect(allMissionsOpen('someone@dronaaviation.com')).toBe(false);
+    expect(allMissionsOpen(undefined)).toBe(false);
+    const rows = missionRows(MISSIONS, {}, true);
+    expect(rows.map((r) => r.status)).toEqual(['next', ...Array(9).fill('open')]);
+    expect(rowStatusText(rows[5])).toBe('Start');
+    expect(missionRows(MISSIONS, {})[1].status).toBe('locked');
+  });
+
+  it('a completed mission with no time on record shows no best time', () => {
+    const rows = missionRows(MISSIONS, {
+      [m1.id]: { completed: true, stars: 0, bestPoints: 5, bestTimeSec: 0 },
+    });
+    expect(rows[0].bestTimeSec).toBeNull();
+  });
+
   it('rows, status words and summaries follow the unlock rule', () => {
     const first = missionRows(MISSIONS, {});
-    expect(first.map((r) => r.status)).toEqual(['next', ...Array(9).fill('open')]);
-    expect(rowStatusText(first[1])).toBe('Start');
+    expect(first.map((r) => r.status)).toEqual(['next', ...Array(9).fill('locked')]);
+    expect(rowStatusText(first[1])).toBe('After Mission 1');
     expect(missionListSummary(first).nextLine).toBe(`Start with Mission 1, ${m1.name}`);
 
     const rows = missionRows(MISSIONS, done(2, 2));
@@ -185,7 +203,7 @@ describe('mission list facts', () => {
     expect(s.nextLine).toBe(`Next: Mission 3, ${m3.name}`);
     const blocks = missionBlockSummaries(rows);
     expect(blocks[0].line).toBe('2 of 4 done · ★ 4 of 12');
-    expect(blocks[1].line).toBe('0 of 2 done · ★ 0 of 6');
+    expect(blocks[1].line).toBe('Locked · finish City & Forest');
     expect(openingMissionBlock(rows)).toBe(0);
     expect(openingMissionBlock(missionRows(MISSIONS, done(4)))).toBe(1);
   });
@@ -390,7 +408,7 @@ const $ = (el: ParentNode, sel: string) => el.querySelector(sel) as HTMLElement;
 const $$ = (el: ParentNode, sel: string) => [...el.querySelectorAll(sel)] as HTMLElement[];
 
 describe('mission list screen', () => {
-  it('first run: Mission 1 is the one primary row and takes focus; the rest are open', () => {
+  it('first run: Mission 1 is the one primary row and takes focus; the rest are locked', () => {
     const el = mount(h(MissionScreen));
     const primary = $$(el, '[data-primary]');
     expect(primary).toHaveLength(1);
@@ -400,15 +418,17 @@ describe('mission list screen', () => {
     expect(rows).toHaveLength(4);
     expect(rows[0].textContent).toContain('8:00');
     expect(rows[0].textContent).toContain('1 delivery');
-    expect(rows[1].getAttribute('aria-disabled')).toBeNull();
-    expect(rows[1].textContent).toContain('Start');
+    expect(rows[1].getAttribute('aria-disabled')).toBe('true');
+    expect(rows[1].textContent).toContain('After Mission 1');
     expect(useShellStore.getState().context).toBe(`Mission 1 of 10 · ${m1.name}`);
   });
 
-  it('any row opens its briefing, not only the next one', () => {
+  it('a locked row does nothing; the next row opens the briefing', () => {
     const el = mount(h(MissionScreen));
     act(() => $$(el, '.tlist__row')[1].click());
-    expect(useMissionStore.getState().mission?.id).toBe(MISSIONS[1].id);
+    expect(useMissionStore.getState().mission).toBeNull();
+    act(() => $$(el, '.tlist__row')[0].click());
+    expect(useMissionStore.getState().mission?.id).toBe(m1.id);
     expect(useMissionStore.getState().phase).toBe('briefing');
   });
 

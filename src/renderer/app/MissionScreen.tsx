@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSettingsStore } from '../state/settingsStore';
+import { useAccountStore } from '../state/accountStore';
 import { useMissionStore } from '../state/missionStore';
 import { useShellStore } from '../state/shellStore';
 import { MissionViewport } from '../missions/MissionViewport';
@@ -11,6 +12,7 @@ import {
   clock,
   missionBlockSummaries,
   missionListSummary,
+  allMissionsOpen,
   missionRows,
   openingMissionBlock,
   rowMeta,
@@ -32,10 +34,18 @@ function RowStatus({ row }: { row: MissionRow }) {
       </span>
     );
   }
+  if (row.status !== 'locked') {
+    return (
+      <span className="tlist__status is-next">
+        {rowStatusText(row)}
+        <Icon name="chevron" />
+      </span>
+    );
+  }
   return (
-    <span className="tlist__status is-next">
-      {rowStatusText(row)}
-      <Icon name="chevron" />
+    <span className="tlist__status is-locked">
+      <span>Locked</span>
+      <span>{rowStatusText(row)}</span>
     </span>
   );
 }
@@ -45,7 +55,8 @@ function MissionList() {
   const start = useMissionStore((s) => s.start);
   const setContext = useShellStore((s) => s.setContext);
 
-  const rows = useMemo(() => missionRows(MISSIONS, progress), [progress]);
+  const allOpen = allMissionsOpen(useAccountStore((s) => s.profile?.email));
+  const rows = useMemo(() => missionRows(MISSIONS, progress, allOpen), [progress, allOpen]);
   const blocks = useMemo(() => missionBlockSummaries(rows), [rows]);
   const summary = missionListSummary(rows);
   const [blockAt, setBlockAt] = useState(() => openingMissionBlock(rows));
@@ -70,6 +81,7 @@ function MissionList() {
   }, []);
 
   const open = (row: MissionRow) => {
+    if (row.status === 'locked') return;
     playClick();
     start(row.mission);
   };
@@ -90,7 +102,9 @@ function MissionList() {
             <button
               key={b.name}
               type="button"
-              className={`tlist__block${b.index === blockAt ? ' is-open' : ''}`}
+              className={`tlist__block${b.index === blockAt ? ' is-open' : ''}${
+                b.locked ? ' is-locked' : ''
+              }`}
               aria-pressed={b.index === blockAt}
               onClick={() => setBlockAt(b.index)}
             >
@@ -101,7 +115,7 @@ function MissionList() {
                 </span>
               </span>
               <span className="tlist__block-line">
-                <Icon name="dot" />
+                <Icon name={b.locked ? 'ring' : 'dot'} />
                 {b.line}
               </span>
               <Progress
@@ -123,6 +137,7 @@ function MissionList() {
             <h2>{block.name}</h2>
             <span>
               Missions {block.from}–{block.to}
+              {block.locked ? ` · ${block.line}` : ''}
             </span>
           </header>
           <div className="tlist__cols" aria-hidden="true">
@@ -141,6 +156,7 @@ function MissionList() {
                   className={`tlist__row is-${row.status}`}
                   data-primary={row.status === 'next' ? true : undefined}
                   data-mission={row.mission.id}
+                  aria-disabled={row.status === 'locked' ? true : undefined}
                   onClick={() => open(row)}
                   onFocus={() => describe(row)}
                   onMouseEnter={() => describe(row)}

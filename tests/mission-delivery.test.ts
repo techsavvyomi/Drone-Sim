@@ -13,6 +13,7 @@ import {
 import type { MissionResult } from '../src/renderer/missions/types';
 import {
   activeZone,
+  isMissionUnlocked,
   legOf,
   objectiveFor,
   useMissionStore,
@@ -460,6 +461,23 @@ describe('the mission list', () => {
     useMissionStore.getState().fail('crash');
 
     expect(useSettingsStore.getState().settings.missions.missions[M.id]).toBeUndefined();
+  });
+
+  it('TC-234 leaves the first mission unlocked and locks what follows it', () => {
+    expect(isMissionUnlocked([M], M.id)).toBe(true);
+
+    const second = { ...M, id: 'second', order: 2 };
+    expect(isMissionUnlocked([M, second], second.id)).toBe(false);
+
+    useMissionStore.getState().finish({
+      points: 16,
+      maxPoints: 16,
+      timeSec: 120,
+      collisions: 0,
+      delivered: true,
+      landed: true,
+    });
+    expect(isMissionUnlocked([M, second], second.id)).toBe(true);
   });
 
   it('TC-234 numbers the missions from one, in list order', () => {
