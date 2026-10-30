@@ -4,7 +4,6 @@ import {
   guidanceHidden,
   objectiveFor,
   runContextOf,
-  isMissionUnlocked,
 } from '../state/missionStore';
 import { useFlightStore } from '../state/flightStore';
 import { resetForMission } from '../missions/reset';
@@ -874,10 +873,9 @@ function ResultCard({
 
   const i = MISSIONS.findIndex((m) => m.id === mission.id);
   const next = i >= 0 ? (MISSIONS[i + 1] ?? null) : null;
-  // `finish` recorded the result before this card, so the next one is open.
-  const hasNext = !!next && isMissionUnlocked(MISSIONS, next.id);
+  const hasNext = !!next;
   const tiers = missionResultTiers(mission, result.stars, result);
-  const best = bestTimeText(bestBefore?.timeSec ?? null, result.timeSec);
+  const best = bestTimeText(bestBefore?.timeSec || null, result.timeSec);
 
   // The flourish, once: the success chime and a ding per star.
   useEffect(() => {

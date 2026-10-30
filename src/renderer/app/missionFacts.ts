@@ -133,7 +133,7 @@ export function briefHeader(
 
 // ---- The list ----------------------------------------------------------------
 
-export type RowStatus = 'done' | 'next' | 'locked';
+export type RowStatus = 'done' | 'next' | 'open';
 
 export interface MissionRow {
   n: number;
@@ -143,26 +143,26 @@ export interface MissionRow {
   status: RowStatus;
 }
 
-/** One row per mission. The game's unlock rule: the first, or the one after a
- *  completed mission. */
+/** One row per mission. Every mission can be flown from the start (user,
+ *  2026-10-30); `next` only marks the first unfinished one as the suggestion. */
 export function missionRows(missions: readonly Mission[], progress: Progress): MissionRow[] {
+  const nextAt = missions.findIndex((m) => !progress[m.id]?.completed);
   return missions.map((mission, i) => {
     const p = progress[mission.id];
-    const unlocked = i === 0 || !!progress[missions[i - 1].id]?.completed;
     return {
       n: i + 1,
       mission,
       stars: p?.stars ?? 0,
-      bestTimeSec: p?.completed ? p.bestTimeSec : null,
-      status: p?.completed ? 'done' : unlocked ? 'next' : 'locked',
+      // 0: completed on another computer, on a backend that does not send the time.
+      bestTimeSec: p?.completed && p.bestTimeSec ? p.bestTimeSec : null,
+      status: p?.completed ? 'done' : i === nextAt ? 'next' : 'open',
     };
   });
 }
 
 export function rowStatusText(row: MissionRow): string {
   if (row.status === 'done') return 'Completed';
-  if (row.status === 'next') return 'Start';
-  return `After Mission ${row.n - 1}`;
+  return 'Start';
 }
 
 export interface MissionBlockSummary extends MissionBlockDef {
@@ -170,8 +170,7 @@ export interface MissionBlockSummary extends MissionBlockDef {
   done: number;
   total: number;
   stars: number;
-  locked: boolean;
-  /** "● 2 of 4 done · ★ 5 of 12" or "○ Locked · finish City & Forest". */
+  /** "2 of 4 done · ★ 5 of 12". */
   line: string;
 }
 
@@ -180,17 +179,13 @@ export function missionBlockSummaries(rows: readonly MissionRow[]): MissionBlock
     const mine = rows.filter((r) => r.n >= b.from && r.n <= b.to);
     const done = mine.filter((r) => r.status === 'done').length;
     const stars = mine.reduce((sum, r) => sum + r.stars, 0);
-    const locked = mine.length === 0 || mine[0].status === 'locked';
     return {
       ...b,
       index,
       done,
       total: mine.length,
       stars,
-      locked,
-      line: locked
-        ? `Locked · finish ${MISSION_BLOCKS[index - 1]?.name ?? 'the block before'}`
-        : `${done} of ${mine.length} done · ★ ${stars} of ${mine.length * 3}`,
+      line: `${done} of ${mine.length} done · ★ ${stars} of ${mine.length * 3}`,
     };
   });
 }

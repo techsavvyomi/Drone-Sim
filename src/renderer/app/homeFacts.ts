@@ -72,7 +72,7 @@ export function homePlan(input: HomeInput): HomePlan {
   const lessonsDone = lessons.filter(lessonDone).length;
   const missionsDone = missions.filter(missionDone).length;
   const stars = lessons.reduce((sum, l) => sum + (training.lessons[l.id]?.stars ?? 0), 0);
-  // The list unlocks in order, so the first unfinished one is the one that is open.
+  // Lessons unlock in order; missions are all open, and this is only the suggestion.
   const nextLessonAt = lessons.findIndex((l) => !lessonDone(l));
   const nextLesson = nextLessonAt >= 0 ? lessons[nextLessonAt] : undefined;
   const nextMissionAt = missions.findIndex((m) => !missionDone(m));

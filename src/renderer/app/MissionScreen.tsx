@@ -32,18 +32,10 @@ function RowStatus({ row }: { row: MissionRow }) {
       </span>
     );
   }
-  if (row.status === 'next') {
-    return (
-      <span className="tlist__status is-next">
-        {rowStatusText(row)}
-        <Icon name="chevron" />
-      </span>
-    );
-  }
   return (
-    <span className="tlist__status is-locked">
-      <span>Locked</span>
-      <span>{rowStatusText(row)}</span>
+    <span className="tlist__status is-next">
+      {rowStatusText(row)}
+      <Icon name="chevron" />
     </span>
   );
 }
@@ -78,7 +70,6 @@ function MissionList() {
   }, []);
 
   const open = (row: MissionRow) => {
-    if (row.status === 'locked') return;
     playClick();
     start(row.mission);
   };
@@ -99,9 +90,7 @@ function MissionList() {
             <button
               key={b.name}
               type="button"
-              className={`tlist__block${b.index === blockAt ? ' is-open' : ''}${
-                b.locked ? ' is-locked' : ''
-              }`}
+              className={`tlist__block${b.index === blockAt ? ' is-open' : ''}`}
               aria-pressed={b.index === blockAt}
               onClick={() => setBlockAt(b.index)}
             >
@@ -112,7 +101,7 @@ function MissionList() {
                 </span>
               </span>
               <span className="tlist__block-line">
-                <Icon name={b.locked ? 'ring' : 'dot'} />
+                <Icon name="dot" />
                 {b.line}
               </span>
               <Progress
@@ -134,7 +123,6 @@ function MissionList() {
             <h2>{block.name}</h2>
             <span>
               Missions {block.from}–{block.to}
-              {block.locked ? ` · ${block.line}` : ''}
             </span>
           </header>
           <div className="tlist__cols" aria-hidden="true">
@@ -153,7 +141,6 @@ function MissionList() {
                   className={`tlist__row is-${row.status}`}
                   data-primary={row.status === 'next' ? true : undefined}
                   data-mission={row.mission.id}
-                  aria-disabled={row.status === 'locked' ? true : undefined}
                   onClick={() => open(row)}
                   onFocus={() => describe(row)}
                   onMouseEnter={() => describe(row)}
