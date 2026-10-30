@@ -1,5 +1,6 @@
 import type { UserDashboard } from '@shared/backend/contract';
 import type { AppSettings, MissionProgress, TrainingProgress } from '@shared/types';
+import { MISSION_IDS, TRAINING_IDS } from '../services/catalog';
 import { UserService } from '../services/userService';
 import { useSettingsStore } from './settingsStore';
 
@@ -9,6 +10,12 @@ import { useSettingsStore } from './settingsStore';
 // anything better on this computer stays.
 
 type Progress = Pick<AppSettings, 'missions' | 'training'>;
+
+/** The backend names things by catalog id; settings key them by the game's own slug. */
+const slugsOf = (ids: Readonly<Record<string, string>>): Record<string, string> =>
+  Object.fromEntries(Object.entries(ids).map(([slug, id]) => [id, slug]));
+const MISSION_SLUGS = slugsOf(MISSION_IDS);
+const LESSON_SLUGS = slugsOf(TRAINING_IDS);
 
 /** The faster of two best times, where 0 or undefined means no time on record. */
 function faster(a: number | undefined, b: number | undefined): number {
@@ -23,8 +30,9 @@ export function mergedProgress(local: Progress, dash: UserDashboard): Progress |
   let changed = false;
 
   for (const m of dash.missions) {
-    if (m.completed <= 0) continue;
-    const prev = missions[m.missionId];
+    const slug = MISSION_SLUGS[m.missionId];
+    if (!slug || m.completed <= 0) continue;
+    const prev = missions[slug];
     const next = {
       completed: true,
       stars: Math.max(prev?.stars ?? 0, m.bestStars ?? 0),
@@ -38,17 +46,18 @@ export function mergedProgress(local: Progress, dash: UserDashboard): Progress |
       prev.bestTimeSec === next.bestTimeSec
     )
       continue;
-    missions[m.missionId] = next;
+    missions[slug] = next;
     changed = true;
   }
 
   for (const t of dash.training.modules) {
-    if (!t.completed) continue;
-    const prev = lessons[t.trainingId];
+    const slug = LESSON_SLUGS[t.trainingId];
+    if (!slug || !t.completed) continue;
+    const prev = lessons[slug];
     const stars = Math.max(prev?.stars ?? 0, t.bestStars);
     const time = faster(prev?.bestTimeSec, t.bestTimeSec);
     if (prev?.completed && prev.stars === stars && (prev.bestTimeSec ?? 0) === time) continue;
-    lessons[t.trainingId] = {
+    lessons[slug] = {
       completed: true,
       stars,
       bestScore: Math.max(prev?.bestScore ?? 0, stars / 3),

@@ -32,36 +32,49 @@ describe('progress from the account', () => {
     const out = mergedProgress(
       empty(),
       dash(
-        [mission('a', { bestStars: 3, bestTimeSec: 120 })],
-        [lesson('hover', { bestTimeSec: 40 })],
+        [mission('MISSION-001', { bestStars: 3, bestTimeSec: 120 })],
+        [lesson('TRAINING-001', { bestTimeSec: 40 })],
       ),
     );
-    expect(out?.missions.missions.a).toEqual({
+    expect(out?.missions.missions['precision-delivery']).toEqual({
       completed: true,
       stars: 3,
       bestPoints: 80,
       bestTimeSec: 120,
     });
-    expect(out?.training.lessons.hover).toMatchObject({
+    expect(out?.training.lessons['arm-takeoff']).toMatchObject({
       completed: true,
       stars: 2,
       bestTimeSec: 40,
     });
-    expect(out?.training.lessons.hover.bestScore).toBeCloseTo(2 / 3);
+    expect(out?.training.lessons['arm-takeoff'].bestScore).toBeCloseTo(2 / 3);
+  });
+
+  it('stores progress under the slug the screens read, not the catalog id', () => {
+    const out = mergedProgress(empty(), dash([mission('MISSION-010')], [lesson('TRAINING-015')]));
+    expect(Object.keys(out?.missions.missions ?? {})).toEqual(['supermarket-stock-check']);
+    expect(Object.keys(out?.training.lessons ?? {})).toEqual(['nav-abcd']);
+  });
+
+  it('skips a catalog row the game does not have', () => {
+    expect(mergedProgress(empty(), dash([mission('MISSION-999')]))).toBeNull();
   });
 
   it('a mission or lesson never finished stays unfinished', () => {
     expect(
       mergedProgress(
         empty(),
-        dash([mission('a', { completed: 0 })], [lesson('hover', { completed: false })]),
+        dash(
+          [mission('MISSION-001', { completed: 0 })],
+          [lesson('TRAINING-001', { completed: false })],
+        ),
       ),
     ).toBeNull();
   });
 
   it('works on a backend that sends no stars or time', () => {
-    const out = mergedProgress(empty(), dash([mission('a')]));
-    expect(out?.missions.missions.a).toEqual({
+    const out = mergedProgress(empty(), dash([mission('MISSION-001')]));
+    expect(out?.missions.missions['precision-delivery']).toEqual({
       completed: true,
       stars: 0,
       bestPoints: 80,
@@ -73,12 +86,14 @@ describe('progress from the account', () => {
     const local = {
       ...empty(),
       missions: {
-        missions: { a: { completed: true, stars: 3, bestPoints: 100, bestTimeSec: 90 } },
+        missions: {
+          'precision-delivery': { completed: true, stars: 3, bestPoints: 100, bestTimeSec: 90 },
+        },
       },
     };
     const out = mergedProgress(
       local,
-      dash([mission('a', { bestStars: 1, bestScore: 10, bestTimeSec: 300 })]),
+      dash([mission('MISSION-001', { bestStars: 1, bestScore: 10, bestTimeSec: 300 })]),
     );
     expect(out).toBeNull();
   });
@@ -87,14 +102,16 @@ describe('progress from the account', () => {
     const local = {
       ...empty(),
       missions: {
-        missions: { a: { completed: true, stars: 3, bestPoints: 10, bestTimeSec: 300 } },
+        missions: {
+          'precision-delivery': { completed: true, stars: 3, bestPoints: 10, bestTimeSec: 300 },
+        },
       },
     };
     const out = mergedProgress(
       local,
-      dash([mission('a', { bestStars: 1, bestScore: 80, bestTimeSec: 90 })]),
+      dash([mission('MISSION-001', { bestStars: 1, bestScore: 80, bestTimeSec: 90 })]),
     );
-    expect(out?.missions.missions.a).toEqual({
+    expect(out?.missions.missions['precision-delivery']).toEqual({
       completed: true,
       stars: 3,
       bestPoints: 80,
@@ -112,24 +129,30 @@ describe('syncProgress', () => {
   it('writes the account progress into settings', async () => {
     vi.spyOn(UserService, 'dashboard').mockResolvedValue({
       success: true,
-      data: dash([mission('a')]),
+      data: dash([mission('MISSION-001')]),
     } as never);
     await syncProgress();
-    expect(useSettingsStore.getState().settings.missions.missions.a?.completed).toBe(true);
+    expect(
+      useSettingsStore.getState().settings.missions.missions['precision-delivery']?.completed,
+    ).toBe(true);
   });
 
   it('waits for settings to load, so they are not overwritten', async () => {
     useSettingsStore.setState({ hydrated: false });
     vi.spyOn(UserService, 'dashboard').mockResolvedValue({
       success: true,
-      data: dash([mission('a')]),
+      data: dash([mission('MISSION-001')]),
     } as never);
     const running = syncProgress();
     await new Promise((r) => setTimeout(r, 0));
-    expect(useSettingsStore.getState().settings.missions.missions.a).toBeUndefined();
+    expect(
+      useSettingsStore.getState().settings.missions.missions['precision-delivery'],
+    ).toBeUndefined();
     useSettingsStore.setState({ hydrated: true });
     await running;
-    expect(useSettingsStore.getState().settings.missions.missions.a?.completed).toBe(true);
+    expect(
+      useSettingsStore.getState().settings.missions.missions['precision-delivery']?.completed,
+    ).toBe(true);
   });
 
   it('changes nothing when offline', async () => {
