@@ -136,6 +136,14 @@ const time = (iso: string | null | undefined) => {
   return Number.isNaN(t) ? 0 : t;
 };
 
+/** The backend's best time, beaten by any of these flights. 0 = none. */
+function fastest(flights: readonly FlightRow[], best = 0): number {
+  return flights.reduce(
+    (t, f) => (f.flight_time > 0 && (t === 0 || f.flight_time < t) ? f.flight_time : t),
+    best,
+  );
+}
+
 export class LocalStore {
   private constructor(private db: DatabaseSync) {}
 
@@ -805,22 +813,27 @@ export class LocalStore {
       ...baseMissions,
       ...CATALOG.missions
         .filter((m) => !baseMissions.some((b) => b.missionId === m.id))
-        .map((m) => ({
-          missionId: m.id as string,
-          missionName: m.name as string,
-          attempts: 0,
-          sessions: 0,
-          completed: 0,
-          bestScore: 0,
-        })),
+        .map(
+          (m): MissionBreakdown => ({
+            missionId: m.id as string,
+            missionName: m.name as string,
+            attempts: 0,
+            sessions: 0,
+            completed: 0,
+            bestScore: 0,
+          }),
+        ),
     ].map((m) => {
       const mine = extra.filter((f) => f.flight_type === 'MISSION' && f.mission_id === m.missionId);
+      const done = mine.filter((f) => f.result === 'SUCCESS');
       return {
         ...m,
         sessions: m.sessions + mine.length,
         attempts: m.attempts + mine.reduce((s, f) => s + f.attempts, 0),
-        completed: m.completed + mine.filter((f) => f.result === 'SUCCESS').length,
+        completed: m.completed + done.length,
         bestScore: mine.reduce((s, f) => Math.max(s, f.score), m.bestScore),
+        bestStars: done.reduce((s, f) => Math.max(s, f.stars), m.bestStars ?? 0),
+        bestTimeSec: fastest(done, m.bestTimeSec),
       };
     });
 
@@ -829,14 +842,16 @@ export class LocalStore {
       ...baseModules,
       ...CATALOG.training
         .filter((t) => !baseModules.some((b) => b.trainingId === t.id))
-        .map((t) => ({
-          trainingId: t.id as string,
-          trainingName: t.name as string,
-          order: t.order as number,
-          sessions: 0,
-          completed: false,
-          bestStars: 0,
-        })),
+        .map(
+          (t): TrainingBreakdown => ({
+            trainingId: t.id as string,
+            trainingName: t.name as string,
+            order: t.order as number,
+            sessions: 0,
+            completed: false,
+            bestStars: 0,
+          }),
+        ),
     ]
       .sort((a, b) => a.order - b.order)
       .map((t) => {
@@ -849,6 +864,7 @@ export class LocalStore {
           sessions: t.sessions + mine.length,
           completed: t.completed || done.length > 0,
           bestStars: done.reduce((s, f) => Math.max(s, f.stars), t.bestStars),
+          bestTimeSec: fastest(done, t.bestTimeSec),
         };
       });
 

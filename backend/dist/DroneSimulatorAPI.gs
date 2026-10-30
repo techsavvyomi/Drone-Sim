@@ -1279,6 +1279,14 @@ function timeOf_(value) {
   return isNaN(d.getTime()) ? 0 : d.getTime();
 }
 
+/** The fastest of these sessions, in seconds; 0 when none has a flight time. */
+function fastestFlight_(sessions) {
+  return sessions.reduce((best, r) => {
+    const t = num_(r['Flight Time']);
+    return t > 0 && (best === 0 || t < best) ? t : best;
+  }, 0);
+}
+
 function getUserDashboard_(payload, auth) {
   assertSelf_(payload, auth.user);
   const recentLimit = number_(payload, 'recentLimit', 1, 50, { optional: true, integer: true, fallback: 10 });
@@ -1315,13 +1323,16 @@ function getUserDashboard_(payload, auth) {
     .sort((a, b) => num_(a.Order) - num_(b.Order))
     .map((m) => {
       const mine = finished.filter((r) => r['Mission ID'] === m['Mission ID']);
+      const done = mine.filter((r) => r.Success === 'SUCCESS');
       return {
         missionId: m['Mission ID'],
         missionName: m['Mission Name'],
         sessions: mine.length,
         attempts: mine.reduce((s, r) => s + num_(r.Attempts), 0),
-        completed: mine.filter((r) => r.Success === 'SUCCESS').length,
+        completed: done.length,
         bestScore: mine.reduce((s, r) => Math.max(s, num_(r.Score)), 0),
+        bestStars: done.reduce((s, r) => Math.max(s, num_(r.Stars)), 0),
+        bestTimeSec: fastestFlight_(done),
       };
     });
 
@@ -1339,6 +1350,7 @@ function getUserDashboard_(payload, auth) {
         sessions: mine.length,
         completed: done.length > 0,
         bestStars: done.reduce((s, r) => Math.max(s, num_(r.Stars)), 0),
+        bestTimeSec: fastestFlight_(done),
       };
     });
 

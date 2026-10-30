@@ -417,6 +417,10 @@ export interface MissionBreakdown {
   sessions: number;
   completed: number;
   bestScore: number;
+  /** Absent from a backend older than V11, as is `bestTimeSec`. */
+  bestStars?: number;
+  /** Fastest successful flight, seconds. 0 = none on record. */
+  bestTimeSec?: number;
 }
 
 export interface TrainingBreakdown {
@@ -426,6 +430,8 @@ export interface TrainingBreakdown {
   sessions: number;
   completed: boolean;
   bestStars: number;
+  /** Fastest successful flight, seconds. Absent from a backend older than V11. */
+  bestTimeSec?: number;
 }
 
 export interface DroneUsage {
