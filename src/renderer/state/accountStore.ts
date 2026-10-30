@@ -4,6 +4,7 @@ import type { AccountInfo, AccountResult } from '@shared/backend/ipc';
 import type { LicenseStatus } from '@shared/backend/license';
 import { UserService } from '../services/userService';
 import { usePilotStore } from './pilotStore';
+import { syncProgress } from './progressSync';
 import { useUiStore } from './uiStore';
 
 // Who is flying.
@@ -76,7 +77,10 @@ export const useAccountStore = create<AccountState>((set, get) => {
       before.status === 'signedOut' || (before.status === 'signedIn' && before.needsSignIn);
     const nowIn = statusOf(info) === 'signedIn' && !info.needsSignIn;
     // A sign-in opens on Home, not on whatever page the last pilot signed out from.
-    if (wasOut && nowIn) useUiStore.getState().setSection('home');
+    if (wasOut && nowIn) {
+      useUiStore.getState().setSection('home');
+      void syncProgress();
+    }
     set({
       status: statusOf(info),
       profile: info.profile,
@@ -122,6 +126,7 @@ export const useAccountStore = create<AccountState>((set, get) => {
           void ask().then(() => {
             clearTimeout(limit);
             done();
+            void syncProgress();
           });
         })
         .catch(() => set({ status: 'disabled' }));
@@ -130,8 +135,10 @@ export const useAccountStore = create<AccountState>((set, get) => {
       // soon as it is back, not at the next 30 s check.
       const onOnline = () => {
         const { status, needsSignIn } = useAccountStore.getState();
-        if (status === 'signedIn' && !needsSignIn)
+        if (status === 'signedIn' && !needsSignIn) {
           void UserService.refreshProfile().catch(() => undefined);
+          void syncProgress();
+        }
       };
       window.addEventListener('online', onOnline);
       return () => {
