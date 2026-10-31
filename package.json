@@ -1,7 +1,7 @@
 {
   "name": "drone-sim-game",
   "productName": "PlutoSim",
-  "version": "0.17.0",
+  "version": "0.17.1",
   "description": "PlutoSim: realistic drone flight simulator for STEM education and pilot training, by Drona Aviation",
   "author": "Drona Aviation",
   "license": "MIT",
