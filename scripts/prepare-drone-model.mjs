@@ -26,7 +26,10 @@
  * Only the outermost tagged node becomes a pivot at runtime; its descendants
  * merely keep their names so `join` leaves the subtree intact.
  *
- * Usage: node scripts/prepare-drone-model.mjs <input.glb> <output.glb> [--props=...]
+ * --full keeps every triangle: the props are tagged and the parts joined, but
+ * nothing is simplified or quantized.
+ *
+ * Usage: node scripts/prepare-drone-model.mjs <input.glb> <output.glb> [--props=...] [--full]
  */
 import { NodeIO } from '@gltf-transform/core';
 import { ALL_EXTENSIONS } from '@gltf-transform/extensions';
@@ -36,6 +39,7 @@ import { MeshoptSimplifier } from 'meshoptimizer';
 const argv = process.argv.slice(2);
 const [input, output] = argv.filter((a) => !a.startsWith('--'));
 const propsArg = argv.find((a) => a.startsWith('--props='))?.slice('--props='.length);
+const full = argv.includes('--full');
 if (!input || !output) {
   console.error(
     'usage: prepare-drone-model.mjs <input.glb> <output.glb> [--props=<regex>|<name,name,...>]',
@@ -112,10 +116,9 @@ await doc.transform(
   dedup(),
   // keepNamed keeps the tagged props out of the merge.
   join({ keepNamed: true }),
-  weld(),
-  simplify({ simplifier: MeshoptSimplifier, error: 0.004 }),
+  ...(full ? [] : [weld(), simplify({ simplifier: MeshoptSimplifier, error: 0.004 })]),
   prune(),
-  quantize(),
+  ...(full ? [] : [quantize()]),
 );
 
 await io.write(output, doc);
@@ -123,7 +126,7 @@ await io.write(output, doc);
 const after = doc.getRoot();
 console.log(
   `meshes: ${after.listMeshes().length}  nodes: ${after.listNodes().length}  ` +
-    `props kept: ${after
-      .listNodes()
-      .filter((n) => (n.getName() || '').startsWith(PROP_PREFIX)).length}`,
+    `props kept: ${
+      after.listNodes().filter((n) => (n.getName() || '').startsWith(PROP_PREFIX)).length
+    }`,
 );
