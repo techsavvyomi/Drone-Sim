@@ -1,7 +1,7 @@
 import type { DroneSpec } from '@shared/types';
 // Vite emits the .glb as a file and hands back its URL (relative base, so it
 // resolves under Electron's file:// protocol in the packaged app).
-import guruModelUrl from '../../../assets/models/PlutoGuru.opt.glb?url';
+import guruModelUrl from '../../../assets/models/PlutoGuru.full.glb?url';
 
 // Pluto Guru — the 230 mm trainer, a bigger frame than the PlutoX nano and a
 // noticeably calmer machine to fly.
@@ -69,14 +69,14 @@ export const guruDrone: DroneSpec = {
   // the .glb, not flown.
   // 25 degrees of uptilt: faster than the Pluto, so it flies more nose-down.
   cameraMount: { position: [0.0008, 0.0247, -0.0532], tiltDeg: 25 },
-  // Guru Kit CAD export with the camera module, optimized for realtime
-  // (195 meshes, 276k tris — on a par with the PlutoX's).
+  // Guru Kit CAD export with the camera module at full detail (user, 2026-10-31):
+  // every triangle of "Pluto Guru.glb" (2.1M tris, 195 meshes), parts joined.
   //
   // The export arrived Z-UP. "Pluto Guru.glb" is it with one parent node
   // rotated -90 degrees about X, so it is Y-up like the other airframes;
   // the geometry itself is untouched.
   //
-  // The four props are tagged PROP_* by scripts/prepare-drone-model.mjs so the
+  // The four props are tagged PROP_* by scripts/prepare-drone-model.mjs --full so the
   // runtime can pivot them independently — see that script for why they have to
   // be named explicitly for this model.
   model: guruModelUrl,
