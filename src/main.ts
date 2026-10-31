@@ -14,6 +14,8 @@ import type { BackendService } from './main/backend/service';
 // and sign-in checks, goes on, so a license that ran out is found the moment
 // the computer is online. It ends only when the OS ends it: Force Quit / Task
 // Manager, shut down, restart or log out, or the installer (QUIT_FOR_UPDATE).
+// On macOS the Dock icon goes with the window (user, 2026-10-31), so a quit app
+// shows no running dot; Launchpad or Applications opens it again.
 
 /** The installer and uninstaller start a second copy with this to end the running one. */
 const QUIT_FOR_UPDATE = '--quit-for-update';
@@ -87,6 +89,7 @@ function showWindow(): void {
 }
 
 function createWindow(): void {
+  void app.dock?.show();
   const win = new BrowserWindow({
     width: 1440,
     height: 900,
@@ -126,6 +129,7 @@ function createWindow(): void {
   win.on('closed', () => {
     if (mainWindow === win) mainWindow = null;
     reportWindowShown();
+    app.dock?.hide();
   });
   // Windows signing out or shutting down: let the process go with it.
   win.on('session-end', quitForReal);
@@ -183,7 +187,8 @@ app.whenReady().then(() => {
   const atLogin =
     process.argv.includes(BACKGROUND) ||
     (process.platform === 'darwin' && app.getLoginItemSettings().wasOpenedAtLogin);
-  if (!atLogin) createWindow();
+  if (atLogin) app.dock?.hide();
+  else createWindow();
   void backend.then((service) => {
     crashReporting.attach(service);
     backendService = service;
