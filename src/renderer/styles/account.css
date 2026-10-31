@@ -1067,11 +1067,6 @@
   gap: var(--space-2);
   margin-top: var(--space-3);
 }
-.profile-signout__saving small {
-  display: block;
-  margin-top: var(--space-1);
-  color: var(--txt-mid);
-}
 .profile-signout .ds-modal__body p.profile-signout__ok {
   color: var(--armed);
 }

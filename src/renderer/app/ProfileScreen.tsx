@@ -100,18 +100,19 @@ export function SignOutDialog({
         {flights} not saved online yet. Connect to the internet to save {them}, or sign out anyway.
       </p>
     );
+  } else if (unsynced > 0 && saving && slow) {
+    sync = (
+      <p className="profile-signout__warn" role="status">
+        {flights} not saved online yet. {unsynced === 1 ? 'It stays' : 'They stay'} on this computer
+        and {unsynced === 1 ? 'uploads' : 'upload'} later, so you can sign out anyway.
+      </p>
+    );
   } else if (unsynced > 0 && saving) {
     sync = (
       <div className="profile-signout__saving" role="status">
         <span className="profile-signout__spinner" aria-hidden="true" />
         <span>
           Saving {unsynced} {unsynced === 1 ? 'flight' : 'flights'} to your profile…
-          {slow && (
-            <small>
-              This is taking longer than usual. {unsynced === 1 ? 'It stays' : 'They stay'} on this
-              computer and {unsynced === 1 ? 'uploads' : 'upload'} later.
-            </small>
-          )}
         </span>
       </div>
     );

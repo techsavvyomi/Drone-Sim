@@ -640,13 +640,14 @@ describe('offline warnings', () => {
     expect(el.textContent).toContain('All flights saved online.');
   });
 
-  it('says so when saving is slow, and goes back to the offline line if the network drops', () => {
+  it('stops spinning when saving is slow, and goes back to the offline line if the network drops', () => {
     vi.useFakeTimers();
     const props = { name: 'A', email: 'a@b.co', onSave: vi.fn(), onStay: vi.fn(), onSignOut: vi.fn() };
     const el = mount(h(SignOutDialog, { ...props, unsynced: 1, offline: false }));
     act(() => buttonNamed(el, 'Save flights now').click());
     act(() => vi.advanceTimersByTime(SAVE_SLOW_MS));
-    expect(el.textContent).toContain('This is taking longer than usual. It stays on this computer and uploads later.');
+    expect(el.textContent).toContain('It stays on this computer and uploads later, so you can sign out anyway.');
+    expect(el.querySelector('.profile-signout__spinner')).toBeNull();
     act(() => root!.render(h(SignOutDialog, { ...props, unsynced: 1, offline: true })));
     expect(el.textContent).toContain('Connect to the internet to save it, or sign out anyway.');
   });
