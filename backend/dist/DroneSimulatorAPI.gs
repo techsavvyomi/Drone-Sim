@@ -87,7 +87,6 @@ const SCHEMA = {
     'Used Hours',
     'Last Online',
     'Clock Skew (min)',
-    'Rollback Count',
     // The app's running total of window minutes, as high as it has ever been
     // reported; an app found below it had its local data put back (Restore Count).
     'Usage Counter (min)',
@@ -180,7 +179,6 @@ const SCHEMA = {
     'Started At',
     'Ended At',
     'Minutes',
-    'Offline',
     'Received At',
   ],
 };
@@ -1635,8 +1633,6 @@ function promptRenewKey() {
 // ---------------------------------------------------------------------------
 
 const USAGE_ID_RE_ = /^[A-Za-z0-9-]{8,64}$/;
-/** A clock this far behind the server's counts as set back (the app's own tolerance). */
-const ROLLBACK_SKEW_MIN_ = -60;
 /** A running total this far below the highest one reported counts as local data put back. */
 const RESTORE_SLACK_MIN_ = 5;
 
@@ -1649,9 +1645,8 @@ function looseTime_(value) {
 /**
  * The app's open-window time, sent while online (every stretch flown offline
  * goes with the next one). A stretch is sent again while it grows, so a known
- * Usage ID updates its row. Also notes the app's clock against the server's:
- * `Clock Skew (min)` is the latest, `Rollback Count` counts the times it was
- * found set back. And keeps the app's running total (`totalMinutes`) as high as
+ * Usage ID updates its row. Also notes the app's clock against the server's in
+ * `Clock Skew (min)`. And keeps the app's running total (`totalMinutes`) as high as
  * it has been: a total below that, or `restored` from an app that found itself
  * below the license's `usageFloorMin`, is a restored backup (`Restore Count`).
  */
@@ -1669,7 +1664,6 @@ function reportUsage_(payload, auth) {
       minutes: Math.round(number_(u, 'minutes', 0, 24 * 60) * 100) / 100,
       startedAt: looseTime_(u.startedAt),
       endedAt: looseTime_(u.endedAt),
-      offline: u.offline === true,
     };
   });
   const total = number_(payload, 'totalMinutes', 0, 10000000, { optional: true, fallback: null });
@@ -1701,7 +1695,6 @@ function reportUsage_(payload, auth) {
             Email: cell_(user.Email).toLowerCase(),
             'Activation Key': key,
             'Started At': u.startedAt,
-            Offline: u.offline ? 'YES' : 'NO',
           },
           fields,
         );
@@ -1718,12 +1711,7 @@ function reportUsage_(payload, auth) {
         if (cell_(r['Activation Key']).toUpperCase() === key) minutes += num_(r.Minutes);
       });
       const patch = { 'Used Hours': Math.round((minutes / 60) * 100) / 100, 'Last Online': now };
-      if (skewMin !== null) {
-        const before = keyRow['Clock Skew (min)'];
-        const wasBack = before !== '' && num_(before) <= ROLLBACK_SKEW_MIN_;
-        patch['Clock Skew (min)'] = skewMin;
-        if (skewMin <= ROLLBACK_SKEW_MIN_ && !wasBack) patch['Rollback Count'] = num_(keyRow['Rollback Count']) + 1;
-      }
+      if (skewMin !== null) patch['Clock Skew (min)'] = skewMin;
       if (total !== null) {
         const highest = num_(keyRow['Usage Counter (min)']);
         if (restored || total < highest - RESTORE_SLACK_MIN_) patch['Restore Count'] = num_(keyRow['Restore Count']) + 1;

@@ -441,7 +441,7 @@ describe('license in the app', () => {
       await svc.refreshProfile();
       const rows = be.ss.sheet('Usage').objects();
       expect(rows).toHaveLength(1);
-      expect(rows[0]).toMatchObject({ Minutes: 45, Offline: 'YES', 'Activation Key': key });
+      expect(rows[0]).toMatchObject({ Minutes: 45, 'Activation Key': key });
       const keyRow = be.ss.sheet('ActivationKeys').objects().find((r) => r['Activation Key'] === key)!;
       expect(keyRow['Used Hours']).toBe(0.75);
       // The test's clock ran 45 minutes ahead of the backend's real one.

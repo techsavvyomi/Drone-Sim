@@ -74,7 +74,6 @@ const SCHEMA = {
     'Used Hours',
     'Last Online',
     'Clock Skew (min)',
-    'Rollback Count',
     // The app's running total of window minutes, as high as it has ever been
     // reported; an app found below it had its local data put back (Restore Count).
     'Usage Counter (min)',
@@ -167,7 +166,6 @@ const SCHEMA = {
     'Started At',
     'Ended At',
     'Minutes',
-    'Offline',
     'Received At',
   ],
 };

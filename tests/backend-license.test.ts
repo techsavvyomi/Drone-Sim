@@ -262,22 +262,20 @@ describe('usage reports', () => {
     be.call('reportUsage', { userId, clientTime: new Date().toISOString(), usage: [row('use-aaaaaaaa', 75)] }, token);
     const rows = be.ss.sheet('Usage').objects();
     expect(rows).toHaveLength(2);
-    expect(rows.find((r) => r['Usage ID'] === 'use-aaaaaaaa')).toMatchObject({ Minutes: 75, Offline: 'NO', 'Activation Key': key });
-    expect(rows.find((r) => r['Usage ID'] === 'use-bbbbbbbb')).toMatchObject({ Offline: 'YES' });
+    expect(rows.find((r) => r['Usage ID'] === 'use-aaaaaaaa')).toMatchObject({ Minutes: 75, 'Activation Key': key });
+    expect(rows.find((r) => r['Usage ID'] === 'use-bbbbbbbb')).toBeDefined();
+    expect(rows[0]).not.toHaveProperty('Offline');
     expect(keyRow(key)['Used Hours']).toBe(2);
     expect(Object.prototype.toString.call(keyRow(key)['Last Online'])).toBe('[object Date]');
     expect(keyRow(key)['Clock Skew (min)']).toBe(0);
   });
 
-  it('counts a clock found set back once per time it happens', () => {
+  it('notes a clock set back, and keeps no count of it', () => {
     const { key, token, userId } = signedIn();
     const back = new Date(Date.now() - 2 * DAY).toISOString();
     be.call('reportUsage', { userId, clientTime: back }, token);
-    be.call('reportUsage', { userId, clientTime: back }, token);
-    expect(keyRow(key)).toMatchObject({ 'Rollback Count': 1, 'Clock Skew (min)': -2880 });
-    be.call('reportUsage', { userId, clientTime: new Date().toISOString() }, token);
-    be.call('reportUsage', { userId, clientTime: back }, token);
-    expect(keyRow(key)['Rollback Count']).toBe(2);
+    expect(keyRow(key)['Clock Skew (min)']).toBe(-2880);
+    expect(keyRow(key)).not.toHaveProperty('Rollback Count');
   });
 
   it('keeps the highest running total, hands it back in the license, and counts a put-back database', () => {
