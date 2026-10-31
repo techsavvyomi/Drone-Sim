@@ -417,7 +417,7 @@ describe('license in the app', () => {
       const { svc } = await smallBudget();
       online = false;
       svc.setWindowShown(true);
-      useFor(svc, 8 * DAY / MIN / 8, false);
+      useFor(svc, 8 * HOUR / MIN, false);
       clock += 8 * DAY;
       svc.tickLicense();
       expect(svc.account().license?.state).toBe('expired');
