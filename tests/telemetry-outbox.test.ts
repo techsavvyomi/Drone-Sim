@@ -253,3 +253,33 @@ describe('telemetry outbox', () => {
     expect(h.outbox.status().pending).toBe(0);
   });
 });
+
+describe('a flight the queue lost', () => {
+  it('goes back as a start and an end when it has no server session', async () => {
+    const h = harness();
+    h.outbox.requeue(start('k1'), null, endOf());
+    await h.outbox.flush();
+    expect(h.sent.map((s) => s.action)).toEqual(['startSession', 'endSession']);
+    expect(h.sent[1].payload.sessionId).toBe('SES-000001');
+    expect(h.outbox.status().pending).toBe(0);
+  });
+
+  it('goes back as an end alone when the backend already opened it', async () => {
+    const h = harness();
+    h.outbox.requeue(start('k1'), 'SES-000042', endOf());
+    await h.outbox.flush();
+    expect(h.sent.map((s) => s.action)).toEqual(['endSession']);
+    expect(h.sent[0].payload.sessionId).toBe('SES-000042');
+  });
+
+  it('is left alone while the queue still has its end, or the flight is still open', () => {
+    const h = harness();
+    h.outbox.startSession('USR-000001', start('open'));
+    h.outbox.requeue(start('open'), null, endOf());
+    expect(h.outbox.status().pending).toBe(1);
+
+    h.outbox.endSession('open', endOf());
+    h.outbox.requeue(start('open'), null, endOf());
+    expect(h.outbox.status().pending).toBe(2);
+  });
+});

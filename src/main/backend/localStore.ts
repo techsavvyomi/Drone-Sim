@@ -5,6 +5,7 @@ import type {
   UsageStretch,
   FlightType,
   MissionBreakdown,
+  InputMode,
   SessionResult,
   SessionSummary,
   StartSessionRequest,
@@ -685,6 +686,40 @@ export class LocalStore {
     this.db
       .prepare("UPDATE flights SET state = 'dropped' WHERE id = ? AND state <> 'synced'")
       .run(key);
+  }
+
+  /** Finished flights still waiting to upload, as the requests that would send them. */
+  pendingFlights(): {
+    start: StartSessionRequest;
+    sessionId: string | null;
+    end: Omit<EndSessionRequest, 'sessionId'>;
+  }[] {
+    const rows = this.db
+      .prepare("SELECT * FROM flights WHERE state = 'pending'")
+      .all() as unknown as FlightRow[];
+    return rows.map((row) => ({
+      start: {
+        userId: row.user_id,
+        flightType: row.flight_type,
+        ...(row.mission_id ? { missionId: row.mission_id } : {}),
+        ...(row.training_id ? { trainingId: row.training_id } : {}),
+        droneId: row.drone_id ?? '',
+        inputMode: (row.input_mode ?? 'KEYBOARD') as InputMode,
+        startTime: row.start_time,
+        clientSessionKey: row.id,
+      },
+      sessionId: row.session_id,
+      end: {
+        endTime: row.end_time ?? row.start_time,
+        duration: row.duration,
+        flightTime: row.flight_time,
+        result: row.result as SessionResult,
+        score: row.score,
+        stars: row.stars,
+        crashCount: row.crash_count,
+        attempts: row.attempts,
+      },
+    }));
   }
 
   /** Flights the backend does not have yet: still open, or ended and waiting to upload. */

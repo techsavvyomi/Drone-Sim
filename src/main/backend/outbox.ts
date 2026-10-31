@@ -257,6 +257,24 @@ export class Outbox {
     this.kick();
   }
 
+  /**
+   * Put a finished flight back when the flight log has it but the queue lost it,
+   * as a crash or a second copy of the app overwriting this file can. The backend
+   * applies a start and an end once, so one that did land is not counted again.
+   */
+  requeue(start: StartSessionRequest, sessionId: string | null, end: EndSnapshot): void {
+    const { clientSessionKey: key, userId } = start;
+    const queued = (kind: Item['kind']) =>
+      this.state.items.some((i) => i.kind === kind && i.key === key);
+    if (this.state.open[key] || queued('end')) return;
+    if (sessionId) this.state.sessionIds[key] = sessionId;
+    else if (!queued('start'))
+      this.push({ id: randomUUID(), userId, kind: 'start', key, payload: start, tries: 0 });
+    this.push({ id: randomUUID(), userId, kind: 'end', key, payload: end, tries: 0 });
+    void this.persist();
+    this.kick();
+  }
+
   recordEvents(userId: string, key: string | null, events: GameplayEventInput[]): void {
     if (events.length === 0) return;
     const last = this.state.items[this.state.items.length - 1];

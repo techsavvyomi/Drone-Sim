@@ -408,3 +408,60 @@ describe('the profile and sign-out', () => {
     expect(calls('getUserProfile').at(-1)?.[2]).toBe('tok-0');
   });
 });
+
+describe('a flight the queue lost', () => {
+  /** A flight ended offline. Booting again with no queue file loses its queue items. */
+  async function strand() {
+    await boot();
+    await svc.login({ email: EMAIL, activationKey: KEY });
+    online = false;
+    svc.startSession({
+      flightType: 'FREE_FLIGHT',
+      droneId: 'DRONE-002',
+      inputMode: 'KEYBOARD',
+      startTime: new Date(Date.now() - 300_000).toISOString(),
+      clientSessionKey: 'lost',
+    });
+    svc.endSession('lost', {
+      endTime: new Date().toISOString(),
+      duration: 60,
+      flightTime: 40,
+      result: 'SUCCESS',
+      score: 0,
+      crashCount: 0,
+      attempts: 1,
+    });
+    online = true;
+  }
+
+  it('uploads at the next launch, and stops counting as unsaved', async () => {
+    await strand();
+    await boot();
+    expect(svc.telemetryStatus().unsyncedFlights).toBe(1);
+    await svc.outbox.flush();
+    expect(calls('startSession')).toHaveLength(1);
+    expect(calls('endSession')).toHaveLength(1);
+    expect(svc.telemetryStatus().unsyncedFlights).toBe(0);
+  });
+
+  it('uploads from Save flights now, without a restart', async () => {
+    await strand();
+    (svc.outbox as unknown as { state: object }).state = { items: [], sessionIds: {}, open: {} };
+    await svc.syncNow();
+    await svc.outbox.flush();
+    expect(calls('endSession')).toHaveLength(1);
+    expect(svc.telemetryStatus().unsyncedFlights).toBe(0);
+  });
+
+  it('stops counting a flight the backend refuses for good', async () => {
+    await strand();
+    await boot(
+      backend({
+        startSession: { success: false, code: 'VALIDATION', message: 'startTime is too old' },
+      }),
+    );
+    await svc.outbox.flush();
+    expect(calls('endSession')).toHaveLength(0);
+    expect(svc.telemetryStatus().unsyncedFlights).toBe(0);
+  });
+});

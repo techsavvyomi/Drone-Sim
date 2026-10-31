@@ -231,6 +231,7 @@ export class BackendService {
     await this.outbox.init();
     // Flights a previous run left open end as ABORTED here too, as the outbox ends them.
     this.withLocal((l) => l.abortOpen());
+    this.requeueLostFlights();
     if (this.deps.license) {
       this.deviceId = (await this.deps.device().catch(() => null))?.deviceId ?? null;
       this.tickLicense();
@@ -549,6 +550,14 @@ export class BackendService {
     if (!this.file.current || !this.deps.configured) return;
     this.outbox.retryNow();
     await this.refreshProfile();
+    this.requeueLostFlights();
+  }
+
+  /** Nothing else would ever send a flight the queue lost, or clear its "not saved". */
+  private requeueLostFlights(): void {
+    for (const f of this.withLocal((l) => l.pendingFlights()) ?? []) {
+      if (this.tokenFor(f.start.userId)) this.outbox.requeue(f.start, f.sessionId, f.end);
+    }
   }
 
   telemetryStatus(): TelemetryStatus {

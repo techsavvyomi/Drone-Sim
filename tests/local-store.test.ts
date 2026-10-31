@@ -276,6 +276,19 @@ describe('the flight log', () => {
     expect(store.profile('USR-1', base).stats.totalFlights).toBe(0);
   });
 
+  it('lists a finished flight still to upload, with what the backend needs to take it', () => {
+    start('p');
+    expect(store.pendingFlights()).toEqual([]);
+    store.endFlight('p', end);
+    const [flight] = store.pendingFlights();
+    expect(flight.start).toMatchObject({ userId: 'USR-1', clientSessionKey: 'p' });
+    expect(flight.sessionId).toBeNull();
+    expect(flight.end).toMatchObject({ duration: 600, flightTime: 600, result: 'SUCCESS' });
+    store.setSessionId('p', 'SES-9');
+    store.markSynced('SES-9', 0);
+    expect(store.pendingFlights()).toEqual([]);
+  });
+
   it('ends a flight the app never ended as ABORTED with its last checkpoint', () => {
     start('b');
     store.checkpointFlight('b', {
